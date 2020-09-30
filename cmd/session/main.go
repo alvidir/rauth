@@ -1,12 +1,11 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net"
 	"os"
 
-	"github.com/alvidir/session/service/session"
+	srv "github.com/alvidir/session/service"
 	"google.golang.org/grpc"
 )
 
@@ -20,42 +19,22 @@ const (
 	envPortKey = "SERVICE_PORT"
 	envNetwKey = "SERVICE_NETW"
 
-	defaultPort    = "9090"
-	defaultNetwork = "tcp"
+	// defaultPort    = "9090"
+	// defaultNetwork = "tcp"
 )
 
 var (
-	// slice of all services names that will be attended by the same grpc server
-	services = []string{session.ServiceName}
+	address = os.Getenv(envPortKey)
+	network = os.Getenv(envNetwKey)
 )
 
-func network() string {
-	if value, ok := os.LookupEnv(envNetwKey); ok {
-		return value
-	}
-
-	return defaultNetwork
-}
-
-func address() (address string) {
-	address = defaultPort
-	if value, ok := os.LookupEnv(envPortKey); ok {
-		address = value
-	}
-
-	if address[0] != ':' {
-		address = fmt.Sprintf(":%s", address)
-	}
-
-	return
-}
-
 func main() {
-	address := address()
-	network := network()
 	log.Printf(infoSetup, network, address)
 
 	server := grpc.NewServer()
+	service := srv.ImplementedSessionServer()
+	service.RegisterServer(server)
+
 	lis, err := net.Listen(network, address)
 	if err != nil {
 		log.Panicf(errListenFailed, err)
@@ -67,6 +46,5 @@ func main() {
 		log.Panicf(errServeFailed, err)
 	}
 
-	// on finishing
 	log.Print(infoDone)
 }
