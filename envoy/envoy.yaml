@@ -20,10 +20,10 @@ static_resources:
             - name: ingress_service
               domains: ["*"]
               routes:
-              - match: { prefix: "/authentication/" }
+              - match: { prefix: "/tp-auth/" }
                 route:
                   prefix_rewrite: "/"
-                  cluster: authentication
+                  cluster: tp-auth
                   max_grpc_timeout: 0s
               cors:
                 allow_origin_string_match:
@@ -37,9 +37,9 @@ static_resources:
           - name: envoy.cors
           - name: envoy.router
   clusters: 
-  - name: authentication
+  - name: tp-auth
     connect_timeout: 5s
     type: logical_dns
     http2_protocol_options: {}
     lb_policy: round_robin
-    hosts: [{ socket_address: { address: authentication, port_value: 9090 }}]
+    hosts: [{ socket_address: { address: tp-auth, port_value: 9090 }}]

@@ -1,6 +1,6 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
-github.com/alvidir/authentication v0.0.0-20200930131337-79d85ccdb198 h1:65CUrbu1GrPpE4q6cc45fCkINpU1JdlgmYXAwgUJ0LQ=
+github.com/alvidir/tp-auth v0.0.0-20200930131337-79d85ccdb198 h1:65CUrbu1GrPpE4q6cc45fCkINpU1JdlgmYXAwgUJ0LQ=
 github.com/alvidir/util v0.0.0-20200928183113-0a80c7d7b41d h1:X5U1YinVsqX2RhH4zt5HzEdxHTuQ2t2I52mW3zS/6mo=
 github.com/alvidir/util v0.0.0-20200928183113-0a80c7d7b41d/go.mod h1:utm+V6pEDV/IS/cqbG6oAjwe1JsaIwGHq+RjNbc6QCE=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=

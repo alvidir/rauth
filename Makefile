@@ -1,7 +1,7 @@
 # Global about the project
 VERSION=0.1.1
 REPO=alvidir
-PROJECT=authentication
+PROJECT=tp-auth
 # Volume variables
 ROOT="${PWD}"
 VOLUME_PATH=/tmp/${PROJECT}

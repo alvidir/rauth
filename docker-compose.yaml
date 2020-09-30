@@ -30,8 +30,8 @@ services:
 
     ### ENVOY PROXY ###
     envoy:
-        container_name: authentication-envoy
-        image: alvidir/authentication:0.1.0-envoy
+        container_name: tp-auth-envoy
+        image: alvidir/tp-auth:0.1.0-envoy
         restart: always
         ports:
             - "8080:8080"
@@ -40,9 +40,9 @@ services:
             - ingress
     
     ### BACKEND ###
-    authentication:
-        container_name: authentication
-        image: alvidir/authentication:0.1.0
+    tp-auth:
+        container_name: tp-auth
+        image: alvidir/tp-auth:0.1.0
         restart: always
         networks: 
             - ingress

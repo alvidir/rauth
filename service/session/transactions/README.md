@@ -1,6 +1,6 @@
 # Transactions
 
-The `sequence diagram` for each session's transaction has been done via `Draw.io` provided by Google.
+The `sequence diagram` for each authentication's transaction has been done via `Draw.io` provided by Google.
 
 In the following table are provided each public link for the corresponding transaction's design. 
 

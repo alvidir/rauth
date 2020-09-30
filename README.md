@@ -1,2 +1,2 @@
-# authentication
+# tp-auth
 Authentication management service

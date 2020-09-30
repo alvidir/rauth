@@ -1,4 +1,4 @@
-module github.com/alvidir/authentication
+module github.com/alvidir/tp-auth
 
 go 1.15
 
