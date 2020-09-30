@@ -6,7 +6,7 @@ import (
 	"net"
 	"os"
 
-	srv "github.com/alvidir/session/service"
+	srv "github.com/alvidir/authentication/service"
 	"google.golang.org/grpc"
 )
 

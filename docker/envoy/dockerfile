@@ -1,7 +1,7 @@
 FROM envoyproxy/envoy:v1.14-latest
 
 LABEL maintainer="Hector Morales <hector.morales.carnice@gmail.com>"
-LABEL repo-url="https://github.com/alvidir/session"
+LABEL repo-url="https://github.com/alvidir/authentication"
 LABEL version="alpha"
 
 COPY envoy/envoy.yaml /etc/envoy

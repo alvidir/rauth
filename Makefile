@@ -1,10 +1,10 @@
 # Global about the project
 VERSION=0.1.1
 REPO=alvidir
-PROJECT=session
+PROJECT=authentication
 # Volume variables
 ROOT="${PWD}"
-VOLUME_PATH=/tmp/session
+VOLUME_PATH=/tmp/${PROJECT}
 # Mysql variables
 MYSQL_CONTAINER_NAME=mysql
 MYSQL_VOLUME_PATH="${VOLUME_PATH}/mysql"

@@ -1,5 +1,5 @@
 syntax = "proto3";
-option go_package = "github.com/alvidir/session/proto/session";
+option go_package = "github.com/alvidir/authentication/proto/session";
 
 package session;
 import public "proto/session/login.proto";
