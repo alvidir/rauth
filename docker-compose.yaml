@@ -41,7 +41,7 @@ services:
     
     ### BACKEND ###
     tp-auth:
-        container_name: tp-auth
+        container_name: tp-auth-server
         image: alvidir/tp-auth:0.1.0
         restart: always
         networks: 
