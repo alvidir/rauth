@@ -14,7 +14,7 @@ MYADMIN_CONTAINER_NAME=myadmin
 DB_NETWORK_NAME=${PROJECT}.network.db
 
 proto:
-	protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative proto/*.proto
+	protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative proto/session/*.proto
 
 build:
 	docker build -t ${REPO}/${PROJECT}:${VERSION}-envoy -f ./docker/envoy/dockerfile .

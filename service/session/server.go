@@ -4,6 +4,7 @@ import (
 	"context"
 
 	pb "github.com/alvidir/authentication/proto/session"
+	tx "github.com/alvidir/authentication/service/session/transactions"
 	"google.golang.org/grpc"
 )
 
@@ -19,7 +20,7 @@ func (session *session) RegisterServer(grpcServer *grpc.Server) {
 
 // Login implementation for the protobuf contract
 func (session *session) Login(ctx context.Context, req *pb.LoginRequest) (out *pb.SessionResponse, err error) {
-	txLogin := newTxLogin()
+	txLogin := tx.NewTxLogin()
 	txLogin.Execute(ctx)
 
 	out = &pb.SessionResponse{
@@ -33,7 +34,7 @@ func (session *session) Login(ctx context.Context, req *pb.LoginRequest) (out *p
 
 // GoogleLogin implementation for the protobuf contract
 func (session *session) GoogleLogin(ctx context.Context, req *pb.GoogleLoginRequest) (out *pb.SessionResponse, err error) {
-	txGoogleLogin := newTxGoogleLogin()
+	txGoogleLogin := tx.NewTxGoogleLogin()
 	txGoogleLogin.Execute(ctx)
 
 	out = &pb.SessionResponse{
@@ -47,7 +48,7 @@ func (session *session) GoogleLogin(ctx context.Context, req *pb.GoogleLoginRequ
 
 // Logout implementation for the protobuf contract
 func (session *session) Logout(ctx context.Context, req *pb.LogoutRequest) (out *pb.SessionResponse, err error) {
-	txLogout := newTxLogout()
+	txLogout := tx.NewTxLogout()
 	txLogout.Execute(ctx)
 
 	out = &pb.SessionResponse{
@@ -61,7 +62,7 @@ func (session *session) Logout(ctx context.Context, req *pb.LogoutRequest) (out 
 
 // Signup implementation for the protobuf contract
 func (session *session) Signup(ctx context.Context, req *pb.SignupRequest) (out *pb.SessionResponse, err error) {
-	txSignup := newTxSignup()
+	txSignup := tx.NewTxSignup()
 	txSignup.Execute(ctx)
 
 	out = &pb.SessionResponse{

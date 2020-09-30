@@ -4,22 +4,22 @@ import (
 	"github.com/alvidir/util/pattern/transaction"
 )
 
-func newTxLogin() transaction.Tx {
+func NewTxLogin() transaction.Tx {
 	body := &TxLogin{}
 	return transaction.NewTransaction(body)
 }
 
-func newTxGoogleLogin() transaction.Tx {
+func NewTxGoogleLogin() transaction.Tx {
 	body := &TxGoogleLogin{}
 	return transaction.NewTransaction(body)
 }
 
-func newTxLogout() transaction.Tx {
+func NewTxLogout() transaction.Tx {
 	body := &TxLogout{}
 	return transaction.NewTransaction(body)
 }
 
-func newTxSignup() transaction.Tx {
+func NewTxSignup() transaction.Tx {
 	body := &TxSignup{}
 	return transaction.NewTransaction(body)
 }

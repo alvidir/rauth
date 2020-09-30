@@ -10,6 +10,6 @@ const (
 	envPortKey = "SERVICE_PORT"
 	envNetwKey = "SERVICE_NETW"
 
-	// defaultPort    = "9090"
-	// defaultNetwork = "tcp"
+	defaultPort    = "9090"
+	defaultNetwork = "tcp"
 )

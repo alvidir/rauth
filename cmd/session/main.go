@@ -6,13 +6,8 @@ import (
 	"net"
 	"os"
 
-	srv "github.com/alvidir/authentication/service"
+	srv "github.com/alvidir/authentication/service/session"
 	"google.golang.org/grpc"
-)
-
-var (
-	address = getAddress()
-	network = getNetwork()
 )
 
 func getNetwork() string {
@@ -37,6 +32,8 @@ func getAddress() (address string) {
 }
 
 func main() {
+	address := getAddress()
+	network := getNetwork()
 	log.Printf(infoSetup, network, address)
 
 	server := grpc.NewServer()

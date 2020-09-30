@@ -30,8 +30,8 @@ services:
 
     ### ENVOY PROXY ###
     envoy:
-        container_name: session-envoy
-        image: alvidir/session:0.1.0-envoy
+        container_name: authentication-envoy
+        image: alvidir/authentication:0.1.0-envoy
         restart: always
         ports:
             - "8080:8080"
@@ -40,9 +40,9 @@ services:
             - ingress
     
     ### BACKEND ###
-    session:
-        container_name: session-server
-        image: alvidir/session:0.1.0
+    authentication:
+        container_name: authentication
+        image: alvidir/authentication:0.1.0
         restart: always
         networks: 
             - ingress
