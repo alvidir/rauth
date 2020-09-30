@@ -1,5 +1,5 @@
 syntax = "proto3";
-option go_package = "github.com/alvidir/mastermind/proto/session";
+option go_package = "github.com/alvidir/session/proto/session";
 
 package session;
 

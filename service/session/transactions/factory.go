@@ -1,26 +1,25 @@
-package session
+package transactions
 
 import (
-	"github.com/alvidir/mastermind/service/session/transactions"
 	"github.com/alvidir/util/pattern/transaction"
 )
 
 func newTxLogin() transaction.Tx {
-	body := &transactions.TxLogin{}
+	body := &TxLogin{}
 	return transaction.NewTransaction(body)
 }
 
 func newTxGoogleLogin() transaction.Tx {
-	body := &transactions.TxGoogleLogin{}
+	body := &TxGoogleLogin{}
 	return transaction.NewTransaction(body)
 }
 
 func newTxLogout() transaction.Tx {
-	body := &transactions.TxLogout{}
+	body := &TxLogout{}
 	return transaction.NewTransaction(body)
 }
 
 func newTxSignup() transaction.Tx {
-	body := &transactions.TxSignup{}
+	body := &TxSignup{}
 	return transaction.NewTransaction(body)
 }

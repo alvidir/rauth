@@ -1,5 +1,5 @@
 syntax = "proto3";
-option go_package = "github.com/alvidir/mastermind/proto/session";
+option go_package = "github.com/alvidir/session/proto/session";
 
 package session;
 import public "proto/session/login.proto";
@@ -20,8 +20,8 @@ message SessionResponse {
 }
 
 service Session {
-  rpc Login(session.LoginRequest) returns (SessionResponse);
-  rpc GoogleLogin(session.GoogleLoginRequest) returns (SessionResponse);
-  rpc Logout(session.LogoutRequest) returns (SessionResponse);
-  rpc Signup(session.SignupRequest) returns (SessionResponse);
+  rpc Login(proto.LoginRequest) returns (SessionResponse);
+  rpc GoogleLogin(proto.GoogleLoginRequest) returns (SessionResponse);
+  rpc Logout(proto.LogoutRequest) returns (SessionResponse);
+  rpc Signup(proto.SignupRequest) returns (SessionResponse);
 }

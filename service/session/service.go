@@ -3,7 +3,7 @@ package session
 import (
 	"context"
 
-	pb "github.com/alvidir/session/proto"
+	pb "github.com/alvidir/session/proto/session"
 	"google.golang.org/grpc"
 )
 
