@@ -26,7 +26,7 @@ func main() {
 		log.Panicf(errNoEndpoint, envServerAddr)
 	}
 
-	conn, err := grpc.Dial(serverAddr)
+	conn, err := grpc.Dial(serverAddr, grpc.WithInsecure())
 	if err != nil {
 		log.Panicf(errConnection, err.Error())
 	}

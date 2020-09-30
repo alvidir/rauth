@@ -2,54 +2,54 @@ version: '3.8'
 
 services:
     ### DATABASE ###
-    #mysql:
-    #    container_name: mysql
-    #    image: mysql/mysql-server:latest
-    #    restart: on-failure
-    #    volumes:
-    #        - "dbdata:/var/lib/mysql"
-    #        - "dbdump:/docker-entrypoint-initdb.d"
-    #    networks: 
-    #        - database
-    #
-    #myadmin:
-    #    container_name: myadmin
-    #    image: phpmyadmin/phpmyadmin:latest
-    #    restart: always
-    #    depends_on:
-    #        - mysql
-    #    ports:
-    #        - "9900:80"
-    #    networks: 
-    #        - database
-    #    environment: 
-    #        PMA_HOST: mysql
-    #        PMA_PORT: 3306
-    #        PMA_USER: myadmin
-    #        PMA_PASSWORD: myadminpwd
-    #
-    #### ENVOY PROXY ###
-    #envoy:
-    #    container_name: tp-auth-envoy
-    #    image: alvidir/tp-auth:0.1.0-envoy
-    #    restart: always
-    #    ports:
-    #        - "8080:8080"
-    #        - "9901:9901"
-    #    networks: 
-    #        - ingress
-    #
-    #### BACKEND ###
-    #tp-auth:
-    #    container_name: tp-auth-server
-    #    image: alvidir/tp-auth:0.1.0
-    #    restart: always
-    #    networks: 
-    #        - ingress
-    #        - domain
-    #    environment: 
-    #        SERVICE_PORT: 9090
-    #        SERVICE_NETW: tcp
+    mysql:
+        container_name: mysql
+        image: mysql/mysql-server:latest
+        restart: on-failure
+        volumes:
+            - "dbdata:/var/lib/mysql"
+            - "dbdump:/docker-entrypoint-initdb.d"
+        networks: 
+            - database
+    
+    myadmin:
+        container_name: myadmin
+        image: phpmyadmin/phpmyadmin:latest
+        restart: always
+        depends_on:
+            - mysql
+        ports:
+            - "9900:80"
+        networks: 
+            - database
+        environment: 
+            PMA_HOST: mysql
+            PMA_PORT: 3306
+            PMA_USER: myadmin
+            PMA_PASSWORD: myadminpwd
+    
+    ### ENVOY PROXY ###
+    envoy:
+        container_name: tp-auth-envoy
+        image: alvidir/tp-auth:0.1.0-envoy
+        restart: always
+        ports:
+            - "8080:8080"
+            - "9901:9901"
+        networks: 
+            - ingress
+    
+    ### BACKEND ###
+    tp-auth:
+        container_name: tp-auth-server
+        image: alvidir/tp-auth:0.1.0
+        restart: always
+        networks: 
+            - ingress
+            - domain
+        environment: 
+            SERVICE_PORT: 9090
+            SERVICE_NETW: tcp
 
     ### TESTING ###
     testing:
@@ -63,21 +63,21 @@ services:
             ENDPOINT: tp-auth-server:9090
         command: cat
     
-#networks:
+networks:
     # Ingress network works as bridge between envoyproxy and the available services
-    #ingress:
-    #    name: ingress
-    #    driver: bridge
+    ingress:
+        name: ingress
+        driver: bridge
     
     # Domain network is the internal network of services
-    #domain:
-    #    name: domain
-    #    driver: bridge
-    #
+    domain:
+        name: domain
+        driver: bridge
+    
     ## Database network is the bridge between domain environment and the sql databases
-    #database:
-    #    name: database
-    #    driver: bridge
+    database:
+        name: database
+        driver: bridge
 
 volumes:
     dbdata:
