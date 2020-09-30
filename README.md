@@ -1,2 +1,2 @@
-# session
-Sessions management service
+# authentication
+Authentication management service
