@@ -1,0 +1,14 @@
+FROM golang:latest
+
+LABEL maintainer="Hector Morales <hector.morales.carnice@gmail.com>"
+LABEL repo-url="https://github.com/alvidir/tp-auth"
+LABEL version="alpha"
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main test/session/main.go
+CMD [ "./main" ]
