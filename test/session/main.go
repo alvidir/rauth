@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	infoSetup = "The service is being started on %s%s"
+	infoSetup = "Testing connection to %s"
 	infoDone  = "Testing has finished successfully"
 
 	errNoEndpoint = "Got no value for the env variable %s"
@@ -26,6 +26,7 @@ func main() {
 		log.Panicf(errNoEndpoint, envServerAddr)
 	}
 
+	log.Printf(infoSetup, serverAddr)
 	conn, err := grpc.Dial(serverAddr, grpc.WithInsecure())
 	if err != nil {
 		log.Panicf(errConnection, err.Error())
