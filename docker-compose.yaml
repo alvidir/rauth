@@ -50,18 +50,6 @@ services:
         environment: 
             SERVICE_PORT: 9090
             SERVICE_NETW: tcp
-
-    ### TESTING ###
-    testing:
-        container_name: tp-auth-tst
-        build:
-            context: .
-            dockerfile: ./test/session/dockerfile
-        #networks: 
-        #    - ingress
-        environment: 
-            ENDPOINT: tp-auth-server:9090
-        command: cat
     
 networks:
     # Ingress network works as bridge between envoyproxy and the available services
