@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package session;
+
+// SignupRequest description
+message SignupRequest {
+  string username = 1;  // required
+  string email = 2;     // required
+  string password = 3;  // required
+}
