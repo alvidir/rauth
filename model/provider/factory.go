@@ -42,7 +42,7 @@ func FindProvider(name string) (provider Provider, ok bool) {
 
 		providerName := providerName(name)
 		if ok = providerName == currentName; ok {
-			provider = value
+			provider = value.(Provider)
 		}
 
 		return !ok // while not found
