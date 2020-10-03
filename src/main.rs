@@ -1,5 +1,7 @@
 pub mod server;
+mod model;
 
+use model::session;
 use structopt::StructOpt;
 
 // These are the options used by the `server` subcommand
