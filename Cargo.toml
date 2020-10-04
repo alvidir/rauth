@@ -14,6 +14,7 @@ prost = "0.6"
 structopt = "0.3"
 # Async runtime
 tokio = { version = "0.2", features = ["full"] }
+context = "2.1.0"
 
 [build-dependencies]
 tonic-build = "0.3.0"
