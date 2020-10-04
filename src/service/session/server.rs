@@ -1,5 +1,5 @@
 use tonic::{transport::Server, Request, Response, Status};
-use crate::service::session::transactions::factory;
+use crate::service::session::transactions::*;
 
 // Import the generated rust code into module
 pub mod session_proto {
@@ -21,25 +21,49 @@ pub struct SessionImplementation {}
 #[tonic::async_trait]
 impl Session for SessionImplementation {
     async fn login(&self, request: Request<LoginRequest>) -> Result<Response<SessionResponse>, Status> {
-        return;
+        let response = SessionResponse {
+            deadline: 0,
+            key: "".to_string(),
+            status: 0,
+        };
+
+        Ok(Response::new(response))
     }
 
     async fn google_login(&self, request: Request<GoogleLoginRequest>) -> Result<Response<SessionResponse>, Status> {
-        return;
+        let response = SessionResponse {
+            deadline: 0,
+            key: "".to_string(),
+            status: 0,
+        };
+
+        Ok(Response::new(response))
     }
 
     async fn logout( &self, request: Request<LogoutRequest>) -> Result<Response<SessionResponse>, Status> {
-        return;
+        let response = SessionResponse {
+            deadline: 0,
+            key: "".to_string(),
+            status: 0,
+        };
+
+        Ok(Response::new(response))
     }
 
     async fn signup( &self, request: Request<SignupRequest>) -> Result<Response<SessionResponse>, Status> {
-        return;
+        let response = SessionResponse {
+            deadline: 0,
+            key: "".to_string(),
+            status: 0,
+        };
+
+        Ok(Response::new(response))
     }
     
 }
 
-pub async fn start_server(opts: ServerOptions) -> Result<(), Box<dyn std::error::Error>> {
-   let addr = opts.server_listen_addr.parse().unwrap();
+pub async fn start_server(address: String) -> Result<(), Box<dyn std::error::Error>> {
+   let addr = address.parse().unwrap();
    let session_server = SessionImplementation::default();
 
    println!("SessionServer listening on {}", addr);

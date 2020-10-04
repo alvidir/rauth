@@ -2,23 +2,46 @@ extern crate context;
 
 use crate::transaction::traits::Body;
 use crate::transaction::traits::Tx;
-use context::Context;
-use std::error::Error;
 use std::any::Any;
 
-struct Transaction<T: Body> {
+struct Transaction<'a> {
     checked: bool, // determines if the precondition has passed of not
-    body: T, // transaction's body
-    result: Box<dyn Any>, // transaction's result
-    err: Box<dyn Error>,
+    body: &'a dyn Body, // transaction's body
+    result: Option<Result<Box<dyn Any>, String>>, // transaction's result
 }
 
-impl<t: Body> Tx for Transaction<dyn Body> {
-    fn Execute<T: ?Sized>(t: &T, ctx: Context) {
-
+impl Transaction<'_> {
+    pub fn new(body: &'static (dyn Body + 'static)) -> Self {
+        Self{
+            checked: false,
+            body: body,
+            result: None,
+        }
     }
 
-	fn Result<T: ?Sized>(t: &T) -> Result<Box<dyn Any>, Box<dyn Error>> {
-        return;
+}
+
+impl Tx for Transaction<'_> {
+    fn execute(&mut self) {
+        match self.body.precondition() {
+            Ok(_) => {
+                self.result = Some(self.body.postcondition());
+            }
+            Err(err) => {
+                self.result = Some(Err(err));
+                return;
+            }
+        }
+    }
+
+	fn result(&self) -> Result<Box<dyn Any>, String> {
+        match &self.result {
+            Some(_) => {
+                Ok(Box::new(""))
+            }
+            None => {
+                Err(String::from(""))
+            }
+        }
     }
 }

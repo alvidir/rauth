@@ -1,3 +1,1 @@
-pub mod factory;
-
-mod login;
+pub mod login;

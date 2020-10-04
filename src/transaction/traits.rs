@@ -1,17 +1,14 @@
-extern crate context;
-
-use context::Context;
 use std::error::Error;
 use std::any::Any;
 
 pub trait Body {
-    fn Precondition() -> Result<(), Box<dyn Error>>;
-	fn Postcondition(ctx: Context) -> Result<Box<dyn Any>, Box<dyn Error>>;
-	fn Commit() -> Result<(), Box<dyn Error>>;
-	fn Rollback(&self);
+    fn precondition(&self) -> Result<(), String>;
+	fn postcondition(&self) -> Result<Box<dyn Any>, String>;
+	fn commit(&self) -> Result<(), Box<dyn Error>>;
+	fn rollback(&self);
 }
 
 pub trait Tx {
-	fn Execute(ctx: Context);
-	fn Result() -> Result<Box<dyn Any>, Box<dyn Error>>;
+	fn execute(&mut self);
+	fn result(&self) -> Result<Box<dyn Any>, String>;
 }

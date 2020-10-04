@@ -1,4 +1,2 @@
-pub mod factory;
 pub mod traits;
-
-mod transaction;
+pub mod transaction;
