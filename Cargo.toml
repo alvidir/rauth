@@ -1,0 +1,20 @@
+[package]
+name = "tp-auth"
+version = "0.1.0"
+authors = ["Hèctor Morales <hector.morales.carnice@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# gRPC server/client
+tonic = "0.3.0"
+prost = "0.6"
+# CLI
+structopt = "0.3"
+# Async runtime
+tokio = { version = "0.2", features = ["full"] }
+context = "2.1.0"
+
+[build-dependencies]
+tonic-build = "0.3.0"

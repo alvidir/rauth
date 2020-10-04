@@ -10,5 +10,4 @@ To learn more about this project there is available a set of documents to concep
 
 | Name | Path | Description |
 |:-|:-:|:-|
-| Model | [Readme](./model/README.md) | System UML design |
-| Session | [Readme](./service/session/transactions/README.md) | Sequence diagrams for session's transactions |
+| Model | [Readme](./src/model/README.md) | System UML design |
