@@ -1,7 +1,6 @@
 pub mod server;
 mod model;
 
-use model::session;
 use structopt::StructOpt;
 
 // These are the options used by the `server` subcommand
@@ -43,19 +42,9 @@ struct ApplicationArguments {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-   let args = ApplicationArguments::from_args();
-
-   match args.subcommand {
-       SubCommand::StartServer(opts) => {
-           println!("Start the server on: {:?}", opts.server_listen_addr);
-           server::server::start_server(opts).await?;
-       }
-       SubCommand::Run(rc_opts) => {
-           println!("Run command: '{:?}'", rc_opts.command);
-
-
-       }
-   }
+   let opts: ServerOptions;
+   println!("Start the server on: {:?}", opts.server_listen_addr);
+   server::session::server::start_server(opts).await?;
 
    Ok(())
 }
