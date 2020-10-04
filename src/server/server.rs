@@ -1,62 +1,50 @@
 use tonic::{transport::Server, Request, Response, Status};
 
 // Import the generated rust code into module
-pub mod remotecli_proto {
-   tonic::include_proto!("remotecli");
+pub mod session_proto {
+   tonic::include_proto!("session");
 }
 
 // Proto generated server traits
-use remotecli_proto::remote_cli_server::{RemoteCli, RemoteCliServer};
+use session_proto::session_server::{Session, SessionServer};
 
 // Proto message structs
-use remotecli_proto::{CommandInput, CommandOutput};
+use session_proto::{LoginRequest, GoogleLoginRequest, LogoutRequest, SignupRequest, SessionResponse };
 
 // For the server listening address
 use crate::ServerOptions;
 
-// For executing commands
-use std::process::{Command, Stdio};
-
 #[derive(Default)]
-pub struct Cli {}
+pub struct SessionImplementation {}
 
 #[tonic::async_trait]
-impl RemoteCli for Cli {
-   async fn shell(
-       &self,
-       request: Request<CommandInput>,
-   ) -> Result<Response<CommandOutput>, Status> {
-       let req_command = request.into_inner();
-       let command = req_command.command;
-       let args = req_command.args;
+impl Session for SessionImplementation {
+    async fn login(&self, request: Request<LoginRequest>) -> Result<Response<SessionResponse>, Status> {
+        return;
+    }
 
-       println!("Running command: {:?} - args: {:?}", &command, &args);
+    async fn google_login(&self, request: Request<GoogleLoginRequest>) -> Result<Response<SessionResponse>, Status> {
+        return;
+    }
 
-       let process = Command::new(command)
-           .args(args)
-           .stdout(Stdio::piped())
-           .spawn()
-           .expect("failed to execute child process");
+    async fn logout( &self, request: Request<LogoutRequest>) -> Result<Response<SessionResponse>, Status> {
+        return;
+    }
 
-       let output = process
-           .wait_with_output()
-           .expect("failed to wait on child process");
-       let output = output.stdout;
-
-       Ok(Response::new(CommandOutput {
-           output: String::from_utf8(output).unwrap(),
-       }))
-   }
+    async fn signup( &self, request: Request<SignupRequest>) -> Result<Response<SessionResponse>, Status> {
+        return;
+    }
+    
 }
 
 pub async fn start_server(opts: ServerOptions) -> Result<(), Box<dyn std::error::Error>> {
    let addr = opts.server_listen_addr.parse().unwrap();
-   let cli_server = Cli::default();
+   let session_server = SessionImplementation::default();
 
-   println!("RemoteCliServer listening on {}", addr);
+   println!("SessionServer listening on {}", addr);
 
    Server::builder()
-       .add_service(RemoteCliServer::new(cli_server))
+       .add_service(SessionServer::new(session_server))
        .serve(addr)
        .await?;
 

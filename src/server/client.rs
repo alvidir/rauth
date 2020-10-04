@@ -1,26 +1,28 @@
-pub mod remotecli_proto {
-    tonic::include_proto!("remotecli");
+pub mod session_proto {
+    tonic::include_proto!("session");
  }
  
 // Proto generated client
-use remotecli_proto::remote_cli_client::RemoteCliClient;
+use session_proto::session_client::SessionClient;
 
 // Proto message structs
-use remotecli_proto::CommandInput;
+use session_proto::{LoginRequest};
 
 use crate::RemoteCommandOptions;
 
 pub async fn client_run(rc_opts: RemoteCommandOptions) -> Result<(), Box<dyn std::error::Error>> {
     // Connect to server
     // Use server addr if given, otherwise use default
-    let mut client = RemoteCliClient::connect(rc_opts.server_addr).await?;
+    let mut client = SessionClient::connect(rc_opts.server_addr).await?;
  
-    let request = tonic::Request::new(CommandInput {
-        command: rc_opts.command[0].clone().into(),
-        args: rc_opts.command[1..].to_vec(),
+    let request = tonic::Request::new(LoginRequest {
+        key: "".to_string(),
+        username: "".to_string(),
+        email: "".to_string(),  
+        password: "".to_string(),
     });
  
-    let response = client.shell(request).await?;
+    let response = client.login(request).await?;
  
     println!("RESPONSE={:?}", response);
  
