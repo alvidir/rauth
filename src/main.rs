@@ -1,5 +1,6 @@
-pub mod server;
+pub mod service;
 mod model;
+mod transaction;
 
 use structopt::StructOpt;
 
@@ -44,7 +45,7 @@ struct ApplicationArguments {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
    let opts: ServerOptions;
    println!("Start the server on: {:?}", opts.server_listen_addr);
-   server::session::server::start_server(opts).await?;
+   service::session::server::start_server(opts).await?;
 
    Ok(())
 }

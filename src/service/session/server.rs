@@ -1,4 +1,5 @@
 use tonic::{transport::Server, Request, Response, Status};
+use crate::service::session::transactions::factory;
 
 // Import the generated rust code into module
 pub mod session_proto {
