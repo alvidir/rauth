@@ -1,5 +1,5 @@
 use tonic::{transport::Server, Request, Response, Status};
-use crate::service::session::transactions::*;
+use crate::service::session::transactions::factory as TxFactory;
 
 // Import the generated rust code into module
 pub mod session_proto {
@@ -12,8 +12,6 @@ use session_proto::session_server::{Session, SessionServer};
 // Proto message structs
 use session_proto::{LoginRequest, GoogleLoginRequest, LogoutRequest, SignupRequest, SessionResponse };
 
-// For the server listening address
-use crate::ServerOptions;
 
 #[derive(Default)]
 pub struct SessionImplementation {}
@@ -21,6 +19,9 @@ pub struct SessionImplementation {}
 #[tonic::async_trait]
 impl Session for SessionImplementation {
     async fn login(&self, request: Request<LoginRequest>) -> Result<Response<SessionResponse>, Status> {
+        let mut tx_login = TxFactory::new_tx_login();
+        tx_login.execute();
+
         let response = SessionResponse {
             deadline: 0,
             key: "".to_string(),

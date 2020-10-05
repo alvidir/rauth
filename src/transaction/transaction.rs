@@ -4,16 +4,14 @@ use crate::transaction::traits::Body;
 use crate::transaction::traits::Tx;
 use std::any::Any;
 
-struct Transaction<'a> {
-    checked: bool, // determines if the precondition has passed of not
+pub struct Transaction<'a> {
     body: &'a dyn Body, // transaction's body
     result: Option<Result<Box<dyn Any>, String>>, // transaction's result
 }
 
-impl Transaction<'_> {
-    pub fn new(body: &'static (dyn Body + 'static)) -> Self {
+impl <'a> Transaction<'a> {
+    pub fn new(body: &'a (dyn Body + 'static)) -> Self {
         Self{
-            checked: false,
             body: body,
             result: None,
         }

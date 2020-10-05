@@ -4,6 +4,12 @@ use std::any::Any;
 
 pub struct TxLogin {}
 
+impl TxLogin {
+    pub fn new() -> Self {
+        TxLogin{}
+    }
+}
+
 impl Body for TxLogin {
     fn precondition(&self) -> Result<(), String> {
         Ok(())

@@ -8,12 +8,10 @@ use session_proto::session_client::SessionClient;
 // Proto message structs
 use session_proto::{LoginRequest};
 
-use crate::RemoteCommandOptions;
-
-pub async fn client_run(rc_opts: RemoteCommandOptions) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn client_run(addr: String) -> Result<(), Box<dyn std::error::Error>> {
     // Connect to server
     // Use server addr if given, otherwise use default
-    let mut client = SessionClient::connect(rc_opts.server_addr).await?;
+    let mut client = SessionClient::connect(addr).await?;
  
     let request = tonic::Request::new(LoginRequest {
         key: "".to_string(),
