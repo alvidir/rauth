@@ -14,7 +14,7 @@ pub async fn client_run(addr: String) -> Result<(), Box<dyn std::error::Error>> 
     let mut client = SessionClient::connect(addr).await?;
  
     let request = tonic::Request::new(LoginRequest {
-        key: "".to_string(),
+        cookie: "".to_string(),
         username: "".to_string(),
         email: "".to_string(),  
         password: "".to_string(),

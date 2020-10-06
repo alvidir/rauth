@@ -24,20 +24,7 @@ impl<'a> Client for ClientImplementation<'a> {
         "hello world"
     }
 
-    fn get_name(&self) -> &str {
-        "hello world"
-    }
-
     fn get_status(&self) -> i8 {
         0
     }
-
-    fn get_endpoint(&self) -> &str {
-        "hello world"
-    }
-
-    fn public_key(&self, id: &str) -> Result<Box<&str>, Box<dyn Error>> {
-        Ok(Box::new(""))
-    }
-
 }

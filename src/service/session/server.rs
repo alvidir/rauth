@@ -24,7 +24,7 @@ impl Session for SessionImplementation {
 
         let response = SessionResponse {
             deadline: 0,
-            key: "".to_string(),
+            cookie: "".to_string(),
             status: 0,
         };
 
@@ -34,7 +34,7 @@ impl Session for SessionImplementation {
     async fn google_login(&self, request: Request<GoogleLoginRequest>) -> Result<Response<SessionResponse>, Status> {
         let response = SessionResponse {
             deadline: 0,
-            key: "".to_string(),
+            cookie: "".to_string(),
             status: 0,
         };
 
@@ -44,7 +44,7 @@ impl Session for SessionImplementation {
     async fn logout( &self, request: Request<LogoutRequest>) -> Result<Response<SessionResponse>, Status> {
         let response = SessionResponse {
             deadline: 0,
-            key: "".to_string(),
+            cookie: "".to_string(),
             status: 0,
         };
 
@@ -54,7 +54,7 @@ impl Session for SessionImplementation {
     async fn signup( &self, request: Request<SignupRequest>) -> Result<Response<SessionResponse>, Status> {
         let response = SessionResponse {
             deadline: 0,
-            key: "".to_string(),
+            cookie: "".to_string(),
             status: 0,
         };
 

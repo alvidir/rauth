@@ -28,7 +28,7 @@ impl<'a> Session for SessionImplementation<'a> {
         self.id
     }
 
-    fn userID(&self) -> &str {
+    fn user_id(&self) -> &str {
         self.id
     }
 
