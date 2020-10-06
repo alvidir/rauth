@@ -1,21 +1,19 @@
-FROM golang:latest as builder
+FROM rust:latest as builder
 
 LABEL maintainer="Hector Morales <hector.morales.carnice@gmail.com>"
 LABEL repo-url="https://github.com/alvidir/tp-auth"
 LABEL version="alpha"
 
-RUN apt update
-RUN apt install -y protobuf-compiler
-RUN go get github.com/golang/protobuf/protoc-gen-go
+WORKDIR /usr/src
 
-WORKDIR /app
+RUN USER=root cargo new tp-auth
+WORKDIR /usr/src/tp-auth
+COPY Cargo.toml Cargo.lock ./
+RUN cargo build --release
 
-COPY go.mod go.sum ./
-RUN go mod download
-COPY . .
-
-RUN protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative proto/session/*.proto
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main cmd/session/main.go
+COPY src ./src
+COPY proto ./proto
+RUN cargo install --path .
 
 ######## Start a new stage from scratch #######
 FROM alpine:latest  
@@ -24,7 +22,7 @@ RUN apk --no-cache add ca-certificates
 
 WORKDIR /app
 
-COPY --from=builder /app/main .
+COPY --from=builder /usr/local/cargo/bin/tp-auth .
 
 # Command to run the executable
-CMD [ "./main" ]
+CMD [ "./tp-auth" ]
