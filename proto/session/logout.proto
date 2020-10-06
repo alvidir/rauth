@@ -4,5 +4,5 @@ package session;
 
 // LogoutRequest description
 message LogoutRequest {
-  string key = 1; // required: identifies the user's session
+  string cookie = 1; // required: identifies the user's session
 }
