@@ -19,9 +19,7 @@ impl<'a> UserImplementation<'a> {
     }
 }
 
-impl<'a> User for UserImplementation<'a> {}
-
-impl<'a> ClientSide for UserImplementation<'a> {
+impl<'a> User for UserImplementation<'a> {
     fn get_name(&self) -> &str {
         self.nickname
     }

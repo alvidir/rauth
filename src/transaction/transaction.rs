@@ -1,5 +1,3 @@
-extern crate context;
-
 use crate::transaction::traits::Body;
 use crate::transaction::traits::Tx;
 use std::any::Any;

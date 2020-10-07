@@ -10,11 +10,8 @@ edition = "2018"
 # gRPC server/client
 tonic = "0.3.0"
 prost = "0.6"
-# CLI
-structopt = "0.3"
 # Async runtime
 tokio = { version = "0.2", features = ["full"] }
-context = "2.1.0"
 
 [build-dependencies]
 tonic-build = "0.3.0"

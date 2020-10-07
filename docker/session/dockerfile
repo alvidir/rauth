@@ -1,28 +1,28 @@
-FROM rust:latest as builder
+FROM rust:1.46 as builder
 
 LABEL maintainer="Hector Morales <hector.morales.carnice@gmail.com>"
 LABEL repo-url="https://github.com/alvidir/tp-auth"
 LABEL version="alpha"
 
-WORKDIR /app
+RUN rustup component add rustfmt --toolchain 1.46.0-x86_64-unknown-linux-gnu
 
-RUN USER=root cargo new tp-auth
+WORKDIR /app
+RUN USER=root cargo new --bin tp-auth
+
 WORKDIR /app/tp-auth
-COPY Cargo.toml Cargo.lock build.rs ./
+COPY . .
+
 RUN cargo build --release
 
-COPY src ./src
-COPY proto ./proto
-RUN cargo install --path .
-
 ######## Start a new stage from scratch #######
-FROM alpine:latest  
-
-RUN apk --no-cache add ca-certificates
+FROM debian:buster-slim
 
 WORKDIR /app
+COPY --from=builder /app/tp-auth/target/release/tp-auth .
 
-COPY --from=builder /usr/local/cargo/bin/tp-auth .
+USER root
+ENV RUST_LOG=info
+ENV RUST_BACKTRACE=full
 
 # Command to run the executable
-CMD [ "./tp-auth" ]
+CMD ["./tp-auth"]

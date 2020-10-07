@@ -1,23 +1,28 @@
 use crate::model::session::traits::*;
 use crate::model::client::traits::Client;
 
+use std::time::{SystemTime, UNIX_EPOCH, Duration};
 use std::any::Any;
 use std::error::Error;
 
 pub struct SessionImplementation<'a> {
-    pub id: &'a str,
-    pub deadline: u64,
-    pub creation: u64,
-
+    id: &'a str,
+    deadline: Duration,
+    creation: Duration,
     client: &'a dyn Client,
 }
 
-impl SessionImplementation<'_> {
-    pub fn new(client: &'static (dyn Client + 'static)) -> Self {
+impl<'a> SessionImplementation<'a> {
+    pub fn new(client: &'a (dyn Client + 'static), timeout: Duration) -> Self {
+        let now = SystemTime::now();
+        let now_unix = now
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards");
+
         SessionImplementation{
             id: "hello world",
-            deadline: 32,
-            creation: 0,
+            deadline: now_unix + timeout,
+            creation: now_unix,
             client: client,
         }
     }
@@ -32,7 +37,7 @@ impl<'a> Session for SessionImplementation<'a> {
         self.id
     }
 
-    fn deadline(&self) -> u64 {
+    fn deadline(&self) -> Duration {
         self.deadline
     }
 

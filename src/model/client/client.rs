@@ -4,12 +4,12 @@ use std::any::Any;
 use std::error::Error;
 
 pub struct ClientImplementation<'a> {
-    pub id: &'a str,
-    pub password: &'a str,
-    pub status: u8,
+    id: &'a str,
+    password: &'a str,
+    status: u8,
 }
 
-impl ClientImplementation<'_> {
+impl<'a> ClientImplementation<'a> {
     pub fn new() -> Self {
         ClientImplementation{
             id: "hello world",
