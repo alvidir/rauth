@@ -4,11 +4,11 @@ LABEL maintainer="Hector Morales <hector.morales.carnice@gmail.com>"
 LABEL repo-url="https://github.com/alvidir/tp-auth"
 LABEL version="alpha"
 
-WORKDIR /usr/src
+WORKDIR /app
 
 RUN USER=root cargo new tp-auth
-WORKDIR /usr/src/tp-auth
-COPY Cargo.toml Cargo.lock ./
+WORKDIR /app/tp-auth
+COPY Cargo.toml Cargo.lock build.rs ./
 RUN cargo build --release
 
 COPY src ./src
