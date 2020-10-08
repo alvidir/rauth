@@ -1,4 +1,4 @@
-use crate::transaction::traits::{Tx, Body};
+use crate::transaction::traits::Tx;
 use crate::transaction::factory as TxFactory;
 use crate::service::session::transactions::{login::TxLogin,
                                             signup::TxSignup};
