@@ -18,10 +18,33 @@ pub struct SessionImplementation {}
 
 #[tonic::async_trait]
 impl Session for SessionImplementation {
-    async fn login(&self, request: Request<LoginRequest>) -> Result<Response<SessionResponse>, Status> {
-        let mut tx_login = TxFactory::new_tx_login();
-        tx_login.execute();
+    async fn signup( &self, request: Request<SignupRequest>) -> Result<Response<SessionResponse>, Status> {
+        let msg_ref = request.get_ref();
+        let mut tx_login = TxFactory::new_tx_signup(
+            msg_ref.name.clone(),
+            msg_ref.addr.clone(),
+            msg_ref.pwd.clone(),
+        );
+        
+        let response = SessionResponse {
+            deadline: 0,
+            cookie: "".to_string(),
+            status: 0,
+        };
 
+        Ok(Response::new(response))
+    }
+    
+    async fn login(&self, request: Request<LoginRequest>) -> Result<Response<SessionResponse>, Status> {
+        let msg_ref = request.get_ref();
+        let mut tx_login = TxFactory::new_tx_login(
+            msg_ref.cookie.clone(),
+            msg_ref.name.clone(),
+            msg_ref.addr.clone(),
+            msg_ref.pwd.clone(),
+        );
+
+        tx_login.execute();
         let response = SessionResponse {
             deadline: 0,
             cookie: "".to_string(),
@@ -42,16 +65,6 @@ impl Session for SessionImplementation {
     }
 
     async fn logout( &self, request: Request<LogoutRequest>) -> Result<Response<SessionResponse>, Status> {
-        let response = SessionResponse {
-            deadline: 0,
-            cookie: "".to_string(),
-            status: 0,
-        };
-
-        Ok(Response::new(response))
-    }
-
-    async fn signup( &self, request: Request<SignupRequest>) -> Result<Response<SessionResponse>, Status> {
         let response = SessionResponse {
             deadline: 0,
             cookie: "".to_string(),

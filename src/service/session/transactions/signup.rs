@@ -1,20 +1,17 @@
 use crate::transaction::traits::Body;
-use crate::transaction::traits::Tx;
-use crate::transaction::factory as TxFactory;
+
 use std::error::Error;
 use std::any::Any;
 
-pub struct TxLogin {
-    cookie: String,
+pub struct TxSignup {
     name: String,
     addr: String,
     pwd: String,
 }
 
-impl TxLogin {
-    pub fn new(cookie: String, name: String, addr: String, pwd: String) -> Self {
-        TxLogin{
-            cookie: cookie,
+impl TxSignup {
+    pub fn new(name: String, addr: String, pwd: String) -> Self {
+        TxSignup{
             name: name,
             addr: addr,
             pwd: pwd,
@@ -22,7 +19,7 @@ impl TxLogin {
     }
 }
 
-impl Body for TxLogin {
+impl Body for TxSignup {
     fn precondition(&self) -> Result<(), String> {
         Ok(())
     }

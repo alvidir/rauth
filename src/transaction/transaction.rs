@@ -2,13 +2,13 @@ use crate::transaction::traits::Body;
 use crate::transaction::traits::Tx;
 use std::any::Any;
 
-pub struct Transaction<'a> {
-    body: &'a dyn Body, // transaction's body
+pub struct Transaction {
+    body: Box<dyn Body>, // transaction's body
     result: Option<Result<Box<dyn Any>, String>>, // transaction's result
 }
 
-impl <'a> Transaction<'a> {
-    pub fn new(body: &'a (dyn Body + 'static)) -> Self {
+impl Transaction {
+    pub fn new(body: Box<dyn Body>) -> Self {
         Self{
             body: body,
             result: None,
@@ -17,7 +17,7 @@ impl <'a> Transaction<'a> {
 
 }
 
-impl Tx for Transaction<'_> {
+impl Tx for Transaction {
     fn execute(&mut self) {
         match self.body.precondition() {
             Ok(_) => {
