@@ -20,12 +20,14 @@ pub struct SessionImplementation {}
 impl Session for SessionImplementation {
     async fn signup( &self, request: Request<SignupRequest>) -> Result<Response<SessionResponse>, Status> {
         let msg_ref = request.get_ref();
-        let mut tx_login = TxFactory::new_tx_signup(
-            msg_ref.name.clone(),
-            msg_ref.addr.clone(),
+        let mut tx_signup = TxFactory::new_tx_signup(
+            msg_ref.name.clone(), 
+            msg_ref.addr.clone(), 
             msg_ref.pwd.clone(),
         );
         
+        tx_signup.execute();
+
         let response = SessionResponse {
             deadline: 0,
             cookie: "".to_string(),
@@ -43,8 +45,9 @@ impl Session for SessionImplementation {
             msg_ref.addr.clone(),
             msg_ref.pwd.clone(),
         );
-
+        
         tx_login.execute();
+
         let response = SessionResponse {
             deadline: 0,
             cookie: "".to_string(),

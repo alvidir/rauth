@@ -1,4 +1,5 @@
-use crate::transaction::traits::Body;
+use crate::transaction::traits::{Body, Tx};
+use crate::transaction::factory as TxFactory;
 
 use std::error::Error;
 use std::any::Any;
