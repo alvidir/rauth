@@ -40,8 +40,8 @@ impl Body for TxLogin {
         Ok(())
     }
 
-	fn postcondition(&self) -> Result<Box<dyn Any>, String> {
-        Ok(Box::new(String::new()))
+	fn postcondition(&self) -> Option<Result<Box<dyn Any>, String>> {
+        None
     }
 
 	fn commit(&self) -> Result<(), Box<dyn Error>> {

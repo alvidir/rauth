@@ -21,7 +21,7 @@ impl Tx for Transaction {
     fn execute(&mut self) {
         match self.body.precondition() {
             Ok(_) => {
-                self.result = Some(self.body.postcondition());
+                self.result = self.body.postcondition();
             }
             Err(err) => {
                 self.result = Some(Err(err));
@@ -30,17 +30,7 @@ impl Tx for Transaction {
         }
     }
 
-	fn result(&self) -> Box<Result<Box<dyn Any>, String>> {
-        let err : Result<Box<dyn Any>, String> = Err("".to_string());
-        let res = self.result.ok_or_else(|| err);
-        match res {
-            Ok(res) => {
-                Box::new(res)
-            }
-
-            Err(err) => {
-                Box::new(err)
-            }
-        }
+	fn result(&self) -> &Option<Result<Box<dyn Any>, String>> {
+        &self.result
     }
 }

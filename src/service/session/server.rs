@@ -1,4 +1,4 @@
-use tonic::{transport::Server, Request, Response, Status};
+use tonic::{transport::Server, Request, Response, Status, Code};
 use crate::service::session::transactions::factory as TxFactory;
 
 // Import the generated rust code into module
@@ -18,7 +18,7 @@ pub struct SessionImplementation {}
 
 #[tonic::async_trait]
 impl Session for SessionImplementation {
-    async fn signup( &self, request: Request<SignupRequest>) -> Result<Response<SessionResponse>, Status> {
+    async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<SessionResponse>, Status> {
         let msg_ref = request.into_inner();
         let mut tx_signup = TxFactory::new_tx_signup(
             msg_ref.name, 
@@ -27,15 +27,22 @@ impl Session for SessionImplementation {
         );
         
         tx_signup.execute();
-        let res = tx_signup.result();
+        match tx_signup.result() {
+            None => {
+                let status = Status::new(Code::Internal, "");
+                Err(status)
+            }
 
-        let response = SessionResponse {
-            deadline: 0,
-            cookie: "".to_string(),
-            status: 0,
-        };
-
-        Ok(Response::new(response))
+            Some(_) => {
+                let response = SessionResponse {
+                    deadline: 0,
+                    cookie: "".to_string(),
+                    status: 0,
+                };
+        
+                Ok(Response::new(response))
+            }
+        }
     }
     
     async fn login(&self, request: Request<LoginRequest>) -> Result<Response<SessionResponse>, Status> {
