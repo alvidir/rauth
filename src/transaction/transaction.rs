@@ -30,13 +30,16 @@ impl Tx for Transaction {
         }
     }
 
-	fn result(&self) -> Result<Box<dyn Any>, String> {
-        match &self.result {
-            Some(_) => {
-                Ok(Box::new(""))
+	fn result(&self) -> Box<Result<Box<dyn Any>, String>> {
+        let err : Result<Box<dyn Any>, String> = Err("".to_string());
+        let res = self.result.ok_or_else(|| err);
+        match res {
+            Ok(res) => {
+                Box::new(res)
             }
-            None => {
-                Err(String::from(""))
+
+            Err(err) => {
+                Box::new(err)
             }
         }
     }

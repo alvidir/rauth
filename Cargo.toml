@@ -12,6 +12,7 @@ tonic = "0.3.0"
 prost = "0.6"
 # Async runtime
 tokio = { version = "0.2", features = ["full"] }
+regex = "1"
 
 [build-dependencies]
 tonic-build = "0.3.0"

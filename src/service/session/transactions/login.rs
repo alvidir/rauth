@@ -1,6 +1,6 @@
 use crate::transaction::traits::Body;
-use crate::transaction::traits::Tx;
-use crate::transaction::factory as TxFactory;
+use crate::service::session::transactions::regex::{check_name, check_email, check_pwd, check_base64};
+
 use std::error::Error;
 use std::any::Any;
 
@@ -24,6 +24,19 @@ impl TxLogin {
 
 impl Body for TxLogin {
     fn precondition(&self) -> Result<(), String> {
+        if self.cookie.len() > 0 {
+            check_base64(&self.cookie)?;
+        }
+
+        // username or email must be provided, both are unic
+        if self.name.len() > 0 {
+            check_name(&self.name)?;
+        } else {
+            check_email(&self.addr)?;
+        }
+        
+        check_pwd(&self.pwd)?;
+
         Ok(())
     }
 

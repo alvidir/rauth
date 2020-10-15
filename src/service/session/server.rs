@@ -19,14 +19,15 @@ pub struct SessionImplementation {}
 #[tonic::async_trait]
 impl Session for SessionImplementation {
     async fn signup( &self, request: Request<SignupRequest>) -> Result<Response<SessionResponse>, Status> {
-        let msg_ref = request.get_ref();
+        let msg_ref = request.into_inner();
         let mut tx_signup = TxFactory::new_tx_signup(
-            msg_ref.name.clone(), 
-            msg_ref.addr.clone(), 
-            msg_ref.pwd.clone(),
+            msg_ref.name, 
+            msg_ref.addr, 
+            msg_ref.pwd,
         );
         
         tx_signup.execute();
+        let res = tx_signup.result();
 
         let response = SessionResponse {
             deadline: 0,
@@ -38,12 +39,12 @@ impl Session for SessionImplementation {
     }
     
     async fn login(&self, request: Request<LoginRequest>) -> Result<Response<SessionResponse>, Status> {
-        let msg_ref = request.get_ref();
+        let msg_ref = request.into_inner();
         let mut tx_login = TxFactory::new_tx_login(
-            msg_ref.cookie.clone(),
-            msg_ref.name.clone(),
-            msg_ref.addr.clone(),
-            msg_ref.pwd.clone(),
+            msg_ref.cookie,
+            msg_ref.name,
+            msg_ref.addr,
+            msg_ref.pwd,
         );
         
         tx_login.execute();

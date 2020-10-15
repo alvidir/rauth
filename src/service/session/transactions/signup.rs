@@ -1,5 +1,5 @@
-use crate::transaction::traits::{Body, Tx};
-use crate::transaction::factory as TxFactory;
+use crate::transaction::traits::{Body};
+use crate::service::session::transactions::regex::{check_name, check_email, check_pwd};
 
 use std::error::Error;
 use std::any::Any;
@@ -22,6 +22,10 @@ impl TxSignup {
 
 impl Body for TxSignup {
     fn precondition(&self) -> Result<(), String> {
+        check_name(&self.name)?;
+        check_email(&self.addr)?;
+        check_pwd(&self.pwd)?;
+        
         Ok(())
     }
 

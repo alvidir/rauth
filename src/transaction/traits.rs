@@ -10,5 +10,5 @@ pub trait Body {
 
 pub trait Tx {
 	fn execute(&mut self);
-	fn result(&self) -> Result<Box<dyn Any>, String>;
+	fn result(&self) -> Box<Result<Box<dyn Any>, String>>;
 }
