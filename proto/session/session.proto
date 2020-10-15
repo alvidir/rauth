@@ -14,14 +14,14 @@ enum Status {
 }
 
 message SessionResponse {
-  string key = 1;     // Session coockie
-  int64 deadline = 2; // Coockie deadline
-  Status status = 3;  // Session status for the given coockie
+  string cookie = 1;  
+  int64 deadline = 2;
+  Status status = 3;
 }
 
 service Session {
-  rpc Login(session.LoginRequest) returns (SessionResponse);
-  rpc GoogleLogin(session.GoogleLoginRequest) returns (SessionResponse);
-  rpc Logout(session.LogoutRequest) returns (SessionResponse);
-  rpc Signup(session.SignupRequest) returns (SessionResponse);
+  rpc Login(LoginRequest) returns (SessionResponse);
+  rpc GoogleLogin(GoogleLoginRequest) returns (SessionResponse);
+  rpc Logout(LogoutRequest) returns (SessionResponse);
+  rpc Signup(SignupRequest) returns (SessionResponse);
 }

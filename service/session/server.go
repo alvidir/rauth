@@ -18,13 +18,27 @@ func (session *session) RegisterServer(grpcServer *grpc.Server) {
 	pb.RegisterSessionServer(grpcServer, session)
 }
 
+// Signup implementation for the protobuf contract
+func (session *session) Signup(ctx context.Context, req *pb.SignupRequest) (out *pb.SessionResponse, err error) {
+	txSignup := tx.NewTxSignup()
+	txSignup.Execute(ctx)
+
+	out = &pb.SessionResponse{
+		Cookie:   "",
+		Deadline: 0,
+		Status:   pb.Status_ALIVE,
+	}
+
+	return
+}
+
 // Login implementation for the protobuf contract
 func (session *session) Login(ctx context.Context, req *pb.LoginRequest) (out *pb.SessionResponse, err error) {
 	txLogin := tx.NewTxLogin()
 	txLogin.Execute(ctx)
 
 	out = &pb.SessionResponse{
-		Key:      "",
+		Cookie:   "",
 		Deadline: 0,
 		Status:   pb.Status_ALIVE,
 	}
@@ -38,7 +52,7 @@ func (session *session) GoogleLogin(ctx context.Context, req *pb.GoogleLoginRequ
 	txGoogleLogin.Execute(ctx)
 
 	out = &pb.SessionResponse{
-		Key:      "",
+		Cookie:   "",
 		Deadline: 0,
 		Status:   pb.Status_ALIVE,
 	}
@@ -52,21 +66,7 @@ func (session *session) Logout(ctx context.Context, req *pb.LogoutRequest) (out 
 	txLogout.Execute(ctx)
 
 	out = &pb.SessionResponse{
-		Key:      "",
-		Deadline: 0,
-		Status:   pb.Status_ALIVE,
-	}
-
-	return
-}
-
-// Signup implementation for the protobuf contract
-func (session *session) Signup(ctx context.Context, req *pb.SignupRequest) (out *pb.SessionResponse, err error) {
-	txSignup := tx.NewTxSignup()
-	txSignup.Execute(ctx)
-
-	out = &pb.SessionResponse{
-		Key:      "",
+		Cookie:   "",
 		Deadline: 0,
 		Status:   pb.Status_ALIVE,
 	}

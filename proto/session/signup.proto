@@ -5,7 +5,7 @@ package session;
 
 // SignupRequest description
 message SignupRequest {
-  string username = 1;  // required
-  string email = 2;     // required
-  string password = 3;  // required
+  string name = 1; 
+  string addr = 2;    
+  string pwd = 3; 
 }
