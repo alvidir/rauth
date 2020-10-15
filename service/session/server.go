@@ -24,7 +24,7 @@ func (session *session) Signup(ctx context.Context, req *pb.SignupRequest) (out 
 	txSignup.Execute(ctx)
 
 	out = &pb.SessionResponse{
-		Cookie:   "",
+		Cookie:   " ",
 		Deadline: 0,
 		Status:   pb.Status_ALIVE,
 	}
