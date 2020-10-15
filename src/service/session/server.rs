@@ -16,6 +16,26 @@ use session_proto::{LoginRequest, GoogleLoginRequest, LogoutRequest, SignupReque
 #[derive(Default)]
 pub struct SessionImplementation {}
 
+impl SessionImplementation {
+    fn signup_response(&self, result: &std::result::Result<std::boxed::Box<dyn std::any::Any>, std::string::String>) -> Result<Response<SessionResponse>, Status> {
+        match result {
+            Err(err) => {
+                Err(Status::new(Code::Aborted, err))
+            }
+
+            Ok(any) => {
+                Ok(Response::new(
+                    SessionResponse {
+                        deadline: 0,
+                        cookie: "".to_string(),
+                        status: 0,
+                    }
+                ))
+            }
+        }
+    }
+}
+
 #[tonic::async_trait]
 impl Session for SessionImplementation {
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<SessionResponse>, Status> {
@@ -33,14 +53,8 @@ impl Session for SessionImplementation {
                 Err(status)
             }
 
-            Some(_) => {
-                let response = SessionResponse {
-                    deadline: 0,
-                    cookie: "".to_string(),
-                    status: 0,
-                };
-        
-                Ok(Response::new(response))
+            Some(res) => {
+                self.signup_response(res)
             }
         }
     }
