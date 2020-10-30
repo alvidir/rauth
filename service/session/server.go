@@ -3,7 +3,7 @@ package session
 import (
 	"context"
 
-	pb "github.com/alvidir/tp-auth/proto/session"
+	pb "github.com/alvidir/tp-auth/proto/tp-auth"
 	tx "github.com/alvidir/tp-auth/service/session/transactions"
 	"google.golang.org/grpc"
 )
