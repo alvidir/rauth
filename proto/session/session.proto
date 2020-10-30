@@ -1,9 +1,10 @@
 syntax = "proto3";
+option go_package = "github.com/alvidir/tp-auth/proto/session";
 
 package session;
-import public "login.proto";
-import public "logout.proto";
-import public "signup.proto";
+import public "proto/session/login.proto";
+import public "proto/session/logout.proto";
+import public "proto/session/signup.proto";
 
 enum Status {
     ALIVE = 0;
@@ -13,14 +14,14 @@ enum Status {
 }
 
 message SessionResponse {
-  string cookie = 1;  
-  int64 deadline = 2;
-  Status status = 3;
+  string key = 1;     // Session coockie
+  int64 deadline = 2; // Coockie deadline
+  Status status = 3;  // Session status for the given coockie
 }
 
 service Session {
-  rpc Login(LoginRequest) returns (SessionResponse);
-  rpc GoogleLogin(GoogleLoginRequest) returns (SessionResponse);
-  rpc Logout(LogoutRequest) returns (SessionResponse);
-  rpc Signup(SignupRequest) returns (SessionResponse);
+  rpc Login(session.LoginRequest) returns (SessionResponse);
+  rpc GoogleLogin(session.GoogleLoginRequest) returns (SessionResponse);
+  rpc Logout(session.LogoutRequest) returns (SessionResponse);
+  rpc Signup(session.SignupRequest) returns (SessionResponse);
 }
