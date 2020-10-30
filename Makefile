@@ -18,7 +18,7 @@ proto:
 
 build:
 	docker build -t ${REPO}/${PROJECT}:${VERSION}-envoy -f ./docker/envoy/dockerfile .
-	docker build -t ${REPO}/${PROJECT}:${VERSION} -f ./docker/tp-auth/dockerfile .
+	docker build -t ${REPO}/${PROJECT}:${VERSION} -f ./docker/session/dockerfile .
 
 mysql:
 	docker logs ${MYSQL_CONTAINER_NAME} 2>&1 | grep GENERATED
