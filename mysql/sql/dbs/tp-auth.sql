@@ -1,0 +1,1 @@
+CREATE DATABASE 'tp-auth' IF NOT EXISTS;

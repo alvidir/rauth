@@ -18,8 +18,21 @@ proto:
 
 build:
 	docker build -t ${REPO}/${PROJECT}:${VERSION}-envoy -f ./docker/envoy/dockerfile .
-	docker build -t ${REPO}/${PROJECT}:${VERSION} -f ./docker/session/dockerfile .
+	docker build -t ${REPO}/${PROJECT}:${VERSION} -f ./docker/tp-auth/dockerfile .
 
 mysql:
 	docker logs ${MYSQL_CONTAINER_NAME} 2>&1 | grep GENERATED
 	docker exec -it ${MYSQL_CONTAINER_NAME} mysql -uroot -p
+
+run:
+	go run ./cmd/tp-auth/main.go
+
+test:
+	go clean -testcache
+	go test -v ./...
+
+deploy:
+	docker-compose -f docker-compose.yaml up
+
+undeploy:
+	docker-compose -f docker-compose.yaml down

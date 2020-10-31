@@ -7,6 +7,7 @@ import (
 	"os"
 
 	srv "github.com/alvidir/tp-auth/service/session"
+	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
 )
 
@@ -14,8 +15,9 @@ const (
 	infoSetup = "The service is being started on %s%s"
 	infoDone  = "The service has finished successfully"
 
-	errListenFailed = "The service has failed listening: %v"
-	errServeFailed  = "The service has failed serving: %v"
+	errDotenvConfig = "The service has failed setting up dotenv: %s"
+	errListenFailed = "The service has failed listening: %s"
+	errServeFailed  = "The service has failed serving: %s"
 
 	envPortKey = "SERVICE_PORT"
 	envNetwKey = "SERVICE_NETW"
@@ -46,6 +48,12 @@ func getAddress() (address string) {
 }
 
 func main() {
+	// to change the flags on the default logger
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	if err := godotenv.Load(); err != nil {
+		log.Panicf(errDotenvConfig, err.Error())
+	}
+
 	address := getAddress()
 	network := getNetwork()
 	log.Printf(infoSetup, network, address)

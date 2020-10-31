@@ -47,9 +47,7 @@ services:
         networks: 
             - ingress
             - domain
-        environment: 
-            SERVICE_PORT: 9090
-            SERVICE_NETW: tcp
+            - database
     
 networks:
     # Ingress network works as bridge between envoyproxy and the available services
