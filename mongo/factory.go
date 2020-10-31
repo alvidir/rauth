@@ -11,24 +11,15 @@ import (
 )
 
 func getMongoURI() (uri string, err error) {
-	var url, username, password, database string
-	if uri, err = config.CheckEnv(EnvMongoURI); err != nil {
+	var envs []string
+	if envs, err = config.CheckNemptyEnv(EnvMongoURI,
+		EnvMongoUsr,
+		EnvMongoPwd,
+		EnvMongoDB); err != nil {
 		return
 	}
 
-	if username, err = config.CheckEnv(EnvMongoUsr); err != nil {
-		return
-	}
-
-	if password, err = config.CheckEnv(EnvMongoPwd); err != nil {
-		return
-	}
-
-	if database, err = config.CheckEnv(EnvMongoDB); err != nil {
-		return
-	}
-
-	uri = fmt.Sprintf(url, username, password, database)
+	uri = fmt.Sprintf(envs[0], envs[1], envs[2], envs[3])
 	return
 }
 

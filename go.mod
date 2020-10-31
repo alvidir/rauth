@@ -3,7 +3,7 @@ module github.com/alvidir/tp-auth
 go 1.15
 
 require (
-	github.com/alvidir/util v0.0.0-20200928183113-0a80c7d7b41d
+	github.com/alvidir/util v0.0.0-20201031005445-47c6877f5e28
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/golang/protobuf v1.4.1
 	github.com/joho/godotenv v1.3.0

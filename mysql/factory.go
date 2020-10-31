@@ -4,31 +4,24 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/alvidir/util/config"
+
 	// required as database driver connection
 	_ "github.com/go-sql-driver/mysql"
-
-	"github.com/alvidir/util/config"
 )
 
-func getMongoURI() (uri string, err error) {
-	var url, username, password, database string
-	if uri, err = config.CheckEnv(EnvMysqlURI); err != nil {
+func getMysqlURI() (uri string, err error) {
+	var envs []string
+	if envs, err = config.CheckNemptyEnv(
+		EnvMysqlUsr,
+		EnvMysqlPwd,
+		EnvMysqlHost,
+		EnvMysqlPort,
+		EnvMysqlDB); err != nil {
 		return
 	}
 
-	if username, err = config.CheckEnv(EnvMysqlUsr); err != nil {
-		return
-	}
-
-	if password, err = config.CheckEnv(EnvMysqlPwd); err != nil {
-		return
-	}
-
-	if database, err = config.CheckEnv(EnvMysqlDB); err != nil {
-		return
-	}
-
-	uri = fmt.Sprintf(url, username, password, database)
+	uri = fmt.Sprintf(mysqlURI, envs[0], envs[1], envs[2], envs[3], envs[4])
 	return
 }
 
