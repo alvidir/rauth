@@ -3,10 +3,13 @@ package transactions
 import (
 	"context"
 	"log"
+
+	pb "github.com/alvidir/tp-auth/proto/session"
 )
 
 // TxLogout represents an
 type TxLogout struct {
+	req *pb.LogoutRequest
 }
 
 // Precondition validates the transaction is ready to run. That means making sure the session exists.

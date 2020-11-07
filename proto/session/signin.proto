@@ -3,10 +3,8 @@ option go_package = "github.com/alvidir/tp-auth/proto/session";
 
 package session;
 
-// LoginRequest description
-message LoginRequest {
+// GoogleSigninRequest description
+message GoogleSigninRequest {
   string cookie = 1;
-  string name = 2;
-  string addr = 3;
-  string pwd = 4;
+  string tokenID = 2;
 }

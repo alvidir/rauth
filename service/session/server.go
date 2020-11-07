@@ -18,13 +18,13 @@ func (session *session) RegisterServer(grpcServer *grpc.Server) {
 	pb.RegisterSessionServer(grpcServer, session)
 }
 
-// Login implementation for the protobuf contract
-func (session *session) Login(ctx context.Context, req *pb.LoginRequest) (out *pb.SessionResponse, err error) {
-	txLogin := tx.NewTxLogin()
-	txLogin.Execute(ctx)
+// Signup implementation for the protobuf contract
+func (session *session) Signup(ctx context.Context, req *pb.SignupRequest) (out *pb.SessionResponse, err error) {
+	txSignup := tx.NewTxSignup(req)
+	txSignup.Execute(ctx)
 
 	out = &pb.SessionResponse{
-		Key:      "",
+		Cookie:   "",
 		Deadline: 0,
 		Status:   pb.Status_ALIVE,
 	}
@@ -32,13 +32,27 @@ func (session *session) Login(ctx context.Context, req *pb.LoginRequest) (out *p
 	return
 }
 
-// GoogleLogin implementation for the protobuf contract
-func (session *session) GoogleLogin(ctx context.Context, req *pb.GoogleLoginRequest) (out *pb.SessionResponse, err error) {
-	txGoogleLogin := tx.NewTxGoogleLogin()
-	txGoogleLogin.Execute(ctx)
+// Login implementation for the protobuf contract
+func (session *session) Login(ctx context.Context, req *pb.LoginRequest) (out *pb.SessionResponse, err error) {
+	txLogin := tx.NewTxLogin(req)
+	txLogin.Execute(ctx)
 
 	out = &pb.SessionResponse{
-		Key:      "",
+		Cookie:   "",
+		Deadline: 0,
+		Status:   pb.Status_ALIVE,
+	}
+
+	return
+}
+
+// GoogleSignin implementation for the protobuf contract
+func (session *session) GoogleSignin(ctx context.Context, req *pb.GoogleSigninRequest) (out *pb.SessionResponse, err error) {
+	txGoogleSignin := tx.NewTxGoogleSignin(req)
+	txGoogleSignin.Execute(ctx)
+
+	out = &pb.SessionResponse{
+		Cookie:   "",
 		Deadline: 0,
 		Status:   pb.Status_ALIVE,
 	}
@@ -48,25 +62,11 @@ func (session *session) GoogleLogin(ctx context.Context, req *pb.GoogleLoginRequ
 
 // Logout implementation for the protobuf contract
 func (session *session) Logout(ctx context.Context, req *pb.LogoutRequest) (out *pb.SessionResponse, err error) {
-	txLogout := tx.NewTxLogout()
+	txLogout := tx.NewTxLogout(req)
 	txLogout.Execute(ctx)
 
 	out = &pb.SessionResponse{
-		Key:      "",
-		Deadline: 0,
-		Status:   pb.Status_ALIVE,
-	}
-
-	return
-}
-
-// Signup implementation for the protobuf contract
-func (session *session) Signup(ctx context.Context, req *pb.SignupRequest) (out *pb.SessionResponse, err error) {
-	txSignup := tx.NewTxSignup()
-	txSignup.Execute(ctx)
-
-	out = &pb.SessionResponse{
-		Key:      "",
+		Cookie:   "",
 		Deadline: 0,
 		Status:   pb.Status_ALIVE,
 	}

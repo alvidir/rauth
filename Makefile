@@ -7,6 +7,7 @@ MYSQL_CONTAINER_NAME=mysql
 
 proto:
 	protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative proto/session/*.proto
+	protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative proto/app/*.proto
 
 build:
 	docker build -t ${REPO}/${PROJECT}:${VERSION}-envoy -f ./docker/envoy/dockerfile .
@@ -24,7 +25,7 @@ test:
 	go test -v ./...
 
 deploy:
-	docker-compose -f docker-compose.yaml up
+	docker-compose --env-file ./.env -f docker-compose.yaml up --remove-orphans
 
 undeploy:
 	docker-compose -f docker-compose.yaml down

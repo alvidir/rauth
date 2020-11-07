@@ -3,10 +3,13 @@ package transactions
 import (
 	"context"
 	"log"
+
+	pb "github.com/alvidir/tp-auth/proto/session"
 )
 
 // TxLogin represents an
 type TxLogin struct {
+	req *pb.LoginRequest
 }
 
 // Precondition validates the transaction is ready to run. That means it does validates all parameters and

@@ -18,7 +18,7 @@ COPY . .
 RUN protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative proto/session/*.proto
 
 RUN go test ./...
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main cmd/tp-auth/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o tp-auth cmd/tp-auth/main.go
 
 ######## Start a new stage from scratch #######
 FROM alpine:latest  
@@ -27,7 +27,8 @@ RUN apk --no-cache add ca-certificates
 
 WORKDIR /app
 
-COPY --from=builder /app/main .
+COPY ./.env /app
+COPY --from=builder /app/tp-auth .
 
 # Command to run the executable
-CMD [ "./main" ]
+CMD [ "./tp-auth" ]

@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-    ### DATABASE ###
+    ## DATABASE ###
     mysql:
         container_name: mysql
         image: mysql/mysql-server:latest
@@ -25,8 +25,8 @@ services:
         environment: 
             PMA_HOST: mysql
             PMA_PORT: 3306
-            PMA_USER: myadmin
-            PMA_PASSWORD: myadminpwd
+            PMA_USER: ${MYADMIN_USR}
+            PMA_PASSWORD: ${MYADMIN_PWD}
     
     ### ENVOY PROXY ###
     envoy:

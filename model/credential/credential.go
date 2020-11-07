@@ -2,12 +2,16 @@ package credential
 
 import "time"
 
-type credential struct {
-	public   string
-	creation time.Time
-	deadline time.Time
+// Credential is a public key
+type Credential struct {
+	ID        string    `json:"id" bson:"_id,omitempty"`
+	Public    string    `json:"public" bson:"public"`
+	Private   string    `json:"private,omitempty" bson:"private,omitempty"`
+	CreatedAt time.Time `json:"created_at" bson:"created_at"`
+	Deadline  time.Time `json:"deadline,omitempty" bson:"deadline,omitempty"`
 }
 
-func (cred *credential) GetPublic() string {
-	return cred.public
+// GetPublic returns the public key of a credential
+func (cred *Credential) GetPublic() string {
+	return cred.Public
 }

@@ -3,10 +3,13 @@ package transactions
 import (
 	"context"
 	"log"
+
+	pb "github.com/alvidir/tp-auth/proto/session"
 )
 
 // TxSignup represents an
 type TxSignup struct {
+	req *pb.SignupRequest
 }
 
 // Precondition validates the transaction is ready to run

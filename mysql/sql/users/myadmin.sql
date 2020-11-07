@@ -1,2 +1,2 @@
-CREATE USER 'myadmin'@'%' IDENTIFIED BY 'myadminpwd';
-GRANT ALL PRIVILEGES ON *.* TO 'myadmin'@'%' WITH GRANT OPTION;
+CREATE USER '<myadmin-user>'@'%' IDENTIFIED BY '<myadmin-password>';
+GRANT ALL PRIVILEGES ON *.* TO '<myadmin-user>'@'%' WITH GRANT OPTION;

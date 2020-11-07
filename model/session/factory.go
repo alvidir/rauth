@@ -1,10 +1,16 @@
 package session
 
 import (
+	"time"
+
 	"github.com/alvidir/tp-auth/model/client"
 )
 
-// NewSession builds a brand new client with a provided password
-func NewSession(client client.Client) Session {
-	return &session{}
+// New builds a brand new session for the provided client
+func New(client *client.Client) *Session {
+	return &Session{
+		CreatedAt: time.Now(),
+		Touch:     time.Now(),
+		client:    client,
+	}
 }

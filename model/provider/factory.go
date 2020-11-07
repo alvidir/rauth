@@ -6,17 +6,18 @@ import (
 )
 
 type providerName string
+type sessionName string
 
 var providers = &sync.Map{}
 
 // AddProvider adds a new provider with the given name
-func AddProvider(name string, provider Provider) (err error) {
+func AddProvider(provider Provider) (err error) {
 	if provider == nil {
 		return fmt.Errorf(errNilProvider)
 	}
 
-	pName := providerName(name)
-	if _, ok := providers.Load(pName); !ok {
+	pName := providerName(provider.GetName())
+	if _, ok := providers.Load(pName); ok {
 		return fmt.Errorf(errProviderAlreadyExists)
 	}
 
@@ -40,9 +41,8 @@ func FindProvider(name string) (provider Provider, ok bool) {
 			return true
 		}
 
-		providerName := providerName(name)
-		if ok = providerName == currentName; ok {
-			provider = value.(Provider)
+		if ok = providerName(name) == currentName; ok {
+			provider, ok = value.(Provider)
 		}
 
 		return !ok // while not found

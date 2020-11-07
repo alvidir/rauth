@@ -1,29 +1,30 @@
 package transactions
 
 import (
+	pb "github.com/alvidir/tp-auth/proto/session"
 	"github.com/alvidir/util/pattern/transaction"
 )
 
-// NewTxLogin builds a brand new instance of TxLogin
-func NewTxLogin() transaction.Tx {
-	body := &TxLogin{}
+// NewTxSignup builds a brand new instance of TxSignup
+func NewTxSignup(req *pb.SignupRequest) transaction.Tx {
+	body := &TxSignup{req}
 	return transaction.NewTransaction(body)
 }
 
-// NewTxGoogleLogin builds a brand new instance of TxGoogleLogin
-func NewTxGoogleLogin() transaction.Tx {
-	body := &TxGoogleLogin{}
+// NewTxLogin builds a brand new instance of TxLogin
+func NewTxLogin(req *pb.LoginRequest) transaction.Tx {
+	body := &TxLogin{req}
+	return transaction.NewTransaction(body)
+}
+
+// NewTxGoogleSignin builds a brand new instance of TxGoogleLogin
+func NewTxGoogleSignin(req *pb.GoogleSigninRequest) transaction.Tx {
+	body := &TxGoogleSignin{req}
 	return transaction.NewTransaction(body)
 }
 
 // NewTxLogout builds a brand new instance of TxLogout
-func NewTxLogout() transaction.Tx {
-	body := &TxLogout{}
-	return transaction.NewTransaction(body)
-}
-
-// NewTxSignup builds a brand new instance of TxSignup
-func NewTxSignup() transaction.Tx {
-	body := &TxSignup{}
+func NewTxLogout(req *pb.LogoutRequest) transaction.Tx {
+	body := &TxLogout{req}
 	return transaction.NewTransaction(body)
 }

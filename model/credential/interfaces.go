@@ -1,6 +1,6 @@
 package credential
 
-// A Credential represents a public ssh key
-type Credential interface {
+// A Controller represents a public ssh key
+type Controller interface {
 	GetPublic() string
 }

@@ -1,10 +1,7 @@
 package app
 
-import (
-	"github.com/alvidir/tp-auth/model/client"
-)
-
-// A App represents an App client
-type App interface {
-	client.Extension
+// A Controller represents an App client
+type Controller interface {
+	GetName() string
+	GetURL() string
 }

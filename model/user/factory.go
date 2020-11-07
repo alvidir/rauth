@@ -1,6 +1,9 @@
 package user
 
 // NewUser builds a brand new user as client
-func NewUser(pwd string) User {
-	return &user{}
+func NewUser(nickname, email string) *User {
+	return &User{
+		Nickname: nickname,
+		Emails:   []string{email},
+	}
 }
