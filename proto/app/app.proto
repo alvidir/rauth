@@ -23,7 +23,5 @@ message AppResponse {
 }
 
 service Application {
-  rpc Insert(AppRequest) returns (AppResponse);
-  rpc Update(AppRequest) returns (AppResponse);
-  rpc Delete(AppRequest) returns (AppResponse);
+  rpc Register(AppRequest) returns (AppResponse);
 }

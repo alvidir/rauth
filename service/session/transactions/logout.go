@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 
-	pb "github.com/alvidir/tp-auth/proto/session"
+	pb "github.com/alvidir/tp-auth/proto/client"
 )
 
 // TxLogout represents an
