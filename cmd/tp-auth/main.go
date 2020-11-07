@@ -9,7 +9,6 @@ import (
 	srv "github.com/alvidir/tp-auth/service/session"
 	"github.com/alvidir/util/config"
 	"github.com/joho/godotenv"
-	"google.golang.org/genproto/googleapis/cloud/location"
 	"google.golang.org/grpc"
 )
 
@@ -46,20 +45,8 @@ func test() {
 	// db.AutoMigrate(&service.Service{})
 
 	// Afegir files a les taules de la BBDD. Em suposo que se li pot passar l'struct del model ja construit, no cal construir-lo "in situ".
-	db.Create(&app.App{
-		Name:        "tp-auth",
-		Description: "description of service test",
-		Kind:        1,
-		Location: location.Location{
-			Name:        "location test",
-			Address:     "address test",
-			Coordinates: "101010",
-			Extension:   10},
-		Products: []product.Product{{
-			Name:        "product test",
-			Description: "description of product test",
-			Price:       10,
-			Status:      1}}})
+	app := app.New("tp-auth", "third party authenticator", "localhost:8080", "1234")
+	db.Create(app)
 
 }
 
@@ -75,13 +62,13 @@ func main() {
 		log.Fatalf(errConfigFailed, err.Error())
 	}
 
-	log.Printf(infoSetup, network, address)
+	log.Printf(infoSetup, envs[1], envs[0])
 
 	server := grpc.NewServer()
 	service := srv.ImplementedSessionServer()
 	service.RegisterServer(server)
 
-	lis, err := net.Listen(network, address)
+	lis, err := net.Listen(envs[1], envs[0])
 	if err != nil {
 		log.Fatalf(errListenFailed, err)
 	} else {
