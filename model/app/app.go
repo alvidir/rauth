@@ -8,15 +8,21 @@ import (
 // An App represets a client of kind app
 type App struct {
 	gorm.Model
-	ID     uint          `json:"id" gorm:"primaryKey; autoIncrement:true"`
-	Name   string        `json:"name" gorm:"not null;unique"`
-	URL    string        `json:"url" gorm:"not null;unique"`
-	client client.Client `gorm:"polymorphic:Owner;"`
+	ID          uint           `json:"id" gorm:"primaryKey; autoIncrement:true"`
+	Name        string         `json:"name" gorm:"not null;unique"`
+	Description string         `json:"description"`
+	URL         string         `json:"url" gorm:"not null;unique"`
+	client      *client.Client `gorm:"polymorphic:Owner;"`
 }
 
 // GetName return the app name
 func (app *App) GetName() string {
 	return app.Name
+}
+
+// GetDescription return the app name
+func (app *App) GetDescription() string {
+	return app.Description
 }
 
 // GetURL returns the app url
@@ -26,5 +32,5 @@ func (app *App) GetURL() string {
 
 // GetClient returns the user's client
 func (app *App) GetClient() *client.Client {
-	return &app.client
+	return app.client
 }

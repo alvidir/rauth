@@ -5,6 +5,8 @@ type Status int
 
 // Status possible values
 const (
+	errCredentialAlreadyExists = "Credential %s already exists"
+
 	PENDING Status = iota
 	ACTIVATED
 	DEACTIVATED

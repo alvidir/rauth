@@ -13,14 +13,22 @@ type provider struct {
 	Prefix   string        `json:"prefix" bson:"prefix"`
 	AutoGen  bool          `json:"auto" bson:"auto"`
 	Timeout  time.Duration `json:"timeout" bson:"timeout"`
-	sessions map[string]session.Session
+	sessions map[string]*session.Session
+}
+
+func (provider *provider) SetPrefix(prefix string) {
+	provider.Prefix = prefix
+}
+
+func (provider *provider) SetAutogen(b bool) {
+	provider.AutoGen = b
 }
 
 func (provider *provider) GetName() string {
 	return provider.Name
 }
 
-func (provider *provider) NewSession(string, client.Client) (s *session.Session, err error) {
+func (provider *provider) NewSession(string, *client.Client) (s *session.Session, err error) {
 	return
 }
 
@@ -32,6 +40,6 @@ func (provider *provider) DestroySession(string) (err error) {
 	return
 }
 
-func (provider *provider) Purge(int64) (howmany int) {
+func (provider *provider) Purge(time.Time) (howmany int) {
 	return
 }

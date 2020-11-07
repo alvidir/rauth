@@ -3,12 +3,24 @@ package provider
 import (
 	"fmt"
 	"sync"
+	"time"
+
+	"github.com/alvidir/tp-auth/model/session"
 )
 
 type providerName string
 type sessionName string
 
 var providers = &sync.Map{}
+
+// New builds a brand new provider
+func New(name string, timeout time.Duration) Provider {
+	return &provider{
+		Name:     name,
+		Timeout:  timeout,
+		sessions: make(map[string]*session.Session),
+	}
+}
 
 // AddProvider adds a new provider with the given name
 func AddProvider(provider Provider) (err error) {

@@ -4,9 +4,12 @@ import (
 	"log"
 	"net"
 
+	"github.com/alvidir/tp-auth/model/app"
+	"github.com/alvidir/tp-auth/mysql"
 	srv "github.com/alvidir/tp-auth/service/session"
 	"github.com/alvidir/util/config"
 	"github.com/joho/godotenv"
+	"google.golang.org/genproto/googleapis/cloud/location"
 	"google.golang.org/grpc"
 )
 
@@ -30,6 +33,34 @@ func getMainEnv() ([]string, error) {
 	return config.CheckNemptyEnv(
 		envPortKey, /*0*/
 		envNetwKey /*1*/)
+}
+
+func test() {
+	db, err := mysql.OpenStream()
+	if err != nil {
+		log.Printf("Got %v error while opening stream", err.Error())
+		return
+	}
+
+	// Migració de structs del Model (Es fa automatica si tenen els tags ben definits).
+	// db.AutoMigrate(&service.Service{})
+
+	// Afegir files a les taules de la BBDD. Em suposo que se li pot passar l'struct del model ja construit, no cal construir-lo "in situ".
+	db.Create(&app.App{
+		Name:        "tp-auth",
+		Description: "description of service test",
+		Kind:        1,
+		Location: location.Location{
+			Name:        "location test",
+			Address:     "address test",
+			Coordinates: "101010",
+			Extension:   10},
+		Products: []product.Product{{
+			Name:        "product test",
+			Description: "description of product test",
+			Price:       10,
+			Status:      1}}})
+
 }
 
 func main() {

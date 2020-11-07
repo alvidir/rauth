@@ -9,4 +9,5 @@ type Controller interface {
 	GetStatus() string
 	MatchPassword(string) bool
 	SetExtension(Extension) Extension
+	SetCredential(...string) error
 }
