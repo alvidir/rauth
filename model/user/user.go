@@ -11,7 +11,7 @@ type User struct {
 	ID       uint           `json:"id" gorm:"primaryKey; autoIncrement:true"`
 	Nickname string         `json:"nickname" gorm:"not null;unique"`
 	Emails   []string       `json:"emails" gorm:"not null"`
-	client   *client.Client `gorm:"polymorphic:Owner;"`
+	Client   *client.Client `json:"-" gorm:"polymorphic:Owner;"`
 }
 
 // GetNickname returns the name of this client
@@ -26,5 +26,5 @@ func (user *User) GetEmail() string {
 
 // GetClient returns the user's client
 func (user *User) GetClient() *client.Client {
-	return user.client
+	return user.Client
 }

@@ -6,7 +6,7 @@ PROJECT=tp-auth
 MYSQL_CONTAINER_NAME=mysql
 
 proto:
-	protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative proto/client/*.proto
+	protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative proto/session/*.proto
 	protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative proto/app/*.proto
 
 build:

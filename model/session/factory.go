@@ -11,6 +11,6 @@ func New(client *client.Client) *Session {
 	return &Session{
 		CreatedAt: time.Now(),
 		Touch:     time.Now(),
-		client:    client,
+		Client:    client,
 	}
 }

@@ -10,6 +10,12 @@ type Credential struct {
 	Private   string    `json:"private,omitempty" bson:"private,omitempty"`
 	CreatedAt time.Time `json:"created_at" bson:"created_at"`
 	Deadline  time.Time `json:"deadline,omitempty" bson:"deadline,omitempty"`
+	ClientID  uint      `json:"-" bson:"client_id"`
+}
+
+// GetID returns the name of a credential
+func (cred *Credential) GetID() string {
+	return cred.ID
 }
 
 // GetName returns the name of a credential

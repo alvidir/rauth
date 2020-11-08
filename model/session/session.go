@@ -16,7 +16,7 @@ type Session struct {
 	Deadline    time.Time            `json:"deadline" bson:"deadline"`
 	Touch       time.Time            `json:"trouch" bson:"touch"`
 	Namespace   *namespace.Namespace `json:"namespace" bson:"namespace"`
-	client      *client.Client
+	Client      *client.Client       `json:"client" bson:"client"`
 }
 
 // GetCookieName returns the cookie name of the session

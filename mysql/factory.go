@@ -42,11 +42,11 @@ func newMysqlDriver() (driver driver.Connector, err error) {
 	conn.ReadTimeout = timeout
 	conn.WriteTimeout = timeout
 
-	conn.Addr = envs[2]
-	conn.DBName = envs[4]
 	conn.User = envs[0]
 	conn.Passwd = envs[1]
+	conn.Addr = envs[2]
 	conn.Net = envs[3]
+	conn.DBName = envs[4]
 	conn.ParseTime = true
 
 	return mysql.NewConnector(conn)

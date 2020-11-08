@@ -3,8 +3,10 @@ package main
 import (
 	"log"
 	"net"
+	"os/user"
 
 	"github.com/alvidir/tp-auth/model/app"
+	"github.com/alvidir/tp-auth/model/client"
 	"github.com/alvidir/tp-auth/mysql"
 	srv "github.com/alvidir/tp-auth/service/session"
 	"github.com/alvidir/util/config"
@@ -23,9 +25,6 @@ const (
 
 	envPortKey = "SERVICE_PORT"
 	envNetwKey = "SERVICE_NETW"
-
-	defaultPort    = "9090"
-	defaultNetwork = "tcp"
 )
 
 func getMainEnv() ([]string, error) {
@@ -37,17 +36,16 @@ func getMainEnv() ([]string, error) {
 func test() {
 	db, err := mysql.OpenStream()
 	if err != nil {
-		log.Printf("Got %v error while opening stream", err.Error())
+		log.Fatalf("Got %v error while opening stream", err.Error())
 		return
 	}
 
 	// Migració de structs del Model (Es fa automatica si tenen els tags ben definits).
-	// db.AutoMigrate(&service.Service{})
+	db.AutoMigrate(&app.App{}, &user.User{}, &client.Client{})
 
 	// Afegir files a les taules de la BBDD. Em suposo que se li pot passar l'struct del model ja construit, no cal construir-lo "in situ".
-	app := app.New("tp-auth", "third party authenticator", "localhost:8080", "1234")
+	app := app.New("tp-auth", "third party authenticator", "localhost:9090", "1234")
 	db.Create(app)
-
 }
 
 func main() {
@@ -57,22 +55,22 @@ func main() {
 		log.Panicf(errDotenvConfig, err.Error())
 	}
 
+	test()
 	envs, err := getMainEnv()
 	if err != nil {
 		log.Fatalf(errConfigFailed, err.Error())
 	}
 
-	log.Printf(infoSetup, envs[1], envs[0])
+	address := ":" + envs[0]
+	log.Printf(infoSetup, envs[1], address)
 
 	server := grpc.NewServer()
 	service := srv.ImplementedSessionServer()
 	service.RegisterServer(server)
 
-	lis, err := net.Listen(envs[1], envs[0])
+	lis, err := net.Listen(envs[1], address)
 	if err != nil {
 		log.Fatalf(errListenFailed, err)
-	} else {
-
 	}
 
 	if err := server.Serve(lis); err != nil {

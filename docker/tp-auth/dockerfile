@@ -15,7 +15,7 @@ RUN go mod download
 COPY . .
 
 # compiling protobuffers
-RUN protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative proto/client/*.proto
+RUN protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative proto/session/*.proto
 RUN protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative proto/app/*.proto
 
 RUN go test ./...

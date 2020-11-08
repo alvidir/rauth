@@ -1,12 +1,12 @@
 package client
 
-// A Extension represents a kind of client that extends from Client
-type Extension interface {
+// A Owner represents a kind of client that extends from Client
+type Owner interface {
 }
 
 // A Controller represents a registered client
 type Controller interface {
 	GetStatus() string
 	MatchPassword(string) bool
-	SetExtension(Extension) Extension
+	SetOwner(Owner) Owner
 }

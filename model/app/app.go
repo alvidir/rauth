@@ -12,7 +12,7 @@ type App struct {
 	Name        string         `json:"name" gorm:"not null;unique"`
 	Description string         `json:"description"`
 	URL         string         `json:"url" gorm:"not null;unique"`
-	client      *client.Client `gorm:"polymorphic:Owner;"`
+	Client      *client.Client `json:"-" gorm:"polymorphic:Owner;"`
 }
 
 // GetName return the app name
@@ -32,5 +32,5 @@ func (app *App) GetURL() string {
 
 // GetClient returns the user's client
 func (app *App) GetClient() *client.Client {
-	return app.client
+	return app.Client
 }
