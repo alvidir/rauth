@@ -1,4 +1,4 @@
-package client
+package user
 
 import "github.com/alvidir/tp-auth/model/user"
 

@@ -1,27 +1,26 @@
 package provider
 
 import (
+	"sync"
 	"time"
 
 	"github.com/alvidir/tp-auth/model/client"
 	"github.com/alvidir/tp-auth/model/session"
 )
 
+type sessionName string
+type sessionValue *session.Session
+
 type provider struct {
 	ID       string        `json:"id" bson:"_id,omitempty"`
 	Name     string        `json:"name" bson:"name"`
 	Prefix   string        `json:"prefix" bson:"prefix"`
-	AutoGen  bool          `json:"auto" bson:"auto"`
 	Timeout  time.Duration `json:"timeout" bson:"timeout"`
-	sessions map[string]*session.Session
+	sessions sync.Map
 }
 
 func (provider *provider) SetPrefix(prefix string) {
 	provider.Prefix = prefix
-}
-
-func (provider *provider) SetAutogen(b bool) {
-	provider.AutoGen = b
 }
 
 func (provider *provider) GetName() string {

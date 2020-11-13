@@ -14,14 +14,19 @@ type User struct {
 	Client   *client.Client `json:"-" gorm:"polymorphic:Owner;"`
 }
 
+// GetURI returns the default uri for the user
+func (user *User) GetURI() string {
+	return user.Emails[0]
+}
+
 // GetNickname returns the name of this client
 func (user *User) GetNickname() string {
 	return user.Nickname
 }
 
-// GetEmail returns the main email of this client
-func (user *User) GetEmail() string {
-	return user.Emails[0]
+// GetEmails returns the main email of this client
+func (user *User) GetEmails() []string {
+	return user.Emails
 }
 
 // GetClient returns the user's client

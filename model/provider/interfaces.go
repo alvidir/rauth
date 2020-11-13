@@ -9,7 +9,6 @@ import (
 
 // A Provider represents a cookie-kind session's provider
 type Provider interface {
-	SetAutogen(b bool)
 	SetPrefix(string)
 	GetName() string
 	NewSession(string, *client.Client) (*session.Session, error)

@@ -25,8 +25,8 @@ func (app *App) GetDescription() string {
 	return app.Description
 }
 
-// GetURL returns the app url
-func (app *App) GetURL() string {
+// GetURI returns the app url
+func (app *App) GetURI() string {
 	return app.URL
 }
 

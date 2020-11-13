@@ -44,7 +44,7 @@ func test() {
 	db.AutoMigrate(&app.App{}, &user.User{}, &client.Client{})
 
 	// Afegir files a les taules de la BBDD. Em suposo que se li pot passar l'struct del model ja construit, no cal construir-lo "in situ".
-	app := app.New("tp-auth", "third party authenticator", "localhost:9090", "1234")
+	app := app.New("tp-auth", "localhost:9090", "1234")
 	db.Create(app)
 }
 

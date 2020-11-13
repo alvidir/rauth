@@ -2,6 +2,7 @@ package client
 
 // A Owner represents a kind of client that extends from Client
 type Owner interface {
+	GetURI() string
 }
 
 // A Controller represents a registered client

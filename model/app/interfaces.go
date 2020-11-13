@@ -4,5 +4,5 @@ package app
 type Controller interface {
 	GetDescription() string
 	GetName() string
-	GetURL() string
+	GetURI() string
 }
