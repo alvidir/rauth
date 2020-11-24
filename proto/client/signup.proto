@@ -1,7 +1,7 @@
 syntax = "proto3";
 option go_package = "github.com/alvidir/tp-auth/proto/session";
 
-package session;
+package client;
 
 // SignupRequest description
 message SignupRequest {

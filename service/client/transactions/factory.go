@@ -1,7 +1,7 @@
 package transactions
 
 import (
-	pb "github.com/alvidir/tp-auth/proto/session"
+	pb "github.com/alvidir/tp-auth/proto/client"
 	"github.com/alvidir/util/pattern/transaction"
 )
 
