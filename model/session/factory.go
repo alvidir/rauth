@@ -7,10 +7,11 @@ import (
 )
 
 // New builds a brand new session for the provided client
-func New(client *client.Client) *Session {
-	return &Session{
-		CreatedAt: time.Now(),
-		Touch:     time.Now(),
-		Client:    client,
+func New(client client.Controller, cookie string) Controller {
+	return &session{
+		Controller:  client,
+		CreatedAt:   time.Now(),
+		TouchAt:     time.Now(),
+		CookieValue: cookie,
 	}
 }

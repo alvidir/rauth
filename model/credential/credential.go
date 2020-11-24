@@ -7,7 +7,6 @@ type Credential struct {
 	ID        string    `json:"id" bson:"_id,omitempty"`
 	Name      string    `json:"name" bson:"name"`
 	Public    string    `json:"public" bson:"public"`
-	Private   string    `json:"private,omitempty" bson:"private,omitempty"`
 	CreatedAt time.Time `json:"created_at" bson:"created_at"`
 	Deadline  time.Time `json:"deadline,omitempty" bson:"deadline,omitempty"`
 }

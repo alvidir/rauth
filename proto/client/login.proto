@@ -5,8 +5,9 @@ package client;
 
 // LoginRequest description
 message LoginRequest {
-  string cookie = 1;
-  string name = 2;
-  string addr = 3;
-  string pwd = 4;
+  string cookie = 1;  // the current cookie before any login, if any
+  string name = 2;    // the nickanme or appname
+  string addr = 3;    // the email, or app-endpoint
+  string pwd = 4;     // the password or the signed public-key
+  string app = 5;     // the app where to login, if any
 }
