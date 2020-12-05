@@ -6,9 +6,10 @@ import (
 
 // user represents a client of type user
 type user struct {
-	Client   client.Client `json:"-" bson:"client"`
-	Nickname string        `json:"nickname" bson:"nickname"`
-	Emails   []string      `json:"emails" bson:"emails"`
+	ID       uint          `json:"id" gorm:"primaryKey; autoIncrement:true"`
+	Nickname string        `json:"nickname" gorm:"not null; unique"`
+	Emails   []string      `json:"emails" gorm:"not null"`
+	Client   client.Client `json:"-" gorm:"foreignKey:ClientID, unique"`
 }
 
 // GetURI returns the default uri for the user

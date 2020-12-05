@@ -3,12 +3,9 @@ package main
 import (
 	"log"
 	"net"
-	"os/user"
 
-	"github.com/alvidir/tp-auth/model/app"
-	"github.com/alvidir/tp-auth/model/client"
 	"github.com/alvidir/tp-auth/mysql"
-	srv "github.com/alvidir/tp-auth/service/session"
+	srv "github.com/alvidir/tp-auth/service/client"
 	"github.com/alvidir/util/config"
 	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
@@ -33,29 +30,29 @@ func getMainEnv() ([]string, error) {
 		envNetwKey /*1*/)
 }
 
-func test() {
-	db, err := mysql.OpenStream()
-	if err != nil {
-		log.Fatalf("Got %v error while opening stream", err.Error())
+func setup() (err error) {
+	// to change the flags on the default logger
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	if err = godotenv.Load(); err != nil {
 		return
 	}
 
-	// Migració de structs del Model (Es fa automatica si tenen els tags ben definits).
-	db.AutoMigrate(&app.App{}, &user.User{}, &client.Client{})
+	if err = mysql.MigrateTables(); err != nil {
+		return
+	}
 
-	// Afegir files a les taules de la BBDD. Em suposo que se li pot passar l'struct del model ja construit, no cal construir-lo "in situ".
-	app := app.New("tp-auth", "localhost:9090", "1234")
-	db.Create(app)
+	//if err = clientTX.SetupDummyUser(); err != nil {
+	//	return
+	//}
+
+	return
 }
 
 func main() {
-	// to change the flags on the default logger
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	if err := godotenv.Load(); err != nil {
-		log.Panicf(errDotenvConfig, err.Error())
+	if err := setup(); err != nil {
+		log.Fatalf(err.Error())
 	}
 
-	test()
 	envs, err := getMainEnv()
 	if err != nil {
 		log.Fatalf(errConfigFailed, err.Error())

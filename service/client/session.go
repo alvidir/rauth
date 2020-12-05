@@ -4,7 +4,7 @@ import (
 	"context"
 
 	pb "github.com/alvidir/tp-auth/proto/client"
-	tx "github.com/alvidir/tp-auth/service/client/transactions"
+	tx "github.com/alvidir/tp-auth/transactions/client"
 	"google.golang.org/grpc"
 )
 

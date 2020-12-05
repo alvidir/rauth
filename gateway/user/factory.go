@@ -1,27 +1,12 @@
 package user
 
 import (
-	"os/user"
-	"sync"
+	"context"
 
-	"github.com/alvidir/tp-auth/mysql"
-	"gorm.io/gorm"
+	"github.com/alvidir/tp-auth/model/user"
 )
 
-var once sync.Once
-
-// OpenUserStream opens an stream ensuring the user's table does exists
-func OpenUserStream() (db *gorm.DB, err error) {
-	if db, err = mysql.OpenStream(); err != nil {
-		return
-	}
-
-	once.Do(func() {
-		// Automigrate must be called only once for each gateway, and allways on the stream's opening call.
-		// This makes sure the client struct has its own table on the database. So model updates are only
-		// migrable to the database rebooting the server (not on-the-run).
-		db.AutoMigrate(&user.User{})
-	})
-
-	return
+// New builds a gateway for the provided user
+func New(ctx context.Context, user user.Controller) Gateway {
+	return &userGateway{Controller: user, ctx: ctx}
 }

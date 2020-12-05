@@ -1,0 +1,1 @@
+CREATE DATABASE SafeEvents; /* IF NOT EXISTS 
