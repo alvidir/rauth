@@ -1,4 +1,4 @@
-package transactions
+package client
 
 import (
 	pb "github.com/alvidir/tp-auth/proto/client"
@@ -19,7 +19,7 @@ func NewTxLogin(req *pb.LoginRequest) transaction.Tx {
 
 // NewTxGoogleSignin builds a brand new instance of TxGoogleLogin
 func NewTxGoogleSignin(req *pb.GoogleSigninRequest) transaction.Tx {
-	body := &TxGoogleSignin{req}
+	body := &TxGoogleSignin{req: req}
 	return transaction.NewTransaction(body)
 }
 

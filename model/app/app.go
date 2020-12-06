@@ -4,26 +4,20 @@ import (
 	"github.com/alvidir/tp-auth/model/client"
 )
 
-// An app represets a client of kind app
-type app struct {
-	ID          uint          `json:"id" gorm:"primaryKey; autoIncrement:true"`
-	Name        string        `json:"name" gorm:"not null; unique"`
-	Description string        `json:"description" gorm:"not null"`
-	URL         string        `json:"url" gorm:"not null; unique"`
-	Client      client.Client `json:"-" gorm:"foreignKey:ClientID; unique"`
-}
-
-// GetName return the app name
-func (app *app) GetName() string {
-	return app.Name
+// An App represets a client of kind app
+type App struct {
+	client.Controller `xorm:"extends"` //`json:"-" gorm:"foreignKey:ClientID; unique"`
+	ID                int64            `xorm:"pk autoincr"`                            //`json:"id" gorm:"primaryKey; autoIncrement:true"`
+	Description       string           `xorm:"varchar(255)"`                           //`json:"description" gorm:"not null"`
+	URL               string           `xorm:"varchar(255) not null unique 'app_url'"` //`json:"url" gorm:"not null; unique"`
 }
 
 // GetDescription return the app name
-func (app *app) GetDescription() string {
+func (app *App) GetDescription() string {
 	return app.Description
 }
 
-// GetURI returns the app url
-func (app *app) GetURI() string {
+// GetAddr returns the app url
+func (app *App) GetAddr() string {
 	return app.URL
 }

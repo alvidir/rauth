@@ -1,4 +1,4 @@
-package transactions
+package client
 
 import (
 	"context"
@@ -19,7 +19,8 @@ func (tx *TxSignup) Precondition() error {
 
 // Postcondition creates new user and a opens its first session
 func (tx *TxSignup) Postcondition(context.Context) (interface{}, error) {
-	log.Printf("Got a Signup request")
+	log.Printf("Got a Signup request for email %v", tx.req.Addr)
+
 	return nil, nil
 }
 

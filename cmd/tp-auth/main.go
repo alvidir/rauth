@@ -6,6 +6,7 @@ import (
 
 	"github.com/alvidir/tp-auth/mysql"
 	srv "github.com/alvidir/tp-auth/service/client"
+	"github.com/alvidir/tp-auth/transactions/client"
 	"github.com/alvidir/util/config"
 	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
@@ -41,9 +42,9 @@ func setup() (err error) {
 		return
 	}
 
-	//if err = clientTX.SetupDummyUser(); err != nil {
-	//	return
-	//}
+	if err = client.SetupDummyUser(); err != nil {
+		return
+	}
 
 	return
 }

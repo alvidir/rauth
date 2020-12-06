@@ -18,6 +18,7 @@ const (
 	// EnvDefaultTimeout represents the environment variable where the default timeout is set
 	EnvDefaultTimeout = "DEFAULT_TIMEOUT"
 
+	mysqlURI = "%v:%v@%v(%v)/%v?charset=utf8"
 	// Timeout for any database request
 	Timeout = 10 * time.Second
 )

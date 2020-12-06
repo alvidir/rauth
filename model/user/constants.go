@@ -1,3 +1,5 @@
 package user
 
-const ()
+const (
+	errEmailAlreadyExists = "Email %v already exists"
+)

@@ -1,14 +1,14 @@
 package mysql
 
 import (
-	"database/sql"
 	"database/sql/driver"
+	"fmt"
+	"log"
 	"time"
 
 	"github.com/alvidir/util/config"
 	"github.com/go-sql-driver/mysql"
-	gormSqlDriver "gorm.io/driver/mysql"
-	"gorm.io/gorm"
+	"xorm.io/xorm"
 )
 
 func initMysqlConn() (interface{}, error) {
@@ -52,18 +52,36 @@ func newMysqlDriver() (driver driver.Connector, err error) {
 	return mysql.NewConnector(conn)
 }
 
-// OpenStream returns a gateway to the mysql database
-func OpenStream() (gormDB *gorm.DB, err error) {
-	var conn driver.Connector
-	if conn, err = getConnInstance(); err != nil {
+func getMysqlURL() (url string, err error) {
+	var envs []string
+	if envs, err = getMysqlEnv(); err != nil {
 		return
 	}
 
-	db := sql.OpenDB(conn)
-	config := gormSqlDriver.Config{
-		Conn: db,
+	url = fmt.Sprintf(mysqlURI, envs[0], envs[1], envs[3], envs[2], envs[4])
+	return
+}
+
+// OpenStream returns a gateway to the mysql database
+func OpenStream() (engine *xorm.Engine, err error) {
+	var url string
+	if url, err = getMysqlURL(); err != nil {
+		return
 	}
 
-	driver := gormSqlDriver.New(config)
-	return gorm.Open(driver, &gorm.Config{})
+	log.Println(url)
+	return xorm.NewEngine("mysql", url)
+
+	//var conn driver.Connector
+	//if conn, err = getConnInstance(); err != nil {
+	//	return
+	//}
+	//
+	//db := sql.OpenDB(conn)
+	//config := gormSqlDriver.Config{
+	//	Conn: db,
+	//}
+	//
+	//driver := gormSqlDriver.New(config)
+	//return gorm.Open(driver, &gorm.Config{})
 }

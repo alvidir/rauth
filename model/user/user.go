@@ -1,28 +1,32 @@
 package user
 
 import (
+	"fmt"
+
 	"github.com/alvidir/tp-auth/model/client"
 )
 
-// user represents a client of type user
-type user struct {
-	ID       uint          `json:"id" gorm:"primaryKey; autoIncrement:true"`
-	Nickname string        `json:"nickname" gorm:"not null; unique"`
-	Emails   []string      `json:"emails" gorm:"not null"`
-	Client   client.Client `json:"-" gorm:"foreignKey:ClientID, unique"`
+// A User represents a client of type user
+type User struct {
+	client.Controller `xorm:"extends"` //`json:"-" gorm:"foreignKey:ClientID, unique"`
+	ID                int64            `xorm:"pk autoincr"`     //`json:"id" gorm:"primaryKey; autoIncrement:true"`
+	Default           string           `xorm:"not null unique"` //`json:"default" gorm:"not null, unique"`
+	Emails            []string         //`json:"emails" gorm:"not null"`
 }
 
-// GetURI returns the default uri for the user
-func (user *user) GetURI() string {
-	return user.Emails[0]
+// AddEmail returns the main email of this client
+func (user *User) AddEmail(new string) (err error) {
+	for _, email := range user.Emails {
+		if email == new {
+			return fmt.Errorf(errEmailAlreadyExists, new)
+		}
+	}
+
+	user.Emails = append(user.Emails, new)
+	return
 }
 
-// GetNickname returns the name of this client
-func (user *user) GetNickname() string {
-	return user.Nickname
-}
-
-// GetMainEmail returns the main email of this client
-func (user *user) GetMainEmail() string {
-	return user.Emails[0]
+// GetAddr returns the main email of this client
+func (user *User) GetAddr() string {
+	return user.Default
 }
