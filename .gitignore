@@ -5,6 +5,8 @@
 *.so
 *.dylib
 
+# Environment configurations
+*.env
 
 
 # Test binary, built with `go test -c`
