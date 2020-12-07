@@ -4,9 +4,9 @@ use std::time::Instant;
 
 //use diesel;
 //use diesel::prelude::*;
-//use diesel::mysql::MysqlConnection;
+//use diesel::pg::pgPrelude;
 //
-//#[derive(Queryable)]
+//#[derive(Insertable)]
 pub struct Client {
     pub id: i32,
     pub name: String,

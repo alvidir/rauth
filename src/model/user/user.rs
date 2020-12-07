@@ -8,7 +8,8 @@ use crate::model::client::traits::Controller as ClientController;
 //#[derive(Queryable)]
 pub struct User {
     pub id: i32,
-    pub emails: Vec<String>,
+    pub email: String,
+    emails: Vec<String>,
     client: Box<dyn ClientController>,
 }
 
@@ -16,6 +17,7 @@ impl User {
     pub fn new(client: Box<dyn ClientController>, email: String) -> Self {
         User{
             id: 0,
+            email: email,
             emails: vec!{email},
             client: client,
         }
@@ -24,7 +26,7 @@ impl User {
 
 impl Controller for User {
     fn get_addr(&self) -> &str {
-        &self.emails[0]
+        &self.email
     }
 
 }
