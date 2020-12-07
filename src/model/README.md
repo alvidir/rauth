@@ -15,4 +15,4 @@ Down below are listed each diagram and provided its public links. There must be 
 | Client | A Client object relates a session with the client data it belongs |
 | App | An App is the kind of client that represents an application users can log in |
 | User | A User is the kind of client that represents a user able to login into one or more applications |
-| Credential | A Credential is a public key a client can use to make sure its identity |
+| Session | A Sessions allows any client to signin into an app |

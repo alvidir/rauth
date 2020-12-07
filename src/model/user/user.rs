@@ -1,30 +1,30 @@
 use crate::model::user::traits::*;
+use crate::model::client::traits::Controller as ClientController;
 
-use std::any::Any;
-use std::error::Error;
-
-use crate::model::client::traits::ClientSide;
-
-pub struct UserImplementation<'a> {
-    pub nickname: &'a str,
-    pub email: &'a str,
+//use diesel;
+//use diesel::prelude::*;
+//use diesel::mysql::MysqlConnection;
+//
+//#[derive(Queryable)]
+pub struct User {
+    pub id: i32,
+    pub emails: Vec<String>,
+    client: Box<dyn ClientController>,
 }
 
-impl<'a> UserImplementation<'a> {
-    pub fn new(name: &'a str, email: &'a str) -> Self {
-        UserImplementation{
-            nickname: &name,
-            email: &email,
+impl User {
+    pub fn new(client: Box<dyn ClientController>, email: String) -> Self {
+        User{
+            id: 0,
+            emails: vec!{email},
+            client: client,
         }
     }
 }
 
-impl<'a> User for UserImplementation<'a> {
-    fn get_name(&self) -> &str {
-        self.nickname
+impl Controller for User {
+    fn get_addr(&self) -> &str {
+        &self.emails[0]
     }
 
-    fn get_endpoint(&self) -> &str {
-        self.email
-    }
 }

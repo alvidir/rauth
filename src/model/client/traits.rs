@@ -1,12 +1,12 @@
-use std::any::Any;
-use std::error::Error;
+use crate::model::client::status::Status;
 
-pub trait ClientSide {
-    fn get_endpoint(&self) -> &str;
-    fn get_name(&self) -> &str;
+pub trait Extension {
+    fn get_addr(&self) -> &str;
 }
 
-pub trait Client {
-    fn get_id(&self) -> &str;
-    fn get_status(&self) -> i8;
+pub trait Controller {
+    fn get_status(&self) -> &Status;
+    fn get_addr(&self) -> &str;
+    fn get_id(&self) -> i32;
+    fn match_pwd(&self, pwd: String) -> bool;
 }

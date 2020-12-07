@@ -1,23 +1,39 @@
 use tonic::{transport::Server, Request, Response, Status, Code};
-use crate::service::session::transactions::factory as TxFactory;
+use std::any::Any;
+
+use crate::transactions::client::{login::*, signup::*};
+use crate::transactions::traits::Tx;
 
 // Import the generated rust code into module
-pub mod session_proto {
-   tonic::include_proto!("session");
+pub mod client_proto {
+   tonic::include_proto!("client");
 }
 
 // Proto generated server traits
-use session_proto::session_server::{Session, SessionServer};
+use client_proto::session_server::{Session, SessionServer};
 
 // Proto message structs
-use session_proto::{LoginRequest, GoogleLoginRequest, LogoutRequest, SignupRequest, SessionResponse };
+use client_proto::{LoginRequest, GoogleSigninRequest, LogoutRequest, SignupRequest, SessionResponse };
 
+pub async fn start_server(address: String) -> Result<(), Box<dyn std::error::Error>> {
+    let addr = address.parse().unwrap();
+    let session_server = SessionImplementation::default();
+ 
+    println!("Session service listening on {}", addr);
+ 
+    Server::builder()
+        .add_service(SessionServer::new(session_server))
+        .serve(addr)
+        .await?;
+ 
+    Ok(())
+ }
 
 #[derive(Default)]
 pub struct SessionImplementation {}
 
 impl SessionImplementation {
-    fn signup_response(&self, result: &std::result::Result<std::boxed::Box<dyn std::any::Any>, std::string::String>) -> Result<Response<SessionResponse>, Status> {
+    fn signup_response(&self, result: Result<Box<dyn Any>, String>) -> Result<Response<SessionResponse>, Status> {
         match result {
             Err(err) => {
                 Err(Status::new(Code::Aborted, err))
@@ -29,6 +45,7 @@ impl SessionImplementation {
                         deadline: 0,
                         cookie: "".to_string(),
                         status: 0,
+                        token: "".to_string(),
                     }
                 ))
             }
@@ -40,13 +57,15 @@ impl SessionImplementation {
 impl Session for SessionImplementation {
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<SessionResponse>, Status> {
         let msg_ref = request.into_inner();
-        let mut tx_signup = TxFactory::new_tx_signup(
+        let signup = TxSignup::new(
             msg_ref.name, 
             msg_ref.addr, 
             msg_ref.pwd,
         );
         
+        let mut tx_signup: Box<dyn Tx> = Box::new(signup);
         tx_signup.execute();
+
         match tx_signup.result() {
             None => {
                 let status = Status::new(Code::Internal, "");
@@ -61,29 +80,32 @@ impl Session for SessionImplementation {
     
     async fn login(&self, request: Request<LoginRequest>) -> Result<Response<SessionResponse>, Status> {
         let msg_ref = request.into_inner();
-        let mut tx_login = TxFactory::new_tx_login(
+        let login = TxLogin::new(
             msg_ref.cookie,
             msg_ref.name,
             msg_ref.addr,
             msg_ref.pwd,
         );
         
+        let mut tx_login: Box<dyn Tx> = Box::new(login);
         tx_login.execute();
 
         let response = SessionResponse {
             deadline: 0,
             cookie: "".to_string(),
             status: 0,
+            token: "".to_string(),
         };
 
         Ok(Response::new(response))
     }
 
-    async fn google_login(&self, request: Request<GoogleLoginRequest>) -> Result<Response<SessionResponse>, Status> {
+    async fn google_signin(&self, request: Request<GoogleSigninRequest>) -> Result<Response<SessionResponse>, Status> {
         let response = SessionResponse {
             deadline: 0,
             cookie: "".to_string(),
             status: 0,
+            token: "".to_string(),
         };
 
         Ok(Response::new(response))
@@ -94,23 +116,10 @@ impl Session for SessionImplementation {
             deadline: 0,
             cookie: "".to_string(),
             status: 0,
+            token: "".to_string(),
         };
 
         Ok(Response::new(response))
     }
     
-}
-
-pub async fn start_server(address: String) -> Result<(), Box<dyn std::error::Error>> {
-   let addr = address.parse().unwrap();
-   let session_server = SessionImplementation::default();
-
-   println!("SessionServer listening on {}", addr);
-
-   Server::builder()
-       .add_service(SessionServer::new(session_server))
-       .serve(addr)
-       .await?;
-
-   Ok(())
 }

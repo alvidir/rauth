@@ -1,4 +1,3 @@
-pub mod factory;
 pub mod traits;
-
-mod client;
+pub mod status;
+pub mod client;

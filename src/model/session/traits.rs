@@ -1,12 +1,11 @@
-use std::any::Any;
-use std::error::Error;
-use std::time::Duration;
+use std::time::Instant;
+use crate::model::session::status::Status;
 
-pub trait Session {
-    fn cookie(&self) -> &str;
-    fn user_id(&self) -> &str;
-    fn deadline(&self) -> Duration;
-    fn set(&self, key: &str, value: Box<dyn Any>) -> Result<(), Box<dyn Error>>;
-    fn get(&self, key: &str) -> Result<Box<dyn Any>, Box<dyn Error>>;
-    fn delete(&self, key: &str) -> Result<(), Box<dyn Error>>;
+pub trait Controller {
+    fn get_created_at(&self) -> Instant;
+    fn get_touch_at(&self) -> Instant;
+    fn get_deadline(&self) -> Instant;
+    fn get_status(&self) -> &Status;
+    fn get_cookie(&self) -> &str;
+    fn match_cookie(&self, cookie: String) -> bool;
 }

@@ -1,30 +1,35 @@
-use crate::model::app::traits::*;
+use crate::model::app::traits::Controller;
+use crate::model::client::traits::Controller as ClientController;
 
-use std::any::Any;
-use std::error::Error;
-
-use crate::model::client::traits::ClientSide;
-
-pub struct AppImplementation<'a> {
-    name: &'a str,
-    addr: &'a str,
+//use diesel;
+//use diesel::prelude::*;
+//use diesel::mysql::MysqlConnection;
+//
+//#[derive(Queryable)]
+pub struct App {
+    pub id: i32,
+    pub description: String,
+    pub url: String,
+    client: Box<dyn ClientController>,
 }
 
-impl<'a> AppImplementation<'a> {
-    pub fn new(name: &'a str, addr: &'a str) -> Self {
-        AppImplementation{
-            name: &name,
-            addr: &addr,
+impl App {
+    pub fn new(client: Box<dyn ClientController>, url: String) -> Self {
+        App{
+            id: 0,
+            description: "".to_string(),
+            url: url,
+            client: client,
         }
     }
 }
 
-impl<'a> App for AppImplementation<'a> {
-    fn get_name(&self) -> &str {
-        self.get_name()
+impl Controller for App {
+    fn get_description(&self) -> &str {
+        &self.description
     }
 
-    fn get_endpoint(&self) -> &str {
-        self.get_endpoint()
+    fn get_addr(&self) -> &str {
+        &self.url
     }
 }

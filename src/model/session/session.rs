@@ -1,57 +1,60 @@
 use crate::model::session::traits::*;
-use crate::model::client::traits::Client;
+use crate::model::session::status::Status;
+use crate::model::client::traits::Controller as ClientController;
 
-use std::time::{SystemTime, UNIX_EPOCH, Duration};
-use std::any::Any;
-use std::error::Error;
+use std::time::{Duration, Instant};
 
-pub struct SessionImplementation<'a> {
-    id: &'a str,
-    deadline: Duration,
-    creation: Duration,
-    client: &'a dyn Client,
+//use diesel;
+//use diesel::prelude::*;
+//use diesel::mysql::MysqlConnection;
+//
+//#[derive(Queryable)]
+pub struct Session {
+    pub id: i32,
+    pub cookie: String,
+    pub created_at: Instant,
+    pub touch_at: Instant,
+    pub timeout: Duration,
+    pub status: Status,
+    client: Box<dyn ClientController>,
 }
 
-impl<'a> SessionImplementation<'a> {
-    pub fn new(client: &'a (dyn Client + 'static), timeout: Duration) -> Self {
-        let now = SystemTime::now();
-        let now_unix = now
-            .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards");
-
-        SessionImplementation{
-            id: "hello world",
-            deadline: now_unix + timeout,
-            creation: now_unix,
+impl Session {
+    pub fn new(client: Box<dyn ClientController>, cookie: String, timeout: Duration) -> Self {
+        Session{
+            id: 0,
+            cookie: cookie,
+            created_at: Instant::now(),
+            touch_at: Instant::now(),
+            timeout: timeout,
+            status: Status::NEW,
             client: client,
         }
     }
 }
 
-impl<'a> Session for SessionImplementation<'a> {
-    fn cookie(&self) -> &str {
-        self.id
+impl Controller for Session {
+    fn get_created_at(&self) -> Instant {
+        self.created_at
     }
 
-    fn user_id(&self) -> &str {
-        self.id
+    fn get_touch_at(&self) -> Instant {
+        self.touch_at
     }
 
-    fn deadline(&self) -> Duration {
-        self.deadline
+    fn get_deadline(&self) -> Instant {
+        self.created_at + self.timeout
     }
 
-    fn set(&self, key: &str, value: Box<dyn Any>) -> Result<(), Box<dyn Error>> {
-        Ok(())
+    fn get_status(&self) -> &Status {
+        &self.status
     }
 
-    fn get(&self, key: &str) -> Result<Box<dyn Any>, Box<dyn Error>> {
-        Ok(Box::new(String::new()))
+    fn get_cookie(&self) -> &str {
+        &self.cookie
     }
 
-    fn delete(&self, key: &str) -> Result<(), Box<dyn Error>> {
-        Ok(())
+    fn match_cookie(&self, cookie: String) -> bool {
+        self.cookie == cookie
     }
-
-
 }

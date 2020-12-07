@@ -1,7 +1,4 @@
-use std::any::Any;
-use std::error::Error;
-
-pub trait App {
-    fn get_endpoint(&self) -> &str;
-    fn get_name(&self) -> &str;
+pub trait Controller {
+    fn get_description(&self) -> &str;
+    fn get_addr(&self) -> &str;
 }

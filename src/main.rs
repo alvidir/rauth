@@ -1,14 +1,21 @@
+#[macro_use]
+extern crate dotenv_codegen;
+use dotenv;
+use std::error::Error;
+
 mod service;
 mod model;
-mod transaction;
 
-
+mod transactions;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-   let address = String::from("127.0.0.1:50051");
-   println!("Start the server on: {:?}", address);
-   service::session::server::start_server(address).await?;
+async fn main() -> Result<(), Box<dyn Error>> {
+   dotenv::dotenv().ok();
+
+   let url = format!("127.0.0.1:{}", dotenv!("SERVICE_PORT"));
+   let address = String::from(url);
+   println!("Server is listening on {}", address);
+   service::client::session::start_server(address).await?;
 
    Ok(())
 }
