@@ -24,6 +24,9 @@ func SetupDummyUser() (err error) {
 	ctx, cancel := context.WithTimeout(context.TODO(), 10*time.Second)
 	defer cancel()
 
-	_, err = dummy.Postcondition(ctx)
-	return
+	if _, err = dummy.Postcondition(ctx); err != nil {
+		return
+	}
+
+	return dummy.Commit()
 }
