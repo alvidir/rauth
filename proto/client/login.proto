@@ -1,0 +1,12 @@
+syntax = "proto3";
+option go_package = "github.com/alvidir/tp-auth/proto/session";
+
+package client;
+
+// LoginRequest description
+message LoginRequest {
+  string cookie = 1;  // the current cookie on the client
+  string name = 2;    // the nickanme or appname
+  string addr = 3;    // the email, or app-endpoint
+  string pwd = 4;     // the password or the signed public-key
+}

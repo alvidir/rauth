@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+    ### DATABASE ###
+    postgres:
+        container_name: postgres
+        image: postgres
+        restart: on-failure
+        ports:
+            - 5432:5432
+        volumes:
+            - dbdata:/data/postgres
+        networks: 
+            - database
+        env_file:
+            - .env
+    
+    pgadmin:
+        container_name: pgadmin
+        image: dpage/pgadmin4
+        restart: always
+        depends_on:
+            - postgres
+        environment:
+            PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+            PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+        volumes:
+            - pgdata:/root/.pgadmin
+        ports:
+            - "${PGADMIN_PORT}:80"
+        networks: 
+            - database
+            
+    
+    ### ENVOY PROXY ###
+    #envoy:
+    #    container_name: tp-auth-envoy
+    #    image: alvidir/tp-auth:0.1.0-envoy
+    #    restart: always
+    #    ports:
+    #        - "8080:8080"
+    #        - "9901:9901"
+    #    networks: 
+    #        - ingress
+    #
+    #### BACKEND ###
+    #tp-auth:
+    #    container_name: tp-auth-server
+    #    image: alvidir/tp-auth:0.1.0
+    #    restart: always
+    #    networks: 
+    #        - ingress
+    #        - domain
+    #        - database
+    #    env_file:
+    #        - .env
+
+networks:
+    # Ingress network works as bridge between envoyproxy and the available services
+    #ingress:
+    #    name: ingress
+    #    driver: bridge
+    #
+    ## Domain network is the internal network of services
+    #domain:
+    #    name: domain
+    #    driver: bridge
+    #
+    ## Database network is the bridge between domain environment and the sql databases
+    database:
+        name: database
+        driver: bridge
+
+volumes:
+    dbdata:
+    pgdata:
