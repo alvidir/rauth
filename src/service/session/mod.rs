@@ -1,8 +1,9 @@
+mod client;
 use tonic::{transport::Server, Request, Response, Status, Code};
 use std::any::Any;
 
-use crate::transactions::client::{login::*, signup::*};
-use crate::transactions::traits::Tx;
+use crate::transaction::client::{login::*, signup::*};
+use crate::transaction::Tx;
 
 // Import the generated rust code into module
 pub mod client_proto {

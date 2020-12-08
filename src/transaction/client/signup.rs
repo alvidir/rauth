@@ -1,4 +1,4 @@
-use crate::transactions::traits::Tx;
+use crate::transaction::Tx;
 //use crate::transactions::client::regex::{check_name, check_email, check_pwd};
 
 use std::any::Any;
