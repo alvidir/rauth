@@ -1,9 +1,9 @@
 CREATE TABLE Apps (
     id SERIAL PRIMARY KEY,
     client_id INTEGER NOT NULL, 
-    description TEXT,
+    description VARCHAR(255),
     url VARCHAR(255) NOT NULL UNIQUE,
 
     FOREIGN KEY (client_id)
-        REFERENCES Client(id)
+        REFERENCES Clients(id)
 )

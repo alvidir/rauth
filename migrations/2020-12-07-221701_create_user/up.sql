@@ -4,5 +4,5 @@ CREATE TABLE Users (
     email VARCHAR(64) NOT NULL,
 
     FOREIGN KEY (client_id)
-        REFERENCES Client(id)
+        REFERENCES Clients(id)
 )

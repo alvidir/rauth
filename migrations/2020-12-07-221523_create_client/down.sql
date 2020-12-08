@@ -1,1 +1,1 @@
-DROP TABLE Client;
+DROP TABLE Clients;

@@ -2,13 +2,13 @@ table! {
     apps (id) {
         id -> Int4,
         client_id -> Int4,
-        description -> Nullable<Text>,
+        description -> Nullable<Varchar>,
         url -> Varchar,
     }
 }
 
 table! {
-    client (id) {
+    clients (id) {
         id -> Int4,
         name -> Varchar,
         pwd -> Varchar,
@@ -26,11 +26,11 @@ table! {
     }
 }
 
-joinable!(apps -> client (client_id));
-joinable!(users -> client (client_id));
+joinable!(apps -> clients (client_id));
+joinable!(users -> clients (client_id));
 
 allow_tables_to_appear_in_same_query!(
     apps,
-    client,
+    clients,
     users,
 );

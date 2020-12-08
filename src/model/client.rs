@@ -1,12 +1,22 @@
-use crate::model::client::traits::*;
-use crate::model::client::status::Status;
 use std::time::Instant;
 
-//use diesel;
-//use diesel::prelude::*;
-//use diesel::pg::pgPrelude;
-//
-//#[derive(Insertable)]
+pub enum Status {
+    PENDING,
+    ACTIVATED,
+    DEACTIVATED
+}
+
+pub trait Extension {
+    fn get_addr(&self) -> &str;
+}
+
+pub trait Controller {
+    fn get_status(&self) -> &Status;
+    fn get_addr(&self) -> &str;
+    fn get_id(&self) -> i32;
+    fn match_pwd(&self, pwd: String) -> bool;
+}
+
 pub struct Client {
     pub id: i32,
     pub name: String,

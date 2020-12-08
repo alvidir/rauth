@@ -1,11 +1,10 @@
-use crate::model::app::traits::Controller;
-use crate::model::client::traits::Controller as ClientController;
+use crate::model::client::Controller as ClientController;
 
-//use diesel;
-//use diesel::prelude::*;
-//use diesel::mysql::MysqlConnection;
-//
-//#[derive(Queryable)]
+pub trait Controller {
+    fn get_description(&self) -> &str;
+    fn get_addr(&self) -> &str;
+}
+
 pub struct App {
     pub id: i32,
     pub description: String,
