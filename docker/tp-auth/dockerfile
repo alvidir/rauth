@@ -1,0 +1,28 @@
+FROM rust:1.46 as builder
+
+LABEL maintainer="Hector Morales <hector.morales.carnice@gmail.com>"
+LABEL repo-url="https://github.com/alvidir/tp-auth"
+LABEL version="alpha"
+
+RUN rustup component add rustfmt --toolchain 1.46.0-x86_64-unknown-linux-gnu
+
+WORKDIR /app
+RUN USER=root cargo new --bin tp-auth
+
+WORKDIR /app/tp-auth
+COPY . .
+
+RUN cargo build --release
+
+######## Start a new stage from scratch #######
+FROM debian:buster-slim
+
+WORKDIR /app
+COPY --from=builder /app/tp-auth/target/release/tp-auth .
+
+USER root
+ENV RUST_LOG=info
+ENV RUST_BACKTRACE=full
+
+# Command to run the executable
+CMD ["./tp-auth"]
