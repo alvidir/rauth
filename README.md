@@ -6,7 +6,7 @@ Due its potential seems appropriate to detach it from any other project and keep
 
 ## Demos 
 
-This project is being developed in `Go` and `Rust` simultaneously. Each of them has its own branch in order to keep the project's coherence. Such branches are prefixed by the keyword `demo` and followed by the language name (using the character `-` as words separator).
+This project is being developed in `Go` and `Rust` simultaneously. Each of them has its own branch in order to keep the project's coherence. Such branches are prefixed by the keyword `demo` and followed by the language name (using the character `-` between words).
 
 At today's date 09/12/2020 (dd/mm/yyyy) these branches' status are the following:
 
