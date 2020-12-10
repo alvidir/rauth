@@ -10,13 +10,15 @@ pub struct TxLogin {
 }
 
 impl TxLogin {
-    pub fn new(cookie: String, name: String, addr: String, pwd: String) -> Self {
-        TxLogin{
+    pub fn new(cookie: String, name: String, addr: String, pwd: String) -> Box<dyn Tx> {
+        let login = TxLogin{
             cookie: cookie,
             name: name,
             addr: addr,
             pwd: pwd,
-        }
+        };
+
+        Box::new(login)
     }
 }
 

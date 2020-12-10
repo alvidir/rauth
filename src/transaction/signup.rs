@@ -10,12 +10,14 @@ pub struct TxSignup {
 }
 
 impl TxSignup {
-    pub fn new(name: String, addr: String, pwd: String) -> Self {
-        TxSignup{
+    pub fn new(name: String, addr: String, pwd: String) -> Box<dyn Tx> {
+        let signup = TxSignup{
             name: name,
             addr: addr,
             pwd: pwd,
-        }
+        };
+
+        Box::new(signup)
     }
 }
 

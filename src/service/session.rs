@@ -57,15 +57,13 @@ impl SessionImplementation {
 impl Session for SessionImplementation {
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<SessionResponse>, Status> {
         let msg_ref = request.into_inner();
-        let signup = TxSignup::new(
+        let mut tx_signup = TxSignup::new(
             msg_ref.name, 
             msg_ref.addr, 
             msg_ref.pwd,
         );
         
-        let mut tx_signup: Box<dyn Tx> = Box::new(signup);
         tx_signup.execute();
-
         match tx_signup.result() {
             None => {
                 let status = Status::new(Code::Internal, "");
@@ -80,16 +78,14 @@ impl Session for SessionImplementation {
     
     async fn login(&self, request: Request<LoginRequest>) -> Result<Response<SessionResponse>, Status> {
         let msg_ref = request.into_inner();
-        let login = TxLogin::new(
+        let mut tx_login = TxLogin::new(
             msg_ref.cookie,
             msg_ref.name,
             msg_ref.addr,
             msg_ref.pwd,
         );
         
-        let mut tx_login: Box<dyn Tx> = Box::new(login);
         tx_login.execute();
-
         let response = SessionResponse {
             deadline: 0,
             cookie: "".to_string(),

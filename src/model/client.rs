@@ -7,12 +7,12 @@ pub enum Status {
 }
 
 pub trait Extension {
-    fn get_addr(&self) -> &str;
+    fn get_addr(&self) -> String;
 }
 
 pub trait Controller {
     fn get_status(&self) -> &Status;
-    fn get_addr(&self) -> &str;
+    fn get_addr(&self) -> String;
     fn get_id(&self) -> i32;
     fn match_pwd(&self, pwd: String) -> bool;
 }
@@ -52,7 +52,7 @@ impl Controller for Client {
         &self.status
     }
 
-    fn get_addr(&self) -> &str {
+    fn get_addr(&self) -> String {
         self.extension.get_addr()
     }
     
