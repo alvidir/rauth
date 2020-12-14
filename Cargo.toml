@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 # database drivers
 diesel = { version = "1.4.5", features = ["postgres"] }
+diesel-derive-enum = { version = "1", features = ["postgres"] }
 # gRPC server/client
 tonic = "0.3.0"
 prost = "0.6"

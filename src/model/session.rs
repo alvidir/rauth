@@ -1,20 +1,9 @@
 use std::collections::HashMap;
 use crate::model::client::Controller as ClientController;
 use std::time::{Duration, Instant};
-use rand::Rng;
-use rand::prelude::ThreadRng;
-
-const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
-                        abcdefghijklmnopqrstuvwxyz\
-                        0123456789)(*&^%$#@!~";
-
-const COOKIE_LEN: usize = 32;
 
 const errSessionAlreadyExists: &str = "A session already exists for client {}";
 const errBrokenCookie: &str = "Cookie {} has no session associated";
-
-static mut all_instances: Option<HashMap<String, Session>> = None;
-static mut index_by_email: Option<HashMap<String, String>> = None;
 
 pub enum Status {
     ALIVE,
@@ -42,27 +31,15 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn new(client: Box<dyn ClientController>, cookie: String, timeout: Duration) -> Self {
+    pub fn new(client: Box<dyn ClientController>, cookie: &str, timeout: Duration) -> Self {
         Session{
-            cookie: cookie.clone(),
+            cookie: cookie.to_string(),
             created_at: Instant::now(),
             touch_at: Instant::now(),
             timeout: timeout,
             status: Status::NEW,
             client: client,
         }
-    }
-
-    fn cookie_gen() -> String {
-        let mut rand_gen = rand::thread_rng();
-        let cookie: String = (0..COOKIE_LEN)
-            .map(|_| {
-                let idx = rand_gen.gen_range(0, CHARSET.len());
-                CHARSET[idx] as char
-            })
-            .collect();
-        
-        cookie
     }
 }
 

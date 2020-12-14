@@ -18,3 +18,6 @@ deploy:
 
 undeploy:
 	docker-compose -f docker-compose.yaml down
+
+run:
+	cargo run

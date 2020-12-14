@@ -20,7 +20,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
    dotenv::dotenv().ok();
 
    let database_url = env::var(ENV_DATABASE_URL).expect("Postgres url must be set.");
-   PgConnection::establish(&database_url)?; // checking connectivity
+   let conn = PgConnection::establish(&database_url)?; // checking connectivity
 
    let port = env::var(ENV_SERVICE_PORT).expect("Service port must be set.");
    let addr = format!("127.0.0.1:{}", port);

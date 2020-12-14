@@ -4,7 +4,7 @@ services:
     ### DATABASE ###
     postgres:
         container_name: postgres
-        image: postgres
+        image: postgres:latest
         restart: on-failure
         ports:
             - 5432:5432
@@ -17,7 +17,7 @@ services:
     
     pgadmin:
         container_name: pgadmin
-        image: dpage/pgadmin4
+        image: dpage/pgadmin4:4.29
         restart: always
         depends_on:
             - postgres
