@@ -1,8 +1,8 @@
 use tonic::{transport::Server, Request, Response, Status, Code};
-use std::any::Any;
+use std::time;
 
-use crate::transaction::{login::TxLogin, signup::TxSignup};
-use crate::transaction::Tx;
+use crate::transactions::{login::TxLogin, signup::TxSignup};
+use crate::models::session::Controller as SessionController;
 
 // Import the generated rust code into module
 pub mod client_proto {
@@ -33,17 +33,17 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn std::error::Err
 pub struct SessionImplementation {}
 
 impl SessionImplementation {
-    fn signup_response(&self, result: Result<Box<dyn Any>, String>) -> Result<Response<SessionResponse>, Status> {
+    fn signup_response(&self, result: Result<&dyn SessionController, String>) -> Result<Response<SessionResponse>, Status> {
         match result {
             Err(err) => {
                 Err(Status::new(Code::Aborted, err))
             }
 
-            Ok(any) => {
+            Ok(ctrl) => {
                 Ok(Response::new(
                     SessionResponse {
                         deadline: 0,
-                        cookie: "".to_string(),
+                        cookie: ctrl.get_cookie().to_string(),
                         status: 0,
                         token: "".to_string(),
                     }

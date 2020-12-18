@@ -1,9 +1,10 @@
 use std::collections::HashMap;
-use crate::model::client::Controller as ClientController;
+use crate::models::client::Controller as ClientController;
 use std::time::{Duration, Instant};
+use std::time::SystemTime;
 
-const errSessionAlreadyExists: &str = "A session already exists for client {}";
-const errBrokenCookie: &str = "Cookie {} has no session associated";
+const ERR_SESSION_ALREADY_EXISTS: &str = "A session already exists for client {}";
+const ERR_BROKEN_COOKIE: &str = "Cookie {} has no session associated";
 
 pub enum Status {
     ALIVE,
@@ -12,9 +13,9 @@ pub enum Status {
 }
 
 pub trait Controller {
-    fn get_created_at(&self) -> Instant;
-    fn get_touch_at(&self) -> Instant;
-    fn get_deadline(&self) -> Instant;
+    fn get_created_at(&self) -> SystemTime;
+    fn get_touch_at(&self) -> SystemTime;
+    fn get_deadline(&self) -> SystemTime;
     fn get_status(&self) -> &Status;
     fn get_cookie(&self) -> &str;
     fn match_cookie(&self, cookie: String) -> bool;
@@ -23,8 +24,8 @@ pub trait Controller {
 
 pub struct Session {
     pub cookie: String,
-    pub created_at: Instant,
-    pub touch_at: Instant,
+    pub created_at: SystemTime,
+    pub touch_at: SystemTime,
     pub timeout: Duration,
     pub status: Status,
     client: Box<dyn ClientController>,
@@ -34,8 +35,8 @@ impl Session {
     pub fn new(client: Box<dyn ClientController>, cookie: &str, timeout: Duration) -> Self {
         Session{
             cookie: cookie.to_string(),
-            created_at: Instant::now(),
-            touch_at: Instant::now(),
+            created_at: SystemTime::now(),
+            touch_at: SystemTime::now(),
             timeout: timeout,
             status: Status::NEW,
             client: client,
@@ -48,15 +49,15 @@ impl Controller for Session {
         self.client.get_addr()
     }
 
-    fn get_created_at(&self) -> Instant {
+    fn get_created_at(&self) -> SystemTime {
         self.created_at
     }
 
-    fn get_touch_at(&self) -> Instant {
+    fn get_touch_at(&self) -> SystemTime {
         self.touch_at
     }
 
-    fn get_deadline(&self) -> Instant {
+    fn get_deadline(&self) -> SystemTime {
         self.created_at + self.timeout
     }
 

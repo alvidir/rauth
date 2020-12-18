@@ -4,27 +4,28 @@ extern crate diesel;
 use dotenv;
 use std::env;
 use std::error::Error;
-use diesel::prelude::*;
-use diesel::pg::PgConnection;
 
-mod service;
-mod model;
-mod transaction;
+mod services;
+mod models;
+mod transactions;
 mod schema;
+mod postgres;
+mod dummy;
 
+const ERR_NO_PORT: &str = "Service port must be set";
 const ENV_SERVICE_PORT: &str = "SERVICE_PORT";
-const ENV_DATABASE_URL: &str = "DATABASE_URL";
+const DEFAULT_IP: &str = "127.0.0.1";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
    dotenv::dotenv().ok();
+   postgres::open_stream(); // checking connectivity
 
-   let database_url = env::var(ENV_DATABASE_URL).expect("Postgres url must be set.");
-   let conn = PgConnection::establish(&database_url)?; // checking connectivity
+   let port = env::var(ENV_SERVICE_PORT)
+      .expect(ERR_NO_PORT);
 
-   let port = env::var(ENV_SERVICE_PORT).expect("Service port must be set.");
-   let addr = format!("127.0.0.1:{}", port);
-   service::session::start_server(addr).await?;
+   let addr = format!("{}:{}", DEFAULT_IP, port);
+   services::session::start_server(addr).await?;
 
    Ok(())
 }

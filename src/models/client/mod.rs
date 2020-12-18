@@ -1,29 +1,21 @@
-use std::time::Instant;
+pub mod factory;
 
-pub enum Status {
-    PENDING,
-    ACTIVATED,
-    DEACTIVATED
-}
+use std::time::SystemTime;
+use self::factory::Gateway;
 
 pub trait Extension {
     fn get_addr(&self) -> String;
 }
 
 pub trait Controller {
-    fn get_status(&self) -> &Status;
+    fn get_status(&self) -> i32;
     fn get_addr(&self) -> String;
     fn get_id(&self) -> i32;
     fn match_pwd(&self, pwd: String) -> bool;
 }
 
 pub struct Client {
-    pub id: i32,
-    pub name: String,
-    pub pwd: String,
-    pub status: Status,
-    pub created_at: Instant,
-    pub updated_at: Instant,
+    data: Gateway,
     creds: Vec<String>,
     extension: Box<dyn Extension>,
 }
@@ -31,12 +23,15 @@ pub struct Client {
 impl Client {
     pub fn new(ext: Box<dyn Extension>, name: String, pwd: String) -> Self {
         Client{
-            id: 0,
-            name: name,
-            pwd: pwd,
-            created_at: Instant::now(),
-            updated_at: Instant::now(),
-            status: Status::PENDING,
+            data: Gateway::new(name, pwd),
+            creds: vec!{},
+            extension: ext,
+        }
+    }
+
+    fn build(gw: Gateway, ext: Box<dyn Extension>) -> Self {
+        Client{
+            data: gw,
             creds: vec!{},
             extension: ext,
         }
@@ -45,11 +40,11 @@ impl Client {
 
 impl Controller for Client {
     fn get_id(&self) -> i32 {
-        self.id
+        self.data.id
     }
 
-    fn get_status(&self) -> &Status {
-        &self.status
+    fn get_status(&self) -> i32 {
+        self.data.status_id
     }
 
     fn get_addr(&self) -> String {
@@ -57,6 +52,6 @@ impl Controller for Client {
     }
     
     fn match_pwd(&self, pwd: String) -> bool {
-        self.pwd == pwd
+        self.data.pwd == pwd
     }
 }

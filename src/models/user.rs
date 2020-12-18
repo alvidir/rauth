@@ -1,4 +1,4 @@
-use crate::model::client::{Client, Controller as ClientController};
+use crate::models::client::{Client, Controller as ClientController};
 
 extern crate diesel;
 use crate::diesel::prelude::*;

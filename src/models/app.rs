@@ -1,4 +1,4 @@
-use crate::model::client::Controller as ClientController;
+use crate::models::client::Controller as ClientController;
 
 pub trait Controller {
     fn get_description(&self) -> &str;

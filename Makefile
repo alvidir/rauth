@@ -14,7 +14,7 @@ postgres:
 	diesel migration run
 
 deploy:
-	docker-compose --env-file ./.env -f docker-compose.yaml up --remove-orphans
+	docker-compose --env-file ./.env -f docker-compose.yaml up --remove-orphans -d
 
 undeploy:
 	docker-compose -f docker-compose.yaml down
