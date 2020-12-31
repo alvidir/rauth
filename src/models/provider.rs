@@ -1,5 +1,5 @@
 use crate::models::session::{Session, Controller as SessionController};
-use crate::models::client::{Controller as ClientController};
+use crate::models::client::Controller as ClientController;
 use std::time::Duration;
 use std::collections::HashMap;
 //use std::sync::Mutex;
@@ -32,7 +32,7 @@ pub struct Provider {
 }
 
 impl Provider {
-    fn new(name: String, timeout: Duration) -> Self {
+    fn new(name: String, timeout: Duration) -> impl Controller {
         Provider{
             name: name,
             timeout: timeout,

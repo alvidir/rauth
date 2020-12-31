@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use crate::models::client::Controller as ClientController;
-use std::time::{Duration, Instant};
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 const ERR_SESSION_ALREADY_EXISTS: &str = "A session already exists for client {}";
 const ERR_BROKEN_COOKIE: &str = "Cookie {} has no session associated";
@@ -32,7 +31,7 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn new(client: Box<dyn ClientController>, cookie: &str, timeout: Duration) -> Self {
+    pub fn new(client: Box<dyn ClientController>, cookie: &str, timeout: Duration) -> impl Controller {
         Session{
             cookie: cookie.to_string(),
             created_at: SystemTime::now(),

@@ -1,46 +1,103 @@
-pub mod factory;
+pub mod app;
+pub mod user;
 
+use std::error::Error;
 use std::time::SystemTime;
-use self::factory::Gateway;
+use crate::diesel::prelude::*;
+use crate::schema::*;
+use crate::postgres::*;
+
+pub trait Controller {
+    fn get_status(&self) -> i32;
+    fn get_id(&self) -> i32;
+    fn get_name(&self) -> &str;
+    fn get_addr(&self) -> String;
+    fn match_pwd(&self, pwd: String) -> bool;
+    fn created_at(&self) -> SystemTime;
+    fn last_update(&self) -> SystemTime;
+}
 
 pub trait Extension {
     fn get_addr(&self) -> String;
 }
 
-pub trait Controller {
-    fn get_status(&self) -> i32;
-    fn get_addr(&self) -> String;
-    fn get_id(&self) -> i32;
-    fn match_pwd(&self, pwd: String) -> bool;
+struct Dummy;
+impl Extension for Dummy {
+    fn get_addr(&self) -> String {
+        "dummy@addres.com".to_string()
+    }
 }
 
+#[derive(Insertable)]
+#[derive(Queryable)]
+#[derive(Clone)]
+#[table_name="clients"]
 pub struct Client {
-    data: Gateway,
-    creds: Vec<String>,
-    extension: Box<dyn Extension>,
+    pub id: i32,
+    pub name: String,
+    pub pwd: String,
+    pub status_id: i32,
+    pub created_at: SystemTime,
+    pub updated_at: SystemTime,
 }
+
 
 impl Client {
-    pub fn new(ext: Box<dyn Extension>, name: String, pwd: String) -> Self {
-        Client{
-            data: Gateway::new(name, pwd),
-            creds: vec!{},
-            extension: ext,
-        }
+    pub fn new(ext: Box<dyn Extension>, name: String, pwd: String) -> impl Controller {
+        let client = Client {
+            id: 0,
+            name: name,
+            pwd: pwd,
+            created_at: SystemTime::now(),
+            updated_at: SystemTime::now(),
+            status_id: 0,
+        };
+
+        Wrapper::build(client, ext)
     }
 
-    fn build(gw: Gateway, ext: Box<dyn Extension>) -> Self {
-        Client{
-            data: gw,
+    pub fn find_client_by_id(target: i32) -> Result<Option<Box<dyn Controller>>, Box<dyn Error>> {
+        use crate::schema::clients::dsl::*;
+    
+        let connection = open_stream();
+        let results = clients.filter(id.eq(target))
+            .limit(1)
+            .load::<Client>(connection)?;
+    
+        if results.len() > 0 {
+            let client = results[0].clone();
+            let wrapp = Wrapper::build(client, Box::new(Dummy{}));
+            Ok(Some(Box::new(wrapp)))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+// A Wrapper makes the relation between a Client and other structs
+struct Wrapper{
+    data: Client,
+    extension: Box<dyn Extension>,
+    creds: Vec<String>,
+}
+
+impl Wrapper{
+    fn build(data: Client, ext: Box<dyn Extension>) -> Self {
+        Wrapper{
+            data: data,
             creds: vec!{},
             extension: ext,
         }
     }
 }
 
-impl Controller for Client {
+impl Controller for Wrapper {
     fn get_id(&self) -> i32 {
         self.data.id
+    }
+
+    fn get_name(&self) -> &str {
+        &self.data.name
     }
 
     fn get_status(&self) -> i32 {
@@ -53,5 +110,13 @@ impl Controller for Client {
     
     fn match_pwd(&self, pwd: String) -> bool {
         self.data.pwd == pwd
+    }
+
+    fn created_at(&self) -> SystemTime {
+        self.data.created_at
+    }
+
+    fn last_update(&self) -> SystemTime {
+        self.data.updated_at
     }
 }

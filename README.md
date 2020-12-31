@@ -21,4 +21,4 @@ To learn more about this project there are available a set of documents to conce
 
 | Name | Path | Description |
 |:-|:-:|:-|
-| Model | [Readme](./src/model/README.md) | System UML design |
+| Model | [Readme](./src/models/README.md) | System UML design |

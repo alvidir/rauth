@@ -10,7 +10,7 @@ build:
 	docker build -t ${REPO}/${PROJECT}:${VERSION}-envoy -f ./docker/envoy/dockerfile .
 	docker build -t ${REPO}/${PROJECT}:${VERSION} -f ./docker/tp-auth/dockerfile .
 
-postgres:
+migration:
 	diesel migration run
 
 deploy:
