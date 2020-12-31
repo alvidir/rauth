@@ -22,17 +22,7 @@ pub struct User {
 }
 
 impl User {
-    pub fn new(client: Box<dyn ClientController>, email: String) -> impl Controller {
-        let user = User {
-            id: 0,
-            client_id: client.get_id(),
-            email: email,
-        };
-
-        Wrapper::build(user, client)
-    }
-
-    pub fn find_user_by_id(target: i32, client: Box<dyn ClientController>) -> Result<Option<Box<dyn Controller>>, Box<dyn Error>>  {
+    pub fn find_by_id(target: i32) -> Result<Option<Self>, Box<dyn Error>>  {
         use crate::schema::users::dsl::*;
 
         let connection = open_stream();
@@ -40,23 +30,25 @@ impl User {
             .load::<User>(connection)?;
 
         if results.len() > 0 {
-            let user = results[0].clone();
-            let wrapp = Wrapper::build(user, client);
-            Ok(Some(Box::new(wrapp)))
+            Ok(Some(results[0].clone()))
         } else {
             Ok(None)
         }
     }
+
+    pub fn build(&self, client: Box<dyn ClientController>) -> impl Controller {
+        Wrapper::new(self.clone(), client)
+    }
 }
 
-// A Wrapper makes the relation between a Client and other structs
+// A Wrapper stores the relation between a Client and other structs
 struct Wrapper{
     data: User,
     owner: Box<dyn ClientController>,
 }
 
 impl Wrapper{
-    fn build(data: User, client: Box<dyn ClientController>) -> Self {
+    fn new(data: User, client: Box<dyn ClientController>) -> Self {
         Wrapper{
             data: data,
             owner: client,

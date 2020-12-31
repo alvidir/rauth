@@ -1,5 +1,5 @@
-pub mod app;
-pub mod user;
+mod app;
+mod user;
 
 use std::error::Error;
 use std::time::SystemTime;
@@ -43,20 +43,7 @@ pub struct Client {
 
 
 impl Client {
-    pub fn new(ext: Box<dyn Extension>, name: String, pwd: String) -> impl Controller {
-        let client = Client {
-            id: 0,
-            name: name,
-            pwd: pwd,
-            created_at: SystemTime::now(),
-            updated_at: SystemTime::now(),
-            status_id: 0,
-        };
-
-        Wrapper::build(client, ext)
-    }
-
-    pub fn find_client_by_id(target: i32) -> Result<Option<Box<dyn Controller>>, Box<dyn Error>> {
+    pub fn find_by_id(target: i32) -> Result<Option<Box<dyn Controller>>, Box<dyn Error>> {
         use crate::schema::clients::dsl::*;
     
         let connection = open_stream();
@@ -66,7 +53,7 @@ impl Client {
     
         if results.len() > 0 {
             let client = results[0].clone();
-            let wrapp = Wrapper::build(client, Box::new(Dummy{}));
+            let wrapp = Wrapper::new(client, Box::new(Dummy{}));
             Ok(Some(Box::new(wrapp)))
         } else {
             Ok(None)
@@ -74,7 +61,7 @@ impl Client {
     }
 }
 
-// A Wrapper makes the relation between a Client and other structs
+// A Wrapper stores the relation between a Client and other structs
 struct Wrapper{
     data: Client,
     extension: Box<dyn Extension>,
@@ -82,7 +69,7 @@ struct Wrapper{
 }
 
 impl Wrapper{
-    fn build(data: Client, ext: Box<dyn Extension>) -> Self {
+    fn new(data: Client, ext: Box<dyn Extension>) -> Self {
         Wrapper{
             data: data,
             creds: vec!{},
