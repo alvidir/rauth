@@ -1,6 +1,7 @@
 mod app;
 mod user;
 
+use diesel::NotFound;
 use std::error::Error;
 use std::time::SystemTime;
 use crate::diesel::prelude::*;
@@ -41,9 +42,19 @@ pub struct Client {
     pub updated_at: SystemTime,
 }
 
+#[derive(Insertable)]
+#[table_name="clients"]
+pub struct NewClient<'a> {
+    pub name: &'a str,
+    pub pwd: &'a str,
+    pub status_id: i32,
+    pub created_at: SystemTime,
+    pub updated_at: SystemTime,
+}
+
 
 impl Client {
-    pub fn find_by_id(target: i32) -> Result<Option<Box<dyn Controller>>, Box<dyn Error>> {
+    pub fn find_by_id(target: i32) -> Result<Box<dyn Controller>, Box<dyn Error>> {
         use crate::schema::clients::dsl::*;
     
         let connection = open_stream();
@@ -54,10 +65,30 @@ impl Client {
         if results.len() > 0 {
             let client = results[0].clone();
             let wrapp = Wrapper::new(client, Box::new(Dummy{}));
-            Ok(Some(Box::new(wrapp)))
+            Ok(Box::new(wrapp))
         } else {
-            Ok(None)
+            Err(Box::new(NotFound))
         }
+    }
+
+    pub fn create_client<'a>(name: &'a str, pwd: &'a str) -> Result<Box<dyn Controller>, Box<dyn Error>> {
+        use crate::schema::clients;
+
+        let new_client = NewClient {
+            name: name,
+            pwd: pwd,
+            status_id: 0,
+            created_at: SystemTime::now(),
+            updated_at: SystemTime::now(),
+        };
+
+        let connection = open_stream();
+        let result = diesel::insert_into(clients::table)
+            .values(&new_client)
+            .get_result::<Client>(connection)?;
+
+        let wrapp = Wrapper::new(result, Box::new(Dummy{}));
+        Ok(Box::new(wrapp))
     }
 }
 
