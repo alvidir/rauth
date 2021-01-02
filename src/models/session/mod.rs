@@ -1,9 +1,7 @@
-use std::collections::HashMap;
+pub mod provider;
+
 use crate::models::client::Controller as ClientController;
 use std::time::{Duration, SystemTime};
-
-const ERR_SESSION_ALREADY_EXISTS: &str = "A session already exists for client {}";
-const ERR_BROKEN_COOKIE: &str = "Cookie {} has no session associated";
 
 pub enum Status {
     ALIVE,

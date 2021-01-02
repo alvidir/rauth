@@ -1,3 +1,4 @@
+use diesel::NotFound;
 use std::error::Error;
 use crate::models::client::Controller as ClientController;
 use crate::schema::apps;
@@ -22,8 +23,31 @@ pub struct App {
     pub url: String,
 }
 
+#[derive(Insertable)]
+#[table_name="apps"]
+pub struct NewApp<'a> {
+    pub client_id: i32,
+    pub description: Option<&'a str>,
+    pub url: &'a str,
+}
+
 impl App {
-    pub fn find_by_id(target: i32) -> Result<Option<Self>, Box<dyn Error>>  {
+    pub fn create<'a>(client_id: i32, url: &'a str) -> Result<Self, Box<dyn Error>> {
+        let new_app = NewApp {
+            client_id: client_id,
+            url: url,
+            description: None,
+        };
+
+        let connection = open_stream();
+        let result = diesel::insert_into(apps::table)
+            .values(&new_app)
+            .get_result::<App>(connection)?;
+
+        Ok(result)
+    }
+
+    pub fn find_by_id(target: i32) -> Result<Self, Box<dyn Error>>  {
         use crate::schema::apps::dsl::*;
 
         let connection = open_stream();
@@ -31,9 +55,9 @@ impl App {
             .load::<App>(connection)?;
 
         if results.len() > 0 {
-            Ok(Some(results[0].clone()))
+            Ok(results[0].clone())
         } else {
-            Ok(None)
+            Err(Box::new(NotFound))
         }
     }
 

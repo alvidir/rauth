@@ -1,12 +1,14 @@
-mod app;
-mod user;
+pub mod app;
+pub mod user;
 
 use diesel::NotFound;
 use std::error::Error;
 use std::time::SystemTime;
 use crate::diesel::prelude::*;
-use crate::schema::*;
+use crate::schema::clients;
 use crate::postgres::*;
+
+const ERR_EXTENSION_EXISTS: &str = "The current client already has an extension";
 
 pub trait Controller {
     fn get_status(&self) -> i32;
@@ -16,6 +18,7 @@ pub trait Controller {
     fn match_pwd(&self, pwd: String) -> bool;
     fn created_at(&self) -> SystemTime;
     fn last_update(&self) -> SystemTime;
+    fn set_extension(&mut self, ext: Box<dyn Extension>) -> Result<(), String>;
 }
 
 pub trait Extension {
@@ -54,26 +57,7 @@ pub struct NewClient<'a> {
 
 
 impl Client {
-    pub fn find_by_id(target: i32) -> Result<Box<dyn Controller>, Box<dyn Error>> {
-        use crate::schema::clients::dsl::*;
-    
-        let connection = open_stream();
-        let results = clients.filter(id.eq(target))
-            .limit(1)
-            .load::<Client>(connection)?;
-    
-        if results.len() > 0 {
-            let client = results[0].clone();
-            let wrapp = Wrapper::new(client, Box::new(Dummy{}));
-            Ok(Box::new(wrapp))
-        } else {
-            Err(Box::new(NotFound))
-        }
-    }
-
-    pub fn create_client<'a>(name: &'a str, pwd: &'a str) -> Result<Box<dyn Controller>, Box<dyn Error>> {
-        use crate::schema::clients;
-
+    pub fn create<'a>(name: &'a str, pwd: &'a str) -> Result<Box<dyn Controller>, Box<dyn Error>> {
         let new_client = NewClient {
             name: name,
             pwd: pwd,
@@ -87,20 +71,53 @@ impl Client {
             .values(&new_client)
             .get_result::<Client>(connection)?;
 
-        let wrapp = Wrapper::new(result, Box::new(Dummy{}));
+        let wrapp = Wrapper::new(result, None);
         Ok(Box::new(wrapp))
+    }
+    
+    pub fn find_by_id(target: i32) -> Result<Box<dyn Controller>, Box<dyn Error>> {
+        use crate::schema::clients::dsl::*;
+    
+        let connection = open_stream();
+        let results = clients.filter(id.eq(target))
+            .limit(1)
+            .load::<Client>(connection)?;
+    
+        if results.len() > 0 {
+            let client = results[0].clone();
+            let wrapp = Wrapper::new(client, Some(Box::new(Dummy{})));
+            Ok(Box::new(wrapp))
+        } else {
+            Err(Box::new(NotFound))
+        }
+    }
+
+    pub fn find_by_name<'a>(target: &'a str) -> Result<Box<dyn Controller>, Box<dyn Error>>  {
+        use crate::schema::clients::dsl::*;
+
+        let connection = open_stream();
+        let results = clients.filter(name.eq(target))
+            .load::<Client>(connection)?;
+
+        if results.len() > 0 {
+            let client = results[0].clone();
+            let wrapp = Wrapper::new(client, Some(Box::new(Dummy{})));
+            Ok(Box::new(wrapp))
+        } else {
+            Err(Box::new(NotFound))
+        }
     }
 }
 
 // A Wrapper stores the relation between a Client and other structs
 struct Wrapper{
     data: Client,
-    extension: Box<dyn Extension>,
+    extension: Option<Box<dyn Extension>>,
     creds: Vec<String>,
 }
 
 impl Wrapper{
-    fn new(data: Client, ext: Box<dyn Extension>) -> Self {
+    fn new(data: Client, ext: Option<Box<dyn Extension>>) -> Self {
         Wrapper{
             data: data,
             creds: vec!{},
@@ -123,7 +140,15 @@ impl Controller for Wrapper {
     }
 
     fn get_addr(&self) -> String {
-        self.extension.get_addr()
+        match &self.extension {
+            None => {
+                "".to_string()
+            }
+
+            Some(extension) => {
+                extension.get_addr()
+            }
+        }
     }
     
     fn match_pwd(&self, pwd: String) -> bool {
@@ -136,5 +161,19 @@ impl Controller for Wrapper {
 
     fn last_update(&self) -> SystemTime {
         self.data.updated_at
+    }
+
+    fn set_extension(&mut self, ext: Box<dyn Extension>) -> Result<(), String> {
+        match self.extension {
+            None => {
+                self.extension = Some(ext);
+                Ok(())
+            }
+
+            Some(_) => {
+                let msg = format!("{}", ERR_EXTENSION_EXISTS);
+                Err(msg)
+            }
+        }
     }
 }

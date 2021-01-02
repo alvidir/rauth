@@ -3,6 +3,7 @@ use std::time;
 
 use crate::transactions::{login::TxLogin, signup::TxSignup};
 use crate::models::session::Controller as SessionController;
+use crate::models::client::Controller as ClientController;
 
 // Import the generated rust code into module
 pub mod client_proto {
@@ -33,23 +34,15 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn std::error::Err
 pub struct SessionImplementation {}
 
 impl SessionImplementation {
-    fn signup_response(&self, result: Result<&dyn SessionController, String>) -> Result<Response<SessionResponse>, Status> {
-        match result {
-            Err(err) => {
-                Err(Status::new(Code::Aborted, err))
+    fn signup_response(&self, result: &Box<dyn SessionController>) -> Result<Response<SessionResponse>, Status> {
+        Ok(Response::new(
+            SessionResponse {
+                deadline: 0,
+                cookie: result.get_cookie().to_string(),
+                status: 0,
+                token: "".to_string(),
             }
-
-            Ok(ctrl) => {
-                Ok(Response::new(
-                    SessionResponse {
-                        deadline: 0,
-                        cookie: ctrl.get_cookie().to_string(),
-                        status: 0,
-                        token: "".to_string(),
-                    }
-                ))
-            }
-        }
+        ))
     }
 }
 
@@ -57,20 +50,19 @@ impl SessionImplementation {
 impl Session for SessionImplementation {
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<SessionResponse>, Status> {
         let msg_ref = request.into_inner();
-        let mut tx_signup = TxSignup::new(
-            msg_ref.name, 
-            msg_ref.addr, 
-            msg_ref.pwd,
+        let tx_signup = TxSignup::new(
+            &msg_ref.name, 
+            &msg_ref.addr, 
+            &msg_ref.pwd,
         );
         
-        tx_signup.execute();
-        match tx_signup.result() {
-            None => {
-                let status = Status::new(Code::Internal, "");
+        match tx_signup.execute() {
+            Err(err) => {
+                let status = Status::new(Code::Internal, err.to_string());
                 Err(status)
             }
 
-            Some(res) => {
+            Ok(res) => {
                 self.signup_response(res)
             }
         }
@@ -79,10 +71,10 @@ impl Session for SessionImplementation {
     async fn login(&self, request: Request<LoginRequest>) -> Result<Response<SessionResponse>, Status> {
         let msg_ref = request.into_inner();
         let mut tx_login = TxLogin::new(
-            msg_ref.cookie,
-            msg_ref.name,
-            msg_ref.addr,
-            msg_ref.pwd,
+            &msg_ref.cookie,
+            &msg_ref.name,
+            &msg_ref.addr,
+            &msg_ref.pwd,
         );
         
         tx_login.execute();

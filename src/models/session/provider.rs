@@ -1,3 +1,4 @@
+extern crate typemap;
 use crate::models::session::{Session, Controller as SessionController};
 use crate::models::client::Controller as ClientController;
 use std::time::Duration;
@@ -15,7 +16,7 @@ const ERR_SESSION_ALREADY_EXISTS: &str = "A session already exists for client";
 const ERR_BROKEN_COOKIE: &str = "No session has been found for cookie";
 const ERR_SESSION_BUILD: &str = "Something has failed while building session for";
 
-pub static mut DEFAULT: Option<Box<dyn Controller>> = None;
+static mut INSTANCE: Option<Box<dyn Controller>> = None;
 
 pub trait Controller {
     fn new_session(&mut self, client: Box<dyn ClientController>) -> Result<&Box<dyn SessionController>, String>;
@@ -23,8 +24,30 @@ pub trait Controller {
     fn destroy_session(&mut self, cookie: &str) -> Result<(), String>;
 }
 
-pub struct Provider {
-    name: String,
+pub fn get_instance<'a>() -> &'a mut Box<dyn Controller> {
+    let provider: &mut Option<Box<dyn Controller>>;
+    unsafe {
+        provider = &mut INSTANCE
+    }
+
+    match provider {
+        Some(ctrl) => {
+            ctrl
+        },
+        None => {
+            let timeout = Duration::new(3600, 0);
+            let instance = Provider::new(timeout);
+            
+            unsafe {
+                INSTANCE = Some(Box::new(instance));
+            }
+            
+            get_instance()
+        },
+    }
+}
+
+struct Provider {
     timeout: Duration,
     instances: HashMap<String, Box<dyn SessionController>>,
     byemail: HashMap<String, String>,
@@ -32,9 +55,8 @@ pub struct Provider {
 }
 
 impl Provider {
-    fn new(name: String, timeout: Duration) -> impl Controller {
+    fn new(timeout: Duration) -> impl Controller {
         Provider{
-            name: name,
             timeout: timeout,
             instances: HashMap::new(),
             byemail: HashMap::new(),
@@ -51,30 +73,6 @@ impl Provider {
             .collect();
         
         cookie
-    }
-
-    pub fn get_instance() -> &'static Box<dyn Controller> {
-        let provider: &Option<Box<dyn Controller>>;
-        unsafe {
-            provider = &DEFAULT
-        }
-
-        match &provider {
-            Some(ctrl) => {
-                ctrl
-            },
-            None => {
-                let name = "tp-auth-default".to_string();
-                let timeout = Duration::new(3600, 0);
-                let instance = Provider::new(name, timeout);
-                
-                unsafe {
-                    DEFAULT = Some(Box::new(instance));
-                }
-                
-                Provider::get_instance()
-            },
-        }
     }
 }
 
@@ -99,8 +97,8 @@ impl Controller for Provider {
                 self.instances.insert(cookie.to_string(), Box::new(sess));
 
                 match self.instances.get(&cookie) {
-                    Some(s) => {
-                        Ok(s)
+                    Some(session) => {
+                        Ok(session)
                     }
 
                     None => {

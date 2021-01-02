@@ -24,6 +24,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
    let port = env::var(ENV_SERVICE_PORT)
       .expect(ERR_NO_PORT);
 
+   dummy::dummy_setup()?;
    let addr = format!("{}:{}", DEFAULT_IP, port);
    services::session::start_server(addr).await?;
 
