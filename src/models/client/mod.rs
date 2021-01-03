@@ -11,6 +11,7 @@ use crate::diesel::prelude::*;
 use crate::schema::clients;
 use crate::models::kind::{Kind, Controller as KindController, KIND_USER, KIND_APP};
 use crate::postgres::*;
+use crate::regex::*;
 
 const ERR_UNKNOWN_KIND: &str = "The provided kind do no match with any of the expected ones";
 const ERR_EXTENSION_EXISTS: &str = "The current client already has an extension";
@@ -57,7 +58,23 @@ pub struct NewClient<'a> {
 }
 
 impl Client {
+    fn check_kind(kind: i32) -> Result<(), Box<dyn Error>> {
+        match Kind::find_by_id(kind)?.to_string() {
+            KIND_USER | KIND_APP => {
+                Ok(())
+            }
+
+            _ => {
+                Err(ERR_UNKNOWN_KIND.into())
+            }
+        }
+    }
+
     pub fn create<'a>(kind: i32, name: &'a str, pwd: &'a str) -> Result<Box<dyn Controller>, Box<dyn Error>> {
+        Client::check_kind(kind)?;
+        match_name(name)?;
+        match_pwd(pwd)?;
+
         let new_client = NewClient {
             name: name,
             pwd: pwd,

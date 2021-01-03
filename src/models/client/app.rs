@@ -2,7 +2,7 @@ use diesel::NotFound;
 use std::error::Error;
 use crate::schema::apps;
 use crate::models::client::Extension;
-//use crate::models::client::Controller as ClientController;
+use crate::regex::*;
 
 extern crate diesel;
 use crate::diesel::prelude::*;
@@ -29,6 +29,7 @@ pub struct NewApp<'a> {
 
 impl App {
     pub fn create<'a>(client_id: i32, url: &'a str) -> Result<impl Extension, Box<dyn Error>> {
+        match_url(url)?;
         let new_app = NewApp {
             client_id: client_id,
             url: url,

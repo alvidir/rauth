@@ -12,6 +12,7 @@ mod schema;
 mod regex;
 mod postgres;
 mod dummy;
+mod proto;
 
 const ERR_NO_PORT: &str = "Service port must be set";
 const ENV_SERVICE_PORT: &str = "SERVICE_PORT";

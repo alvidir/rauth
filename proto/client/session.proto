@@ -16,7 +16,7 @@ enum Status {
 message SessionResponse {
   string token = 1;  // Ephimeral token
   string cookie = 2;  // Session cookie
-  int64 deadline = 3; // Cookie deadline
+  uint64 deadline = 3; // Cookie deadline
   Status status = 4;  // Session status for the given coockie
 }
 

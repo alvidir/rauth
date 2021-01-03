@@ -1,19 +1,14 @@
 pub mod provider;
 
-use crate::models::client::Controller as ClientController;
 use std::time::{Duration, SystemTime};
-
-pub enum Status {
-    ALIVE,
-    DEAD,
-    NEW
-}
+use crate::proto::Status;
+use crate::models::client::Controller as ClientController;
 
 pub trait Controller {
     fn get_created_at(&self) -> SystemTime;
     fn get_touch_at(&self) -> SystemTime;
     fn get_deadline(&self) -> SystemTime;
-    fn get_status(&self) -> &Status;
+    fn get_status(&self) -> Status;
     fn get_cookie(&self) -> &str;
     fn get_client(&self) -> &Box<dyn ClientController>;
     fn match_cookie(&self, cookie: String) -> bool;
@@ -36,7 +31,7 @@ impl Session {
             created_at: SystemTime::now(),
             touch_at: SystemTime::now(),
             timeout: timeout,
-            status: Status::NEW,
+            status: Status::New,
             client: client,
         }
     }
@@ -59,8 +54,8 @@ impl Controller for Session {
         self.created_at + self.timeout
     }
 
-    fn get_status(&self) -> &Status {
-        &self.status
+    fn get_status(&self) -> Status {
+        self.status
     }
 
     fn get_cookie(&self) -> &str {

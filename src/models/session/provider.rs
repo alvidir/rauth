@@ -1,15 +1,14 @@
-extern crate typemap;
-use crate::models::session::{Session, Controller as SessionController};
-use crate::models::client::Controller as ClientController;
+use std::error::Error;
 use std::time::Duration;
 use std::collections::HashMap;
-//use std::sync::Mutex;
+use crate::models::session::{Session, Controller as SessionController};
+use crate::models::client::Controller as ClientController;
 
 use rand::Rng;
 use rand::prelude::ThreadRng;
 const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
                         abcdefghijklmnopqrstuvwxyz\
-                        0123456789)(*&^%$#@!~";
+                        0123456789)(*&^%$#@!~?][+-";
 
 const COOKIE_LEN: usize = 32;
 const ERR_SESSION_ALREADY_EXISTS: &str = "A session already exists for client";
@@ -19,9 +18,9 @@ const ERR_SESSION_BUILD: &str = "Something has failed while building session for
 static mut INSTANCE: Option<Box<dyn Controller>> = None;
 
 pub trait Controller {
-    fn new_session(&mut self, client: Box<dyn ClientController>) -> Result<&Box<dyn SessionController>, String>;
-    fn get_session(&self, cookie: &str) -> Result<&Box<dyn SessionController>, String>;
-    fn destroy_session(&mut self, cookie: &str) -> Result<(), String>;
+    fn new_session(&mut self, client: Box<dyn ClientController>) -> Result<&Box<dyn SessionController>, Box<dyn Error>>;
+    fn get_session(&self, cookie: &str) -> Result<&Box<dyn SessionController>, Box<dyn Error>>;
+    fn destroy_session(&mut self, cookie: &str) -> Result<(), Box<dyn Error>>;
 }
 
 pub fn get_instance<'a>() -> &'a mut Box<dyn Controller> {
@@ -77,7 +76,7 @@ impl Provider {
 }
 
 impl Controller for Provider {
-    fn new_session(&mut self, client: Box<dyn ClientController>) -> Result<&Box<dyn SessionController>, String> {
+    fn new_session(&mut self, client: Box<dyn ClientController>) -> Result<&Box<dyn SessionController>, Box<dyn Error>> {
         let timeout = self.timeout;
         let email = client.get_addr();
 
@@ -85,7 +84,7 @@ impl Controller for Provider {
             // checking if there is already a session for the provided email
             Some(_) => {
                 let msg = format!("{} {}", ERR_SESSION_ALREADY_EXISTS, email);
-                Err(msg)
+                Err(msg.into())
             },
 
             None => {
@@ -97,34 +96,30 @@ impl Controller for Provider {
                 self.instances.insert(cookie.to_string(), Box::new(sess));
 
                 match self.instances.get(&cookie) {
-                    Some(session) => {
-                        Ok(session)
-                    }
-
                     None => {
                         let msg = format!("{} {}", ERR_SESSION_BUILD, email);
-                        Err(msg)
+                        Err(msg.into())
                     }
+
+                    Some(session) => Ok(session)
                 }
                 
             }
         }
     }
 
-    fn get_session(&self, cookie: &str) -> Result<&Box<dyn SessionController>, String> {
+    fn get_session(&self, cookie: &str) -> Result<&Box<dyn SessionController>, Box<dyn Error>> {
         match self.instances.get(cookie) {
-            Some(sess) => {
-                Ok(sess)
-            },
-
             None => {
                 let msg = format!("{} {}", ERR_BROKEN_COOKIE, cookie);
-                Err(msg)
+                Err(msg.into())
             }
+
+            Some(sess) => Ok(sess)
         }
     }
 
-    fn destroy_session(&mut self, cookie: &str) -> Result<(), String> {
+    fn destroy_session(&mut self, cookie: &str) -> Result<(), Box<dyn Error>> {
         match self.instances.get(cookie) {
             Some(sess) => {
                 let email = sess.get_addr();
@@ -135,7 +130,7 @@ impl Controller for Provider {
 
             None => {
                 let msg = format!("{} {}", ERR_BROKEN_COOKIE, cookie);
-                Err(msg)
+                Err(msg.into())
             }
         }
     }

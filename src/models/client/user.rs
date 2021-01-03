@@ -1,7 +1,7 @@
 use diesel::NotFound;
 use std::error::Error;
 use crate::models::client::Extension;
-//use crate::models::client::Controller as ClientController;
+use crate::regex::*;
 
 extern crate diesel;
 use crate::diesel::prelude::*;
@@ -28,6 +28,7 @@ pub struct NewUser<'a> {
 
 impl User {
     pub fn create<'a>(client_id: i32, email: &'a str) -> Result<impl Extension, Box<dyn Error>> {
+        match_email(email)?;
         let new_user = NewUser {
             client_id: client_id,
             email: email,
