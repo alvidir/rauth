@@ -1,16 +1,13 @@
 use diesel::NotFound;
 use std::error::Error;
 use crate::models::client::Extension;
+//use crate::models::client::Controller as ClientController;
 
 extern crate diesel;
 use crate::diesel::prelude::*;
 use crate::postgres::*;
 
 use crate::schema::users;
-
-pub trait Controller {
-    fn get_addr(&self) -> &str;
-}
 
 #[derive(Queryable, Insertable, Associations)]
 #[belongs_to(Client<'_>)]
@@ -30,7 +27,7 @@ pub struct NewUser<'a> {
 }
 
 impl User {
-    pub fn create<'a>(client_id: i32, email: &'a str) -> Result<Self, Box<dyn Error>> {
+    pub fn create<'a>(client_id: i32, email: &'a str) -> Result<impl Extension, Box<dyn Error>> {
         let new_user = NewUser {
             client_id: client_id,
             email: email,
@@ -44,7 +41,7 @@ impl User {
         Ok(result)
     }
 
-    pub fn find_by_id(target: i32) -> Result<Self, Box<dyn Error>>  {
+    pub fn find_by_id(target: i32) -> Result<impl Extension, Box<dyn Error>>  {
         use crate::schema::users::dsl::*;
 
         let connection = open_stream();
@@ -58,7 +55,21 @@ impl User {
         }
     }
 
-    pub fn find_by_email<'a>(target: &'a str) -> Result<Self, Box<dyn Error>>  {
+    pub fn find_by_client_id(target: i32) -> Result<impl Extension, Box<dyn Error>>  {
+        use crate::schema::users::dsl::*;
+
+        let connection = open_stream();
+        let results = users.filter(client_id.eq(target))
+            .load::<User>(connection)?;
+
+        if results.len() > 0 {
+            Ok(results[0].clone())
+        } else {
+            Err(Box::new(NotFound))
+        }
+    }
+
+    pub fn find_by_email<'a>(target: &'a str) -> Result<impl Extension, Box<dyn Error>>  {
         use crate::schema::users::dsl::*;
 
         let connection = open_stream();
@@ -74,6 +85,16 @@ impl User {
 
     pub fn build(&self/*, client: Box<dyn ClientController>*/) -> impl Extension {
         Wrapper::new(self.clone()/*, client*/)
+    }
+}
+
+impl Extension for User {
+    fn get_addr(&self) -> String {
+        self.email.clone()
+    }
+
+    fn get_client_id(&self) -> i32 {
+        self.client_id
     }
 }
 
@@ -95,5 +116,9 @@ impl Wrapper{
 impl Extension for Wrapper {
     fn get_addr(&self) -> String {
         self.data.email.clone()
+    }
+
+    fn get_client_id(&self) -> i32 {
+        self.data.client_id
     }
 }

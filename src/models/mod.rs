@@ -1,5 +1,6 @@
 pub mod session;
 pub mod client;
+pub mod kind;
 
 pub trait Gateway {
     fn insert(&self) -> Result<(), String>;

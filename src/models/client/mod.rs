@@ -1,13 +1,18 @@
 pub mod app;
 pub mod user;
 
+use self::user::*;
+use self::app::*;
+
 use diesel::NotFound;
 use std::error::Error;
 use std::time::SystemTime;
 use crate::diesel::prelude::*;
 use crate::schema::clients;
+use crate::models::kind::{Kind, Controller as KindController, KIND_USER, KIND_APP};
 use crate::postgres::*;
 
+const ERR_UNKNOWN_KIND: &str = "The provided kind do no match with any of the expected ones";
 const ERR_EXTENSION_EXISTS: &str = "The current client already has an extension";
 
 pub trait Controller {
@@ -23,13 +28,7 @@ pub trait Controller {
 
 pub trait Extension {
     fn get_addr(&self) -> String;
-}
-
-struct Dummy;
-impl Extension for Dummy {
-    fn get_addr(&self) -> String {
-        "dummy@addres.com".to_string()
-    }
+    fn get_client_id(&self) -> i32;
 }
 
 #[derive(Insertable)]
@@ -41,6 +40,7 @@ pub struct Client {
     pub name: String,
     pub pwd: String,
     pub status_id: i32,
+    pub kind_id: i32,
     pub created_at: SystemTime,
     pub updated_at: SystemTime,
 }
@@ -51,17 +51,18 @@ pub struct NewClient<'a> {
     pub name: &'a str,
     pub pwd: &'a str,
     pub status_id: i32,
+    pub kind_id: i32,
     pub created_at: SystemTime,
     pub updated_at: SystemTime,
 }
 
-
 impl Client {
-    pub fn create<'a>(name: &'a str, pwd: &'a str) -> Result<Box<dyn Controller>, Box<dyn Error>> {
+    pub fn create<'a>(kind: i32, name: &'a str, pwd: &'a str) -> Result<Box<dyn Controller>, Box<dyn Error>> {
         let new_client = NewClient {
             name: name,
             pwd: pwd,
             status_id: 0,
+            kind_id: kind,
             created_at: SystemTime::now(),
             updated_at: SystemTime::now(),
         };
@@ -80,12 +81,12 @@ impl Client {
     
         let connection = open_stream();
         let results = clients.filter(id.eq(target))
-            .limit(1)
             .load::<Client>(connection)?;
     
         if results.len() > 0 {
             let client = results[0].clone();
-            let wrapp = Wrapper::new(client, Some(Box::new(Dummy{})));
+            let extension = client.find_extension_by_client_id()?;
+            let wrapp = Wrapper::new(client, Some(extension));
             Ok(Box::new(wrapp))
         } else {
             Err(Box::new(NotFound))
@@ -101,10 +102,46 @@ impl Client {
 
         if results.len() > 0 {
             let client = results[0].clone();
-            let wrapp = Wrapper::new(client, Some(Box::new(Dummy{})));
+            let extension = client.find_extension_by_client_id()?;
+            let wrapp = Wrapper::new(client, Some(extension));
             Ok(Box::new(wrapp))
         } else {
             Err(Box::new(NotFound))
+        }
+    }
+
+    pub fn from_extension(ext: Box<dyn Extension>) -> Result<Box<dyn Controller>, Box<dyn Error>> {
+        use crate::schema::clients::dsl::*;
+    
+        let connection = open_stream();
+        let results = clients.filter(id.eq(ext.get_client_id()))
+            .load::<Client>(connection)?;
+    
+        if results.len() > 0 {
+            let client = results[0].clone();
+            let wrapp = Wrapper::new(client, Some(ext));
+            Ok(Box::new(wrapp))
+        } else {
+            Err(Box::new(NotFound))
+        }
+    }
+
+    pub fn find_extension_by_client_id(&self) -> Result<Box<dyn Extension>, Box<dyn Error>> {
+        let kind = Kind::find_by_id(self.kind_id)?;
+        match kind.to_string() {
+            KIND_USER => {
+                let user = User::find_by_client_id(self.id)?;
+                Ok(Box::new(user))
+            }
+
+            KIND_APP => {
+                let app = App::find_by_client_id(self.id)?;
+                Ok(Box::new(app))
+            }
+
+            _ => {
+                Err(ERR_UNKNOWN_KIND.into())
+            }
         }
     }
 }
@@ -113,14 +150,14 @@ impl Client {
 struct Wrapper{
     data: Client,
     extension: Option<Box<dyn Extension>>,
-    creds: Vec<String>,
+    _creds: Vec<String>,
 }
 
 impl Wrapper{
     fn new(data: Client, ext: Option<Box<dyn Extension>>) -> Self {
         Wrapper{
             data: data,
-            creds: vec!{},
+            _creds: vec!{},
             extension: ext,
         }
     }

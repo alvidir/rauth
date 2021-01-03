@@ -9,6 +9,7 @@ mod services;
 mod models;
 mod transactions;
 mod schema;
+mod regex;
 mod postgres;
 mod dummy;
 

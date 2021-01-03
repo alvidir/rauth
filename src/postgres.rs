@@ -24,6 +24,7 @@ pub fn open_stream() -> &'static PgConnection {
             let database_url = env::var(ENV_DATABASE_URL)
                 .expect(ERR_NOT_URL);
 
+            println!("{} {}", INFO_STREAM_SETUP, database_url);
             let conn = PgConnection::establish(&database_url)
                 .expect(&format!("{} {}", ERR_CONNECT, database_url));
 

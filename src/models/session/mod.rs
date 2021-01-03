@@ -15,6 +15,7 @@ pub trait Controller {
     fn get_deadline(&self) -> SystemTime;
     fn get_status(&self) -> &Status;
     fn get_cookie(&self) -> &str;
+    fn get_client(&self) -> &Box<dyn ClientController>;
     fn match_cookie(&self, cookie: String) -> bool;
     fn get_addr(&self) -> String;
 }
@@ -64,6 +65,10 @@ impl Controller for Session {
 
     fn get_cookie(&self) -> &str {
         &self.cookie
+    }
+
+    fn get_client(&self) -> &Box<dyn ClientController> {
+        &self.client
     }
 
     fn match_cookie(&self, cookie: String) -> bool {

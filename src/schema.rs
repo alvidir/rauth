@@ -13,8 +13,16 @@ table! {
         name -> Varchar,
         pwd -> Varchar,
         status_id -> Int4,
+        kind_id -> Int4,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+    }
+}
+
+table! {
+    kinds (id) {
+        id -> Int4,
+        name -> Varchar,
     }
 }
 
@@ -34,12 +42,14 @@ table! {
 }
 
 joinable!(apps -> clients (client_id));
+joinable!(clients -> kinds (kind_id));
 joinable!(clients -> statuses (status_id));
 joinable!(users -> clients (client_id));
 
 allow_tables_to_appear_in_same_query!(
     apps,
     clients,
+    kinds,
     statuses,
     users,
 );

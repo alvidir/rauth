@@ -4,7 +4,7 @@ REPO=alvidir
 PROJECT=tp-auth
 
 proto:
-	protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative proto/session/*.proto
+	protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative proto/client/*.proto
 
 build:
 	docker build -t ${REPO}/${PROJECT}:${VERSION}-envoy -f ./docker/envoy/dockerfile .

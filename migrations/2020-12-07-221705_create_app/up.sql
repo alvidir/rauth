@@ -1,6 +1,6 @@
 CREATE TABLE Apps (
     id SERIAL PRIMARY KEY,
-    client_id INTEGER NOT NULL, 
+    client_id INTEGER NOT NULL UNIQUE, 
     description VARCHAR(255),
     url VARCHAR(255) NOT NULL UNIQUE,
 

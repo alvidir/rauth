@@ -1,11 +1,7 @@
 use std::error::Error;
 use crate::models::client::user::*;
 use crate::models::client::{Client, Controller as ClientController};
-use crate::models::session::{Session, Controller as SessionController};
-use crate::models::session::provider as SessionProvider;
-//use crate::transactions::client::regex::{check_name, check_email, check_pwd};
-
-const ERR_USER_ALREADY_EXISTS: &str = "Already exists an user with email:";
+use crate::models::kind::{KIND_USER, Kind, Controller as KindController};
 
 pub struct TxSignup<'a> {
     name: &'a str,
@@ -24,28 +20,14 @@ impl<'a> TxSignup<'a> {
         signup
     }
 
-    pub fn execute(&self) -> Result<&Box<dyn SessionController>, Box<dyn Error>> {
+    pub fn execute(&self) -> Result<Box<dyn ClientController>, Box<dyn Error>> {
         println!("Got Signup request from client {} ", self.email);
 
-        match User::find_by_email(self.email) {
-            Ok(_) => {
-                let msg = format!("{} {}", ERR_USER_ALREADY_EXISTS, self.email);
-                Err(msg.into())
-            }
-
-            Err(_) => {
-                let mut client = Client::create(self.name, self.pwd)?;
-                let user = User::create(client.get_id(), self.email)?.build();
-                client.set_extension(Box::new(user))?;
-                println!("Client {} successfully registered with id {}", self.email, client.get_id());
-                //Ok(client)
-
-                //let client = self.create_user_client()?;
-                let provider = SessionProvider::get_instance();
-                let session = provider.new_session(client)?;
-                println!("Session for client {} has cookie {}", self.email, session.get_cookie());
-                Ok(session)
-            }
-        }
+        let kind = Kind::find_by_name(KIND_USER)?;
+        let mut client = Client::create(kind.get_id(), self.name, self.pwd)?;
+        let user = User::create(client.get_id(), self.email)?;
+        client.set_extension(Box::new(user))?;
+        println!("Client {} successfully registered with id {}", self.email, client.get_id());
+        Ok(client)
     }
 }
