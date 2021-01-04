@@ -33,7 +33,7 @@ pub struct Session {
     pub status: Status,
     rand_gen: ThreadRng,
     client: Box<dyn ClientController>,
-    tokens: HashMap<String, Option<Box<dyn DescriptorController>>>,
+    tokens: HashMap<Token, Option<Box<dyn DescriptorController>>>,
 }
 
 impl Session {
@@ -86,7 +86,7 @@ impl Controller for Session {
 
     fn new_token(&mut self) -> Result<String, Box<dyn Error>> {
         let token = Token::new(&mut self.rand_gen, TOKEN_LEN);
-        self.tokens.insert(token.to_string(), None);
-        Ok(token.to_string())
+        self.tokens.insert(token, None);
+        Ok("token".to_string())
     }
 }

@@ -7,6 +7,7 @@ const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
                         _";
 
 #[derive(PartialEq, Eq)]
+#[derive(Hash)]
 pub struct Token (String);
 
 impl Token {
