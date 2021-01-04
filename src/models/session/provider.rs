@@ -14,13 +14,15 @@ const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
 const COOKIE_LEN: usize = 32;
 const ERR_SESSION_ALREADY_EXISTS: &str = "A session already exists for client";
 const ERR_BROKEN_COOKIE: &str = "No session has been found for cookie";
+const ERR_NO_LOGED_EMAIL: &str = "No session has been logged with email";
 const ERR_SESSION_BUILD: &str = "Something has failed while building session for";
 
 static mut INSTANCE: Option<Box<dyn Controller>> = None;
 
 pub trait Controller {
     fn new_session(&mut self, client: Box<dyn ClientController>) -> Result<&Box<dyn SessionController>, Box<dyn Error>>;
-    fn get_session(&self, cookie: &str) -> Result<&Box<dyn SessionController>, Box<dyn Error>>;
+    fn get_session_by_cookie(&self, cookie: &str) -> Result<&Box<dyn SessionController>, Box<dyn Error>>;
+    fn get_session_by_email(&self, addr: &str) -> Result<&Box<dyn SessionController>, Box<dyn Error>>;
     fn destroy_session(&mut self, cookie: &str) -> Result<(), Box<dyn Error>>;
 }
 
@@ -109,7 +111,7 @@ impl Controller for Provider {
         }
     }
 
-    fn get_session(&self, cookie: &str) -> Result<&Box<dyn SessionController>, Box<dyn Error>> {
+    fn get_session_by_cookie(&self, cookie: &str) -> Result<&Box<dyn SessionController>, Box<dyn Error>> {
         match self.instances.get(cookie) {
             None => {
                 let msg = format!("{} {}", ERR_BROKEN_COOKIE, cookie);
@@ -117,6 +119,17 @@ impl Controller for Provider {
             }
 
             Some(sess) => Ok(sess)
+        }
+    }
+
+    fn get_session_by_email(&self, email: &str) -> Result<&Box<dyn SessionController>, Box<dyn Error>> {
+        match self.byemail.get(email) {
+            None => {
+                let msg = format!("{} {}", ERR_NO_LOGED_EMAIL, email);
+                Err(msg.into())
+            }
+
+            Some(cookie) => self.get_session_by_cookie(cookie)
         }
     }
 

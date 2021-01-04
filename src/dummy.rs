@@ -11,7 +11,7 @@ const DUMMY_PWD: &str = "dummypwd";
 //const INFO_COOKIE: &str = "The dummy's session got cookie";
 
 fn login_dummy_user() -> Result<(), Box<dyn Error>> {
-   let tx_login = TxLogin::new(DUMMY_NAME, DUMMY_PWD);
+   let tx_login = TxLogin::new("", DUMMY_NAME, DUMMY_PWD);
    tx_login.execute()?;
    Ok(())
 }
@@ -31,5 +31,6 @@ pub fn dummy_setup() -> Result<(), Box<dyn Error>> {
       return signup_dummy_user();
    }
 
+   login_dummy_user()?;
    Ok(())
 }

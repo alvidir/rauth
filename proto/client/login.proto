@@ -5,6 +5,7 @@ package client;
 
 // LoginRequest description
 message LoginRequest {
-  string ident = 1;    // the username/appname or email/address
-  string pwd = 2;     // the password or the signed public-key
+  string cookie = 1;  // present cookie
+  string ident = 2;   // the username/appname or email/address
+  string pwd = 3;     // the password or the signed public-key
 }

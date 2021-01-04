@@ -29,7 +29,7 @@ impl<'a> TxLogout<'a> {
 
     fn require_session(&self) ->  Result<&Box<dyn SessionController>, Status> {
         let provider = SessionProvider::get_instance();
-        match provider.get_session(self.cookie) {
+        match provider.get_session_by_cookie(self.cookie) {
             Err(err) => {
                 let msg = format!("{}", err);
                 let status = Status::failed_precondition(msg);

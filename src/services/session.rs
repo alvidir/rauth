@@ -43,6 +43,7 @@ impl Session for SessionImplementation {
     async fn login(&self, request: Request<LoginRequest>) -> Result<Response<SessionResponse>, Status> {
         let msg_ref = request.into_inner();
         let tx_login = login::TxLogin::new(
+            &msg_ref.cookie,
             &msg_ref.ident,
             &msg_ref.pwd,
         );
