@@ -1,15 +1,10 @@
 use std::error::Error;
 use std::time::Duration;
 use std::collections::HashMap;
-use crate::models::session::{Session, Controller as SessionController};
-use crate::models::client::Controller as ClientController;
-//use std::sync::Mutex;
-
-use rand::Rng;
 use rand::prelude::ThreadRng;
-const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
-                        abcdefghijklmnopqrstuvwxyz\
-                        0123456789)(*&^%$#@!~?][+-";
+use crate::models::session::{Session, Controller as SessionController};
+use crate::models::session::token::Token;
+use crate::models::client::Controller as ClientController;
 
 const COOKIE_LEN: usize = 32;
 const ERR_SESSION_ALREADY_EXISTS: &str = "A session already exists for client";
@@ -66,15 +61,8 @@ impl Provider {
         }
     }
 
-    fn cookie_gen(&mut self) -> String {
-        let cookie: String = (0..COOKIE_LEN)
-            .map(|_| {
-                let idx = self.rand_gen.gen_range(0, CHARSET.len());
-                CHARSET[idx] as char
-            })
-            .collect();
-        
-        cookie
+    fn cookie_gen(&mut self) -> Token {
+        Token::new(&mut self.rand_gen, COOKIE_LEN)
     }
 }
 
