@@ -31,6 +31,5 @@ pub fn dummy_setup() -> Result<(), Box<dyn Error>> {
       return signup_dummy_user();
    }
 
-   login_dummy_user()?;
    Ok(())
 }
