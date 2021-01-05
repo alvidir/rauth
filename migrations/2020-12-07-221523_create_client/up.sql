@@ -6,6 +6,7 @@ CREATE TABLE Clients (
     kind_id INTEGER NOT NULL,
     created_at TIMESTAMP NOT NULL,
     updated_at TIMESTAMP NOT NULL,
+    
     FOREIGN KEY (status_id)
         REFERENCES Statuses(id),
     FOREIGN KEY (kind_id)

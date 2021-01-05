@@ -42,8 +42,8 @@ impl Token {
     //    hasher.result_str()
     //}
 
-    pub fn to_string(&self) -> &str {
-        &self.0
+    pub fn to_string(&self) -> String {
+        self.0.clone()
     }
 }
 

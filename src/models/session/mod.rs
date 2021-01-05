@@ -22,7 +22,7 @@ pub trait Controller {
     fn get_client(&self) -> &Box<dyn ClientController>;
     fn get_addr(&self) -> String;
     fn match_cookie(&self, cookie: String) -> bool;
-    fn new_token(&mut self) -> Result<String, Box<dyn Error>>;
+    fn build_token(&mut self) -> Result<String, Box<dyn Error>>;
 }
 
 pub struct Session {
@@ -33,7 +33,7 @@ pub struct Session {
     pub status: Status,
     rand_gen: ThreadRng,
     client: Box<dyn ClientController>,
-    tokens: HashMap<Token, Option<Box<dyn DescriptorController>>>,
+    tokens: HashMap<String, Option<Box<dyn DescriptorController>>>,
 }
 
 impl Session {
@@ -84,9 +84,9 @@ impl Controller for Session {
         self.cookie == cookie
     }
 
-    fn new_token(&mut self) -> Result<String, Box<dyn Error>> {
+    fn build_token(&mut self) -> Result<String, Box<dyn Error>> {
         let token = Token::new(&mut self.rand_gen, TOKEN_LEN);
-        self.tokens.insert(token, None);
+        self.tokens.insert(token.to_string(), None);
         Ok("token".to_string())
     }
 }
