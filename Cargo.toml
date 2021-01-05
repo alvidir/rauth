@@ -23,6 +23,7 @@ rand = "0.7.3"
 typemap = "0.3.3"
 # static structures
 phf = { version = "0.7.24", features = ["macros"] }
+rust-crypto = "0.2.36"
 chrono = "0.4.19"
 #serde = "1.0.118"
 

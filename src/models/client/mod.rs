@@ -70,7 +70,7 @@ impl Client {
         }
     }
 
-    pub fn create<'a>(kind: i32, name: &'a str, pwd: &'a str) -> Result<Box<dyn Controller>, Box<dyn Error>> {
+    fn create<'a>(kind: i32, name: &'a str, pwd: &'a str) -> Result<Box<dyn Controller>, Box<dyn Error>> {
         Client::check_kind(kind)?;
         match_name(name)?;
         match_pwd(pwd)?;
@@ -127,7 +127,7 @@ impl Client {
         }
     }
 
-    pub fn from_extension(ext: Box<dyn Extension>) -> Result<Box<dyn Controller>, Box<dyn Error>> {
+    fn from_extension(ext: Box<dyn Extension>) -> Result<Box<dyn Controller>, Box<dyn Error>> {
         use crate::schema::clients::dsl::*;
     
         let connection = open_stream();
@@ -143,7 +143,7 @@ impl Client {
         }
     }
 
-    pub fn find_extension_by_client_id(&self) -> Result<Box<dyn Extension>, Box<dyn Error>> {
+    fn find_extension_by_client_id(&self) -> Result<Box<dyn Extension>, Box<dyn Error>> {
         let kind = Kind::find_by_id(self.kind_id)?;
         match kind.to_string() {
             KIND_USER => {

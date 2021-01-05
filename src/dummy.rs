@@ -4,7 +4,7 @@ use crate::transactions::login::TxLogin;
 
 const DUMMY_NAME: &str = "dummy";
 const DUMMY_EMAIL: &str = "dummy@testing.com";
-const DUMMY_PWD: &str = "dummypwd";
+const DUMMY_PWD: &str = "0C4fe7eBbfDbcCBE52DC7A0DdF43bCaeEBaC0EE37bF03C4BAa0ed31eAA03d833";
 
 //const INFO_SIGNUP: &str = "Signing up the dummy user";
 //const INFO_LOGIN: &str = "Loging in the dummy user";

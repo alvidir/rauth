@@ -1,4 +1,4 @@
-use crate::models::client::{Client, Controller as ClientController, Extension};
+use crate::models::client::{Client, Controller as ClientController};
 use crate::models::client::user::User;
 use crate::transactions::*;
 use crate::regex::*;
@@ -33,18 +33,6 @@ impl<'a> TxLogin<'a> {
         }
     }
 
-    fn require_client_from_extension(&self, extension: Box<dyn Extension>) -> Result<Box<dyn ClientController>, Status> {
-        match Client::from_extension(extension) {
-            Err(err) => {
-                let msg = format!("{}", err);
-                let status = Status::failed_precondition(msg);
-                Err(status)
-            }
-
-            Ok(client) => Ok(client)
-        }
-    }
-
     fn require_client_by_email(&self) -> Result<Box<dyn ClientController>, Status> {
         match User::find_by_email(self.ident) {
             Err(err) => {
@@ -53,7 +41,7 @@ impl<'a> TxLogin<'a> {
                 Err(status)
             }
 
-            Ok(user) => self.require_client_from_extension(Box::new(user))
+            Ok(user) => Ok(user)
         }
     }
 
@@ -105,7 +93,7 @@ impl<'a> TxLogin<'a> {
         Ok(client)
     }
 
-    fn require_session_by_email(&self, client: &Box<dyn ClientController>) -> Result<&Box<dyn SessionController>, Status> {
+    fn check_alive_session(&self, client: &Box<dyn ClientController>) -> Result<&Box<dyn SessionController>, Status> {
         let provider = SessionProvider::get_instance();
         match provider.get_session_by_email(&client.get_addr()) {
             Err(err) => {
@@ -125,7 +113,7 @@ impl<'a> TxLogin<'a> {
             Err(_) => {
                 let client = self.precondition_ident()?;
                 let session: &Box<dyn SessionController>;
-                match self.require_session_by_email(&client) {
+                match self.check_alive_session(&client) {
                     Err(_) => {
                         session = build_session(client)?;
                     }
