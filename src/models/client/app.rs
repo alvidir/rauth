@@ -2,7 +2,7 @@ use diesel::NotFound;
 use std::error::Error;
 use crate::schema::apps;
 use crate::models::client::{Client, Extension, Controller as ClientController};
-use crate::models::kind::{KIND_USER, Kind, Controller as KindController};
+use crate::models::kind::{KIND_APP, Kind, Controller as KindController};
 use crate::regex::*;
 
 extern crate diesel;
@@ -32,7 +32,7 @@ impl App {
     pub fn create<'a>(name: &'a str, url: &'a str, pwd: &'a str) -> Result<Box<dyn ClientController>, Box<dyn Error>> {
         match_url(url)?;
 
-        let kind = Kind::find_by_name(KIND_USER)?;
+        let kind = Kind::find_by_name(KIND_APP)?;
         let mut client = Client::create(kind.get_id(), name, pwd)?;
         let new_app = NewApp {
             client_id: client.get_id(),
@@ -63,6 +63,12 @@ impl App {
         }
     }
 
+    pub fn find_by_name<'a>(target: &'a str) -> Result<Box<dyn ClientController>, Box<dyn Error>>  {
+        let kind = Kind::find_by_name(KIND_APP)?;
+        Client::find_kind_by_name(target, Box::new(kind))
+    }
+
+
     pub fn find_by_url<'a>(target: &'a str) -> Result<Box<dyn ClientController>, Box<dyn Error>>  {
         use crate::schema::apps::dsl::*;
 
@@ -77,7 +83,7 @@ impl App {
         }
     }
 
-    pub fn find_by_client_id(target: i32) -> Result<impl Extension, Box<dyn Error>>  {
+    pub fn find_by_client_id(target: i32) -> Result<Box<dyn ClientController>, Box<dyn Error>>  {
         use crate::schema::apps::dsl::*;
 
         let connection = open_stream();
@@ -85,7 +91,8 @@ impl App {
             .load::<App>(connection)?;
 
         if results.len() > 0 {
-            Ok(results[0].clone())
+            let app = results[0].clone();
+            Client::from_extension(Box::new(app))
         } else {
             Err(Box::new(NotFound))
         }
@@ -103,5 +110,23 @@ impl Extension for App {
 
     fn get_client_id(&self) -> i32 {
         self.client_id
+    }
+
+    fn get_kind(&self) -> &str {
+        KIND_APP
+    }
+}
+
+pub fn find_as_extension(target: i32) -> Result<impl Extension, Box<dyn Error>>  {
+    use crate::schema::apps::dsl::*;
+
+    let connection = open_stream();
+    let results = apps.filter(client_id.eq(target))
+        .load::<App>(connection)?;
+
+    if results.len() > 0 {
+        Ok(results[0].clone())
+    } else {
+        Err(Box::new(NotFound))
     }
 }

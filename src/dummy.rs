@@ -11,7 +11,7 @@ const DUMMY_PWD: &str = "0C4fe7eBbfDbcCBE52DC7A0DdF43bCaeEBaC0EE37bF03C4BAa0ed31
 //const INFO_COOKIE: &str = "The dummy's session got cookie";
 
 fn login_dummy_user() -> Result<(), Box<dyn Error>> {
-   let tx_login = TxLogin::new("", DUMMY_EMAIL, DUMMY_PWD);
+   let tx_login = TxLogin::new("", DUMMY_NAME, DUMMY_PWD);
    tx_login.execute()?;
    Ok(())
 }

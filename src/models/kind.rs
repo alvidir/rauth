@@ -4,6 +4,7 @@ use crate::schema::kinds;
 use crate::diesel::prelude::*;
 use crate::postgres::*;
 
+pub const KIND_UNKNOWN: &str = "UNKNOWN";
 pub const KIND_USER: &str = "USER";
 pub const KIND_APP: &str = "APP";
 

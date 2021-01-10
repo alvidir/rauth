@@ -44,7 +44,7 @@ impl Session for SessionImplementation {
         let msg_ref = request.into_inner();
         let tx_login = login::TxLogin::new(
             &msg_ref.cookie,
-            &msg_ref.email,
+            &msg_ref.ident,
             &msg_ref.pwd,
         );
         

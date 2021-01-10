@@ -1,5 +1,5 @@
 use tonic::{Response, Status};
-use crate::models::client::user::*;
+use crate::models::client::User;
 use crate::models::client::Controller as ClientController;
 use crate::transactions::*;
 

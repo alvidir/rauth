@@ -6,6 +6,6 @@ package client;
 // LoginRequest description
 message LoginRequest {
   string cookie = 1;  // present cookie
-  string email = 2;   // the user email
+  string ident = 2;   // the user name or email
   string pwd = 3;     // the password or the signed public-key
 }

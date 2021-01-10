@@ -1,15 +1,17 @@
-pub mod app;
-pub mod user;
+mod app;
+mod user;
 
-use self::user::*;
-use self::app::*;
+// in order to keep some functions as protected (only available for the client module) submodules
+// are not exported, but its main structs instead
+pub use self::user::User;
+pub use self::app::App;
 
 use diesel::NotFound;
 use std::error::Error;
 use std::time::SystemTime;
 use crate::diesel::prelude::*;
 use crate::schema::clients;
-use crate::models::kind::{Kind, Controller as KindController, KIND_USER, KIND_APP};
+use crate::models::kind::{Kind, Controller as KindController, KIND_UNKNOWN, KIND_USER, KIND_APP};
 use crate::postgres::*;
 use crate::regex::*;
 
@@ -21,6 +23,7 @@ pub trait Controller {
     fn get_id(&self) -> i32;
     fn get_name(&self) -> &str;
     fn get_addr(&self) -> String;
+    fn get_kind(&self) -> &str;
     fn match_pwd(&self, pwd: String) -> bool;
     fn created_at(&self) -> SystemTime;
     fn last_update(&self) -> SystemTime;
@@ -30,6 +33,7 @@ pub trait Controller {
 pub trait Extension {
     fn get_addr(&self) -> String;
     fn get_client_id(&self) -> i32;
+    fn get_kind(&self) -> &str;
 }
 
 #[derive(Insertable)]
@@ -131,7 +135,9 @@ impl Client {
         use crate::schema::clients::dsl::*;
     
         let connection = open_stream();
+        let kind = Kind::find_by_name(ext.get_kind())?.get_id();
         let results = clients.filter(id.eq(ext.get_client_id()))
+            .filter(kind_id.eq(kind))
             .load::<Client>(connection)?;
     
         if results.len() > 0 {
@@ -143,16 +149,34 @@ impl Client {
         }
     }
 
+    fn find_kind_by_name<'a>(target: &'a str, kind: Box<dyn KindController>) -> Result<Box<dyn Controller>, Box<dyn Error>> {
+        use crate::schema::clients::dsl::*;
+    
+        let connection = open_stream();
+        let results = clients.filter(name.eq(target))
+            .filter(kind_id.eq(kind.get_id()))
+            .load::<Client>(connection)?;
+    
+        if results.len() > 0 {
+            let client = results[0].clone();
+            let extension = client.find_extension_by_client_id()?;
+            let wrapp = Wrapper::new(client, Some(extension));
+            Ok(Box::new(wrapp))
+        } else {
+            Err(Box::new(NotFound))
+        }
+    }
+
     fn find_extension_by_client_id(&self) -> Result<Box<dyn Extension>, Box<dyn Error>> {
         let kind = Kind::find_by_id(self.kind_id)?;
         match kind.to_string() {
             KIND_USER => {
-                let user = User::find_by_client_id(self.id)?;
+                let user = user::find_as_extension(self.id)?;
                 Ok(Box::new(user))
             }
 
             KIND_APP => {
-                let app = App::find_by_client_id(self.id)?;
+                let app = app::find_as_extension(self.id)?;
                 Ok(Box::new(app))
             }
 
@@ -200,7 +224,19 @@ impl Controller for Wrapper {
             }
 
             Some(extension) => {
-                extension.get_addr()
+                extension.get_addr().to_string()
+            }
+        }
+    }
+
+    fn get_kind(&self) -> &str {
+        match &self.extension {
+            None => {
+                KIND_UNKNOWN
+            }
+
+            Some(extension) => {
+                extension.get_kind()
             }
         }
     }

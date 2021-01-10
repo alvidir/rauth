@@ -60,6 +60,11 @@ impl User {
         }
     }
 
+    pub fn find_by_name<'a>(target: &'a str) -> Result<Box<dyn ClientController>, Box<dyn Error>>  {
+        let kind = Kind::find_by_name(KIND_USER)?;
+        Client::find_kind_by_name(target, Box::new(kind))
+    }
+
     pub fn find_by_email<'a>(target: &'a str) -> Result<Box<dyn ClientController>, Box<dyn Error>>  {
         use crate::schema::users::dsl::*;
 
@@ -74,7 +79,7 @@ impl User {
         }
     }
 
-    pub fn find_by_client_id(target: i32) -> Result<impl Extension, Box<dyn Error>>  {
+    pub fn find_by_client_id(target: i32) -> Result<Box<dyn ClientController>, Box<dyn Error>>  {
         use crate::schema::users::dsl::*;
 
         let connection = open_stream();
@@ -82,7 +87,8 @@ impl User {
             .load::<User>(connection)?;
 
         if results.len() > 0 {
-            Ok(results[0].clone())
+            let user = results[0].clone();
+            Client::from_extension(Box::new(user))
         } else {
             Err(Box::new(NotFound))
         }
@@ -100,5 +106,24 @@ impl Extension for User {
 
     fn get_client_id(&self) -> i32 {
         self.client_id
+    }
+
+    fn get_kind(&self) -> &str {
+        KIND_USER
+    }
+}
+
+
+pub fn find_as_extension(target: i32) -> Result<impl Extension, Box<dyn Error>>  {
+    use crate::schema::users::dsl::*;
+
+    let connection = open_stream();
+    let results = users.filter(client_id.eq(target))
+        .load::<User>(connection)?;
+
+    if results.len() > 0 {
+        Ok(results[0].clone())
+    } else {
+        Err(Box::new(NotFound))
     }
 }

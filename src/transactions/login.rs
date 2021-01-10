@@ -1,5 +1,5 @@
 use crate::models::client::Controller as ClientController;
-use crate::models::client::user::User;
+use crate::models::client::User;
 use crate::transactions::*;
 use crate::regex::*;
 
@@ -7,21 +7,33 @@ const ERR_PWD_NOT_MATCH: &str = "The provided password does not match with user'
 
 pub struct TxLogin<'a> {
     cookie: &'a str,
-    email: &'a str,
+    ident: &'a str,
     pwd: &'a str,
 }
 
 impl<'a> TxLogin<'a> {
-    pub fn new(cookie: &'a str, email: &'a str, pwd: &'a str) -> Self {
+    pub fn new(cookie: &'a str, ident: &'a str, pwd: &'a str) -> Self {
         TxLogin{
             cookie: cookie,
-            email: email,
+            ident: ident,
             pwd: pwd,
         }
     }
 
-    fn require_client(&self) -> Result<Box<dyn ClientController>, Status> {
-        match User::find_by_email(self.email) {
+    fn require_client_by_email(&self) -> Result<Box<dyn ClientController>, Status> {
+        match User::find_by_email(self.ident) {
+            Err(err) => {
+                let msg = format!("{}", err);
+                let status = Status::failed_precondition(msg);
+                Err(status)
+            }
+
+            Ok(user) => Ok(user)
+        }
+    }
+
+    fn require_client_by_name(&self) -> Result<Box<dyn ClientController>, Status> {
+        match User::find_by_name(self.ident) {
             Err(err) => {
                 let msg = format!("{}", err);
                 let status = Status::failed_precondition(msg);
@@ -45,6 +57,16 @@ impl<'a> TxLogin<'a> {
         }
     }
 
+    fn require_password_match(&self, client: &Box<dyn ClientController>) -> Result<(), Status> {
+        if !client.match_pwd(self.pwd.to_string()) {
+            let msg = format!("{}", ERR_PWD_NOT_MATCH);
+            let status = Status::failed_precondition(msg);
+            return Err(status);
+        }
+
+        Ok(())
+    }
+
     fn precondition_cookie(&self) ->  Result<&Box<dyn SessionController>, Status> {
         match match_cookie(self.cookie) {
             Err(err) => {
@@ -60,24 +82,46 @@ impl<'a> TxLogin<'a> {
     }
 
     fn precondition_email(&self) -> Result<Box<dyn ClientController>, Status> {
-        match match_email(self.email) {
+        match match_email(self.ident) {
             Err(err) => {
-                println!("GOT ERROR FOR EMAIL {}", self.email);
                 let msg = format!("{}", err);
                 let status = Status::failed_precondition(msg);
                 return Err(status);
             }
 
             Ok(_) => {
-                let client = self.require_client()?;
-                if !client.match_pwd(self.pwd.to_string()) {
-                    let msg = format!("{}", ERR_PWD_NOT_MATCH);
-                    let status = Status::failed_precondition(msg);
-                    return Err(status);
-                }
+                let client = self.require_client_by_email()?;
+                self.require_password_match(&client)?;
         
                 Ok(client)
             }
+        }
+    }
+
+    fn precondition_name(&self) -> Result<Box<dyn ClientController>, Status> {
+        match match_name(self.ident) {
+            Err(err) => {
+                let msg = format!("{}", err);
+                let status = Status::failed_precondition(msg);
+                return Err(status);
+            }
+
+            Ok(_) => {
+                let client = self.require_client_by_name()?;
+                self.require_password_match(&client)?;
+        
+                Ok(client)
+            }
+        }
+    }
+
+    fn precondition_ident(&self) -> Result<Box<dyn ClientController>, Status> {
+        match self.precondition_email() {
+            Err(_) => {
+                self.precondition_name()
+            }
+
+            Ok(client) => Ok(client)
         }
     }
 
@@ -95,11 +139,11 @@ impl<'a> TxLogin<'a> {
     }
 
     pub fn execute(&self) -> Result<Response<SessionResponse>, Status> {
-        println!("Got Login request from client {} ", self.email);
+        println!("Got Login request from client {} ", self.ident);
         
         match self.precondition_cookie() {
             Err(_) => {
-                let client = self.precondition_email()?;
+                let client = self.precondition_ident()?;
                 let session: &Box<dyn SessionController>;
                 match self.check_alive_session(&client) {
                     Err(_) => {
@@ -116,7 +160,7 @@ impl<'a> TxLogin<'a> {
             }
 
             Ok(session) => {
-                println!("Session for client {} got cookie {}", session.get_client().get_addr(), session.get_cookie());
+                println!("Session for client {} already exists", session.get_client().get_addr());
                 session_response(&session, "")
             }
         }        
