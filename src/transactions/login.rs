@@ -20,102 +20,83 @@ impl<'a> TxLogin<'a> {
         }
     }
 
-    fn require_client_by_email(&self) -> Result<Box<dyn ClientController>, Status> {
-        match User::find_by_email(self.ident) {
-            Err(err) => {
-                let msg = format!("{}", err);
-                let status = Status::failed_precondition(msg);
-                Err(status)
-            }
-
-            Ok(user) => Ok(user)
-        }
-    }
-
-    fn require_client_by_name(&self) -> Result<Box<dyn ClientController>, Status> {
-        match User::find_by_name(self.ident) {
-            Err(err) => {
-                let msg = format!("{}", err);
-                let status = Status::failed_precondition(msg);
-                Err(status)
-            }
-
-            Ok(user) => Ok(user)
-        }
-    }
-
-    fn require_session(&self) ->  Result<&Box<dyn SessionController>, Status> {
-        let provider = SessionProvider::get_instance();
-        match provider.get_session_by_cookie(self.cookie) {
-            Err(err) => {
-                let msg = format!("{}", err);
-                let status = Status::failed_precondition(msg);
-                Err(status)
-            }
-
-            Ok(sess) => Ok(sess)
-        }
-    }
-
-    fn require_password_match(&self, client: &Box<dyn ClientController>) -> Result<(), Status> {
+    fn require_password_match(&self, client: &Box<dyn ClientController>) -> Result<(), Box<dyn Cause>> {
         if !client.match_pwd(self.pwd.to_string()) {
             let msg = format!("{}", ERR_PWD_NOT_MATCH);
-            let status = Status::failed_precondition(msg);
-            return Err(status);
+            let cause = TxCause::new(-1, msg.into());
+            return Err(Box::new(cause));
         }
 
         Ok(())
     }
 
-    fn precondition_cookie(&self) ->  Result<&Box<dyn SessionController>, Status> {
+    fn precondition_cookie(&self) ->  Result<&Box<dyn SessionController>, Box<dyn Cause>> {
         match match_cookie(self.cookie) {
             Err(err) => {
-                let msg = format!("{}", err);
-                let status = Status::failed_precondition(msg);
-                Err(status)
+                let cause = TxCause::new(-1, err.to_string());
+                Err(Box::new(cause))
             }
 
-            Ok(_) => {
-                self.require_session()
-            }
+            Ok(_) => find_session(self.cookie)
         }
     }
 
-    fn precondition_email(&self) -> Result<Box<dyn ClientController>, Status> {
-        match match_email(self.ident) {
+    fn require_client_by_email(&self) -> Result<Box<dyn ClientController>, Box<dyn Cause>> {
+        match User::find_by_email(self.ident) {
             Err(err) => {
-                let msg = format!("{}", err);
-                let status = Status::failed_precondition(msg);
-                return Err(status);
+                let cause = TxCause::new(-1, err.to_string());
+                Err(Box::new(cause))
             }
 
-            Ok(_) => {
-                let client = self.require_client_by_email()?;
+            Ok(client) => {
                 self.require_password_match(&client)?;
-        
                 Ok(client)
             }
         }
     }
 
-    fn precondition_name(&self) -> Result<Box<dyn ClientController>, Status> {
-        match match_name(self.ident) {
+    fn precondition_email(&self) -> Result<Box<dyn ClientController>, Box<dyn Cause>> {
+        match match_email(self.ident) {
             Err(err) => {
-                let msg = format!("{}", err);
-                let status = Status::failed_precondition(msg);
-                return Err(status);
+                let cause = TxCause::new(-1, err.to_string());
+                Err(Box::new(cause))
             }
 
+            Ok(_) => self.require_client_by_email()
+        }
+    }
+
+    fn require_client_by_name(&self) -> Result<Box<dyn ClientController>, Box<dyn Cause>> {
+        match User::find_by_name(self.ident) {
+            Err(err) => {
+                let cause = TxCause::new(-1, err.to_string());
+                Err(Box::new(cause))
+            }
+
+            Ok(client) => {
+                self.require_password_match(&client)?;
+                Ok(client)
+            }
+        }
+    }
+
+    fn precondition_name(&self) -> Result<Box<dyn ClientController>, Box<dyn Cause>> {
+        match match_name(self.ident) {
             Ok(_) => {
                 let client = self.require_client_by_name()?;
                 self.require_password_match(&client)?;
         
                 Ok(client)
             }
+
+            Err(err) => {
+                let cause = TxCause::new(-1, err.to_string());
+                Err(Box::new(cause))
+            }
         }
     }
 
-    fn precondition_ident(&self) -> Result<Box<dyn ClientController>, Status> {
+    fn precondition_ident(&self) -> Result<Box<dyn ClientController>, Box<dyn Cause>> {
         match self.precondition_email() {
             Err(_) => {
                 self.precondition_name()
@@ -125,20 +106,19 @@ impl<'a> TxLogin<'a> {
         }
     }
 
-    fn check_alive_session(&self, client: &Box<dyn ClientController>) -> Result<&Box<dyn SessionController>, Status> {
+    fn check_alive_session(&self, client: &Box<dyn ClientController>) -> Result<&Box<dyn SessionController>, Box<dyn Cause>> {
         let provider = SessionProvider::get_instance();
         match provider.get_session_by_email(&client.get_addr()) {
             Err(err) => {
-                let msg = format!("{}", err);
-                let status = Status::failed_precondition(msg);
-                Err(status)
+                let cause = TxCause::new(-1, err.to_string());
+                Err(Box::new(cause))
             }
 
             Ok(sess) => Ok(sess)
         }
     }
 
-    pub fn execute(&self) -> Result<Response<SessionResponse>, Status> {
+    pub fn execute(&self) -> Result<SessionResponse, Box<dyn Cause>> {
         println!("Got Login request from client {} ", self.ident);
         
         match self.precondition_cookie() {

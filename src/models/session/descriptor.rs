@@ -22,5 +22,4 @@ impl Controller for Descriptor {
     fn get_deadline(&self) -> SystemTime {
         self.deadline
     }
-
 }

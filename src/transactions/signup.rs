@@ -1,4 +1,3 @@
-use tonic::{Response, Status};
 use crate::models::client::User;
 use crate::models::client::Controller as ClientController;
 use crate::transactions::*;
@@ -20,24 +19,29 @@ impl<'a> TxSignup<'a> {
         signup
     }
 
-    fn create_user_client(&self) -> Result<Box<dyn ClientController>, Status> {
+    fn create_user_client(&self) -> Result<Box<dyn ClientController>, Box<dyn Cause>> {
         match User::create(self.name, self.email, self.pwd) {
             Err(err) => {
-                let msg = format!("{}", err);
-                let status = Status::internal(msg);
-                Err(status)
+                let cause = TxCause::new(-1, err.to_string());
+                Err(Box::new(cause))
             }
 
             Ok(client) => Ok(client)
         }
     }
 
-    pub fn execute(&self) -> Result<Response<SessionResponse>, Status> {
+    pub fn execute(&self) -> Result<SessionResponse, Box<dyn Cause>> {
         println!("Got Signup request from client {} ", self.email);
         let client = self.create_user_client()?;
         
         println!("Client {} successfully registered with id {}", self.email, client.get_id());
-        let session = build_session(client)?;
-        session_response(&session, "")
+        match build_session(client) {
+            Ok(sess) => {
+                session_response(&sess, "")
+            },
+
+            Err(cause) => Err(cause)
+        }
     }
 }
+

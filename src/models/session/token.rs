@@ -1,9 +1,8 @@
-#![allow(unused)]
 use std::fmt;
 use rand::Rng;
 use rand::prelude::ThreadRng;
-use crypto::digest::Digest;
-use crypto::sha2::Sha256;
+//use crypto::digest::Digest;
+//use crypto::sha2::Sha256;
 
 const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
                         abcdefghijklmnopqrstuvwxyz\
@@ -25,23 +24,11 @@ impl Token {
         Token(value)
     }
 
-    pub fn shuffle(&self, rand: &mut ThreadRng) -> Self {
-        let charset = self.0.as_bytes();
-        let value: String = (0..charset.len())
-        .map(|_| {
-            let idx = rand.gen_range(0, charset.len());
-            charset[idx] as char
-        })
-        .collect();
-    
-        Token(value)
-    }
-
-    pub fn digest(&self) -> String {
-        let mut hasher = Sha256::new();
-        hasher.input_str(&self.0);
-        hasher.result_str()
-    }
+    //pub fn digest(&self) -> String {
+    //    let mut hasher = Sha256::new();
+    //    hasher.input_str(&self.0);
+    //    hasher.result_str()
+    //}
 
     pub fn to_string(&self) -> String {
         self.0.clone()

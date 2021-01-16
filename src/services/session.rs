@@ -1,8 +1,9 @@
 #![allow(unused)]
 use std::error::Error;
-use tonic::{transport::Server, Request, Response, Status};
+use tonic::{transport::Server, Request, Response, Status, Code};
 use crate::transactions::*;
 use crate::proto::client_proto;
+use crate::services::*;
 
 // Proto generated server traits
 use client_proto::session_server::{Session, SessionServer};
@@ -37,7 +38,10 @@ impl Session for SessionImplementation {
             &msg_ref.pwd,
         );
         
-        tx_signup.execute()
+        match tx_signup.execute() {
+            Ok(sess) => Ok(Response::new(sess)),
+            Err(cause) => Err(parse_cause(cause))
+        }
     }
     
     async fn login(&self, request: Request<LoginRequest>) -> Result<Response<SessionResponse>, Status> {
@@ -48,7 +52,10 @@ impl Session for SessionImplementation {
             &msg_ref.pwd,
         );
         
-        tx_login.execute()
+        match tx_login.execute() {
+            Ok(sess) => Ok(Response::new(sess)),
+            Err(cause) => Err(parse_cause(cause))
+        }
     }
 
     async fn google_signin(&self, request: Request<GoogleSigninRequest>) -> Result<Response<SessionResponse>, Status> {
@@ -68,7 +75,10 @@ impl Session for SessionImplementation {
             &msg_ref.cookie,
         );
         
-        tx_logout.execute()
+        match tx_logout.execute() {
+            Ok(sess) => Ok(Response::new(sess)),
+            Err(cause) => Err(parse_cause(cause))
+        }
     }
     
 }

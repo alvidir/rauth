@@ -52,7 +52,7 @@ pub struct Client {
 
 #[derive(Insertable)]
 #[table_name="clients"]
-pub struct NewClient<'a> {
+struct NewClient<'a> {
     pub name: &'a str,
     pub pwd: &'a str,
     pub status_id: i32,

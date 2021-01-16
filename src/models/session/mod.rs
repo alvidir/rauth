@@ -37,9 +37,9 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn new(client: Box<dyn ClientController>, cookie: &str, timeout: Duration) -> impl Controller {
+    pub fn new(client: Box<dyn ClientController>, cookie: String, timeout: Duration) -> impl Controller {
         Session{
-            cookie: cookie.to_string(),
+            cookie: cookie,
             created_at: SystemTime::now(),
             touch_at: SystemTime::now(),
             timeout: timeout,
@@ -85,8 +85,9 @@ impl Controller for Session {
     }
 
     fn build_token(&mut self) -> Result<String, Box<dyn Error>> {
+        //let deadline = SystemTime::now();
         let token = Token::new(&mut self.rand_gen, TOKEN_LEN);
         self.tokens.insert(token.to_string(), None);
-        Ok("token".to_string())
+        Ok(token.to_string())
     }
 }

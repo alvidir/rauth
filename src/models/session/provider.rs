@@ -79,9 +79,9 @@ impl Controller for Provider {
             },
 
             None => {
-                let hash = self.cookie_gen();
-                let cookie = format!("{}={}", hash, email);
-                let sess = Session::new(client, &cookie, timeout);
+                let token = self.cookie_gen();
+                let cookie = format!("{}={}", token, email);
+                let sess = Session::new(client, cookie.to_string(), timeout);
                
                 self.byemail.insert(email.to_string(), cookie.to_string());
                 self.instances.insert(cookie.to_string(), Box::new(sess));

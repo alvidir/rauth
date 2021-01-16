@@ -20,9 +20,23 @@ pub struct User {
     pub email: String,
 }
 
+pub fn find_as_extension(target: i32) -> Result<impl Extension, Box<dyn Error>>  {
+    use crate::schema::users::dsl::*;
+
+    let connection = open_stream();
+    let results = users.filter(client_id.eq(target))
+        .load::<User>(connection)?;
+
+    if results.len() > 0 {
+        Ok(results[0].clone())
+    } else {
+        Err(Box::new(NotFound))
+    }
+}
+
 #[derive(Insertable)]
 #[table_name="users"]
-pub struct NewUser<'a> {
+struct NewUser<'a> {
     pub client_id: i32,
     pub email: &'a str,
 }
@@ -110,20 +124,5 @@ impl Extension for User {
 
     fn get_kind(&self) -> &str {
         KIND_USER
-    }
-}
-
-
-pub fn find_as_extension(target: i32) -> Result<impl Extension, Box<dyn Error>>  {
-    use crate::schema::users::dsl::*;
-
-    let connection = open_stream();
-    let results = users.filter(client_id.eq(target))
-        .load::<User>(connection)?;
-
-    if results.len() > 0 {
-        Ok(results[0].clone())
-    } else {
-        Err(Box::new(NotFound))
     }
 }

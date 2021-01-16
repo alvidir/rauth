@@ -1,4 +1,7 @@
+#![allow(unused_must_use)]
+use crate::proto::client_proto::SessionResponse;
 use std::error::Error;
+use crate::models::session::provider;
 use crate::transactions::signup::TxSignup;
 use crate::transactions::login::TxLogin;
 
@@ -6,30 +9,39 @@ const DUMMY_NAME: &str = "dummy";
 const DUMMY_EMAIL: &str = "dummy@testing.com";
 const DUMMY_PWD: &str = "0C4fe7eBbfDbcCBE52DC7A0DdF43bCaeEBaC0EE37bF03C4BAa0ed31eAA03d833";
 
-//const INFO_SIGNUP: &str = "Signing up the dummy user";
-//const INFO_LOGIN: &str = "Loging in the dummy user";
-//const INFO_COOKIE: &str = "The dummy's session got cookie";
-
-fn login_dummy_user() -> Result<(), Box<dyn Error>> {
+fn login_dummy_user() -> Result<SessionResponse, Box<dyn Error>> {
    let tx_login = TxLogin::new("", DUMMY_NAME, DUMMY_PWD);
-   tx_login.execute()?;
-   Ok(())
+   match tx_login.execute() {
+      Err(cause) => {
+         let msg = cause.get_msg();
+         Err(msg.into())
+      }
+
+      Ok(sess) => Ok(sess)
+   }
 }
 
-fn signup_dummy_user() -> Result<(), Box<dyn Error>> {
+fn signup_dummy_user() -> Result<SessionResponse, Box<dyn Error>> {
    let tx_dummy = TxSignup::new(
       DUMMY_NAME,
       DUMMY_EMAIL,
       DUMMY_PWD);
 
-   tx_dummy.execute()?;
-   login_dummy_user()
+   match tx_dummy.execute() {
+      Err(cause) => {
+         let msg = cause.get_msg();
+         Err(msg.into())
+      }
+
+      Ok(sess) => Ok(sess)
+   }
 }
 
 pub fn dummy_setup() -> Result<(), Box<dyn Error>> {
-   if login_dummy_user().is_err() {
-      return signup_dummy_user();
-   }
-
+   signup_dummy_user();
+   let sess1 = login_dummy_user()?;
+   let instance = provider::get_instance();
+   let sid = sess1.cookie.as_ref();
+   instance.get_session_by_cookie(sid)?;
    Ok(())
 }

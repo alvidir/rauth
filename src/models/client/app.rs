@@ -20,9 +20,23 @@ pub struct App {
     pub url: String,
 }
 
+pub fn find_as_extension(target: i32) -> Result<impl Extension, Box<dyn Error>>  {
+    use crate::schema::apps::dsl::*;
+
+    let connection = open_stream();
+    let results = apps.filter(client_id.eq(target))
+        .load::<App>(connection)?;
+
+    if results.len() > 0 {
+        Ok(results[0].clone())
+    } else {
+        Err(Box::new(NotFound))
+    }
+}
+
 #[derive(Insertable)]
 #[table_name="apps"]
-pub struct NewApp<'a> {
+struct NewApp<'a> {
     pub client_id: i32,
     pub description: Option<&'a str>,
     pub url: &'a str,
@@ -114,19 +128,5 @@ impl Extension for App {
 
     fn get_kind(&self) -> &str {
         KIND_APP
-    }
-}
-
-pub fn find_as_extension(target: i32) -> Result<impl Extension, Box<dyn Error>>  {
-    use crate::schema::apps::dsl::*;
-
-    let connection = open_stream();
-    let results = apps.filter(client_id.eq(target))
-        .load::<App>(connection)?;
-
-    if results.len() > 0 {
-        Ok(results[0].clone())
-    } else {
-        Err(Box::new(NotFound))
     }
 }
