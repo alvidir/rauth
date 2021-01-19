@@ -1,6 +1,6 @@
 use crate::models::client::User;
 use crate::models::client::Controller as ClientController;
-use crate::transactions::*;
+use crate::transactions::client::*;
 
 pub struct TxSignup<'a> {
     name: &'a str,
@@ -37,7 +37,8 @@ impl<'a> TxSignup<'a> {
         println!("Client {} successfully registered with id {}", self.email, client.get_id());
         match build_session(client) {
             Ok(sess) => {
-                session_response(&sess, "")
+                let token = ephimeral_token(sess)?;
+                session_response(&sess, &token)
             },
 
             Err(cause) => Err(cause)

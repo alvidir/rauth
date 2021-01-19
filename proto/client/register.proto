@@ -1,0 +1,14 @@
+syntax = "proto3";
+option go_package = "github.com/alvidir/tp-auth/proto/session";
+
+package client;
+
+// RegisterRequest description
+message RegisterRequest {
+  string name = 1;   // a unique name for the application
+  string url = 2;    // the application's home URL
+  string descr = 3;  // a description about the application
+  string key = 4;    // main public key to identify the application backend
+  string email = 5;  // username/email for the default admin
+  string pwd = 6;    // a password for the default admin, if required
+}

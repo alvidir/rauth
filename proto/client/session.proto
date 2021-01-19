@@ -6,6 +6,7 @@ import public "login.proto";
 import public "logout.proto";
 import public "signup.proto";
 import public "signin.proto";
+import public "register.proto";
 
 enum Status {
     ALIVE = 0;
@@ -14,10 +15,10 @@ enum Status {
 }
 
 message SessionResponse {
-  string token = 1;  // Ephimeral token
-  string cookie = 2;  // Session cookie
+  string token = 1;    // Ephimeral token, if any
+  string cookie = 2;   // Session cookie
   uint64 deadline = 3; // Cookie deadline
-  Status status = 4;  // Session status for the given coockie
+  Status status = 4;   // Session status for the given coockie
 }
 
 service Session {
@@ -25,4 +26,5 @@ service Session {
   rpc GoogleSignin(client.GoogleSigninRequest) returns (SessionResponse);
   rpc Logout(client.LogoutRequest) returns (SessionResponse);
   rpc Signup(client.SignupRequest) returns (SessionResponse);
+  rpc Register(client.RegisterRequest) returns (SessionResponse);
 }

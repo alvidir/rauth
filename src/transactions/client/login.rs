@@ -1,6 +1,6 @@
 use crate::models::client::Controller as ClientController;
 use crate::models::client::User;
-use crate::transactions::*;
+use crate::transactions::client::*;
 use crate::regex::*;
 
 const ERR_PWD_NOT_MATCH: &str = "The provided password does not match with user's";
@@ -30,14 +30,12 @@ impl<'a> TxLogin<'a> {
         Ok(())
     }
 
-    fn precondition_cookie(&self) ->  Result<&Box<dyn SessionController>, Box<dyn Cause>> {
-        match match_cookie(self.cookie) {
-            Err(err) => {
-                let cause = TxCause::new(-1, err.to_string());
-                Err(Box::new(cause))
-            }
-
-            Ok(_) => find_session(self.cookie)
+    fn precondition_cookie(&self) ->  Result<&mut Box<dyn SessionController>, Box<dyn Cause>> {
+        if let Err(err) = match_cookie(self.cookie) {
+            let cause = TxCause::new(-1, err.to_string());
+            Err(Box::new(cause))
+        } else {
+            find_session(self.cookie)
         }
     }
 
@@ -56,13 +54,11 @@ impl<'a> TxLogin<'a> {
     }
 
     fn precondition_email(&self) -> Result<Box<dyn ClientController>, Box<dyn Cause>> {
-        match match_email(self.ident) {
-            Err(err) => {
-                let cause = TxCause::new(-1, err.to_string());
-                Err(Box::new(cause))
-            }
-
-            Ok(_) => self.require_client_by_email()
+        if let Err(err) = match_email(self.ident) {
+            let cause = TxCause::new(-1, err.to_string());
+            Err(Box::new(cause))
+        } else {
+            self.require_client_by_email()
         }
     }
 
@@ -81,32 +77,26 @@ impl<'a> TxLogin<'a> {
     }
 
     fn precondition_name(&self) -> Result<Box<dyn ClientController>, Box<dyn Cause>> {
-        match match_name(self.ident) {
-            Ok(_) => {
-                let client = self.require_client_by_name()?;
-                self.require_password_match(&client)?;
-        
-                Ok(client)
-            }
-
-            Err(err) => {
-                let cause = TxCause::new(-1, err.to_string());
-                Err(Box::new(cause))
-            }
+        if let Err(err) = match_name(self.ident) {
+            let cause = TxCause::new(-1, err.to_string());
+            Err(Box::new(cause))
+        } else {
+            let client = self.require_client_by_name()?;
+            self.require_password_match(&client)?;
+    
+            Ok(client)
         }
     }
 
     fn precondition_ident(&self) -> Result<Box<dyn ClientController>, Box<dyn Cause>> {
-        match self.precondition_email() {
-            Err(_) => {
-                self.precondition_name()
-            }
-
-            Ok(client) => Ok(client)
+        if let Ok(client) = self.precondition_email() {
+            Ok(client)
+        } else {
+            self.precondition_name()
         }
     }
 
-    fn check_alive_session(&self, client: &Box<dyn ClientController>) -> Result<&Box<dyn SessionController>, Box<dyn Cause>> {
+    fn check_alive_session(&self, client: &Box<dyn ClientController>) -> Result<&mut Box<dyn SessionController>, Box<dyn Cause>> {
         let provider = SessionProvider::get_instance();
         match provider.get_session_by_email(&client.get_addr()) {
             Err(err) => {
@@ -120,29 +110,18 @@ impl<'a> TxLogin<'a> {
 
     pub fn execute(&self) -> Result<SessionResponse, Box<dyn Cause>> {
         println!("Got Login request from client {} ", self.ident);
+        let client = self.precondition_ident()?;
+        let session: &mut Box<dyn SessionController>;
+        if let Ok(sess) = self.precondition_cookie() {
+            session = sess
+        } else if let Ok(sess) = self.check_alive_session(&client) {
+            session = sess;
+        } else {
+            session = build_session(client)?;
+        }
         
-        match self.precondition_cookie() {
-            Err(_) => {
-                let client = self.precondition_ident()?;
-                let session: &Box<dyn SessionController>;
-                match self.check_alive_session(&client) {
-                    Err(_) => {
-                        session = build_session(client)?;
-                    }
-
-                    Ok(sess) => {
-                        session = sess;
-                    }
-                }
-
-                println!("Session for client {} got cookie {}", session.get_client().get_addr(), session.get_cookie());
-                session_response(&session, "")
-            }
-
-            Ok(session) => {
-                println!("Session for client {} already exists", session.get_client().get_addr());
-                session_response(&session, "")
-            }
-        }        
+        println!("Session for client {} got cookie {}", session.get_client().get_addr(), session.get_cookie());
+        let token = ephimeral_token(session)?;
+        session_response(&session, &token)
     }
 }

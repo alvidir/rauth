@@ -5,7 +5,7 @@ package client;
 
 // SignupRequest description
 message SignupRequest {
-  string name = 1; 
-  string addr = 2;    
-  string pwd = 3; 
+  string name = 1;  // a unique username
+  string email = 2; // the user email
+  string pwd = 3;   // the user password
 }

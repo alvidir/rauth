@@ -2,24 +2,20 @@
 use std::time::{Duration, SystemTime};
 use crate::models::session::token::Token;
 
-pub trait Controller {
-    fn get_deadline(&self) -> SystemTime;
-}
+pub trait Controller {}
 
-pub struct Descriptor {
+pub struct Gateway {
     deadline: SystemTime,
 }
 
-impl Descriptor {
+impl Gateway {
     pub fn new(deadline: SystemTime) -> impl Controller {
-        Descriptor {
+        Gateway {
             deadline: deadline,
         }  
     }
 }
 
-impl Controller for Descriptor {
-    fn get_deadline(&self) -> SystemTime {
-        self.deadline
-    }
+impl Controller for Gateway {
+    
 }

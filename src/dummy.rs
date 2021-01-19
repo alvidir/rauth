@@ -2,8 +2,8 @@
 use crate::proto::client_proto::SessionResponse;
 use std::error::Error;
 use crate::models::session::provider;
-use crate::transactions::signup::TxSignup;
-use crate::transactions::login::TxLogin;
+use crate::transactions::client::signup::TxSignup;
+use crate::transactions::client::login::TxLogin;
 
 const DUMMY_NAME: &str = "dummy";
 const DUMMY_EMAIL: &str = "dummy@testing.com";

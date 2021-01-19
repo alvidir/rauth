@@ -1,17 +1,19 @@
 pub mod provider;
-mod descriptor;
+mod gateway;
 mod token;
 
 use std::error::Error;
 use std::time::{Duration, SystemTime};
 use std::collections::HashMap;
+use std::collections::HashSet;
 use rand::prelude::ThreadRng;
 use self::token::Token;
-use self::descriptor::{Controller as DescriptorController};
+use self::gateway::Gateway;
 use crate::proto::Status;
 use crate::models::client::Controller as ClientController;
 
 const TOKEN_LEN: usize = 8;
+const EPH_TOKEN_TIMEOUT: Duration = Duration::from_secs(20);
 
 pub trait Controller {
     fn get_created_at(&self) -> SystemTime;
@@ -22,7 +24,7 @@ pub trait Controller {
     fn get_client(&self) -> &Box<dyn ClientController>;
     fn get_addr(&self) -> String;
     fn match_cookie(&self, cookie: String) -> bool;
-    fn build_token(&mut self) -> Result<String, Box<dyn Error>>;
+    fn new_eph_token(&mut self) -> Result<String, Box<dyn Error>>;
 }
 
 pub struct Session {
@@ -33,7 +35,8 @@ pub struct Session {
     pub status: Status,
     rand_gen: ThreadRng,
     client: Box<dyn ClientController>,
-    tokens: HashMap<String, Option<Box<dyn DescriptorController>>>,
+    tokens: HashSet<Token>,
+    gateways: HashMap<Token, Gateway>,
 }
 
 impl Session {
@@ -46,7 +49,8 @@ impl Session {
             status: Status::New,
             rand_gen: rand::thread_rng(),
             client: client,
-            tokens: HashMap::new(),
+            tokens: HashSet::new(),
+            gateways: HashMap::new(),
         }
     }
 }
@@ -84,10 +88,11 @@ impl Controller for Session {
         self.cookie == cookie
     }
 
-    fn build_token(&mut self) -> Result<String, Box<dyn Error>> {
-        //let deadline = SystemTime::now();
-        let token = Token::new(&mut self.rand_gen, TOKEN_LEN);
-        self.tokens.insert(token.to_string(), None);
-        Ok(token.to_string())
+    fn new_eph_token(&mut self) -> Result<String, Box<dyn Error>> {
+        let deadline = SystemTime::now() + EPH_TOKEN_TIMEOUT;
+        let token = Token::new(&mut self.rand_gen, deadline, TOKEN_LEN);
+        let tid = token.to_string();
+        self.tokens.insert(token);
+        Ok(tid)
     }
 }

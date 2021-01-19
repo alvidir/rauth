@@ -6,3 +6,4 @@ CREATE TABLE Statuses (
 INSERT INTO Statuses (id, name) VALUES (0, 'PENDING');
 INSERT INTO Statuses (id, name) VALUES (1, 'ACTIVATED');
 INSERT INTO Statuses (id, name) VALUES (2, 'DEACTIVATED');
+INSERT INTO Statuses (id, name) VALUES (3, 'HIDDEN');

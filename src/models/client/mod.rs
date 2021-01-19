@@ -3,6 +3,7 @@ mod user;
 
 // in order to keep some functions as protected (only available for the client module) submodules
 // are not exported, but its main structs instead
+use std::collections::HashSet;
 pub use self::user::User;
 pub use self::app::App;
 
@@ -191,14 +192,14 @@ impl Client {
 struct Wrapper{
     data: Client,
     extension: Option<Box<dyn Extension>>,
-    _creds: Vec<String>,
+    creds: HashSet<String>,
 }
 
 impl Wrapper{
     fn new(data: Client, ext: Option<Box<dyn Extension>>) -> Self {
         Wrapper{
             data: data,
-            _creds: vec!{},
+            creds: HashSet::new(),
             extension: ext,
         }
     }
