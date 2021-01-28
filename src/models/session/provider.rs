@@ -50,7 +50,7 @@ pub fn get_instance<'a>() -> &'a mut Box<dyn Controller> {
 
 struct Provider {
     timeout: Duration,
-    cookies: HashMap<Token, Box<dyn SessionController>>,
+    bycookie: HashMap<Token, Box<dyn SessionController>>,
     byemail: HashMap<String, String>,
     rand_gen: ThreadRng,
 }
@@ -59,7 +59,7 @@ impl Provider {
     fn new(timeout: Duration) -> impl Controller {
         Provider{
             timeout: timeout,
-            cookies: HashMap::new(),
+            bycookie: HashMap::new(),
             byemail: HashMap::new(),
             rand_gen: rand::thread_rng(),
         }
@@ -94,7 +94,7 @@ impl Provider {
     }
 
     fn is_session_alive(&mut self, token: &Token) -> Result<(), Box<dyn Error>> {
-        if let Some(pair) = self.cookies.get_key_value(token) {
+        if let Some(pair) = self.bycookie.get_key_value(token) {
             if pair.0.is_alive() {
                 self.destroy_session_by_token(token)?;
                 let msg = format!("{}", ERR_DEADLINE_EXCEEDED);
@@ -111,7 +111,7 @@ impl Provider {
 
     fn get_session_by_token(&mut self, token: &Token) -> Result<&mut Box<dyn SessionController>, Box<dyn Error>> {
         self.is_session_alive(token)?;
-        if let Some(sess) = self.cookies.get_mut(token) {
+        if let Some(sess) = self.bycookie.get_mut(token) {
             Ok(sess)
         } else {
             let msg = format!("{} {}", ERR_BROKEN_COOKIE, token);
@@ -120,9 +120,9 @@ impl Provider {
     }
 
     fn destroy_session_by_token(&mut self, token: &Token) -> Result<(), Box<dyn Error>> {
-        if let Some(sess) = self.cookies.get(token) {
+        if let Some(sess) = self.bycookie.get(token) {
             let email = sess.get_addr();
-            self.cookies.remove(&token);
+            self.bycookie.remove(&token);
             self.byemail.remove(&email);
             Ok(())
         } else {
@@ -143,9 +143,9 @@ impl Controller for Provider {
             let sess = Session::new(client, cookie.to_string(), timeout);
             
             self.byemail.insert(email.to_string(), token.to_string());
-            self.cookies.insert(token.clone(), Box::new(sess));
+            self.bycookie.insert(token.clone(), Box::new(sess));
 
-            if let Some(sess) = self.cookies.get_mut(&token) {
+            if let Some(sess) = self.bycookie.get_mut(&token) {
                 Ok(sess)
             } else {
                 let msg = format!("{} {}", ERR_SESSION_BUILD, email);
