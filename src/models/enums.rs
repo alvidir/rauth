@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use std::fmt;
 use std::error::Error;
 use diesel::NotFound;

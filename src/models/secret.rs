@@ -8,7 +8,6 @@ use ring::{
     rand,
     signature::{self, KeyPair},
     pkcs8,
-    error,
 };
 
 pub trait Ctrl {

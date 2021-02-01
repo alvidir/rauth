@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use std::time::SystemTime;
 use std::error::Error;
 use diesel::NotFound;
@@ -8,7 +10,6 @@ use crate::postgres::*;
 use crate::regex::*;
 
 const ERR_UNKNOWN_KIND: &str = "The provided kind do no match with any of the expected ones";
-const ERR_EXTENSION_EXISTS: &str = "The current client already has an extension";
 
 pub trait Ctrl {
     fn get_status(&self) -> i32;

@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use diesel::NotFound;
 use std::error::Error;
 use crate::models::client;
