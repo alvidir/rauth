@@ -36,7 +36,13 @@ table! {
 table! {
     secrets (id) {
         id -> Int4,
-        document -> Text,
+        client_id -> Int4,
+        name -> Varchar,
+        description -> Nullable<Varchar>,
+        secret -> Nullable<Text>,
+        public -> Text,
+        created_at -> Timestamp,
+        deadline -> Nullable<Timestamp>,
     }
 }
 
@@ -60,6 +66,7 @@ joinable!(admins -> clients (client_id));
 joinable!(apps -> clients (client_id));
 joinable!(clients -> kinds (kind_id));
 joinable!(clients -> statuses (status_id));
+joinable!(secrets -> clients (client_id));
 joinable!(users -> clients (client_id));
 
 allow_tables_to_appear_in_same_query!(

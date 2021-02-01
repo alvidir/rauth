@@ -1,33 +1,44 @@
 use std::error::Error;
+use diesel::NotFound;
+use std::time::{Duration, SystemTime};
+use rand::rngs::OsRng;
+use rand::thread_rng;
+use pwbox::{Eraser, ErasedPwBox, Suite, sodium::Sodium};
+use ed25519_dalek::{
+    Keypair,
+    Signature,
+    Signer,
+    PublicKey,
+    SecretKey,
+    Verifier,
+    KEYPAIR_LENGTH,
+    SECRET_KEY_LENGTH,
+    PUBLIC_KEY_LENGTH,
+};
+
 use crate::schema::secrets;
 use crate::postgres::*;
 use crate::diesel::prelude::*;
 use crate::regex::*;
 
-use ring::{
-    rand,
-    signature::{self, KeyPair},
-    pkcs8,
-};
-
 pub trait Ctrl {
-    fn sign_data(&self, data: &str) -> signature::Signature;
-    fn verify(&self, data: &str, sign: &str) -> Result<(), Box<dyn Error>>;
+    fn encrypt(&self, data: &[u8]) -> Result<&[u8], Box<dyn Error>>;
+    fn decrypt(&self, data: &[u8]) -> Result<&[u8], Box<dyn Error>>;
+    fn sign(&self, data: &[u8]) -> Result<&[u8], Box<dyn Error>>;
+    fn verify(&self, data: &[u8]) -> bool;
 }
 
-fn generate_random_document() -> Result<pkcs8::Document, Box<dyn Error>> {
-    // Generate a key pair in PKCS#8 (v2) format.
-    let rng = rand::SystemRandom::new();
-    match signature::Ed25519KeyPair::generate_pkcs8(&rng) {
-        Ok(document) => Ok(document),
-        Err(err) => Err(err.to_string().into()),
-    }
-}
+pub fn find_by_client_id(target: i32) -> Result<Box<dyn Ctrl>, Box<dyn Error>>  {
+    use crate::schema::secrets::dsl::*;
 
-fn from_pkcs8(data: &[u8]) -> Result<signature::Ed25519KeyPair, Box<dyn Error>> {
-    match signature::Ed25519KeyPair::from_pkcs8(data) {
-        Ok(key) => Ok(key),
-        Err(err) => Err(err.to_string().into()),
+    let connection = open_stream();
+    let results = secrets.filter(client_id.eq(target))
+        .load::<Secret>(connection)?;
+
+    if results.len() > 0 {
+        Ok(Box::new(results[0].clone()))
+    } else {
+        Err(Box::new(NotFound))
     }
 }
 
@@ -37,63 +48,88 @@ fn from_pkcs8(data: &[u8]) -> Result<signature::Ed25519KeyPair, Box<dyn Error>> 
 #[table_name="secrets"]
 pub struct Secret {
     pub id: i32,
-    pub document: String,
+    pub client_id: i32,
+    pub name: String,
+    pub description: Option<String>,
+    pub secret: Option<String>,
+    pub public: String,
+    pub created_at: SystemTime,
+    pub deadline: Option<SystemTime>,
 }
 
 #[derive(Insertable)]
 #[table_name="secrets"]
 struct NewSecret<'a> {
-    pub document: &'a str,
+    pub client_id: i32,
+    pub name: &'a str,
+    pub description: Option<&'a str>,
+    pub secret: Option<&'a str>,
+    pub public: &'a str,
+    pub created_at: SystemTime,
+    pub deadline: Option<SystemTime>,
 }
 
 impl Secret {
-    pub fn new<'a>(email: &'a str, pwd: &'a str) -> Result<Box<dyn Ctrl>, Box<dyn Error>> {
+    pub fn new<'a>(email: &'a str, pwd: &'a str) -> Result<Self, Box<dyn Error>> {
         match_email(email)?;
         match_pwd(pwd)?;
 
-        let document = generate_random_document()?;
-        match String::from_utf8(document.as_ref().to_vec()) {
-            Ok(doc) => {
-                let new_secret = NewSecret{
-                    document: &doc,
-                };
-
-                let connection = open_stream();
-                let result = diesel::insert_into(secrets::table)
-                    .values(&new_secret)
-                    .get_result::<Secret>(connection)?;
-
-                let wrapper = result.build()?;
-                Ok(Box::new(wrapper))
-            }
-
-            Err(err) => Err(err.to_string().into()),
-        }
+        let mut csprng = OsRng{};
+        let keypair: Keypair = Keypair::generate(&mut csprng);
+        keypair.to_bytes();
+        let secret_key: SecretKey = keypair.secret;
+        
+        Err("".into())
     }
 
-    fn build(&self) -> Result<Wrapper, Box<dyn Error>> {
-        Ok(Wrapper{
-            key: from_pkcs8(self.document.as_bytes())?,
-        })
+    pub fn store<'a>(client_id: i32, name: &'a str, public: &'a [u8]) -> Result<Self, Box<dyn Error>> {
+        if public.len() != PUBLIC_KEY_LENGTH {
+            let msg = format!("Got public key of length {}, want {}", public.len(), PUBLIC_KEY_LENGTH);
+            return Err(msg.into());
+        }
+
+        let new_secret = NewSecret {
+            client_id: client_id,
+            name: name,
+            description: None,
+            secret: None,
+            public: &String::from_utf8(public.to_vec())?,
+            created_at: SystemTime::now(),
+            deadline: None,
+        };
+
+        let connection = open_stream();
+        let result = diesel::insert_into(secrets::table)
+            .values(&new_secret)
+            .get_result::<Secret>(connection)?;
+
+        Ok(result)
+    }
+
+    pub fn set_description(&mut self, description: Option<String>) {
+        self.description = description;
+    }
+
+    pub fn set_deadline(&mut self, deadline: Option<SystemTime>) {
+        self.deadline = deadline;
     }
 }
 
-struct Wrapper {
-    key: signature::Ed25519KeyPair,
-}
-
-impl Ctrl for Wrapper {
-    fn sign_data(&self, data: &str) -> signature::Signature {
-        self.key.sign(data.as_bytes())
+impl Ctrl for Secret {
+    fn encrypt(&self, data: &[u8]) -> Result<&[u8], Box<dyn Error>> {
+        Err("".into())
     }
 
-    fn verify(&self, data: &str, sign: &str) -> Result<(), Box<dyn Error>> {
-        let public_key = self.key.public_key().as_ref();
-        let peer = signature::UnparsedPublicKey::new(&signature::ED25519, public_key);
-        if let Err(err) = peer.verify(data.as_bytes(), sign.as_bytes()) {
-            return Err(err.to_string().into());
-        }
-
-        Ok(())
+    fn decrypt(&self, data: &[u8]) -> Result<&[u8], Box<dyn Error>> {
+        Err("".into())
     }
+
+    fn sign(&self, data: &[u8]) -> Result<&[u8], Box<dyn Error>> {
+        Err("".into())
+    }
+
+    fn verify(&self, data: &[u8]) -> bool {
+        false
+    }
+
 }

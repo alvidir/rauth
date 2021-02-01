@@ -8,9 +8,9 @@ use crate::proto::Status;
 use super::user;
 
 const TOKEN_LEN: usize = 8;
-const EPH_TOKEN_TIMEOUT: Duration = Duration::from_secs(20);
-
+const TOKEN_TIMEOUT: u64 = 3600; // 60s * 60min
 const COOKIE_LEN: usize = 32;
+const COOKIE_TIMEOUT: u64 = 86400; // 3600s * 24h
 const COOKIE_SEPARATOR: &str = "=";
 const ERR_DEADLINE_EXCEEDED: &str = "Deadline exceeded";
 const ERR_NO_TID: &str = "The provided cookie has no token ID";
@@ -49,7 +49,7 @@ pub fn get_instance<'a>() -> &'a mut Box<dyn Factory> {
             ctrl
         },
         None => {
-            let timeout = Duration::new(3600, 0);
+            let timeout = Duration::new(COOKIE_TIMEOUT, 0);
             let instance = Provider::new(timeout);
             
             unsafe {
@@ -247,7 +247,8 @@ impl Ctrl for Session {
     }
 
     fn get_token(&mut self) -> Result<String, Box<dyn Error>> {
-        let deadline = SystemTime::now() + EPH_TOKEN_TIMEOUT;
+        let timeout = Duration::new(TOKEN_TIMEOUT, 0);
+        let deadline = SystemTime::now() + timeout;
         let token = Token::new(&mut self.rand_gen, deadline, TOKEN_LEN);
         let tid = token.to_string();
         self.tokens.insert(token);

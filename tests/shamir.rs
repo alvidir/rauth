@@ -1,7 +1,7 @@
 use shamir::SecretData;
 
 #[test]
-fn test_split() {
+fn test_shamir() {
     let msg = "Hello world!";
     let needed = 3;
 
@@ -11,11 +11,11 @@ fn test_split() {
     let share1 = secret_data.get_share(1);
     let share2 = secret_data.get_share(2);
     let share3 = secret_data.get_share(3);
-    let share4 = secret_data.get_share(4);
 
     let mut recovered = SecretData::recover_secret(3, vec![share1, share2, share3]).unwrap();
     assert_eq!(recovered, msg);
 
+    let share4 = secret_data.get_share(4);
     let share5 = secret_data.get_share(5);
     let share6 = secret_data.get_share(6);
 
