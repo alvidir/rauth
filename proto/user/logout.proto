@@ -1,7 +1,7 @@
 syntax = "proto3";
-option go_package = "github.com/alvidir/tp-auth/proto/session";
+option go_package = "github.com/alvidir/tp-auth/proto/user";
 
-package client;
+package user;
 
 // LogoutRequest description
 message LogoutRequest {

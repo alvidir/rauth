@@ -1,5 +1,9 @@
 #[macro_use]
 extern crate diesel;
+#[macro_use]
+extern crate custom_derive;
+#[macro_use]
+extern crate enum_derive;
 
 use dotenv;
 use std::env;
@@ -14,6 +18,7 @@ mod postgres;
 mod dummy;
 mod proto;
 mod time;
+mod token;
 
 const ERR_NO_PORT: &str = "Service port must be set";
 const ENV_SERVICE_PORT: &str = "SERVICE_PORT";

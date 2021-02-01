@@ -1,6 +1,7 @@
 use std::time::SystemTime;
-use crate::transactions::client::*;
 use crate::regex::*;
+use crate::models::session;
+use super::*;
 
 pub struct TxLogout<'a> {
     cookie: &'a str,
@@ -13,7 +14,7 @@ impl<'a> TxLogout<'a> {
         }
     }
 
-    fn precondition_cookie(&self) ->  Result<&mut Box<dyn SessionController>, Box<dyn Cause>> {
+    fn precondition_cookie(&self) ->  Result<&mut Box<dyn session::Ctrl>, Box<dyn Cause>> {
         if let Err(err) = match_cookie(self.cookie) {
             let cause = TxCause::new(-1, err.to_string());
             Err(Box::new(cause))
@@ -29,7 +30,7 @@ impl<'a> TxLogout<'a> {
         let session = find_session(self.cookie)?;
         destroy_session(self.cookie)?;
 
-        println!("Session for client {} has cookie {}", session.get_client().get_addr(), session.get_cookie());
+        println!("Session for client {} has cookie {}", session.get_email(), session.get_cookie());
         match time::unix_seconds(SystemTime::now()) {
             Ok(deadline) => Ok(
                 SessionResponse {

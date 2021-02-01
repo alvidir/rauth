@@ -1,6 +1,5 @@
-use crate::models::client::User;
-use crate::models::client::Controller as ClientController;
-use crate::transactions::client::*;
+use crate::models::user;
+use super::*;
 
 pub struct TxSignup<'a> {
     name: &'a str,
@@ -19,25 +18,25 @@ impl<'a> TxSignup<'a> {
         signup
     }
 
-    fn create_user_client(&self) -> Result<Box<dyn ClientController>, Box<dyn Cause>> {
-        match User::create(self.name, self.email, self.pwd) {
+    fn create_user(&self) -> Result<Box<dyn user::Ctrl>, Box<dyn Cause>> {
+        match user::User::new(self.name, self.email, self.pwd) {
             Err(err) => {
                 let cause = TxCause::new(-1, err.to_string());
                 Err(Box::new(cause))
             }
 
-            Ok(client) => Ok(client)
+            Ok(user) => Ok(user)
         }
     }
 
     pub fn execute(&self) -> Result<SessionResponse, Box<dyn Cause>> {
-        println!("Got Signup request from client {} ", self.email);
-        let client = self.create_user_client()?;
+        println!("Got Signup request from user {} ", self.email);
+        let user = self.create_user()?;
         
-        println!("Client {} successfully registered with id {}", self.email, client.get_id());
-        match build_session(client) {
+        println!("User {} successfully registered with email {}", self.email, user.get_email());
+        match build_session(user) {
             Ok(sess) => {
-                let token = ephimeral_token(sess)?;
+                let token = get_token(sess)?;
                 session_response(&sess, &token)
             },
 

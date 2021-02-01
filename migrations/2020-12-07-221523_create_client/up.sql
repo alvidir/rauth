@@ -1,7 +1,7 @@
 CREATE TABLE Clients (
     id SERIAL PRIMARY KEY,
     name VARCHAR(32) NOT NULL UNIQUE,
-    pwd VARCHAR(64) NOT NULL,
+    address VARCHAR(255) NOT NULL UNIQUE,
     status_id INTEGER NOT NULL,
     kind_id INTEGER NOT NULL,
     created_at TIMESTAMP NOT NULL,

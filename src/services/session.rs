@@ -1,7 +1,7 @@
 #![allow(unused)]
 use std::error::Error;
 use tonic::{transport::Server, Request, Response, Status, Code};
-use crate::transactions::client::*;
+use crate::transactions::*;
 use crate::proto::client_proto;
 use crate::services::*;
 
@@ -9,7 +9,7 @@ use crate::services::*;
 use client_proto::session_server::{Session, SessionServer};
 
 // Proto message structs
-use client_proto::{LoginRequest, GoogleSigninRequest, LogoutRequest, SignupRequest, RegisterRequest, SessionResponse };
+use client_proto::{LoginRequest, GoogleSigninRequest, LogoutRequest, SignupRequest, SessionResponse };
 
 pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
     let addr = address.parse().unwrap();
@@ -80,22 +80,4 @@ impl Session for SessionImplementation {
             Err(cause) => Err(parse_cause(cause))
         }
     }
-
-    async fn register(&self, request: Request<RegisterRequest>) -> Result<Response<SessionResponse>, Status> {
-        let msg_ref = request.into_inner();
-        let tx_logout = register::TxRegister::new(
-            &msg_ref.name,
-            &msg_ref.url,
-            &msg_ref.descr,
-            &msg_ref.key,
-            &msg_ref.email,
-            &msg_ref.pwd,
-        );
-        
-        match tx_logout.execute() {
-            Ok(sess) => Ok(Response::new(sess)),
-            Err(cause) => Err(parse_cause(cause))
-        }
-    }
-    
 }

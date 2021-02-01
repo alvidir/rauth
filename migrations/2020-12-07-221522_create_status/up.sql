@@ -3,7 +3,7 @@ CREATE TABLE Statuses (
     name VARCHAR(32) NOT NULL UNIQUE
 );
 
-INSERT INTO Statuses (id, name) VALUES (0, 'PENDING');
-INSERT INTO Statuses (id, name) VALUES (1, 'ACTIVATED');
-INSERT INTO Statuses (id, name) VALUES (2, 'DEACTIVATED');
-INSERT INTO Statuses (id, name) VALUES (3, 'HIDDEN');
+INSERT INTO Statuses (id, name) VALUES (1, 'PENDING');
+INSERT INTO Statuses (id, name) VALUES (2, 'ACTIVATED');
+INSERT INTO Statuses (id, name) VALUES (3, 'DEACTIVATED');
+INSERT INTO Statuses (id, name) VALUES (4, 'HIDDEN');

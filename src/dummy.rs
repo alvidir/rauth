@@ -1,9 +1,9 @@
 #![allow(unused_must_use)]
 use crate::proto::client_proto::SessionResponse;
 use std::error::Error;
-use crate::models::session::provider;
-use crate::transactions::client::signup::TxSignup;
-use crate::transactions::client::login::TxLogin;
+use crate::models::session;
+use crate::transactions::signup::TxSignup;
+use crate::transactions::login::TxLogin;
 
 const DUMMY_NAME: &str = "dummy";
 const DUMMY_EMAIL: &str = "dummy@testing.com";
@@ -14,6 +14,7 @@ fn login_dummy_user() -> Result<SessionResponse, Box<dyn Error>> {
    match tx_login.execute() {
       Err(cause) => {
          let msg = cause.get_msg();
+         println!("{:?}", msg);
          Err(msg.into())
       }
 
@@ -30,6 +31,7 @@ fn signup_dummy_user() -> Result<SessionResponse, Box<dyn Error>> {
    match tx_dummy.execute() {
       Err(cause) => {
          let msg = cause.get_msg();
+         println!("{:?}", msg);
          Err(msg.into())
       }
 
@@ -40,7 +42,7 @@ fn signup_dummy_user() -> Result<SessionResponse, Box<dyn Error>> {
 pub fn dummy_setup() -> Result<(), Box<dyn Error>> {
    signup_dummy_user();
    let sess1 = login_dummy_user()?;
-   let instance = provider::get_instance();
+   let instance = session::get_instance();
    let sid = sess1.cookie.as_ref();
    instance.get_session_by_cookie(sid)?;
    Ok(())

@@ -1,12 +1,11 @@
 syntax = "proto3";
-option go_package = "github.com/alvidir/tp-auth/proto/session";
+option go_package = "github.com/alvidir/tp-auth/proto/user";
 
-package client;
+package user;
 import public "login.proto";
 import public "logout.proto";
 import public "signup.proto";
 import public "signin.proto";
-import public "register.proto";
 
 enum Status {
     ALIVE = 0;
@@ -22,9 +21,8 @@ message SessionResponse {
 }
 
 service Session {
-  rpc Login(client.LoginRequest) returns (SessionResponse);
-  rpc GoogleSignin(client.GoogleSigninRequest) returns (SessionResponse);
-  rpc Logout(client.LogoutRequest) returns (SessionResponse);
-  rpc Signup(client.SignupRequest) returns (SessionResponse);
-  rpc Register(client.RegisterRequest) returns (SessionResponse);
+  rpc Login(user.LoginRequest) returns (SessionResponse);
+  rpc GoogleSignin(user.GoogleSigninRequest) returns (SessionResponse);
+  rpc Logout(user.LogoutRequest) returns (SessionResponse);
+  rpc Signup(user.SignupRequest) returns (SessionResponse);
 }
