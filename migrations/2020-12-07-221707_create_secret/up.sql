@@ -3,8 +3,7 @@ CREATE TABLE Secrets (
     client_id INTEGER NOT NULL UNIQUE, 
     name VARCHAR(255) NOT NULL,
     description VARCHAR(255),
-    secret TEXT,
-    public TEXT NOT NULL UNIQUE,
+    document TEXT NOT NULL UNIQUE,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     deadline TIMESTAMP,
 

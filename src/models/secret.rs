@@ -4,11 +4,13 @@ use std::time::{Duration, SystemTime};
 use rand::rngs::OsRng;
 use rand::thread_rng;
 use pwbox::{Eraser, ErasedPwBox, Suite, sodium::Sodium};
+use crate::crypto;
+use ecies_ed25519::PublicKey as PublicKey_acies;
 use ed25519_dalek::{
     Keypair,
     Signature,
     Signer,
-    PublicKey,
+    PublicKey as PublicKey_dalek,
     SecretKey,
     Verifier,
     KEYPAIR_LENGTH,
@@ -22,9 +24,9 @@ use crate::diesel::prelude::*;
 use crate::regex::*;
 
 pub trait Ctrl {
-    fn encrypt(&self, data: &[u8]) -> Result<&[u8], Box<dyn Error>>;
-    fn decrypt(&self, data: &[u8]) -> Result<&[u8], Box<dyn Error>>;
-    fn sign(&self, data: &[u8]) -> Result<&[u8], Box<dyn Error>>;
+    fn encrypt(&self, data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>>;
+    fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>>;
+    fn sign(&self, data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>>;
     fn verify(&self, data: &[u8]) -> bool;
 }
 
@@ -51,8 +53,7 @@ pub struct Secret {
     pub client_id: i32,
     pub name: String,
     pub description: Option<String>,
-    pub secret: Option<String>,
-    pub public: String,
+    pub document: String,
     pub created_at: SystemTime,
     pub deadline: Option<SystemTime>,
 }
@@ -63,37 +64,44 @@ struct NewSecret<'a> {
     pub client_id: i32,
     pub name: &'a str,
     pub description: Option<&'a str>,
-    pub secret: Option<&'a str>,
-    pub public: &'a str,
+    pub document: &'a str,
     pub created_at: SystemTime,
     pub deadline: Option<SystemTime>,
 }
 
 impl Secret {
-    pub fn new<'a>(email: &'a str, pwd: &'a str) -> Result<Self, Box<dyn Error>> {
-        match_email(email)?;
+    pub fn new<'a>(client_id: i32, name: &'a str, pwd: &'a str) -> Result<Self, Box<dyn Error>> {
         match_pwd(pwd)?;
 
-        let mut csprng = OsRng{};
-        let keypair: Keypair = Keypair::generate(&mut csprng);
-        keypair.to_bytes();
-        let secret_key: SecretKey = keypair.secret;
-        
-        Err("".into())
-    }
-
-    pub fn store<'a>(client_id: i32, name: &'a str, public: &'a [u8]) -> Result<Self, Box<dyn Error>> {
-        if public.len() != PUBLIC_KEY_LENGTH {
-            let msg = format!("Got public key of length {}, want {}", public.len(), PUBLIC_KEY_LENGTH);
-            return Err(msg.into());
-        }
+        let keypair = crypto::new_ed25519().to_bytes();
+        let coded = crypto::encrypt(pwd, &keypair)?;
 
         let new_secret = NewSecret {
             client_id: client_id,
             name: name,
             description: None,
-            secret: None,
-            public: &String::from_utf8(public.to_vec())?,
+            document: &coded,
+            created_at: SystemTime::now(),
+            deadline: None,
+        };
+
+        let connection = open_stream();
+        let result = diesel::insert_into(secrets::table)
+            .values(&new_secret)
+            .get_result::<Secret>(connection)?;
+
+        Ok(result)
+    }
+
+    pub fn from_public<'a>(client_id: i32, name: &'a str, public: &'a str) -> Result<Self, Box<dyn Error>> {
+        let public_key: PublicKey_dalek = PublicKey_dalek::from_bytes(public.as_bytes())?;
+        let document = &String::from_utf8(public_key.to_bytes().to_vec())?;
+        
+        let new_secret = NewSecret {
+            client_id: client_id,
+            name: name,
+            description: None,
+            document: document,
             created_at: SystemTime::now(),
             deadline: None,
         };
@@ -116,15 +124,20 @@ impl Secret {
 }
 
 impl Ctrl for Secret {
-    fn encrypt(&self, data: &[u8]) -> Result<&[u8], Box<dyn Error>> {
+    fn encrypt(&self, data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
+        use ecies_ed25519::PublicKey;
+        let public: PublicKey = PublicKey::from_bytes(self.document.as_bytes())?;
+
+        let mut csprng = OsRng{};
+        let encrypted = ecies_ed25519::encrypt(&public, data, &mut csprng)?;
+        Ok(encrypted)
+    }
+
+    fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
         Err("".into())
     }
 
-    fn decrypt(&self, data: &[u8]) -> Result<&[u8], Box<dyn Error>> {
-        Err("".into())
-    }
-
-    fn sign(&self, data: &[u8]) -> Result<&[u8], Box<dyn Error>> {
+    fn sign(&self, data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
         Err("".into())
     }
 

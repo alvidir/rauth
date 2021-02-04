@@ -39,8 +39,7 @@ table! {
         client_id -> Int4,
         name -> Varchar,
         description -> Nullable<Varchar>,
-        secret -> Nullable<Text>,
-        public -> Text,
+        document -> Text,
         created_at -> Timestamp,
         deadline -> Nullable<Timestamp>,
     }
