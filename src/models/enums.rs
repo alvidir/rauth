@@ -19,7 +19,8 @@ custom_derive! {
 
 impl Kind {
     pub fn derive(name: &str) -> Result<Kind, Box<dyn Error>> {
-        let kind: Kind = name.parse()?;
+        let upper = name.to_uppercase();
+        let kind: Kind = upper.parse()?;
         Ok(kind)
     }
 
@@ -74,7 +75,8 @@ custom_derive! {
 
 impl Status {
     pub fn derive(name: &str) -> Result<Status, Box<dyn Error>> {
-        let status: Status = name.parse()?;
+        let upper = name.to_uppercase();
+        let status: Status = upper.parse()?;
         Ok(status)
     }
 

@@ -1,33 +1,26 @@
 use std::error::Error;
 use diesel::NotFound;
-use std::time::{Duration, SystemTime};
-use rand::rngs::OsRng;
-use rand::thread_rng;
-use pwbox::{Eraser, ErasedPwBox, Suite, sodium::Sodium};
-use crate::crypto;
-use ecies_ed25519::PublicKey as PublicKey_acies;
-use ed25519_dalek::{
-    Keypair,
-    Signature,
-    Signer,
-    PublicKey as PublicKey_dalek,
-    SecretKey,
-    Verifier,
-    KEYPAIR_LENGTH,
-    SECRET_KEY_LENGTH,
-    PUBLIC_KEY_LENGTH,
-};
+use std::time::SystemTime;
+use openssl::base64;
+use openssl::sign::{Signer, Verifier};
+use openssl::ec::{EcKey,EcGroup, EcPoint};
+use openssl::nid::Nid;
+use openssl::symm::Cipher;
+use openssl::pkey::PKey;
+use openssl::hash::MessageDigest;
 
 use crate::schema::secrets;
 use crate::postgres::*;
 use crate::diesel::prelude::*;
 use crate::regex::*;
 
+const ERR_NAME_FORMAT: &str = "The secret's name mismatches the expected format";
+const ERR_SIGN_DATA: &str = "The secret is not valid for signing any data";
+const ERR_VERIFY: &str = "Verification has failed";
+
 pub trait Ctrl {
-    fn encrypt(&self, data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>>;
-    fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>>;
-    fn sign(&self, data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>>;
-    fn verify(&self, data: &[u8]) -> bool;
+    fn sign(&self, pwd: &str, data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>>;
+    fn verify(&self, data: &[u8], signature: &[u8], pwd: &str) -> Result<(), Box<dyn Error>>;
 }
 
 pub fn find_by_client_id(target: i32) -> Result<Box<dyn Ctrl>, Box<dyn Error>>  {
@@ -41,6 +34,28 @@ pub fn find_by_client_id(target: i32) -> Result<Box<dyn Ctrl>, Box<dyn Error>>  
         Ok(Box::new(results[0].clone()))
     } else {
         Err(Box::new(NotFound))
+    }
+}
+
+custom_derive! {
+    #[derive(EnumFromStr)]
+    #[derive(Eq, PartialEq, Copy, Clone)]
+    #[derive(Debug)]
+    enum Format {
+        PEM,
+        PUB,
+    }
+}
+
+impl Format {
+    pub fn derive(name: &str) -> Result<Format, Box<dyn Error>> {
+        let upper = name.to_uppercase();
+        let form: Format = upper.parse()?;
+        Ok(form)
+    }
+
+    pub fn to_int32(&self) -> i32 {
+        *self as i32 + 1
     }
 }
 
@@ -73,14 +88,15 @@ impl Secret {
     pub fn new<'a>(client_id: i32, name: &'a str, pwd: &'a str) -> Result<Self, Box<dyn Error>> {
         match_pwd(pwd)?;
 
-        let keypair = crypto::new_ed25519().to_bytes();
-        let coded = crypto::encrypt(pwd, &keypair)?;
+        let group = EcGroup::from_curve_name(Nid::ECDSA_WITH_SHA256)?;
+        let key = EcKey::generate(&group)?;
+        let pem = key.private_key_to_pem_passphrase(Cipher::aes_128_cbc(), pwd.as_bytes())?;
 
         let new_secret = NewSecret {
             client_id: client_id,
-            name: name,
+            name: &format!("{}.pem", name),
             description: None,
-            document: &coded,
+            document: &base64::encode_block(&pem),
             created_at: SystemTime::now(),
             deadline: None,
         };
@@ -93,56 +109,57 @@ impl Secret {
         Ok(result)
     }
 
-    pub fn from_public<'a>(client_id: i32, name: &'a str, public: &'a str) -> Result<Self, Box<dyn Error>> {
-        let public_key: PublicKey_dalek = PublicKey_dalek::from_bytes(public.as_bytes())?;
-        let document = &String::from_utf8(public_key.to_bytes().to_vec())?;
-        
-        let new_secret = NewSecret {
-            client_id: client_id,
-            name: name,
-            description: None,
-            document: document,
-            created_at: SystemTime::now(),
-            deadline: None,
-        };
-
-        let connection = open_stream();
-        let result = diesel::insert_into(secrets::table)
-            .values(&new_secret)
-            .get_result::<Secret>(connection)?;
-
-        Ok(result)
-    }
-
-    pub fn set_description(&mut self, description: Option<String>) {
-        self.description = description;
-    }
-
-    pub fn set_deadline(&mut self, deadline: Option<SystemTime>) {
-        self.deadline = deadline;
+    fn as_format(&self) -> Result<Format, Box<dyn Error>> {
+        if let Some(pos) = self.name.rfind('.') {
+            let substr = &self.name[pos..];
+            Format::derive(substr)
+        } else {
+            Err(ERR_NAME_FORMAT.into())
+        }   
     }
 }
 
 impl Ctrl for Secret {
-    fn encrypt(&self, data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
-        use ecies_ed25519::PublicKey;
-        let public: PublicKey = PublicKey::from_bytes(self.document.as_bytes())?;
+    fn sign(&self, pwd: &str, data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
+        if let PUB = self.as_format() {
+            return Err(ERR_SIGN_DATA.into());
+        }
 
-        let mut csprng = OsRng{};
-        let encrypted = ecies_ed25519::encrypt(&public, data, &mut csprng)?;
-        Ok(encrypted)
+        let key = EcKey::private_key_from_pem_passphrase(self.document.as_bytes(), pwd.as_bytes())?;
+        let keypair = PKey::from_ec_key(key)?;
+        let mut signer = Signer::new(MessageDigest::sha256(), &keypair)?;
+        signer.update(data)?;
+        
+        let signature = signer.sign_to_vec()?;
+        Ok(signature)
     }
 
-    fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
-        Err("".into())
-    }
+    fn verify(&self, signature: &[u8], data: &[u8], pwd: &str) -> Result<(), Box<dyn Error>> {
+        match self.as_format() {
+            PEM => {
+                let key = EcKey::private_key_from_pem_passphrase(self.document.as_bytes(), pwd.as_bytes())?;
+                let keypair = PKey::from_ec_key(key)?;
+                let mut verifier = Verifier::new(MessageDigest::sha256(), &keypair)?;
+                if !verifier.verify_oneshot(&signature, data)? {
+                    return Err(ERR_VERIFY.into());
+                }
 
-    fn sign(&self, data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
-        Err("".into())
-    }
+                Ok(())
+            },
 
-    fn verify(&self, data: &[u8]) -> bool {
-        false
-    }
+            PUB => {
+                let mut ctx = openssl::bn::BigNumContext::new()?;
+                let group = EcGroup::from_curve_name(Nid::ECDSA_WITH_SHA256)?;
+                let point = EcPoint::from_bytes(&group, self.document.as_bytes(), &mut ctx)?;
+                let key = EcKey::from_public_key(&group, &point)?;
+                let keypair = PKey::from_ec_key(key)?;
+                let mut verifier = Verifier::new(MessageDigest::sha256(), &keypair)?;
+                if !verifier.verify_oneshot(&signature, data)? {
+                    return Err(ERR_VERIFY.into());
+                }
 
+                Ok(())
+            }
+        }
+    }
 }

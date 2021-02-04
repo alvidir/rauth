@@ -2,9 +2,10 @@ extern crate rand;
 extern crate ed25519_dalek;
 extern crate ecies_ed25519;
 use rand::rngs::OsRng;
+use shamir::SecretData;
 
 #[test]
-fn test_sign_ed25519() {
+fn test_sign_dalek() {
     use ed25519_dalek::{
         Signer,
         Verifier,
@@ -60,11 +61,8 @@ fn test_sign_openssl() {
 
 #[test]
 fn test_parse_openssl() {
-    use openssl::sign::{Signer, Verifier};
     use openssl::ec::{EcKey,EcGroup, EcPoint};
     use openssl::nid::Nid;
-    use openssl::pkey::PKey;
-    use openssl::hash::MessageDigest;
     use openssl::symm::Cipher;
 
     let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
@@ -85,7 +83,41 @@ fn test_parse_openssl() {
 }
 
 #[test]
-fn test_encrypt() {
+fn test_encrypt_openssl() {
+    use openssl::encrypt::{Encrypter, Decrypter};
+    use openssl::rsa::{Rsa, Padding};
+    use openssl::pkey::PKey;
+    
+    // Generate a keypair
+    let keypair = Rsa::generate(2048).unwrap();
+    let keypair = PKey::from_rsa(keypair).unwrap();
+    
+    let data = b"hello, world!";
+    
+    // Encrypt the data with RSA PKCS1
+    let mut encrypter = Encrypter::new(&keypair).unwrap();
+    encrypter.set_rsa_padding(Padding::PKCS1).unwrap();
+    // Create an output buffer
+    let buffer_len = encrypter.encrypt_len(data).unwrap();
+    let mut encrypted = vec![0; buffer_len];
+    // Encrypt and truncate the buffer
+    let encrypted_len = encrypter.encrypt(data, &mut encrypted).unwrap();
+    encrypted.truncate(encrypted_len);
+    
+    // Decrypt the data
+    let mut decrypter = Decrypter::new(&keypair).unwrap();
+    decrypter.set_rsa_padding(Padding::PKCS1).unwrap();
+    // Create an output buffer
+    let buffer_len = decrypter.decrypt_len(&encrypted).unwrap();
+    let mut decrypted = vec![0; buffer_len];
+    // Encrypt and truncate the buffer
+    let decrypted_len = decrypter.decrypt(&encrypted, &mut decrypted).unwrap();
+    decrypted.truncate(decrypted_len);
+    assert_eq!(&*decrypted, data);
+}
+
+#[test]
+fn test_encrypt_ecies() {
     let mut csprng = OsRng{};
     let (secret, public) = ecies_ed25519::generate_keypair(&mut csprng);
     let message: &[u8] = b"Hello world!";
@@ -119,4 +151,27 @@ fn test_password() {
     let restored: ErasedPwBox = serde_json::from_str(&code).unwrap();
     let plaintext = eraser.restore(&restored).unwrap().open(pwd).unwrap();
     assert_eq!(&*plaintext, data);
+}
+
+#[test]
+fn test_shamir() {
+    let msg = "Hello world!";
+    let needed = 3;
+
+    let secret_data = SecretData::with_secret(msg, needed);
+    println!("{:?}", secret_data.secret_data);
+
+    let share1 = secret_data.get_share(1);
+    let share2 = secret_data.get_share(2);
+    let share3 = secret_data.get_share(3);
+
+    let mut recovered = SecretData::recover_secret(3, vec![share1, share2, share3]).unwrap();
+    assert_eq!(recovered, msg);
+
+    let share4 = secret_data.get_share(4);
+    let share5 = secret_data.get_share(5);
+    let share6 = secret_data.get_share(6);
+
+    recovered = SecretData::recover_secret(3, vec![share4, share5, share6]).unwrap();
+    assert_eq!(recovered, msg);
 }

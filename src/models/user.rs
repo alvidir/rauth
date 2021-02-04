@@ -13,7 +13,6 @@ extern crate diesel;
 pub trait Ctrl {
     fn get_email(&self) -> &str;
     fn get_name(&self) -> &str;
-    fn match_pwd(&self, subbject: &str) -> bool;
 }
 
 pub fn find_by_id(target: i32) -> Result<Box<dyn Ctrl>, Box<dyn Error>>  {
@@ -78,14 +77,12 @@ pub fn find_by_email<'a>(target: &'a str) -> Result<Box<dyn Ctrl>, Box<dyn Error
 pub struct User {
     pub id: i32,
     pub client_id: i32,
-    pub pwd: String,
 }
 
 #[derive(Insertable)]
 #[table_name="users"]
-struct NewUser<'a> {
+struct NewUser {
     pub client_id: i32,
-    pub pwd: &'a str,
 }
 
 impl User {
@@ -97,7 +94,6 @@ impl User {
         let client = client::Client::new(kind_id, name, email)?;
         let new_user = NewUser {
             client_id: client.get_id(),
-            pwd: pwd,
         };
 
         let connection = open_stream();
@@ -129,9 +125,5 @@ impl Ctrl for Wrapper {
 
     fn get_name(&self) -> &str {
         self.client.get_name()
-    }
-
-    fn match_pwd(&self, subject: &str) -> bool {
-        self.user.pwd == subject
     }
 }

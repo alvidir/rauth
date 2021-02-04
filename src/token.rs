@@ -17,7 +17,7 @@ const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
 pub struct Token (String, SystemTime);
 
 impl Token {
-    pub fn new(rand: &mut ThreadRng, date: SystemTime, size: usize) -> Self {
+    pub fn new(rand: &mut ThreadRng, size: usize) -> Self {
         let value: String = (0..size)
         .map(|_| {
             let idx = rand.gen_range(0, CHARSET.len());
@@ -25,7 +25,7 @@ impl Token {
         })
         .collect();
     
-        Token(value, date)
+        Token(value, SystemTime::now())
     }
 
     pub fn from_string(tid: &str) -> Token {

@@ -79,8 +79,7 @@ impl Provider {
     }
 
     fn cookie_gen(&mut self) -> Token {
-        let deadline = SystemTime::now() + self.timeout;
-        Token::new(&mut self.rand_gen, deadline, COOKIE_LEN)
+        Token::new(&mut self.rand_gen, COOKIE_LEN)
     }
 
     fn split_cookie(cookie: &str) -> Vec<&str> {
@@ -247,9 +246,7 @@ impl Ctrl for Session {
     }
 
     fn get_token(&mut self) -> Result<String, Box<dyn Error>> {
-        let timeout = Duration::new(TOKEN_TIMEOUT, 0);
-        let deadline = SystemTime::now() + timeout;
-        let token = Token::new(&mut self.rand_gen, deadline, TOKEN_LEN);
+        let token = Token::new(&mut self.rand_gen, TOKEN_LEN);
         let tid = token.to_string();
         self.tokens.insert(token);
         Ok(tid)

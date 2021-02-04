@@ -56,7 +56,6 @@ table! {
     users (id) {
         id -> Int4,
         client_id -> Int4,
-        pwd -> Varchar,
     }
 }
 

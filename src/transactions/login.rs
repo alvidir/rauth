@@ -20,11 +20,11 @@ impl<'a> TxLogin<'a> {
     }
 
     fn require_password_match(&self, user: &Box<dyn user::Ctrl>) -> Result<(), Box<dyn Cause>> {
-        if !user.match_pwd(self.pwd) {
-            let msg = format!("{}", ERR_PWD_NOT_MATCH);
-            let cause = TxCause::new(-1, msg.into());
-            return Err(Box::new(cause));
-        }
+        //if !user.match_pwd(self.pwd) {
+        //    let msg = format!("{}", ERR_PWD_NOT_MATCH);
+        //    let cause = TxCause::new(-1, msg.into());
+        //    return Err(Box::new(cause));
+        //}
 
         Ok(())
     }
