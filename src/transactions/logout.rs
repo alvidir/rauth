@@ -1,6 +1,5 @@
 use std::time::SystemTime;
 use crate::regex::*;
-use crate::models::session;
 use super::*;
 
 pub struct TxLogout<'a> {
@@ -14,19 +13,10 @@ impl<'a> TxLogout<'a> {
         }
     }
 
-    fn precondition_cookie(&self) ->  Result<&mut Box<dyn session::Ctrl>, Box<dyn Cause>> {
-        if let Err(err) = match_cookie(self.cookie) {
-            let cause = TxCause::new(-1, err.to_string());
-            Err(Box::new(cause))
-        } else {
-            find_session(self.cookie)
-        }
-    }
-
-    pub fn execute(&self) -> Result<SessionResponse, Box<dyn Cause>> {
+    pub fn execute(&self) -> Result<SessionResponse, Box<dyn Error>> {
         println!("Got a Logout request for cookie {} ", self.cookie);
 
-        self.precondition_cookie()?;
+        match_cookie(self.cookie)?;
         let session = find_session(self.cookie)?;
         destroy_session(self.cookie)?;
 
@@ -41,10 +31,7 @@ impl<'a> TxLogout<'a> {
                 }
             ),
 
-            Err(err) => {
-                let cause = TxCause::new(-1, err.to_string());
-                Err(Box::new(cause))
-            }
+            Err(err) => Err(err)
         }
     }
 }

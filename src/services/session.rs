@@ -40,7 +40,7 @@ impl Session for SessionImplementation {
         
         match tx_signup.execute() {
             Ok(sess) => Ok(Response::new(sess)),
-            Err(cause) => Err(parse_cause(cause))
+            Err(err) => Err(parse_error(err))
         }
     }
     
@@ -54,7 +54,7 @@ impl Session for SessionImplementation {
         
         match tx_login.execute() {
             Ok(sess) => Ok(Response::new(sess)),
-            Err(cause) => Err(parse_cause(cause))
+            Err(err) => Err(parse_error(err))
         }
     }
 
@@ -77,7 +77,7 @@ impl Session for SessionImplementation {
         
         match tx_logout.execute() {
             Ok(sess) => Ok(Response::new(sess)),
-            Err(cause) => Err(parse_cause(cause))
+            Err(err) => Err(parse_error(err))
         }
     }
 }

@@ -70,11 +70,12 @@ fn test_parse_openssl() {
     
     let password = b"secret_pwd";
     let pem = key.private_key_to_pem_passphrase(Cipher::aes_128_cbc(), password).unwrap();
-    println!("PEM = {:X?}", pem);
+    let pem_str = String::from_utf8(pem).unwrap();
+    println!("PEM = {:?}", pem_str);
     
     let wrong_pwd = b"wrong_pwd";
-    assert!(EcKey::private_key_from_pem_passphrase(&pem, wrong_pwd).is_err());
-    assert!(EcKey::private_key_from_pem_passphrase(&pem, password).is_ok());
+    assert!(EcKey::private_key_from_pem_passphrase(pem_str.as_bytes(), wrong_pwd).is_err());
+    assert!(EcKey::private_key_from_pem_passphrase(pem_str.as_bytes(), password).is_ok());
 
     let mut ctx = openssl::bn::BigNumContext::new().unwrap();
     let bytes = key.public_key().to_bytes(&group, openssl::ec::PointConversionForm::COMPRESSED, &mut ctx).unwrap();

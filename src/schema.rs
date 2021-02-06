@@ -10,6 +10,8 @@ table! {
     apps (id) {
         id -> Int4,
         client_id -> Int4,
+        label -> Nullable<Varchar>,
+        url -> Varchar,
         description -> Nullable<Varchar>,
     }
 }
@@ -18,7 +20,6 @@ table! {
     clients (id) {
         id -> Int4,
         name -> Varchar,
-        address -> Varchar,
         status_id -> Int4,
         kind_id -> Int4,
         created_at -> Timestamp,
@@ -56,6 +57,7 @@ table! {
     users (id) {
         id -> Int4,
         client_id -> Int4,
+        email -> Varchar,
     }
 }
 

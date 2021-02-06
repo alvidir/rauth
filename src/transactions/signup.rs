@@ -1,3 +1,4 @@
+use std::error::Error;
 use crate::models::user;
 use super::*;
 
@@ -18,26 +19,18 @@ impl<'a> TxSignup<'a> {
         signup
     }
 
-    fn create_user(&self) -> Result<Box<dyn user::Ctrl>, Box<dyn Cause>> {
-        match user::User::new(self.name, self.email, self.pwd) {
-            Err(err) => {
-                let cause = TxCause::new(-1, err.to_string());
-                Err(Box::new(cause))
-            }
-
-            Ok(user) => Ok(user)
-        }
-    }
-
-    pub fn execute(&self) -> Result<SessionResponse, Box<dyn Cause>> {
+    pub fn execute(&self) -> Result<SessionResponse, Box<dyn Error>> {
         println!("Got Signup request from user {} ", self.email);
-        let user = self.create_user()?;
+        let user = user::User::new(self.name, self.email)?;
+        let key = secret::Secret::new(user.get_client_id(), "default.pem", self.pwd)?;
         
-        println!("User {} successfully registered with email {}", self.email, user.get_email());
         match build_session(user) {
             Ok(sess) => {
-                let token = get_token(sess)?;
-                session_response(&sess, &token)
+                let (token, _) = build_signed_token(Box::new(key), self.pwd)?;
+                let token_str = token.to_string();
+                sess.set_token(token)?;
+                println!("User {} successfully registered with token {}", self.email, token_str);
+                session_response(&sess, &token_str)
             },
 
             Err(cause) => Err(cause)

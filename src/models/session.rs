@@ -2,12 +2,10 @@ use std::error::Error;
 use std::time::{Duration, SystemTime};
 use std::collections::HashMap;
 use std::collections::HashSet;
-use rand::prelude::ThreadRng;
 use crate::token::Token;
 use crate::proto::Status;
 use super::user;
 
-const TOKEN_LEN: usize = 8;
 const TOKEN_TIMEOUT: u64 = 3600; // 60s * 60min
 const COOKIE_LEN: usize = 32;
 const COOKIE_TIMEOUT: u64 = 86400; // 3600s * 24h
@@ -18,17 +16,19 @@ const ERR_SESSION_ALREADY_EXISTS: &str = "A session already exists for client";
 const ERR_BROKEN_COOKIE: &str = "No session has been found for cookie";
 const ERR_NO_LOGED_EMAIL: &str = "No session has been logged with email";
 const ERR_SESSION_BUILD: &str = "Something has failed while building session for";
+const ERR_TOKEN_EXISTS: &str = "Provided token already exists";
 
 static mut INSTANCE: Option<Box<dyn Factory>> = None;
 
 pub trait Ctrl {
+    fn get_client_id(&self) -> i32;
     fn get_cookie(&self) -> &str;
     fn get_created_at(&self) -> SystemTime;
     fn get_touch_at(&self) -> SystemTime;
     fn get_deadline(&self) -> SystemTime;
     fn get_status(&self) -> Status;
     fn get_email(&self) -> &str;
-    fn get_token(&mut self) -> Result<String, Box<dyn Error>>;
+    fn set_token(&mut self, token: Token) -> Result<(), Box<dyn Error>>;
 }
 
 pub trait Factory {
@@ -65,7 +65,6 @@ struct Provider {
     timeout: Duration,
     bytoken: HashMap<Token, Box<dyn Ctrl>>,
     byemail: HashMap<String, String>,
-    rand_gen: ThreadRng,
 }
 
 impl Provider {
@@ -74,12 +73,11 @@ impl Provider {
             timeout: timeout,
             bytoken: HashMap::new(),
             byemail: HashMap::new(),
-            rand_gen: rand::thread_rng(),
         }
     }
 
     fn cookie_gen(&mut self) -> Token {
-        Token::new(&mut self.rand_gen, COOKIE_LEN)
+        Token::new(COOKIE_LEN)
     }
 
     fn split_cookie(cookie: &str) -> Vec<&str> {
@@ -107,7 +105,8 @@ impl Provider {
 
     fn is_alive(&mut self, token: &Token) -> Result<(), Box<dyn Error>> {
         if let Some(pair) = self.bytoken.get_key_value(token) {
-            if pair.0.is_alive() {
+            let timeout = Duration::new(TOKEN_TIMEOUT, 0);
+            if pair.0.deadline_exceed(timeout) {
                 self.destroy_session_by_token(token)?;
                 let msg = format!("{}", ERR_DEADLINE_EXCEEDED);
                 Err(msg.into())
@@ -145,14 +144,14 @@ impl Provider {
 }
 
 impl Factory for Provider {
-    fn new_session(&mut self, client: Box<dyn user::Ctrl>) -> Result<&mut Box<dyn Ctrl>, Box<dyn Error>> {
+    fn new_session(&mut self, user: Box<dyn user::Ctrl>) -> Result<&mut Box<dyn Ctrl>, Box<dyn Error>> {
         let timeout = self.timeout;
-        let email = client.get_email().to_string();
+        let email = user.get_email().to_string();
 
         if let None = self.byemail.get(&email) {
             let token = self.cookie_gen();
             //let cookie = format!("{}{}{}", token, COOKIE_SEPARATOR, email);
-            let sess = Session::new(client, token.to_string(), timeout);
+            let sess = Session::new(user, token.to_string(), timeout);
             
             self.byemail.insert(email.to_string(), token.to_string());
             self.bytoken.insert(token.clone(), Box::new(sess));
@@ -200,7 +199,6 @@ pub struct Session {
     pub touch_at: SystemTime,
     pub timeout: Duration,
     pub status: Status,
-    rand_gen: ThreadRng,
     user: Box<dyn user::Ctrl>,
     tokens: HashSet<Token>,
 }
@@ -213,7 +211,6 @@ impl Session {
             touch_at: SystemTime::now(),
             timeout: timeout,
             status: Status::New,
-            rand_gen: rand::thread_rng(),
             user: user,
             tokens: HashSet::new(),
         }
@@ -221,6 +218,10 @@ impl Session {
 }
 
 impl Ctrl for Session {
+    fn get_client_id(&self) -> i32 {
+        self.user.get_client_id()
+    }
+
     fn get_cookie(&self) -> &str {
         &self.cookie
     }
@@ -245,10 +246,11 @@ impl Ctrl for Session {
         self.status
     }
 
-    fn get_token(&mut self) -> Result<String, Box<dyn Error>> {
-        let token = Token::new(&mut self.rand_gen, TOKEN_LEN);
-        let tid = token.to_string();
-        self.tokens.insert(token);
-        Ok(tid)
+    fn set_token(&mut self, token: Token) -> Result<(), Box<dyn Error>> {
+        if self.tokens.insert(token) {
+            Ok(())
+        } else {
+            Err(ERR_TOKEN_EXISTS.into())
+        }
     }
 }

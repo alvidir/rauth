@@ -15,7 +15,6 @@ pub trait Ctrl {
     fn get_status(&self) -> i32;
     fn get_id(&self) -> i32;
     fn get_name(&self) -> &str;
-    fn get_addr(&self) -> &str;
     fn get_kind(&self) -> enums::Kind;
     fn created_at(&self) -> SystemTime;
     fn last_update(&self) -> SystemTime;
@@ -52,22 +51,6 @@ pub fn find_by_name<'a>(target: &'a str) -> Result<Box<dyn Ctrl>, Box<dyn Error>
     }
 }
 
-pub fn find_by_addr<'a>(target: &'a str) -> Result<Box<dyn Ctrl>, Box<dyn Error>>  {
-    use crate::schema::clients::dsl::*;
-
-    let connection = open_stream();
-    let results = clients.filter(address.eq(target))
-        .load::<Client>(connection)?;
-
-    if results.len() > 0 {
-        let client = results[0].clone();
-        let build = client.build()?;
-        Ok(Box::new(build))
-    } else {
-        Err(Box::new(NotFound))
-    }
-}
-
 #[derive(Insertable)]
 #[derive(Queryable)]
 #[derive(Clone)]
@@ -75,7 +58,6 @@ pub fn find_by_addr<'a>(target: &'a str) -> Result<Box<dyn Ctrl>, Box<dyn Error>
 pub struct Client {
     pub id: i32,
     pub name: String,
-    pub address: String,
     pub status_id: i32,
     pub kind_id: i32,
     pub created_at: SystemTime,
@@ -86,7 +68,6 @@ pub struct Client {
 #[table_name="clients"]
 struct NewClient<'a> {
     pub name: &'a str,
-    pub address: &'a str,
     pub status_id: i32,
     pub kind_id: i32,
     pub created_at: SystemTime,
@@ -106,13 +87,12 @@ impl Client {
         }
     }
 
-    pub fn new<'a>(kind: i32, name: &'a str, address: &'a str) -> Result<Box<dyn Ctrl>, Box<dyn Error>> {
+    pub fn new<'a>(kind: i32, name: &'a str) -> Result<Box<dyn Ctrl>, Box<dyn Error>> {
         Client::check_kind(kind)?;
         match_name(name)?;
 
         let new_client = NewClient {
             name: name,
-            address: address,
             status_id: 1,
             kind_id: kind,
             created_at: SystemTime::now(),
@@ -153,10 +133,6 @@ impl Ctrl for Wrapper {
 
     fn get_name(&self) -> &str {
         &self.client.name
-    }
-
-    fn get_addr(&self) -> &str {
-        &self.client.address
     }
 
     fn get_kind(&self) -> enums::Kind {

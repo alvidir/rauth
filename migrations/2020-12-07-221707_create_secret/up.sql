@@ -7,6 +7,7 @@ CREATE TABLE Secrets (
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     deadline TIMESTAMP,
 
+    UNIQUE (client_id, name),
     FOREIGN KEY (client_id)
         REFERENCES Clients(id)
 )

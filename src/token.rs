@@ -2,8 +2,7 @@ use std::hash::Hasher;
 use std::hash::Hash;
 use std::fmt;
 use rand::Rng;
-use rand::prelude::ThreadRng;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 //use crypto::digest::Digest;
 //use crypto::sha2::Sha256;
 
@@ -17,9 +16,10 @@ const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
 pub struct Token (String, SystemTime);
 
 impl Token {
-    pub fn new(rand: &mut ThreadRng, size: usize) -> Self {
+    pub fn new(size: usize) -> Self {
         let value: String = (0..size)
         .map(|_| {
+            let mut rand = rand::thread_rng();
             let idx = rand.gen_range(0, CHARSET.len());
             CHARSET[idx] as char
         })
@@ -36,8 +36,8 @@ impl Token {
         self.0.clone()
     }
 
-    pub fn is_alive(&self) -> bool {
-        self.1 < SystemTime::now()
+    pub fn deadline_exceed(&self, timeout: Duration) -> bool {
+        self.1 + timeout < SystemTime::now()
     }
 }
 
