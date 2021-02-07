@@ -10,7 +10,7 @@ table! {
     apps (id) {
         id -> Int4,
         client_id -> Int4,
-        label -> Nullable<Varchar>,
+        label -> Varchar,
         url -> Varchar,
         description -> Nullable<Varchar>,
     }

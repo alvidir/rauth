@@ -10,11 +10,11 @@ const DUMMY_EMAIL: &str = "dummy@testing.com";
 const DUMMY_PWD: &str = "0C4fe7eBbfDbcCBE52DC7A0DdF43bCaeEBaC0EE37bF03C4BAa0ed31eAA03d833";
 
 fn login_dummy_user() -> Result<SessionResponse, Box<dyn Error>> {
-   let tx_login = TxLogin::new("", DUMMY_NAME, DUMMY_PWD);
+   let tx_login = TxLogin::new(DUMMY_NAME, DUMMY_PWD, "");
    tx_login.execute()
 }
 
-fn signup_dummy_user() -> Result<SessionResponse, Box<dyn Error>> {
+fn signup_dummy_user() -> Result<(), Box<dyn Error>> {
    let tx_dummy = TxSignup::new(
       DUMMY_NAME,
       DUMMY_EMAIL,
@@ -24,10 +24,10 @@ fn signup_dummy_user() -> Result<SessionResponse, Box<dyn Error>> {
 }
 
 pub fn dummy_setup() -> Result<(), Box<dyn Error>> {
-   signup_dummy_user()?;
-   let sess1 = login_dummy_user()?;
+   signup_dummy_user();
+   let sess = login_dummy_user()?;
    let instance = session::get_instance();
-   let sid = sess1.cookie.as_ref();
+   let sid = sess.token.as_ref();
    instance.get_session_by_cookie(sid)?;
    Ok(())
 }

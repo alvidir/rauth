@@ -2,10 +2,10 @@ syntax = "proto3";
 option go_package = "github.com/alvidir/tp-auth/proto/user";
 
 package user;
+import "google/protobuf/empty.proto";
 import public "login.proto";
 import public "logout.proto";
 import public "signup.proto";
-import public "signin.proto";
 
 enum Status {
     ALIVE = 0;
@@ -14,15 +14,13 @@ enum Status {
 }
 
 message SessionResponse {
-  string token = 1;    // Ephimeral token, if any
-  string cookie = 2;   // Session cookie
+  string token = 1;    // Session cookie
   uint64 deadline = 3; // Cookie deadline
   Status status = 4;   // Session status for the given coockie
 }
 
 service Session {
   rpc Login(user.LoginRequest) returns (SessionResponse);
-  rpc GoogleSignin(user.GoogleSigninRequest) returns (SessionResponse);
-  rpc Logout(user.LogoutRequest) returns (SessionResponse);
-  rpc Signup(user.SignupRequest) returns (SessionResponse);
+  rpc Logout(user.LogoutRequest) returns (google.protobuf.Empty);
+  rpc Signup(user.SignupRequest) returns (google.protobuf.Empty);
 }

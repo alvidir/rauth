@@ -63,7 +63,7 @@ pub fn get_instance<'a>() -> &'a mut Box<dyn Factory> {
 
 struct Provider {
     timeout: Duration,
-    bytoken: HashMap<Token, Box<dyn Ctrl>>,
+    allsess: HashMap<Token, Box<dyn Ctrl>>,
     byemail: HashMap<String, String>,
 }
 
@@ -71,7 +71,7 @@ impl Provider {
     fn new(timeout: Duration) -> impl Factory {
         Provider{
             timeout: timeout,
-            bytoken: HashMap::new(),
+            allsess: HashMap::new(),
             byemail: HashMap::new(),
         }
     }
@@ -85,15 +85,6 @@ impl Provider {
         split.collect()
     }
 
-    //fn split_email(cookie: &str) -> Result<&str, Box<dyn Error>> {
-    //    let split = Provider::split_cookie(cookie);
-    //    if split.len() < 2 {
-    //        Err(ERR_NO_EMAIL.into())
-    //    } else {
-    //        Ok(split[1])
-    //    }
-    //}
-
     fn split_token(cookie: &str) -> Result<&str, Box<dyn Error>> {
         let split = Provider::split_cookie(cookie);
         if split.len() < 1 {
@@ -104,7 +95,7 @@ impl Provider {
     }
 
     fn is_alive(&mut self, token: &Token) -> Result<(), Box<dyn Error>> {
-        if let Some(pair) = self.bytoken.get_key_value(token) {
+        if let Some(pair) = self.allsess.get_key_value(token) {
             let timeout = Duration::new(TOKEN_TIMEOUT, 0);
             if pair.0.deadline_exceed(timeout) {
                 self.destroy_session_by_token(token)?;
@@ -122,7 +113,7 @@ impl Provider {
 
     fn get_session_by_token(&mut self, token: &Token) -> Result<&mut Box<dyn Ctrl>, Box<dyn Error>> {
         self.is_alive(token)?;
-        if let Some(sess) = self.bytoken.get_mut(token) {
+        if let Some(sess) = self.allsess.get_mut(token) {
             Ok(sess)
         } else {
             let msg = format!("{} {}", ERR_BROKEN_COOKIE, token);
@@ -131,7 +122,7 @@ impl Provider {
     }
 
     fn destroy_session_by_token(&mut self, token: &Token) -> Result<(), Box<dyn Error>> {
-        if let Some(sess) = self.bytoken.remove(&token) {
+        if let Some(sess) = self.allsess.remove(&token) {
             let email = sess.get_email();
             self.byemail.remove(email);
         } else {
@@ -150,13 +141,12 @@ impl Factory for Provider {
 
         if let None = self.byemail.get(&email) {
             let token = self.cookie_gen();
-            //let cookie = format!("{}{}{}", token, COOKIE_SEPARATOR, email);
             let sess = Session::new(user, token.to_string(), timeout);
             
             self.byemail.insert(email.to_string(), token.to_string());
-            self.bytoken.insert(token.clone(), Box::new(sess));
+            self.allsess.insert(token.clone(), Box::new(sess));
 
-            if let Some(sess) = self.bytoken.get_mut(&token) {
+            if let Some(sess) = self.allsess.get_mut(&token) {
                 Ok(sess)
             } else {
                 let msg = format!("{} {}", ERR_SESSION_BUILD, email);
@@ -193,7 +183,7 @@ impl Factory for Provider {
     }
 }
 
-pub struct Session {
+struct Session {
     pub cookie: String,
     pub created_at: SystemTime,
     pub touch_at: SystemTime,

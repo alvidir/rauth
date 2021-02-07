@@ -14,15 +14,15 @@ use crate::token::Token;
 use client_proto::SessionResponse;
 
 const TOKEN_LEN: usize = 8;
+const DEFAULT_PKEY_NAME: &str = "default_ed.pem";
 
 fn session_response(session: &Box<dyn session::Ctrl>, token: &str) -> Result<SessionResponse, Box<dyn Error>> {
 	match time::unix_seconds(session.get_deadline()) {
 		Ok(deadline) => Ok(
 			SessionResponse {
+				token: /*token.to_string()*/ session.get_cookie().to_string(),
 				deadline: deadline,
-				cookie: session.get_cookie().to_string(),
 				status: session.get_status() as i32,
-				token: token.to_string(),
 			}
 		),
 
@@ -33,11 +33,6 @@ fn session_response(session: &Box<dyn session::Ctrl>, token: &str) -> Result<Ses
 fn build_session<'a>(client: Box<dyn user::Ctrl>) -> Result<&'a mut Box<dyn session::Ctrl>, Box<dyn Error>> {
 	let provider = session::get_instance();
 	provider.new_session(client)
-}
-
-fn find_session(cookie: &str) ->  Result<&mut Box<dyn session::Ctrl>, Box<dyn Error>> {
-	let provider = session::get_instance();
-	provider.get_session_by_cookie(cookie)
 }
 
 fn destroy_session(cookie: &str) ->  Result<(), Box<dyn Error>> {

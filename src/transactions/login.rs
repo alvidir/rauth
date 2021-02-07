@@ -1,27 +1,22 @@
-use crate::models::user;
+use crate::models::{user, app};
 use crate::regex::*;
 use super::*;
 
 const ERR_IDENT_NOT_MATCH: &str = "The provided indentity is not of the expected type";
 
 pub struct TxLogin<'a> {
-    cookie: &'a str,
     ident: &'a str,
     pwd: &'a str,
+    app: &'a str,
 }
 
 impl<'a> TxLogin<'a> {
-    pub fn new(cookie: &'a str, ident: &'a str, pwd: &'a str) -> Self {
+    pub fn new(ident: &'a str, pwd: &'a str, app: &'a str) -> Self {
         TxLogin{
-            cookie: cookie,
             ident: ident,
             pwd: pwd,
+            app: app,
         }
-    }
-
-    fn find_session_by_cookie(&self) ->  Result<&mut Box<dyn session::Ctrl>, Box<dyn Error>> {
-        match_cookie(self.cookie)?;
-        find_session(self.cookie)
     }
 
     fn find_user_by_identity(&self) -> Result<Box<dyn user::Ctrl>, Box<dyn Error>> {
@@ -34,20 +29,16 @@ impl<'a> TxLogin<'a> {
         Err(ERR_IDENT_NOT_MATCH.into())
     }
 
-    fn check_session_liveliness(&self, user: &Box<dyn user::Ctrl>) -> Result<&mut Box<dyn session::Ctrl>, Box<dyn Error>> {
-        let provider = session::get_instance();
-        provider.get_session_by_email(&user.get_email())
-    }
-
     pub fn execute(&self) -> Result<SessionResponse, Box<dyn Error>> {
         println!("Got Login request from user {} ", self.ident);
         let user = self.find_user_by_identity()?;
-        let secret = secret::find_by_client_and_name(user.get_client_id(), "default.pem")?;
+        //let app = app::find_by_label(self.app)?;
+
+        let secret = secret::find_by_client_and_name(user.get_client_id(), super::DEFAULT_PKEY_NAME)?;
         let session: &mut Box<dyn session::Ctrl>;
 
-        if let Ok(sess) = self.find_session_by_cookie() {
-            session = sess
-        } else if let Ok(sess) = self.check_session_liveliness(&user) {
+        let provider = session::get_instance();
+        if let Ok(sess) = provider.get_session_by_email(&user.get_email()) {
             session = sess;
         } else {
             session = build_session(user)?;

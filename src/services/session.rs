@@ -9,7 +9,7 @@ use crate::services::*;
 use client_proto::session_server::{Session, SessionServer};
 
 // Proto message structs
-use client_proto::{LoginRequest, GoogleSigninRequest, LogoutRequest, SignupRequest, SessionResponse };
+use client_proto::{LoginRequest, LogoutRequest, SignupRequest, SessionResponse };
 
 pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
     let addr = address.parse().unwrap();
@@ -30,26 +30,12 @@ pub struct SessionImplementation {}
 
 #[tonic::async_trait]
 impl Session for SessionImplementation {
-    async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<SessionResponse>, Status> {
-        let msg_ref = request.into_inner();
-        let tx_signup = signup::TxSignup::new(
-            &msg_ref.name, 
-            &msg_ref.email, 
-            &msg_ref.pwd,
-        );
-        
-        match tx_signup.execute() {
-            Ok(sess) => Ok(Response::new(sess)),
-            Err(err) => Err(parse_error(err))
-        }
-    }
-    
     async fn login(&self, request: Request<LoginRequest>) -> Result<Response<SessionResponse>, Status> {
         let msg_ref = request.into_inner();
         let tx_login = login::TxLogin::new(
-            &msg_ref.cookie,
             &msg_ref.ident,
             &msg_ref.pwd,
+            &msg_ref.app,
         );
         
         match tx_login.execute() {
@@ -58,25 +44,28 @@ impl Session for SessionImplementation {
         }
     }
 
-    async fn google_signin(&self, request: Request<GoogleSigninRequest>) -> Result<Response<SessionResponse>, Status> {
-        let response = SessionResponse {
-            deadline: 0,
-            cookie: "".to_string(),
-            status: 0,
-            token: "".to_string(),
-        };
-
-        Ok(Response::new(response))
-    }
-
-    async fn logout(&self, request: Request<LogoutRequest>) -> Result<Response<SessionResponse>, Status> {
+    async fn logout(&self, request: Request<LogoutRequest>) -> Result<Response<()>, Status> {
         let msg_ref = request.into_inner();
         let tx_logout = logout::TxLogout::new(
             &msg_ref.cookie,
         );
         
         match tx_logout.execute() {
-            Ok(sess) => Ok(Response::new(sess)),
+            Ok(_) => Ok(Response::new(())),
+            Err(err) => Err(parse_error(err))
+        }
+    }
+
+    async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<()>, Status> {
+        let msg_ref = request.into_inner();
+        let tx_signup = signup::TxSignup::new(
+            &msg_ref.name, 
+            &msg_ref.email, 
+            &msg_ref.pwd,
+        );
+        
+        match tx_signup.execute() {
+            Ok(_) => Ok(Response::new(())),
             Err(err) => Err(parse_error(err))
         }
     }
