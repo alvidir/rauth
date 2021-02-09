@@ -7,20 +7,8 @@ import public "login.proto";
 import public "logout.proto";
 import public "signup.proto";
 
-enum Status {
-    ALIVE = 0;
-    DEAD = 1;
-    NEW = 2;
-}
-
-message SessionResponse {
-  string token = 1;    // Session cookie
-  uint64 deadline = 3; // Cookie deadline
-  Status status = 4;   // Session status for the given coockie
-}
-
 service Session {
-  rpc Login(user.LoginRequest) returns (SessionResponse);
+  rpc Login(user.LoginRequest) returns (user.LoginResponse);
   rpc Logout(user.LogoutRequest) returns (google.protobuf.Empty);
   rpc Signup(user.SignupRequest) returns (google.protobuf.Empty);
 }

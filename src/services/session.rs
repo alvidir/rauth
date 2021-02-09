@@ -9,7 +9,7 @@ use crate::services::*;
 use client_proto::session_server::{Session, SessionServer};
 
 // Proto message structs
-use client_proto::{LoginRequest, LogoutRequest, SignupRequest, SessionResponse };
+use client_proto::{LoginRequest, LogoutRequest, SignupRequest, LoginResponse };
 
 pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
     let addr = address.parse().unwrap();
@@ -30,7 +30,7 @@ pub struct SessionImplementation {}
 
 #[tonic::async_trait]
 impl Session for SessionImplementation {
-    async fn login(&self, request: Request<LoginRequest>) -> Result<Response<SessionResponse>, Status> {
+    async fn login(&self, request: Request<LoginRequest>) -> Result<Response<LoginResponse>, Status> {
         let msg_ref = request.into_inner();
         let tx_login = login::TxLogin::new(
             &msg_ref.ident,

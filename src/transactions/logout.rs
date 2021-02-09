@@ -1,5 +1,6 @@
+use std::error::Error;
 use crate::regex::*;
-use super::*;
+use crate::models::session;
 
 pub struct TxLogout<'a> {
     cookie: &'a str,
@@ -12,12 +13,17 @@ impl<'a> TxLogout<'a> {
         }
     }
 
+    fn destroy_session(&self) ->  Result<(), Box<dyn Error>> {
+        let provider = session::get_instance();
+        provider.destroy_session(self.cookie)
+    }
+
     pub fn execute(&self) -> Result<(), Box<dyn Error>> {
         println!("Got a Logout request for cookie {} ", self.cookie);
 
         match_cookie(self.cookie)?;
         //let session = find_session(self.cookie)?;
-        destroy_session(self.cookie)?;
+        self.destroy_session()?;
         Ok(())
     }
 }

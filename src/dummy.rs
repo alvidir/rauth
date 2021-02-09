@@ -1,5 +1,5 @@
 #![allow(unused_must_use)]
-use crate::proto::client_proto::SessionResponse;
+use crate::proto::client_proto::LoginResponse;
 use std::error::Error;
 use crate::models::session;
 use crate::transactions::signup::TxSignup;
@@ -9,7 +9,7 @@ const DUMMY_NAME: &str = "dummy";
 const DUMMY_EMAIL: &str = "dummy@testing.com";
 const DUMMY_PWD: &str = "0C4fe7eBbfDbcCBE52DC7A0DdF43bCaeEBaC0EE37bF03C4BAa0ed31eAA03d833";
 
-fn login_dummy_user() -> Result<SessionResponse, Box<dyn Error>> {
+fn login_dummy_user() -> Result<LoginResponse, Box<dyn Error>> {
    let tx_login = TxLogin::new(DUMMY_NAME, DUMMY_PWD, "");
    tx_login.execute()
 }

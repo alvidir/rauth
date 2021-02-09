@@ -10,3 +10,16 @@ message LoginRequest {
   string pwd = 3;     // the password or the signed public-key
   string app = 4;     // application label
 }
+
+enum Status {
+    ALIVE = 0;
+    DEAD = 1;
+    NEW = 2;
+}
+
+// LoginResponse description
+message LoginResponse {
+  string token = 1;    // Session cookie
+  uint64 deadline = 2; // Cookie deadline
+  Status status = 3;   // Session status for the given coockie
+}

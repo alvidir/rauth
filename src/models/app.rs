@@ -17,21 +17,21 @@ pub trait Ctrl {
     fn get_label(&self) -> &str;
 }
 
-pub fn find_by_id(target: i32) -> Result<Box<dyn Ctrl>, Box<dyn Error>>  {
-    use crate::schema::apps::dsl::*;
-
-    let connection = open_stream();
-    let results = apps.filter(id.eq(target))
-        .load::<App>(connection)?;
-
-    if results.len() > 0 {
-        let client = client::find_by_id(results[0].client_id)?;
-        let wrapper = results[0].build(client)?;
-        Ok(Box::new(wrapper))
-    } else {
-        Err(Box::new(NotFound))
-    }
-}
+//pub fn find_by_id(target: i32) -> Result<Box<dyn Ctrl>, Box<dyn Error>>  {
+//    use crate::schema::apps::dsl::*;
+//
+//    let connection = open_stream();
+//    let results = apps.filter(id.eq(target))
+//        .load::<App>(connection)?;
+//
+//    if results.len() > 0 {
+//        let client = client::find_by_id(results[0].client_id)?;
+//        let wrapper = results[0].build(client)?;
+//        Ok(Box::new(wrapper))
+//    } else {
+//        Err(Box::new(NotFound))
+//    }
+//}
 
 pub fn find_by_label<'a>(target: &'a str) -> Result<Box<dyn Ctrl>, Box<dyn Error>>  {
     use crate::schema::apps::dsl::*;
@@ -49,43 +49,43 @@ pub fn find_by_label<'a>(target: &'a str) -> Result<Box<dyn Ctrl>, Box<dyn Error
     }
 }
 
-pub fn find_by_name<'a>(target: &'a str) -> Result<Box<dyn Ctrl>, Box<dyn Error>>  {
-    use crate::schema::apps::dsl::*;
+//pub fn find_by_name<'a>(target: &'a str) -> Result<Box<dyn Ctrl>, Box<dyn Error>>  {
+//    use crate::schema::apps::dsl::*;
+//
+//    let client = client::find_by_name(target)?;
+//    if client.get_kind() != enums::Kind::APP {
+//        let msg = format!("Client {:?} is not of the type {:?}", client.get_name(), enums::Kind::APP);
+//        return Err(msg.into());
+//    }
+//
+//    let connection = open_stream();
+//    let results = apps.filter(client_id.eq(client.get_id()))
+//        .load::<App>(connection)?;
+//
+//    if results.len() > 0 {
+//        let wrapper = results[0].build(client)?;
+//        Ok(Box::new(wrapper))
+//    } else {
+//        Err(Box::new(NotFound))
+//    }
+//}
 
-    let client = client::find_by_name(target)?;
-    if client.get_kind() != enums::Kind::APP {
-        let msg = format!("Client {:?} is not of the type {:?}", client.get_name(), enums::Kind::APP);
-        return Err(msg.into());
-    }
 
-    let connection = open_stream();
-    let results = apps.filter(client_id.eq(client.get_id()))
-        .load::<App>(connection)?;
-
-    if results.len() > 0 {
-        let wrapper = results[0].build(client)?;
-        Ok(Box::new(wrapper))
-    } else {
-        Err(Box::new(NotFound))
-    }
-}
-
-
-pub fn find_by_url<'a>(target: &'a str) -> Result<Box<dyn Ctrl>, Box<dyn Error>>  {
-    use crate::schema::apps::dsl::*;
-
-    let connection = open_stream();
-    let results = apps.filter(url.eq(target))
-        .load::<App>(connection)?;
-
-    if results.len() > 0 {
-        let client = client::find_by_id(results[0].client_id)?;
-        let wrapper = results[0].build(client)?;
-        Ok(Box::new(wrapper))
-    } else {
-        Err(Box::new(NotFound))
-    }
-}
+//pub fn find_by_url<'a>(target: &'a str) -> Result<Box<dyn Ctrl>, Box<dyn Error>>  {
+//    use crate::schema::apps::dsl::*;
+//
+//    let connection = open_stream();
+//    let results = apps.filter(url.eq(target))
+//        .load::<App>(connection)?;
+//
+//    if results.len() > 0 {
+//        let client = client::find_by_id(results[0].client_id)?;
+//        let wrapper = results[0].build(client)?;
+//        Ok(Box::new(wrapper))
+//    } else {
+//        Err(Box::new(NotFound))
+//    }
+//}
 
 #[derive(Queryable, Insertable, Associations)]
 #[belongs_to(Client<'_>)]

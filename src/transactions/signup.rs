@@ -1,6 +1,6 @@
 use std::error::Error;
 use crate::models::user;
-use super::*;
+use crate::models::secret;
 
 pub struct TxSignup<'a> {
     name: &'a str,
