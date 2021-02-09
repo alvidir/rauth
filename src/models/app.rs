@@ -17,7 +17,7 @@ pub trait Ctrl {
     fn get_label(&self) -> &str;
 }
 
-//pub fn find_by_id(target: i32) -> Result<Box<dyn Ctrl>, Box<dyn Error>>  {
+//pub fn find_by_id(target: i32) -> Result<Box<impl Ctrl + super::Gateway>, Box<dyn Error>>  {
 //    use crate::schema::apps::dsl::*;
 //
 //    let connection = open_stream();
@@ -33,7 +33,7 @@ pub trait Ctrl {
 //    }
 //}
 
-pub fn find_by_label<'a>(target: &'a str) -> Result<Box<dyn Ctrl>, Box<dyn Error>>  {
+pub fn find_by_label<'a>(target: &'a str, privileged: bool) -> Result<Box<impl Ctrl + super::Gateway>, Box<dyn Error>>  {
     use crate::schema::apps::dsl::*;
 
     let connection = open_stream();
@@ -41,7 +41,7 @@ pub fn find_by_label<'a>(target: &'a str) -> Result<Box<dyn Ctrl>, Box<dyn Error
         .load::<App>(connection)?;
 
     if results.len() > 0 {
-        let client = client::find_by_id(results[0].client_id)?;
+        let client = client::find_by_id(results[0].client_id, privileged)?;
         let wrapper = results[0].build(client)?;
         Ok(Box::new(wrapper))
     } else {
@@ -49,7 +49,7 @@ pub fn find_by_label<'a>(target: &'a str) -> Result<Box<dyn Ctrl>, Box<dyn Error
     }
 }
 
-//pub fn find_by_name<'a>(target: &'a str) -> Result<Box<dyn Ctrl>, Box<dyn Error>>  {
+//pub fn find_by_name<'a>(target: &'a str) -> Result<Box<impl Ctrl + super::Gateway>, Box<dyn Error>>  {
 //    use crate::schema::apps::dsl::*;
 //
 //    let client = client::find_by_name(target)?;
@@ -71,7 +71,7 @@ pub fn find_by_label<'a>(target: &'a str) -> Result<Box<dyn Ctrl>, Box<dyn Error
 //}
 
 
-//pub fn find_by_url<'a>(target: &'a str) -> Result<Box<dyn Ctrl>, Box<dyn Error>>  {
+//pub fn find_by_url<'a>(target: &'a str) -> Result<Box<impl Ctrl + super::Gateway>, Box<dyn Error>>  {
 //    use crate::schema::apps::dsl::*;
 //
 //    let connection = open_stream();
@@ -109,11 +109,11 @@ struct NewApp<'a> {
 }
 
 impl App {
-    pub fn new<'a>(name: &'a str, url: &'a str) -> Result<Box<dyn Ctrl>, Box<dyn Error>> {
+    pub fn new<'a>(name: &'a str, url: &'a str) -> Result<Box<impl Ctrl + super::Gateway>, Box<dyn Error>> {
         match_url(url)?;
 
         let kind_id = enums::Kind::APP.to_int32();
-        let client = client::Client::new(kind_id, name)?;
+        let client: Box<dyn client::Ctrl> = client::Client::new(kind_id, name)?;
         let label = token::Token::new(LABEL_LENGTH).to_string();
         let new_app = NewApp {
             client_id: client.get_id(),
@@ -155,5 +155,20 @@ impl Ctrl for Wrapper {
 
     fn get_label(&self) -> &str {
         &self.app.label
+    }
+}
+
+impl super::Gateway for Wrapper {
+    fn delete(&self) -> Result<(), Box<dyn Error>> {
+        use crate::schema::apps::dsl::*;
+
+        let connection = open_stream();
+        diesel::delete(
+            apps.filter(
+                id.eq(self.app.id)
+            )
+        ).execute(connection)?;
+
+        self.client.get_gateway().delete()
     }
 }

@@ -35,7 +35,6 @@ serde_json = "1.0.59"
 rand_core = { version = "0.6.1", features = ["getrandom"] }
 base64 = "0.13.0"
 openssl = "0.10.32"
-tp_auth = { git = "https://github.com/alvidir/tp-auth" }
 #serde = "1.0.118"
 
 [build-dependencies]

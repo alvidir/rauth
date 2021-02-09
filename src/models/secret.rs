@@ -39,7 +39,7 @@ pub trait Ctrl {
 //    }
 //}
 
-pub fn find_by_client_and_name(target_id: i32, target_name: &str) -> Result<Box<dyn Ctrl>, Box<dyn Error>>  {
+pub fn find_by_client_and_name(target_id: i32, target_name: &str) -> Result<Box<impl Ctrl + super::Gateway>, Box<dyn Error>>  {
     use crate::schema::secrets::dsl::*;
 
     let connection = open_stream();
@@ -179,5 +179,20 @@ impl Ctrl for Secret {
                 Ok(())
             }
         }
+    }
+}
+
+impl super::Gateway for Secret {
+    fn delete(&self) -> Result<(), Box<dyn Error>> {
+        use crate::schema::secrets::dsl::*;
+
+        let connection = open_stream();
+        diesel::delete(
+            secrets.filter(
+                id.eq(self.id)
+            )
+        ).execute(connection)?;
+
+        Ok(())
     }
 }

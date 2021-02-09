@@ -29,17 +29,20 @@ impl<'a> TxLogin<'a> {
     }
 
     fn find_user_by_identity(&self) -> Result<Box<dyn user::Ctrl>, Box<dyn Error>> {
+        let ctrl: Box<dyn user::Ctrl>;
         if let Ok(_) = match_name(self.ident) {
-            return user::find_by_name(self.ident);
+            ctrl = user::find_by_name(self.ident, false)?;
+            return Ok(ctrl);
         } else if let Ok(_) = match_email(self.ident) {
-            return user::find_by_email(self.ident);
+            ctrl = user::find_by_email(self.ident, false)?;
+            return Ok(ctrl);
         }
         
         Err(ERR_IDENT_NOT_MATCH.into())
     }
 
     fn build_signed_token(&self, client_id: i32) -> Result<(Token, String), Box<dyn Error>> {
-        let secret = secret::find_by_client_and_name(client_id, super::DEFAULT_PKEY_NAME)?;
+        let secret: Box<dyn secret::Ctrl> = secret::find_by_client_and_name(client_id, super::DEFAULT_PKEY_NAME)?;
         let token = Token::new(TOKEN_LEN);
         let signed: &[u8] = &secret.sign(self.pwd, token.to_string().as_bytes())?;
         let sign_str = format!("{:X?}", signed);
@@ -69,7 +72,7 @@ impl<'a> TxLogin<'a> {
         println!("Got Login request from user {} ", self.ident);
         let user = self.find_user_by_identity()?;
         let client_id = user.get_client_id();
-        let _app = app::find_by_label(self.app)?;
+        let _app = app::find_by_label(self.app, false)?;
 
         
         let session: &mut Box<dyn session::Ctrl>;

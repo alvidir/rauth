@@ -12,11 +12,12 @@ extern crate diesel;
 
 pub trait Ctrl {
     fn get_client_id(&self) -> i32;
+    fn get_id(&self) -> i32;
     fn get_email(&self) -> &str;
     fn get_name(&self) -> &str;
 }
 
-pub fn find_by_id(target: i32) -> Result<Box<dyn Ctrl>, Box<dyn Error>>  {
+pub fn find_by_id(target: i32, privileged: bool) -> Result<Box<impl Ctrl + super::Gateway>, Box<dyn Error>>  {
     use crate::schema::users::dsl::*;
 
     let connection = open_stream();
@@ -24,7 +25,7 @@ pub fn find_by_id(target: i32) -> Result<Box<dyn Ctrl>, Box<dyn Error>>  {
         .load::<User>(connection)?;
 
     if results.len() > 0 {
-        let client = client::find_by_id(results[0].client_id)?;
+        let client = client::find_by_id(results[0].client_id, privileged)?;
         let wrapper = results[0].build(client)?;
         Ok(Box::new(wrapper))
     } else {
@@ -32,10 +33,10 @@ pub fn find_by_id(target: i32) -> Result<Box<dyn Ctrl>, Box<dyn Error>>  {
     }
 }
 
-pub fn find_by_name<'a>(target: &'a str) -> Result<Box<dyn Ctrl>, Box<dyn Error>>  {
+pub fn find_by_name<'a>(target: &'a str, privileged: bool) -> Result<Box<impl Ctrl + super::Gateway>, Box<dyn Error>>  {
     use crate::schema::users::dsl::*;
 
-    let client = client::find_by_name(target)?;
+    let client: Box<dyn client::Ctrl> = client::find_by_name(target, privileged)?;
     if client.get_kind() != enums::Kind::USER {
         let user_str = enums::Kind::USER.to_string();
         let msg = format!("Client {:?} is not of the type {:?}", client.get_name(), user_str);
@@ -54,15 +55,15 @@ pub fn find_by_name<'a>(target: &'a str) -> Result<Box<dyn Ctrl>, Box<dyn Error>
     }
 }
 
-pub fn find_by_email<'a>(target: &'a str) -> Result<Box<dyn Ctrl>, Box<dyn Error>>  {
+pub fn find_by_email<'a>(target: &'a str, privileged: bool) -> Result<Box<impl Ctrl + super::Gateway>, Box<dyn Error>>  {
     use crate::schema::users::dsl::*;
-
+    
     let connection = open_stream();
     let results = users.filter(email.eq(target))
         .load::<User>(connection)?;
 
     if results.len() > 0 {
-        let client = client::find_by_id(results[0].client_id)?;
+        let client = client::find_by_id(results[0].client_id, privileged)?;
         let wrapper = results[0].build(client)?;
         Ok(Box::new(wrapper))
     } else {
@@ -88,11 +89,11 @@ struct NewUser<'a> {
 }
 
 impl User {
-    pub fn new<'a>(name: &'a str, email: &'a str) -> Result<Box<dyn Ctrl>, Box<dyn Error>> {
+    pub fn new<'a>(name: &'a str, email: &'a str) -> Result<Box<impl Ctrl + super::Gateway>, Box<dyn Error>> {
         match_email(email)?;
 
         let kind_id = enums::Kind::USER.to_int32();
-        let client = client::Client::new(kind_id, name)?;
+        let client: Box<dyn client::Ctrl> = client::Client::new(kind_id, name)?;
         let new_user = NewUser {
             client_id: client.get_id(),
             email: email,
@@ -125,11 +126,30 @@ impl Ctrl for Wrapper {
         self.client.get_id()
     }
 
+    fn get_id(&self) -> i32 {
+        self.user.id
+    }
+
     fn get_email(&self) -> &str {
         &self.user.email
     }
 
     fn get_name(&self) -> &str {
         self.client.get_name()
+    }
+}
+
+impl super::Gateway for Wrapper {
+    fn delete(&self) -> Result<(), Box<dyn Error>> {
+        use crate::schema::users::dsl::*;
+
+        let connection = open_stream();
+        let result = diesel::delete(
+            users.filter(
+                id.eq(self.get_id())
+            )
+        ).execute(connection)?;
+
+        self.client.get_gateway().delete()
     }
 }

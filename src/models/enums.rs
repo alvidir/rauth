@@ -68,7 +68,6 @@ custom_derive! {
     pub enum Status {
         PENDING,
         ACTIVATED,
-        DEACTIVATED,
         HIDDEN,
     }
 }

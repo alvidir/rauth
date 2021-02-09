@@ -21,7 +21,7 @@ impl<'a> TxSignup<'a> {
 
     pub fn execute(&self) -> Result<(), Box<dyn Error>> {
         println!("Got Signup request from user {} ", self.email);
-        let user = user::User::new(self.name, self.email)?;
+        let user: Box<dyn user::Ctrl> = user::User::new(self.name, self.email)?;
         println!("User {} successfully registered with email {}", self.name, self.email);
         secret::Secret::new(user.get_client_id(), super::DEFAULT_PKEY_NAME, self.pwd)?;
         Ok(())

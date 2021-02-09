@@ -18,13 +18,21 @@ pub trait Ctrl {
     fn get_kind(&self) -> enums::Kind;
     fn created_at(&self) -> SystemTime;
     fn last_update(&self) -> SystemTime;
+    fn get_gateway(&self) -> Box<&dyn super::Gateway>;
 }
 
-pub fn find_by_id(target: i32) -> Result<Box<dyn Ctrl>, Box<dyn Error>> {
+pub fn find_by_id(target: i32, privileged: bool) -> Result<Box<impl Ctrl + super::Gateway>, Box<dyn Error>> {
     use crate::schema::clients::dsl::*;
 
     let connection = open_stream();
     let results = clients.filter(id.eq(target))
+        .filter(status_id.ne_all(vec![{
+            if privileged {
+                enums::Status::HIDDEN.to_int32()
+            } else {
+                0
+            }
+        };1]))
         .load::<Client>(connection)?;
 
     if results.len() > 0 {
@@ -35,11 +43,18 @@ pub fn find_by_id(target: i32) -> Result<Box<dyn Ctrl>, Box<dyn Error>> {
     }
 }
 
-pub fn find_by_name<'a>(target: &'a str) -> Result<Box<dyn Ctrl>, Box<dyn Error>>  {
+pub fn find_by_name<'a>(target: &'a str, privileged: bool) -> Result<Box<impl Ctrl + super::Gateway>, Box<dyn Error>>  {
     use crate::schema::clients::dsl::*;
 
     let connection = open_stream();
     let results = clients.filter(name.eq(target))
+        .filter(status_id.ne_all(vec![{
+            if privileged {
+                enums::Status::HIDDEN.to_int32()
+            } else {
+                0
+            }
+        };1]))
         .load::<Client>(connection)?;
 
     if results.len() > 0 {
@@ -87,7 +102,7 @@ impl Client {
         }
     }
 
-    pub fn new<'a>(kind: i32, name: &'a str) -> Result<Box<dyn Ctrl>, Box<dyn Error>> {
+    pub fn new<'a>(kind: i32, name: &'a str) -> Result<Box<impl Ctrl + super::Gateway>, Box<dyn Error>> {
         Client::check_kind(kind)?;
         match_name(name)?;
 
@@ -145,5 +160,24 @@ impl Ctrl for Wrapper {
 
     fn last_update(&self) -> SystemTime {
         self.client.updated_at
+    }
+
+    fn get_gateway(&self) -> Box<&dyn super::Gateway> {
+        Box::new(self)
+    }
+}
+
+impl super::Gateway for Wrapper {
+    fn delete(&self) -> Result<(), Box<dyn Error>> {
+        use crate::schema::clients::dsl::*;
+
+        let connection = open_stream();
+        let result = diesel::delete(
+            clients.filter(
+                id.eq(self.get_id())
+            )
+        ).execute(connection)?;
+
+        Ok(())
     }
 }
