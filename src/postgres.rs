@@ -12,13 +12,13 @@ const POOL_SIZE: u32 = 1_u32; // by default: single thread
 
 type PgPool = Pool<ConnectionManager<PgConnection>>;
 
-pub struct Values {
+struct Stream {
    pub db_connection: PgPool,
 }
 
 lazy_static! {
-    static ref STREAM: Values = {
-       Values {
+    static ref STREAM: Stream = {
+       Stream {
            db_connection: PgPool::builder()
                .max_size(POOL_SIZE)
                .build(ConnectionManager::new(env::var(ENV_DATABASE_URL).expect(ERR_NOT_URL)))
