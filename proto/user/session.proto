@@ -6,9 +6,11 @@ import "google/protobuf/empty.proto";
 import public "login.proto";
 import public "logout.proto";
 import public "signup.proto";
+import public "delete.proto";
 
 service Session {
   rpc Login(user.LoginRequest) returns (user.LoginResponse);
   rpc Logout(user.LogoutRequest) returns (google.protobuf.Empty);
   rpc Signup(user.SignupRequest) returns (google.protobuf.Empty);
+  rpc Delete(user.DeleteRequest) returns (google.protobuf.Empty);
 }

@@ -4,12 +4,14 @@ extern crate diesel;
 extern crate custom_derive;
 #[macro_use]
 extern crate enum_derive;
+#[macro_use]
+extern crate lazy_static;
 
 use dotenv;
 use std::env;
 use std::error::Error;
 
-mod services;
+mod server;
 mod models;
 mod transactions;
 mod schema;
@@ -30,7 +32,7 @@ static INIT: Once = Once::new();
 pub fn initialize() {
     INIT.call_once(|| {
         dotenv::dotenv().ok(); // seting up environment variables
-        postgres::open_stream(); // checking connectivity
+        postgres::can_connect(); // checking connectivity
     });
 }
 
@@ -41,6 +43,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .expect(ERR_NO_PORT);
 
    let addr = format!("{}:{}", DEFAULT_IP, port);
-   services::session::start_server(addr).await?;
+   server::start_server(addr).await?;
    Ok(())
 }

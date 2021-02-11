@@ -1,7 +1,18 @@
 // Import the generated rust code into module
-pub mod client_proto {
+pub mod user_proto {
    tonic::include_proto!("user");
 }
 
+// Import the generated rust code into module
+pub mod dashboard_proto {
+   tonic::include_proto!("dashboard");
+}
+
+// Import the generated rust code into module
+pub mod app_proto {
+   tonic::include_proto!("app");
+}
+
+
 // Proto session status enum
-pub use client_proto::Status;
+pub use user_proto::Status;

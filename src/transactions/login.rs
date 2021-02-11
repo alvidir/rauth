@@ -7,8 +7,8 @@ use crate::models::session;
 use crate::models::secret;
 
 // Proto message structs
-use crate::proto::client_proto;
-use client_proto::LoginResponse;
+use crate::proto::user_proto;
+use user_proto::LoginResponse;
 
 const TOKEN_LEN: usize = 8;
 const ERR_IDENT_NOT_MATCH: &str = "The provided indentity is not of the expected type";

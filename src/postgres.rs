@@ -1,38 +1,36 @@
 use std::env;
-use diesel::prelude::*;
-use diesel::pg::PgConnection;
+use lazy_static;
+use diesel::{
+    r2d2::{Pool, ConnectionManager},
+    pg::PgConnection
+};
 
 const ERR_NOT_URL: &str = "Postgres url must be set";
 const ERR_CONNECT: &str = "Error connecting to";
-const INFO_STREAM_SETUP: &str = "Setting up postgres stream to:";
 const ENV_DATABASE_URL: &str = "DATABASE_URL";
+const POOL_SIZE: u32 = 8_u32;
 
-pub static mut STREAM: Option<PgConnection> = None;
+type PgPool = Pool<ConnectionManager<PgConnection>>;
 
-pub fn open_stream() -> &'static PgConnection {
-    let postgres_conn: &Option<PgConnection>;
-    unsafe {
-        postgres_conn = &STREAM;
-    }
-   
-    match &postgres_conn {
-        Some(conn) => {
-            return &conn
+pub struct Values {
+   pub db_connection: PgPool,
+}
+
+lazy_static! {
+    static ref STREAM: Values = {
+       Values {
+           db_connection: PgPool::builder()
+               .max_size(POOL_SIZE)
+               .build(ConnectionManager::new(env::var(ENV_DATABASE_URL).expect(ERR_NOT_URL)))
+               .expect(ERR_CONNECT)
         }
-        
-        None => {
-            let database_url = env::var(ENV_DATABASE_URL)
-                .expect(ERR_NOT_URL);
+    };
+}
 
-            println!("{} {}", INFO_STREAM_SETUP, database_url);
-            let conn = PgConnection::establish(&database_url)
-                .expect(&format!("{} {}", ERR_CONNECT, database_url));
+pub fn open_stream() -> &'static PgPool {
+    &STREAM.db_connection
+}
 
-            unsafe {
-                STREAM = Some(conn);
-            }
-
-            return open_stream();
-        }
-    }
+pub fn can_connect() -> bool {
+    open_stream().get().is_ok()
 }

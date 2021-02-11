@@ -1,0 +1,10 @@
+syntax = "proto3";
+option go_package = "github.com/alvidir/tp-auth/proto/user";
+
+package user;
+
+// DeleteRequest description
+message DeleteRequest {
+  string ident = 1;   // the user name or email
+  string pwd = 2;     // the password or the signed public-key
+}

@@ -1,0 +1,11 @@
+syntax = "proto3";
+option go_package = "github.com/alvidir/tp-auth/proto/dashboard";
+
+package dashboard;
+import "google/protobuf/empty.proto";
+import public "app_manager.proto";
+
+service Dashboard {
+  rpc RegisterApp(dashboard.RegisterAppRequest) returns (google.protobuf.Empty);
+  rpc DeleteApp(dashboard.DeleteAppRequest) returns (google.protobuf.Empty);
+}

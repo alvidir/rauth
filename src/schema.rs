@@ -3,6 +3,7 @@ table! {
         id -> Int4,
         client_id -> Int4,
         app_id -> Int4,
+        role_id -> Int4,
     }
 }
 
@@ -29,6 +30,13 @@ table! {
 
 table! {
     kinds (id) {
+        id -> Int4,
+        name -> Varchar,
+    }
+}
+
+table! {
+    roles (id) {
         id -> Int4,
         name -> Varchar,
     }
@@ -63,6 +71,7 @@ table! {
 
 joinable!(admins -> apps (app_id));
 joinable!(admins -> clients (client_id));
+joinable!(admins -> roles (role_id));
 joinable!(apps -> clients (client_id));
 joinable!(clients -> kinds (kind_id));
 joinable!(clients -> statuses (status_id));
@@ -74,6 +83,7 @@ allow_tables_to_appear_in_same_query!(
     apps,
     clients,
     kinds,
+    roles,
     secrets,
     statuses,
     users,

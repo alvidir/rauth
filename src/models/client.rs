@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 use std::time::SystemTime;
 use std::error::Error;
 use diesel::NotFound;
@@ -24,7 +22,7 @@ pub trait Ctrl {
 pub fn find_by_id(target: i32, privileged: bool) -> Result<Box<impl Ctrl + super::Gateway>, Box<dyn Error>> {
     use crate::schema::clients::dsl::*;
 
-    let connection = open_stream();
+    let connection = open_stream().get()?;
     let results = clients.filter(id.eq(target))
         .filter(status_id.ne_all(vec![{
             if privileged {
@@ -33,7 +31,7 @@ pub fn find_by_id(target: i32, privileged: bool) -> Result<Box<impl Ctrl + super
                 0
             }
         };1]))
-        .load::<Client>(connection)?;
+        .load::<Client>(&connection)?;
 
     if results.len() > 0 {
         let wrapper = results[0].build()?;
@@ -46,7 +44,7 @@ pub fn find_by_id(target: i32, privileged: bool) -> Result<Box<impl Ctrl + super
 pub fn find_by_name<'a>(target: &'a str, privileged: bool) -> Result<Box<impl Ctrl + super::Gateway>, Box<dyn Error>>  {
     use crate::schema::clients::dsl::*;
 
-    let connection = open_stream();
+    let connection = open_stream().get()?;
     let results = clients.filter(name.eq(target))
         .filter(status_id.ne_all(vec![{
             if privileged {
@@ -55,7 +53,7 @@ pub fn find_by_name<'a>(target: &'a str, privileged: bool) -> Result<Box<impl Ct
                 0
             }
         };1]))
-        .load::<Client>(connection)?;
+        .load::<Client>(&connection)?;
 
     if results.len() > 0 {
         let client = results[0].clone();
@@ -91,6 +89,7 @@ struct NewClient<'a> {
 
 impl Client {
     fn check_kind(kind: i32) -> Result<(), Box<dyn Error>> {
+        #![allow(unused)]
         match enums::find_kind_by_id(kind)? {
             enums::Kind::USER | enums::Kind::APP => {
                 Ok(())
@@ -114,10 +113,10 @@ impl Client {
             updated_at: SystemTime::now(),
         };
 
-        let connection = open_stream();
+        let connection = open_stream().get()?;
         let result = diesel::insert_into(clients::table)
             .values(&new_client)
-            .get_result::<Client>(connection)?;
+            .get_result::<Client>(&connection)?;
 
         let wrapper = result.build()?;
         Ok(Box::new(wrapper))
@@ -171,12 +170,12 @@ impl super::Gateway for Wrapper {
     fn delete(&self) -> Result<(), Box<dyn Error>> {
         use crate::schema::clients::dsl::*;
 
-        let connection = open_stream();
-        let result = diesel::delete(
+        let connection = open_stream().get()?;
+        diesel::delete(
             clients.filter(
                 id.eq(self.get_id())
             )
-        ).execute(connection)?;
+        ).execute(&connection)?;
 
         Ok(())
     }

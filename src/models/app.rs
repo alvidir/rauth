@@ -20,9 +20,9 @@ pub trait Ctrl {
 //pub fn find_by_id(target: i32) -> Result<Box<impl Ctrl + super::Gateway>, Box<dyn Error>>  {
 //    use crate::schema::apps::dsl::*;
 //
-//    let connection = open_stream();
+//    let connection = open_stream().get()?;
 //    let results = apps.filter(id.eq(target))
-//        .load::<App>(connection)?;
+//        .load::<App>(&connection)?;
 //
 //    if results.len() > 0 {
 //        let client = client::find_by_id(results[0].client_id)?;
@@ -36,9 +36,9 @@ pub trait Ctrl {
 pub fn find_by_label<'a>(target: &'a str, privileged: bool) -> Result<Box<impl Ctrl + super::Gateway>, Box<dyn Error>>  {
     use crate::schema::apps::dsl::*;
 
-    let connection = open_stream();
+    let connection = open_stream().get()?;
     let results = apps.filter(label.eq(target))
-        .load::<App>(connection)?;
+        .load::<App>(&connection)?;
 
     if results.len() > 0 {
         let client = client::find_by_id(results[0].client_id, privileged)?;
@@ -58,9 +58,9 @@ pub fn find_by_label<'a>(target: &'a str, privileged: bool) -> Result<Box<impl C
 //        return Err(msg.into());
 //    }
 //
-//    let connection = open_stream();
+//    let connection = open_stream().get()?;
 //    let results = apps.filter(client_id.eq(client.get_id()))
-//        .load::<App>(connection)?;
+//        .load::<App>(&connection)?;
 //
 //    if results.len() > 0 {
 //        let wrapper = results[0].build(client)?;
@@ -74,9 +74,9 @@ pub fn find_by_label<'a>(target: &'a str, privileged: bool) -> Result<Box<impl C
 //pub fn find_by_url<'a>(target: &'a str) -> Result<Box<impl Ctrl + super::Gateway>, Box<dyn Error>>  {
 //    use crate::schema::apps::dsl::*;
 //
-//    let connection = open_stream();
+//    let connection = open_stream().get()?;
 //    let results = apps.filter(url.eq(target))
-//        .load::<App>(connection)?;
+//        .load::<App>(&connection)?;
 //
 //    if results.len() > 0 {
 //        let client = client::find_by_id(results[0].client_id)?;
@@ -122,10 +122,10 @@ impl App {
             description: None,
         };
 
-        let connection = open_stream();
+        let connection = open_stream().get()?;
         let result = diesel::insert_into(apps::table)
             .values(&new_app)
-            .get_result::<App>(connection)?;
+            .get_result::<App>(&connection)?;
 
         let wrapper = result.build(client)?;
         Ok(Box::new(wrapper))
@@ -162,12 +162,12 @@ impl super::Gateway for Wrapper {
     fn delete(&self) -> Result<(), Box<dyn Error>> {
         use crate::schema::apps::dsl::*;
 
-        let connection = open_stream();
+        let connection = open_stream().get()?;
         diesel::delete(
             apps.filter(
                 id.eq(self.app.id)
             )
-        ).execute(connection)?;
+        ).execute(&connection)?;
 
         self.client.get_gateway().delete()
     }
