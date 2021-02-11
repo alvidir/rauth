@@ -28,10 +28,11 @@ pub trait Ctrl {
 
 pub fn find_all_by_client(target_id: i32) -> Result<Vec<impl Ctrl + super::Gateway>, Box<dyn Error>>  {
     use crate::schema::secrets::dsl::*;
-
-    let connection = open_stream().get()?;
-    let results = secrets.filter(client_id.eq(target_id))
-        .load::<Secret>(&connection)?;
+    let results = { // block is required because of connection release
+        let connection = open_stream().get()?;
+        secrets.filter(client_id.eq(target_id))
+            .load::<Secret>(&connection)?
+    };
 
     if results.len() > 0 {
         Ok(results)
@@ -43,10 +44,12 @@ pub fn find_all_by_client(target_id: i32) -> Result<Vec<impl Ctrl + super::Gatew
 pub fn find_by_client_and_name(target_id: i32, target_name: &str) -> Result<Box<impl Ctrl + super::Gateway>, Box<dyn Error>>  {
     use crate::schema::secrets::dsl::*;
 
-    let connection = open_stream().get()?;
-    let results = secrets.filter(client_id.eq(target_id))
+    let results = { // block is required because of connection release
+        let connection = open_stream().get()?;
+        secrets.filter(client_id.eq(target_id))
         .filter(name.eq(target_name))
-        .load::<Secret>(&connection)?;
+        .load::<Secret>(&connection)?
+    };
 
     if results.len() > 0 {
         Ok(Box::new(results[0].clone()))
@@ -115,10 +118,12 @@ impl Secret {
             deadline: None,
         };
 
-        let connection = open_stream().get()?;
-        let result = diesel::insert_into(secrets::table)
+        let result = { // block is required because of connection release
+            let connection = open_stream().get()?;
+            diesel::insert_into(secrets::table)
             .values(&new_secret)
-            .get_result::<Secret>(&connection)?;
+            .get_result::<Secret>(&connection)?
+        };
 
         Ok(result)
     }
@@ -191,12 +196,14 @@ impl super::Gateway for Secret {
     fn delete(&self) -> Result<(), Box<dyn Error>> {
         use crate::schema::secrets::dsl::*;
 
-        let connection = open_stream().get()?;
-        diesel::delete(
-            secrets.filter(
-                id.eq(self.id)
-            )
-        ).execute(&connection)?;
+        { // block is required because of connection release
+            let connection = open_stream().get()?;
+            diesel::delete(
+                secrets.filter(
+                    id.eq(self.id)
+                )
+            ).execute(&connection)?;
+        }
 
         Ok(())
     }

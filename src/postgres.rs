@@ -8,7 +8,7 @@ use diesel::{
 const ERR_NOT_URL: &str = "Postgres url must be set";
 const ERR_CONNECT: &str = "Error connecting to";
 const ENV_DATABASE_URL: &str = "DATABASE_URL";
-const POOL_SIZE: u32 = 8_u32;
+const POOL_SIZE: u32 = 1_u32; // by default: single thread
 
 type PgPool = Pool<ConnectionManager<PgConnection>>;
 

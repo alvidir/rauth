@@ -13,7 +13,7 @@ pub trait Gateway {
 
 #[cfg(test)]
 mod tests {
-    use crate::transactions::{signup, delete, login};
+    use crate::transactions::{signup, delete};
     use super::{user, client, secret};
     use crate::transactions::DEFAULT_PKEY_NAME;
 

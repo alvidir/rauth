@@ -22,8 +22,9 @@ pub trait Ctrl {
 pub fn find_by_id(target: i32, privileged: bool) -> Result<Box<impl Ctrl + super::Gateway>, Box<dyn Error>> {
     use crate::schema::clients::dsl::*;
 
-    let connection = open_stream().get()?;
-    let results = clients.filter(id.eq(target))
+    let results = { // block is required because of connection release
+        let connection = open_stream().get()?;
+        clients.filter(id.eq(target))
         .filter(status_id.ne_all(vec![{
             if privileged {
                 enums::Status::HIDDEN.to_int32()
@@ -31,7 +32,8 @@ pub fn find_by_id(target: i32, privileged: bool) -> Result<Box<impl Ctrl + super
                 0
             }
         };1]))
-        .load::<Client>(&connection)?;
+        .load::<Client>(&connection)?
+    };
 
     if results.len() > 0 {
         let wrapper = results[0].build()?;
@@ -44,8 +46,9 @@ pub fn find_by_id(target: i32, privileged: bool) -> Result<Box<impl Ctrl + super
 pub fn find_by_name<'a>(target: &'a str, privileged: bool) -> Result<Box<impl Ctrl + super::Gateway>, Box<dyn Error>>  {
     use crate::schema::clients::dsl::*;
 
-    let connection = open_stream().get()?;
-    let results = clients.filter(name.eq(target))
+    let results = { // block is required because of connection release
+        let connection = open_stream().get()?;
+        clients.filter(name.eq(target))
         .filter(status_id.ne_all(vec![{
             if privileged {
                 enums::Status::HIDDEN.to_int32()
@@ -53,7 +56,8 @@ pub fn find_by_name<'a>(target: &'a str, privileged: bool) -> Result<Box<impl Ct
                 0
             }
         };1]))
-        .load::<Client>(&connection)?;
+        .load::<Client>(&connection)?
+    };
 
     if results.len() > 0 {
         let client = results[0].clone();
@@ -113,10 +117,12 @@ impl Client {
             updated_at: SystemTime::now(),
         };
 
-        let connection = open_stream().get()?;
-        let result = diesel::insert_into(clients::table)
+        let result = { // block is required because of connection release
+            let connection = open_stream().get()?;
+            diesel::insert_into(clients::table)
             .values(&new_client)
-            .get_result::<Client>(&connection)?;
+            .get_result::<Client>(&connection)?
+        };
 
         let wrapper = result.build()?;
         Ok(Box::new(wrapper))

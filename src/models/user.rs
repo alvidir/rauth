@@ -22,9 +22,11 @@ pub trait Ctrl {
 pub fn find_by_id(target: i32, privileged: bool) -> Result<Box<impl Ctrl + super::Gateway>, Box<dyn Error>>  {
     use crate::schema::users::dsl::*;
 
-    let connection = open_stream().get()?;
-    let results = users.filter(id.eq(target))
-        .load::<User>(&connection)?;
+    let results = { // block is required because of connection release
+        let connection = open_stream().get()?;
+        users.filter(id.eq(target))
+        .load::<User>(&connection)?
+    };
 
     if results.len() > 0 {
         let client = client::find_by_id(results[0].client_id, privileged)?;
@@ -45,9 +47,11 @@ pub fn find_by_name<'a>(target: &'a str, privileged: bool) -> Result<Box<impl Ct
         return Err(msg.into());
     }
 
-    let connection = open_stream().get()?;
-    let results = users.filter(client_id.eq(client.get_id()))
-        .load::<User>(&connection)?;
+    let results = { // block is required because of connection release
+        let connection = open_stream().get()?;
+        users.filter(client_id.eq(client.get_id()))
+            .load::<User>(&connection)?
+    };
 
     if results.len() > 0 {
         let wrapper = results[0].build(client)?;
@@ -60,9 +64,11 @@ pub fn find_by_name<'a>(target: &'a str, privileged: bool) -> Result<Box<impl Ct
 pub fn find_by_email<'a>(target: &'a str, privileged: bool) -> Result<Box<impl Ctrl + super::Gateway>, Box<dyn Error>>  {
     use crate::schema::users::dsl::*;
     
-    let connection = open_stream().get()?;
-    let results = users.filter(email.eq(target))
-        .load::<User>(&connection)?;
+    let results = { // block is required because of connection release
+        let connection = open_stream().get()?;
+        users.filter(email.eq(target))
+            .load::<User>(&connection)?
+    };
 
     if results.len() > 0 {
         let client = client::find_by_id(results[0].client_id, privileged)?;
@@ -101,10 +107,12 @@ impl User {
             email: email,
         };
 
-        let connection = open_stream().get()?;
-        let result = diesel::insert_into(users::table)
-            .values(&new_user)
-            .get_result::<User>(&connection)?;
+        let result = { // block is required because of connection release
+            let connection = open_stream().get()?;
+            diesel::insert_into(users::table)
+                .values(&new_user)
+                .get_result::<User>(&connection)?
+        };
 
         let wrapper = result.build(client)?;
         Ok(Box::new(wrapper))
@@ -145,12 +153,14 @@ impl super::Gateway for Wrapper {
     fn delete(&self) -> Result<(), Box<dyn Error>> {
         use crate::schema::users::dsl::*;
 
-        let connection = open_stream().get()?;
-        let result = diesel::delete(
-            users.filter(
-                id.eq(self.get_id())
-            )
-        ).execute(&connection)?;
+        { // block is required because of connection release
+            let connection = open_stream().get()?;
+            let result = diesel::delete(
+                users.filter(
+                    id.eq(self.get_id())
+                )
+            ).execute(&connection)?;
+        }
 
         self.client.get_gateway().delete()
     }

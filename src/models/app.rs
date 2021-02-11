@@ -122,10 +122,12 @@ impl App {
             description: None,
         };
 
-        let connection = open_stream().get()?;
-        let result = diesel::insert_into(apps::table)
+        let result = { // block is required because of connection release
+            let connection = open_stream().get()?;
+            diesel::insert_into(apps::table)
             .values(&new_app)
-            .get_result::<App>(&connection)?;
+            .get_result::<App>(&connection)?
+        };
 
         let wrapper = result.build(client)?;
         Ok(Box::new(wrapper))
@@ -162,12 +164,14 @@ impl super::Gateway for Wrapper {
     fn delete(&self) -> Result<(), Box<dyn Error>> {
         use crate::schema::apps::dsl::*;
 
-        let connection = open_stream().get()?;
-        diesel::delete(
-            apps.filter(
-                id.eq(self.app.id)
-            )
-        ).execute(&connection)?;
+        { // block is required because of connection release
+            let connection = open_stream().get()?;
+            diesel::delete(
+                apps.filter(
+                    id.eq(self.app.id)
+                )
+            ).execute(&connection)?;
+        }
 
         self.client.get_gateway().delete()
     }

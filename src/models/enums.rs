@@ -49,9 +49,11 @@ struct DBKind {
 pub fn find_kind_by_id(target: i32) -> Result<Kind, Box<dyn Error>>  {
     use crate::schema::kinds::dsl::*;
 
-    let connection = open_stream().get()?;
-    let results = kinds.filter(id.eq(target))
-        .load::<DBKind>(&connection)?;
+    let results = { // block is required because of connection release
+        let connection = open_stream().get()?;
+        kinds.filter(id.eq(target))
+            .load::<DBKind>(&connection)?
+    };
 
     if results.len() > 0 {
         let kind = Kind::derive(&results[0].name)?;
@@ -104,9 +106,11 @@ struct DBStatus {
 pub fn find_status_by_id(target: i32) -> Result<Status, Box<dyn Error>>  {
     use crate::schema::kinds::dsl::*;
 
-    let connection = open_stream().get()?;
-    let results = kinds.filter(id.eq(target))
-        .load::<DBStatus>(&connection)?;
+    let results = { // block is required because of connection release
+        let connection = open_stream().get()?;
+        kinds.filter(id.eq(target))
+            .load::<DBStatus>(&connection)?
+    };
 
     if results.len() > 0 {
         let status = Status::derive(&results[0].name)?;
@@ -159,9 +163,11 @@ struct DBRoles {
 pub fn find_role_by_id(target: i32) -> Result<Roles, Box<dyn Error>>  {
     use crate::schema::kinds::dsl::*;
 
-    let connection = open_stream().get()?;
-    let results = kinds.filter(id.eq(target))
-        .load::<DBRoles>(&connection)?;
+    let results = { // block is required because of connection release
+        let connection = open_stream().get()?;
+        kinds.filter(id.eq(target))
+        .load::<DBRoles>(&connection)?
+    };
 
     if results.len() > 0 {
         let role = Roles::derive(&results[0].name)?;
