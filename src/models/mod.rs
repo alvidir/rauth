@@ -3,8 +3,9 @@ pub mod user;
 pub mod app;
 pub mod session;
 pub mod secret;
+pub mod admin;
+pub mod enums;
 
-mod enums;
 mod client;
 
 pub trait Gateway {
@@ -13,13 +14,15 @@ pub trait Gateway {
 
 #[cfg(test)]
 mod tests {
-    use crate::transactions::{signup, delete};
+    use crate::transactions::{signup, delete, login, register_app};
     use super::{user, client, secret};
     use crate::transactions::DEFAULT_PKEY_NAME;
 
     static DUMMY_NAME: &str = "dummy";
     static DUMMY_EMAIL: &str = "dummy@testing.com";
     static DUMMY_PWD: &str = "0C4fe7eBbfDbcCBE52DC7A0DdF43bCaeEBaC0EE37bF03C4BAa0ed31eAA03d833";
+    static DUMMY_URL: &str = "https://www.dummy.com";
+    static DUMMY_APP: &str = "dummy_app";
 
     fn get_prefixed_data(prefix: &str) -> (String, String) {
         let name = format!("{}_{}", prefix, DUMMY_NAME);
@@ -66,9 +69,36 @@ mod tests {
     }
 
     #[test]
-    fn delete_test() {
+    fn delete_by_email_test() {
         crate::initialize();
-        const PREFIX: &str = "delete";
+        const PREFIX: &str = "delete_by_email";
+        
+        let (name, email) = get_prefixed_data(PREFIX);
+        
+        // Signing up the user
+        let tx_signup = signup::TxSignup::new(&name, &email, DUMMY_PWD);
+        tx_signup.execute().unwrap();
+        
+        let client_id = {
+            let user_stream = user::find_by_email(&email, true).unwrap();
+            let user: Box<&dyn user::Ctrl> = Box::new(user_stream.as_ref());
+            user.get_client_id()
+        };
+        
+        // Delete the user
+        let tx_dummy = delete::TxDelete::new(&email, DUMMY_PWD);
+        tx_dummy.execute().unwrap();
+        
+        // Checking the user data
+        assert!(user::find_by_email(&email, true).is_err());
+        assert!(client::find_by_id(client_id, true).is_err());
+        assert!(secret::find_by_client_and_name(client_id, DEFAULT_PKEY_NAME).is_err());
+    }
+
+    #[test]
+    fn delete_by_name_test() {
+        crate::initialize();
+        const PREFIX: &str = "delete_by_name";
         
         let (name, email) = get_prefixed_data(PREFIX);
         
@@ -99,11 +129,11 @@ mod tests {
     //
     //    // Setting up the required client
     //    let (name, email) = get_prefixed_data(PREFIX);
-    //    let tx_dummy = signup::TxSignup::new(&name, &email, DUMMY_PWD);
-    //    tx_dummy.execute().unwrap();
+    //    let tx_signup = signup::TxSignup::new(&name, &email, DUMMY_PWD);
+    //    tx_signup.execute().unwrap();
     //    
     //    // Login the new client using its email
-    //    let tx_dummy = login::TxLogin::new(&email, DUMMY_PWD);
+    //    let tx_dummy = login::TxLogin::new(&email, DUMMY_PWD, DUMMY_APP);
     //    tx_dummy.execute().unwrap();
     //
     //    // Deleting the dummy user and its data from the database
@@ -112,5 +142,36 @@ mod tests {
     //
     //    let user_gw: Box<&dyn super::Gateway> = Box::new(user_stream.as_ref());
     //    user_gw.delete().unwrap();
+    //}
+
+    //#[test]
+    //fn register_app_test() {
+    //    crate::initialize();
+    //    const PREFIX: &str = "register_app";
+    //    
+    //    let (name, email) = get_prefixed_data(PREFIX);
+    //    
+    //    // Signing up the user
+    //    let tx_signup = signup::TxSignup::new(&name, &email, DUMMY_PWD);
+    //    tx_signup.execute().unwrap();
+    //
+    //    // Register app
+    //    let tx_register = register_app::TxRegisterApp::new(&name, &email, DUMMY_PWD);
+    //    tx_register.execute().unwrap();
+    //    
+    //    let client_id = {
+    //        let user_stream = user::find_by_email(&email, true).unwrap();
+    //        let user: Box<&dyn user::Ctrl> = Box::new(user_stream.as_ref());
+    //        user.get_client_id()
+    //    };
+    //    
+    //    // Delete the user
+    //    let tx_dummy = delete::TxDelete::new(&name, DUMMY_PWD);
+    //    tx_dummy.execute().unwrap();
+    //    
+    //    // Checking the user data
+    //    assert!(user::find_by_email(&email, true).is_err());
+    //    assert!(client::find_by_id(client_id, true).is_err());
+    //    assert!(secret::find_by_client_and_name(client_id, DEFAULT_PKEY_NAME).is_err());
     //}
 }

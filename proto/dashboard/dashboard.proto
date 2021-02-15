@@ -6,6 +6,6 @@ import "google/protobuf/empty.proto";
 import public "app_manager.proto";
 
 service Dashboard {
-  rpc RegisterApp(dashboard.RegisterAppRequest) returns (google.protobuf.Empty);
+  rpc RegisterApp(dashboard.RegisterAppRequest) returns (dashboard.RegisterAppResponse);
   rpc DeleteApp(dashboard.DeleteAppRequest) returns (google.protobuf.Empty);
 }

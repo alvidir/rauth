@@ -124,17 +124,17 @@ custom_derive! {
     #[derive(EnumFromStr)]
     #[derive(Eq, PartialEq, Copy, Clone)]
     #[derive(Debug)]
-    pub enum Roles {
+    pub enum Role {
         OWNER,
         GRANTED,
         READER,
     }
 }
 
-impl Roles {
-    pub fn derive(name: &str) -> Result<Roles, Box<dyn Error>> {
+impl Role {
+    pub fn derive(name: &str) -> Result<Role, Box<dyn Error>> {
         let upper = name.to_uppercase();
-        let role: Roles = upper.parse()?;
+        let role: Role = upper.parse()?;
         Ok(role)
     }
 
@@ -143,7 +143,7 @@ impl Roles {
     }
 }
 
-impl fmt::Display for Roles {
+impl fmt::Display for Role {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self)
         // or, alternatively:
@@ -155,22 +155,22 @@ impl fmt::Display for Roles {
 #[derive(Queryable)]
 #[derive(Clone)]
 #[table_name="statuses"]
-struct DBRoles {
+struct DBRole {
     pub id: i32,
     pub name: String,
 }
 
-pub fn find_role_by_id(target: i32) -> Result<Roles, Box<dyn Error>>  {
+pub fn find_role_by_id(target: i32) -> Result<Role, Box<dyn Error>>  {
     use crate::schema::kinds::dsl::*;
 
     let results = { // block is required because of connection release
         let connection = open_stream().get()?;
         kinds.filter(id.eq(target))
-        .load::<DBRoles>(&connection)?
+        .load::<DBRole>(&connection)?
     };
 
     if results.len() > 0 {
-        let role = Roles::derive(&results[0].name)?;
+        let role = Role::derive(&results[0].name)?;
         Ok(role)
     } else {
         Err(Box::new(NotFound))

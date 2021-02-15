@@ -7,6 +7,7 @@ use crate::proto::Status;
 use super::user;
 
 const TOKEN_TIMEOUT: u64 = 3600; // 60s * 60min
+const DUST_LEN: usize = 8;
 const COOKIE_LEN: usize = 32;
 const COOKIE_TIMEOUT: u64 = 86400; // 3600s * 24h
 const COOKIE_SEPARATOR: &str = "=";
@@ -28,7 +29,8 @@ pub trait Ctrl {
     fn get_deadline(&self) -> SystemTime;
     fn get_status(&self) -> Status;
     fn get_email(&self) -> &str;
-    fn set_token(&mut self, token: Token) -> Result<(), Box<dyn Error>>;
+    fn get_token(&mut self) -> Result<String, Box<dyn Error>>;
+    fn get_user_id(&self) -> i32;
 }
 
 pub trait Factory {
@@ -212,6 +214,10 @@ impl Ctrl for Session {
         self.user.get_client_id()
     }
 
+    fn get_user_id(&self) -> i32 {
+        self.user.get_id()
+    }
+
     fn get_cookie(&self) -> &str {
         &self.cookie
     }
@@ -236,9 +242,11 @@ impl Ctrl for Session {
         self.status
     }
 
-    fn set_token(&mut self, token: Token) -> Result<(), Box<dyn Error>> {
+    fn get_token(&mut self) -> Result<String, Box<dyn Error>> {
+        let token = Token::new(DUST_LEN);
+        let dir = format!("{}{}", self.cookie, token);
         if self.tokens.insert(token) {
-            Ok(())
+            Ok(dir)
         } else {
             Err(ERR_TOKEN_EXISTS.into())
         }

@@ -1,7 +1,7 @@
 table! {
     admins (id) {
         id -> Int4,
-        client_id -> Int4,
+        usr_id -> Int4,
         app_id -> Int4,
         role_id -> Int4,
     }
@@ -70,8 +70,8 @@ table! {
 }
 
 joinable!(admins -> apps (app_id));
-joinable!(admins -> clients (client_id));
 joinable!(admins -> roles (role_id));
+joinable!(admins -> users (usr_id));
 joinable!(apps -> clients (client_id));
 joinable!(clients -> kinds (kind_id));
 joinable!(clients -> statuses (status_id));

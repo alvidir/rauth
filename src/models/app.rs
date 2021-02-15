@@ -12,6 +12,7 @@ extern crate diesel;
 const LABEL_LENGTH: usize = 15;
 
 pub trait Ctrl {
+    fn get_id(&self) -> i32;
     fn get_url(&self) -> &str;
     fn get_name(&self) -> &str;
     fn get_label(&self) -> &str;
@@ -147,6 +148,10 @@ pub struct Wrapper {
 }
 
 impl Ctrl for Wrapper {
+    fn get_id(&self) -> i32 {
+        self.app.id
+    }
+
     fn get_url(&self) -> &str {
         &self.app.url
     }

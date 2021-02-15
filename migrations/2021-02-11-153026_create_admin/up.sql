@@ -1,11 +1,11 @@
 CREATE TABLE Admins (
     id SERIAL PRIMARY KEY,
-    client_id INTEGER NOT NULL, 
+    usr_id INTEGER NOT NULL, 
     app_id INTEGER NOT NULL,
     role_id INTEGER NOT NULL,
 
-    FOREIGN KEY (client_id)
-        REFERENCES Clients(id),
+    FOREIGN KEY (usr_id)
+        REFERENCES Users(id),
     FOREIGN KEY (app_id)
         REFERENCES Apps(id),
     FOREIGN KEY (role_id)

@@ -8,7 +8,11 @@ message RegisterAppRequest {
   string cookie = 1; // username identifier
   string name = 2;   // a unique name for the application
   string url = 3;    // the application's home URL
-  string descr = 4;  // a description about the application
+}
+
+// RegisterAppResponse description
+message RegisterAppResponse {
+  string label = 1; // application label
 }
 
 // DeleteAppRequest description

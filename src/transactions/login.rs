@@ -41,14 +41,6 @@ impl<'a> TxLogin<'a> {
         Err(ERR_IDENT_NOT_MATCH.into())
     }
 
-    fn build_signed_token(&self, client_id: i32) -> Result<(Token, String), Box<dyn Error>> {
-        let secret: Box<dyn secret::Ctrl> = secret::find_by_client_and_name(client_id, super::DEFAULT_PKEY_NAME)?;
-        let token = Token::new(TOKEN_LEN);
-        let signed: &[u8] = &secret.sign(self.pwd, token.to_string().as_bytes())?;
-        let sign_str = format!("{:X?}", signed);
-        Ok((token, sign_str))
-    }
-
     fn build_session(&self, user: Box<dyn user::Ctrl>) -> Result<&mut Box<dyn session::Ctrl>, Box<dyn Error>> {
         let provider = session::get_instance();
         provider.new_session(user)
@@ -71,7 +63,7 @@ impl<'a> TxLogin<'a> {
     pub fn execute(&self) -> Result<LoginResponse, Box<dyn Error>> {
         println!("Got Login request from user {} ", self.ident);
         let user = self.find_user_by_identity()?;
-        let client_id = user.get_client_id();
+        //let client_id = user.get_client_id();
         let _app = app::find_by_label(self.app, false)?;
 
         
@@ -84,9 +76,7 @@ impl<'a> TxLogin<'a> {
         }
         
         println!("Session for user {} got cookie {}", session.get_email(), session.get_cookie());
-        let (token, _) = self.build_signed_token(client_id)?;
-        let token_str = token.to_string();
-        session.set_token(token)?;
+        let token_str = session.get_token()?;
         self.session_response(&session, &token_str)
     }
 }
