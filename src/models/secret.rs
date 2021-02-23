@@ -1,29 +1,20 @@
+use openssl::rsa::{Rsa, Padding};
+use openssl::pkey::Public;
 use std::error::Error;
 use diesel::NotFound;
 use std::time::SystemTime;
-use openssl::base64;
-use openssl::sign::{Signer, Verifier};
-use openssl::ec::{EcKey,EcGroup, EcPoint};
-use openssl::nid::Nid;
-use openssl::symm::Cipher;
+use openssl::sign::Verifier;
+use openssl::encrypt::Encrypter;
 use openssl::pkey::PKey;
-use openssl::hash::MessageDigest;
-
 use crate::schema::secrets;
 use crate::postgres::*;
 use crate::diesel::prelude::*;
 use crate::regex::*;
 
-static DEFAULT_NID: Nid = Nid::X9_62_PRIME256V1;
-
-const ERR_NAME_FORMAT: &str = "The secret's name mismatches the expected format";
-const ERR_SIGN_DATA: &str = "The secret is not valid for signing any data";
-const ERR_VERIFY: &str = "Verification has failed";
-
 pub trait Ctrl {
     fn get_client_id(&self) -> i32;
-    fn sign(&self, pwd: &str, data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>>;
-    fn verify(&self, data: &[u8], signature: &[u8], pwd: &str) -> Result<(), Box<dyn Error>>;
+    fn get_encrypter(&self) -> Result<Encrypter, Box<dyn Error>>;
+    fn get_verifier(&self) -> Result<Verifier, Box<dyn Error>>;
 }
 
 pub fn find_all_by_client(target_id: i32) -> Result<Vec<impl Ctrl + super::Gateway>, Box<dyn Error>>  {
@@ -35,7 +26,13 @@ pub fn find_all_by_client(target_id: i32) -> Result<Vec<impl Ctrl + super::Gatew
     };
 
     if results.len() > 0 {
-        Ok(results)
+        let mut wrappers = Vec::with_capacity(results.len());
+        for (i, secret) in results.iter().enumerate() {
+            wrappers[i] = secret.build()?;
+        }
+
+        Ok(wrappers)
+
     } else {
         Err(Box::new(NotFound))
     }
@@ -52,27 +49,10 @@ pub fn find_by_client_and_name(target_id: i32, target_name: &str) -> Result<Box<
     };
 
     if results.len() > 0 {
-        Ok(Box::new(results[0].clone()))
+        let wrapper = results[0].build()?;
+        Ok(Box::new(wrapper))
     } else {
         Err(Box::new(NotFound))
-    }
-}
-
-custom_derive! {
-    #[derive(EnumFromStr)]
-    #[derive(Eq, PartialEq, Copy, Clone)]
-    #[derive(Debug)]
-    enum Format {
-        PEM,
-        PUB,
-    }
-}
-
-impl Format {
-    pub fn derive(name: &str) -> Result<Format, Box<dyn Error>> {
-        let upper = name.to_uppercase();
-        let form: Format = upper.parse()?;
-        Ok(form)
     }
 }
 
@@ -85,7 +65,6 @@ pub struct Secret {
     pub id: i32,
     pub client_id: i32,
     pub name: String,
-    pub description: String,
     pub document: String,
     pub created_at: SystemTime,
     pub deadline: Option<SystemTime>,
@@ -96,104 +75,72 @@ pub struct Secret {
 struct NewSecret<'a> {
     pub client_id: i32,
     pub name: &'a str,
-    pub description: &'a str,
     pub document: &'a str,
     pub deadline: Option<SystemTime>,
 }
 
 impl Secret {
-    pub fn from_scratch<'a>(client_id: i32, secret_name: &'a str, pwd: &'a str, descr: &'a str) -> Result<Self, Box<dyn Error>> {
-        match_pwd(pwd)?;
+    pub fn new<'a>(client_id: i32, name: &'a str, pem: &[u8]) -> Result<Box<impl Ctrl + super::Gateway>, Box<dyn Error>> {
+        match_name(name)?;
 
-        let group = EcGroup::from_curve_name(DEFAULT_NID)?;
-        let key = EcKey::generate(&group)?;
-        let pem = key.private_key_to_pem_passphrase(Cipher::aes_128_cbc(), pwd.as_bytes())?;
-
+        // make sure the data is a public key
+        let public = Rsa::public_key_from_pem(pem)?;
+        let public = public.public_key_to_pem()?;
+        let public = String::from_utf8(public)?;
+        
         let secret = Secret {
             id: 0,
             client_id: client_id,
-            name: secret_name.to_string(),
-            description: descr.to_string(),
-            document: base64::encode_block(&pem),
+            name: name.to_string(),
+            document: public,
             created_at: SystemTime::now(),
             deadline: None,
         };
-
-        Ok(secret)
+    
+        let wrapper = secret.build()?;
+        Ok(Box::new(wrapper))
     }
 
-    fn as_format(&self) -> Result<Format, Box<dyn Error>> {
-        if let Some(pos) = self.name.rfind('.') {
-            let substr = &self.name[pos..];
-            if substr.len() > 1 {
-                return Format::derive(&substr[1..])
-            }
-        }
-        
-        Err(ERR_NAME_FORMAT.into())
+    fn build(&self) -> Result<Wrapper, Box<dyn Error>> {
+        let public = Rsa::public_key_from_pem(self.document.as_bytes())?;
+        let public = PKey::from_rsa(public)?;
+
+        Ok(Wrapper{
+            secret: self.clone(),
+            pkey: public,
+        })
     }
 }
 
-impl Ctrl for Secret {
+pub struct Wrapper {
+    secret: Secret,
+    pkey: PKey<Public>,
+}
+
+impl Ctrl for Wrapper {
     fn get_client_id(&self) -> i32 {
-        self.client_id
+        self.secret.client_id
     }
 
-    fn sign(&self, pwd: &str, data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
-        if let Format::PUB = self.as_format()? {
-            return Err(ERR_SIGN_DATA.into());
-        }
-
-        let doc = &base64::decode_block(&self.document)?;
-        let key = EcKey::private_key_from_pem_passphrase(doc, pwd.as_bytes())?;
-        let keypair = PKey::from_ec_key(key)?;
-        let mut signer = Signer::new(MessageDigest::sha256(), &keypair)?;
-        signer.update(data)?;
-        
-        let signature = signer.sign_to_vec()?;
-        Ok(signature)
+    fn get_encrypter(&self) -> Result<Encrypter, Box<dyn Error>> {
+        let mut encrypter = Encrypter::new(&self.pkey)?;
+        encrypter.set_rsa_padding(Padding::PKCS1)?;
+        Ok(encrypter)
     }
 
-    fn verify(&self, signature: &[u8], data: &[u8], pwd: &str) -> Result<(), Box<dyn Error>> {
-        match self.as_format()? {
-            Format::PEM => {
-                let doc = &base64::decode_block(&self.document)?;
-                let key = EcKey::private_key_from_pem_passphrase(doc, pwd.as_bytes())?;
-                let keypair = PKey::from_ec_key(key)?;
-                let mut verifier = Verifier::new(MessageDigest::sha256(), &keypair)?;
-                if !verifier.verify_oneshot(&signature, data)? {
-                    return Err(ERR_VERIFY.into());
-                }
-
-                Ok(())
-            },
-
-            Format::PUB => {
-                let mut ctx = openssl::bn::BigNumContext::new()?;
-                let doc = &base64::decode_block(&self.document)?;
-                let group = EcGroup::from_curve_name(DEFAULT_NID)?;
-                let point = EcPoint::from_bytes(&group, doc, &mut ctx)?;
-                let key = EcKey::from_public_key(&group, &point)?;
-                let keypair = PKey::from_ec_key(key)?;
-                let mut verifier = Verifier::new(MessageDigest::sha256(), &keypair)?;
-                if !verifier.verify_oneshot(&signature, data)? {
-                    return Err(ERR_VERIFY.into());
-                }
-
-                Ok(())
-            }
-        }
+    fn get_verifier(&self) -> Result<Verifier, Box<dyn Error>> {
+        let ver = Verifier::new_without_digest(&self.pkey)?;
+        Ok(ver)
     }
 }
 
-impl super::Gateway for Secret {
+impl super::Gateway for Wrapper {
     fn insert(&mut self) -> Result<(), Box<dyn Error>> {
         let new_secret = NewSecret {
-            client_id: self.client_id,
-            name: &self.name,
-            description: &self.description,
-            document: &self.document,
-            deadline: self.deadline,
+            client_id: self.secret.client_id,
+            name: &self.secret.name,
+            document: &self.secret.document,
+            deadline: self.secret.deadline,
         };
 
         let result = { // block is required because of connection release
@@ -203,17 +150,18 @@ impl super::Gateway for Secret {
             .get_result::<Secret>(&connection)?
         };
 
-        self.id = result.id;
-        self.created_at = result.created_at;
+        self.secret.id = result.id;
+        self.secret.created_at = result.created_at;
         Ok(())
     }
     
     fn update(&mut self) -> Result<(), Box<dyn Error>> {
-        let connection = open_stream().get()?;
-        diesel::update(&*self)
-        .set((secrets::description.eq(&self.description),
-              secrets::deadline.eq(self.deadline)))
-        .execute(&connection)?;
+        { // block is required because of connection release
+            let connection = open_stream().get()?;
+            diesel::update(&self.secret)
+            .set(secrets::deadline.eq(self.secret.deadline))
+            .execute(&connection)?;
+        }
 
         Ok(())
     }
@@ -225,7 +173,7 @@ impl super::Gateway for Secret {
             let connection = open_stream().get()?;
             diesel::delete(
                 secrets.filter(
-                    id.eq(self.id)
+                    id.eq(self.secret.id)
                 )
             ).execute(&connection)?;
         }

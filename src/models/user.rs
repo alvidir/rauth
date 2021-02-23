@@ -176,11 +176,13 @@ impl super::Gateway for Wrapper {
     }
     
     fn update(&mut self) -> Result<(), Box<dyn Error>> {
-        let connection = open_stream().get()?;
-        diesel::update(&self.user)
-        .set((users::email.eq(&self.user.email),
-              users::pwd.eq(&self.user.pwd)))
-        .execute(&connection)?;
+        { // block is required because of connection release
+            let connection = open_stream().get()?;
+            diesel::update(&self.user)
+            .set((users::email.eq(&self.user.email),
+                  users::pwd.eq(&self.user.pwd)))
+            .execute(&connection)?;
+        }
 
         Ok(())
     }

@@ -192,7 +192,7 @@ struct Session {
     pub timeout: Duration,
     pub status: Status,
     user: Box<dyn user::Ctrl>,
-    tokens: HashSet<Token>,
+    tokens: HashMap<Token, i32>,
 }
 
 impl Session {
@@ -204,7 +204,7 @@ impl Session {
             timeout: timeout,
             status: Status::New,
             user: user,
-            tokens: HashSet::new(),
+            tokens: HashMap::new(),
         }
     }
 }
@@ -245,7 +245,7 @@ impl Ctrl for Session {
     fn get_token(&mut self) -> Result<String, Box<dyn Error>> {
         let token = Token::new(DUST_LEN);
         let dir = format!("{}{}", self.cookie, token);
-        if self.tokens.insert(token) {
+        if let None = self.tokens.insert(token, 0) {
             Ok(dir)
         } else {
             Err(ERR_TOKEN_EXISTS.into())

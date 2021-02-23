@@ -169,14 +169,16 @@ impl super::Gateway for Wrapper {
     
     fn update(&mut self) -> Result<(), Box<dyn Error>> {
         self.client.updated_at = SystemTime::now();
-
-        let connection = open_stream().get()?;
-        diesel::update(&self.client)
-        .set((clients::name.eq(&self.client.name),
-              clients::kind_id.eq(self.client.kind_id),
-              clients::status_id.eq(self.client.status_id),
-              clients::updated_at.eq(self.client.updated_at)))
-        .execute(&connection)?;
+        
+        { // block is required because of connection release
+            let connection = open_stream().get()?;
+            diesel::update(&self.client)
+            .set((clients::name.eq(&self.client.name),
+                  clients::kind_id.eq(self.client.kind_id),
+                  clients::status_id.eq(self.client.status_id),
+                  clients::updated_at.eq(self.client.updated_at)))
+            .execute(&connection)?;
+        }
 
         Ok(())
     }
@@ -184,12 +186,14 @@ impl super::Gateway for Wrapper {
     fn delete(&self) -> Result<(), Box<dyn Error>> {
         use crate::schema::clients::dsl::*;
 
-        let connection = open_stream().get()?;
-        diesel::delete(
-            clients.filter(
-                id.eq(self.get_id())
-            )
-        ).execute(&connection)?;
+        { // block is required because of connection release
+            let connection = open_stream().get()?;
+            diesel::delete(
+                clients.filter(
+                    id.eq(self.get_id())
+                )
+            ).execute(&connection)?;
+        }
 
         Ok(())
     }

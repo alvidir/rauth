@@ -40,9 +40,11 @@ pub trait Ctrl {
 pub fn find_by_label<'a>(target: &'a str) -> Result<Box<impl Ctrl + super::Gateway>, Box<dyn Error>>  {
     use crate::schema::apps::dsl::*;
 
-    let connection = open_stream().get()?;
-    let results = apps.filter(label.eq(target))
-        .load::<App>(&connection)?;
+    let results = { // block is required because of connection release
+        let connection = open_stream().get()?;
+        apps.filter(label.eq(target))
+            .load::<App>(&connection)?
+    };
 
     if results.len() > 0 {
         let client = client::find_by_id(results[0].client_id)?;
@@ -196,11 +198,13 @@ impl super::Gateway for Wrapper {
     }
     
     fn update(&mut self) -> Result<(), Box<dyn Error>> {
-        let connection = open_stream().get()?;
-        diesel::update(&self.app)
-        .set((apps::url.eq(&self.app.url),
-              apps::description.eq(&self.app.description)))
-        .execute(&connection)?;
+        { // block is required because of connection release
+            let connection = open_stream().get()?;
+            diesel::update(&self.app)
+            .set((apps::url.eq(&self.app.url),
+                  apps::description.eq(&self.app.description)))
+            .execute(&connection)?;
+        }
 
         Ok(())
     }

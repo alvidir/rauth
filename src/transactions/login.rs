@@ -63,8 +63,8 @@ impl<'a> TxLogin<'a> {
     pub fn execute(&self) -> Result<LoginResponse, Box<dyn Error>> {
         println!("Got Login request from user {} ", self.ident);
         let user = self.find_user_by_identity()?;
-        //let client_id = user.get_client_id();
-        let _app = app::find_by_label(self.app)?;
+        let client_id = user.get_client_id();
+        let app = app::find_by_label(self.app)?;
 
         
         let session: &mut Box<dyn session::Ctrl>;

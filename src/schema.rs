@@ -31,7 +31,6 @@ table! {
         id -> Int4,
         client_id -> Int4,
         name -> Varchar,
-        description -> Varchar,
         document -> Text,
         created_at -> Timestamp,
         deadline -> Nullable<Timestamp>,
