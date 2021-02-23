@@ -12,8 +12,10 @@ services:
             - dbdata:/data/postgres
         networks: 
             - database
-        env_file:
-            - .env
+        environment:
+            POSTGRES_DB: "tp-auth"
+            POSTGRES_USER: "admin"
+            POSTGRES_PASSWORD: "adminpwd"
     
     pgadmin:
         container_name: pgadmin
@@ -22,8 +24,9 @@ services:
         depends_on:
             - postgres
         environment:
-            PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
-            PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+            PGADMIN_DEFAULT_EMAIL: "admin@alvidir.com"
+            PGADMIN_DEFAULT_PASSWORD: "adminpwd"
+            PGADMIN_PORT: 9090
         volumes:
             - pgdata:/root/.pgadmin
         ports:
