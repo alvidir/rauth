@@ -3,10 +3,45 @@ option go_package = "github.com/alvidir/tp-auth/proto/user";
 
 package user;
 import "google/protobuf/empty.proto";
-import public "login.proto";
-import public "logout.proto";
-import public "signup.proto";
-import public "delete.proto";
+
+// SignupRequest description
+message SignupRequest {
+  string name = 1;  // a unique username
+  string email = 2; // the user email
+  string pwd = 3;   // the user password
+}
+
+// LoginRequest description
+message LoginRequest {
+  string token = 1;   // present cookie, if any
+  string ident = 2;   // the user name or email
+  string pwd = 3;     // the password or the signed public-key
+  string app = 4;     // application label
+}
+
+enum Status {
+    ALIVE = 0;
+    DEAD = 1;
+    NEW = 2;
+}
+
+// LoginResponse description
+message LoginResponse {
+  string token = 1;    // Session cookie
+  uint64 deadline = 2; // Cookie deadline
+  Status status = 3;   // Session status for the given cookie
+}
+
+// LogoutRequest description
+message LogoutRequest {
+  string cookie = 1; // required: identifies the user's session
+}
+
+// DeleteRequest description
+message DeleteRequest {
+  string ident = 1;   // the user name or email
+  string pwd = 2;     // the password or the signed public-key
+}
 
 service Session {
   rpc Login(user.LoginRequest) returns (user.LoginResponse);

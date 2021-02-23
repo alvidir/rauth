@@ -2,7 +2,7 @@ pub mod login;
 pub mod logout;
 pub mod signup;
 pub mod delete;
+pub mod register;
 
-pub mod register_app;
-
-pub const DEFAULT_PKEY_NAME: &str = "default_ed.pem";
+pub const DEFAULT_PUBL_ED_NAME: &str = "default_ed";
+pub const DEFAULT_PUBL_RSA_NAME: &str = "default_rsa";

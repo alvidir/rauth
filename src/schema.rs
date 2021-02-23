@@ -1,19 +1,10 @@
 table! {
-    admins (id) {
-        id -> Int4,
-        usr_id -> Int4,
-        app_id -> Int4,
-        role_id -> Int4,
-    }
-}
-
-table! {
     apps (id) {
         id -> Int4,
         client_id -> Int4,
         label -> Varchar,
         url -> Varchar,
-        description -> Nullable<Varchar>,
+        description -> Varchar,
     }
 }
 
@@ -36,18 +27,11 @@ table! {
 }
 
 table! {
-    roles (id) {
-        id -> Int4,
-        name -> Varchar,
-    }
-}
-
-table! {
     secrets (id) {
         id -> Int4,
         client_id -> Int4,
         name -> Varchar,
-        description -> Nullable<Varchar>,
+        description -> Varchar,
         document -> Text,
         created_at -> Timestamp,
         deadline -> Nullable<Timestamp>,
@@ -66,12 +50,10 @@ table! {
         id -> Int4,
         client_id -> Int4,
         email -> Varchar,
+        pwd -> Varchar,
     }
 }
 
-joinable!(admins -> apps (app_id));
-joinable!(admins -> roles (role_id));
-joinable!(admins -> users (usr_id));
 joinable!(apps -> clients (client_id));
 joinable!(clients -> kinds (kind_id));
 joinable!(clients -> statuses (status_id));
@@ -79,11 +61,9 @@ joinable!(secrets -> clients (client_id));
 joinable!(users -> clients (client_id));
 
 allow_tables_to_appear_in_same_query!(
-    admins,
     apps,
     clients,
     kinds,
-    roles,
     secrets,
     statuses,
     users,

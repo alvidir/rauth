@@ -16,35 +16,39 @@ impl<'a> TxDelete<'a> {
         }
     }
 
+    fn check_pwd(&self, user: &Box<&dyn user::Ctrl>) -> Result<(), Box<dyn Error>> {
+        if !user.match_pwd(self.pwd) {
+            return Err("Password does not match".into());
+        }
+
+        Ok(())
+    }
+
     pub fn execute(&self) -> Result<(), Box<dyn Error>> {
-        println!("Got a DeleteAccount request from user {} ", self.ident);
+        println!("Got a Delete request from user {} ", self.ident);
 
         let email: String; // required by the session locator
         let client_id: i32; // required by the secret locator
-        let gw: Box<dyn Gateway>; // required in order to delete the user from de DDBB
+        let user_gw: Box<dyn Gateway>; // required in order to delete the user from de DDBB
 
-        if let Ok(stream) = user::find_by_name(self.ident, false) {
-            let ctrl: Box<&dyn user::Ctrl> = Box::new(stream.as_ref());
+        if let Ok(user) = user::find_by_name(self.ident) {
+            let ctrl: Box<&dyn user::Ctrl> = Box::new(user.as_ref());
+            self.check_pwd(&ctrl)?;
+
             email = ctrl.get_email().to_string();
             client_id = ctrl.get_client_id();
-            gw = stream;
-        } else if let Ok(stream) = user::find_by_email(self.ident, false) {
+            user_gw = user;
+        } else if let Ok(user) = user::find_by_email(self.ident) {
             email = self.ident.to_string();
-            let ctrl: Box<&dyn user::Ctrl> = Box::new(stream.as_ref());
+
+            let ctrl: Box<&dyn user::Ctrl> = Box::new(user.as_ref());
+            self.check_pwd(&ctrl)?;
+            
             client_id = ctrl.get_client_id();
-            gw = stream;
+            user_gw = user;
         } else {
             return Err(ERR_IDENT_NOT_MATCH.into())
         }
-
-        let secret_stream = secret::find_by_client_and_name(client_id, super::DEFAULT_PKEY_NAME)?;
-        let secret_ctrl: Box<&dyn secret::Ctrl> = Box::new(secret_stream.as_ref());
-        secret_ctrl.sign(self.pwd, b"")?; // by the moment, is not required to sign anything, just verfies the password
-
-        // From here, the deletion is aproved
-        // Deleting the secret in order to avoid sql-exceptions when deleting the client
-        let secret_gw: Box<&dyn Gateway> = Box::new(secret_stream.as_ref());
-        secret_gw.delete()?;
         
         if let Ok(sess) = session::get_instance().get_session_by_email(&email) {
             // user has a session
@@ -52,13 +56,12 @@ impl<'a> TxDelete<'a> {
         }
         
         if let Ok(secrets) = secret::find_all_by_client(client_id) {
-            // user has more secrets
+            // user has secrets
             for secret in secrets.iter() {
-                let gw: Box<&dyn Gateway> = Box::new(secret);
-                gw.delete()?;
+                secret.delete()?;
             }
         }
 
-        gw.delete()
+        user_gw.delete()
     }
 }

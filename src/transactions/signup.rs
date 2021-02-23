@@ -1,6 +1,7 @@
 use std::error::Error;
 use crate::models::user;
 use crate::models::secret;
+use crate::models::Gateway;
 
 pub struct TxSignup<'a> {
     name: &'a str,
@@ -21,9 +22,9 @@ impl<'a> TxSignup<'a> {
 
     pub fn execute(&self) -> Result<(), Box<dyn Error>> {
         println!("Got Signup request from user {} ", self.email);
-        let user: Box<dyn user::Ctrl> = user::User::new(self.name, self.email)?;
+        user::User::new(self.name, self.email, self.pwd)?.insert()?;
         println!("User {} successfully registered with email {}", self.name, self.email);
-        secret::Secret::new(user.get_client_id(), super::DEFAULT_PKEY_NAME, self.pwd)?;
+        
         Ok(())
     }
 }

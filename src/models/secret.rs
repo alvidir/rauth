@@ -77,6 +77,7 @@ impl Format {
 }
 
 #[derive(Insertable)]
+#[derive(Identifiable)]
 #[derive(Queryable)]
 #[derive(Clone)]
 #[table_name="secrets"]
@@ -84,7 +85,7 @@ pub struct Secret {
     pub id: i32,
     pub client_id: i32,
     pub name: String,
-    pub description: Option<String>,
+    pub description: String,
     pub document: String,
     pub created_at: SystemTime,
     pub deadline: Option<SystemTime>,
@@ -95,37 +96,30 @@ pub struct Secret {
 struct NewSecret<'a> {
     pub client_id: i32,
     pub name: &'a str,
-    pub description: Option<&'a str>,
+    pub description: &'a str,
     pub document: &'a str,
-    pub created_at: SystemTime,
     pub deadline: Option<SystemTime>,
 }
 
 impl Secret {
-    pub fn new<'a>(client_id: i32, secret_name: &'a str, pwd: &'a str) -> Result<Self, Box<dyn Error>> {
+    pub fn from_scratch<'a>(client_id: i32, secret_name: &'a str, pwd: &'a str, descr: &'a str) -> Result<Self, Box<dyn Error>> {
         match_pwd(pwd)?;
 
         let group = EcGroup::from_curve_name(DEFAULT_NID)?;
         let key = EcKey::generate(&group)?;
         let pem = key.private_key_to_pem_passphrase(Cipher::aes_128_cbc(), pwd.as_bytes())?;
 
-        let new_secret = NewSecret {
+        let secret = Secret {
+            id: 0,
             client_id: client_id,
-            name: secret_name,
-            description: None,
-            document: &base64::encode_block(&pem),
+            name: secret_name.to_string(),
+            description: descr.to_string(),
+            document: base64::encode_block(&pem),
             created_at: SystemTime::now(),
             deadline: None,
         };
 
-        let result = { // block is required because of connection release
-            let connection = open_stream().get()?;
-            diesel::insert_into(secrets::table)
-            .values(&new_secret)
-            .get_result::<Secret>(&connection)?
-        };
-
-        Ok(result)
+        Ok(secret)
     }
 
     fn as_format(&self) -> Result<Format, Box<dyn Error>> {
@@ -193,6 +187,37 @@ impl Ctrl for Secret {
 }
 
 impl super::Gateway for Secret {
+    fn insert(&mut self) -> Result<(), Box<dyn Error>> {
+        let new_secret = NewSecret {
+            client_id: self.client_id,
+            name: &self.name,
+            description: &self.description,
+            document: &self.document,
+            deadline: self.deadline,
+        };
+
+        let result = { // block is required because of connection release
+            let connection = open_stream().get()?;
+            diesel::insert_into(secrets::table)
+            .values(&new_secret)
+            .get_result::<Secret>(&connection)?
+        };
+
+        self.id = result.id;
+        self.created_at = result.created_at;
+        Ok(())
+    }
+    
+    fn update(&mut self) -> Result<(), Box<dyn Error>> {
+        let connection = open_stream().get()?;
+        diesel::update(&*self)
+        .set((secrets::description.eq(&self.description),
+              secrets::deadline.eq(self.deadline)))
+        .execute(&connection)?;
+
+        Ok(())
+    }
+    
     fn delete(&self) -> Result<(), Box<dyn Error>> {
         use crate::schema::secrets::dsl::*;
 

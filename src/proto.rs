@@ -4,11 +4,6 @@ pub mod user_proto {
 }
 
 // Import the generated rust code into module
-pub mod dashboard_proto {
-   tonic::include_proto!("dashboard");
-}
-
-// Import the generated rust code into module
 pub mod app_proto {
    tonic::include_proto!("app");
 }
