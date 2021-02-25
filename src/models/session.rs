@@ -1,11 +1,13 @@
+use bson::Document;
 use std::error::Error;
 use std::time::{Duration, SystemTime};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use crate::token::Token;
 use crate::proto::Status;
-use super::user;
+use super::{user, app};
 
+const DOC_APP_ID_KEY: &str = "app_id";
 const TOKEN_TIMEOUT: u64 = 3600; // 60s * 60min
 const DUST_LEN: usize = 8;
 const COOKIE_LEN: usize = 32;
@@ -18,6 +20,7 @@ const ERR_BROKEN_COOKIE: &str = "No session has been found for cookie";
 const ERR_NO_LOGED_EMAIL: &str = "No session has been logged with email";
 const ERR_SESSION_BUILD: &str = "Something has failed while building session for";
 const ERR_TOKEN_EXISTS: &str = "Provided token already exists";
+const ERR_APP_HAS_DIR: &str = "Application already has a directory for this user";
 
 static mut INSTANCE: Option<Box<dyn Factory>> = None;
 
@@ -26,17 +29,16 @@ pub trait Ctrl {
     fn get_cookie(&self) -> &str;
     fn get_created_at(&self) -> SystemTime;
     fn get_touch_at(&self) -> SystemTime;
-    fn get_deadline(&self) -> SystemTime;
     fn get_status(&self) -> Status;
     fn get_email(&self) -> &str;
-    fn get_token(&mut self) -> Result<String, Box<dyn Error>>;
     fn get_user_id(&self) -> i32;
+    fn set_document(&mut self, doc: Document) -> Result<String, Box<dyn Error>>;
 }
 
 pub trait Factory {
     fn new_session(&mut self, client: Box<dyn user::Ctrl>) -> Result<&mut Box<dyn Ctrl>, Box<dyn Error>>;
-    fn get_session_by_cookie(&mut self, cookie: &str) -> Result<&mut Box<dyn Ctrl>, Box<dyn Error>>;
-    fn get_session_by_email(&mut self, addr: &str) -> Result<&mut Box<dyn Ctrl>, Box<dyn Error>>;
+    fn get_by_cookie(&mut self, cookie: &str) -> Result<&mut Box<dyn Ctrl>, Box<dyn Error>>;
+    fn get_by_email(&mut self, addr: &str) -> Result<&mut Box<dyn Ctrl>, Box<dyn Error>>;
     fn destroy_session(&mut self, cookie: &str) -> Result<(), Box<dyn Error>>;
 }
 
@@ -138,12 +140,11 @@ impl Provider {
 
 impl Factory for Provider {
     fn new_session(&mut self, user: Box<dyn user::Ctrl>) -> Result<&mut Box<dyn Ctrl>, Box<dyn Error>> {
-        let timeout = self.timeout;
         let email = user.get_email().to_string();
 
         if let None = self.byemail.get(&email) {
             let token = self.cookie_gen();
-            let sess = Session::new(user, token.to_string(), timeout);
+            let sess = Session::new(user, token.to_string());
             
             self.byemail.insert(email.to_string(), token.to_string());
             self.allsess.insert(token.clone(), Box::new(sess));
@@ -162,13 +163,13 @@ impl Factory for Provider {
         }
     }
 
-    fn get_session_by_cookie(&mut self, cookie: &str) -> Result<&mut Box<dyn Ctrl>, Box<dyn Error>> {
+    fn get_by_cookie(&mut self, cookie: &str) -> Result<&mut Box<dyn Ctrl>, Box<dyn Error>> {
         let tid = Provider::split_token(cookie)?;
         let token = Token::from_string(tid);
         self.get_session_by_token(&token)
     }
 
-    fn get_session_by_email(&mut self, email: &str) -> Result<&mut Box<dyn Ctrl>, Box<dyn Error>> {
+    fn get_by_email(&mut self, email: &str) -> Result<&mut Box<dyn Ctrl>, Box<dyn Error>> {
         if let Some(tid) = self.byemail.get(email) {
             let token = Token::from_string(tid);
             self.get_session_by_token(&token)
@@ -186,25 +187,31 @@ impl Factory for Provider {
 }
 
 struct Session {
-    pub cookie: String,
-    pub created_at: SystemTime,
-    pub touch_at: SystemTime,
-    pub timeout: Duration,
-    pub status: Status,
+    cookie: String,
+    created_at: SystemTime,
+    touch_at: SystemTime,
+    status: Status,
     user: Box<dyn user::Ctrl>,
-    tokens: HashMap<Token, i32>,
+    tokens: HashMap<Token, Document>,
 }
 
 impl Session {
-    pub fn new(user: Box<dyn user::Ctrl>, cookie: String, timeout: Duration) -> Self {
+    pub fn new(user: Box<dyn user::Ctrl>, cookie: String) -> impl Ctrl {
         Session{
             cookie: cookie,
             created_at: SystemTime::now(),
             touch_at: SystemTime::now(),
-            timeout: timeout,
             status: Status::New,
             user: user,
             tokens: HashMap::new(),
+        }
+    }
+
+    fn match_app_id(doc: &Document, app_id: i32) -> bool {
+        if let Ok(id) = doc.get_i32(DOC_APP_ID_KEY) {
+            id == app_id
+        } else {
+            false
         }
     }
 }
@@ -234,19 +241,21 @@ impl Ctrl for Session {
         self.touch_at
     }
 
-    fn get_deadline(&self) -> SystemTime {
-        self.created_at + self.timeout
-    }
-
     fn get_status(&self) -> Status {
         self.status
     }
 
-    fn get_token(&mut self) -> Result<String, Box<dyn Error>> {
+    fn set_document(&mut self, doc: Document) -> Result<String, Box<dyn Error>> {
+        let app_id = doc.get_i32(DOC_APP_ID_KEY)?;
+
+        if let Some(_) = self.tokens.iter().find(|(_, d)| Session::match_app_id(d, app_id)) {
+            return Err(ERR_APP_HAS_DIR.into());
+        }
+
         let token = Token::new(DUST_LEN);
-        let dir = format!("{}{}", self.cookie, token);
-        if let None = self.tokens.insert(token, 0) {
-            Ok(dir)
+        let dir_name = format!("{}{}", self.cookie, token);
+        if let None = self.tokens.insert(token, doc) {
+            Ok(dir_name)
         } else {
             Err(ERR_TOKEN_EXISTS.into())
         }

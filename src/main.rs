@@ -6,6 +6,8 @@ extern crate custom_derive;
 extern crate enum_derive;
 #[macro_use]
 extern crate lazy_static;
+#[macro_use(bson, doc)]
+extern crate bson;
 
 use dotenv;
 use std::env;
@@ -17,6 +19,7 @@ mod transactions;
 mod schema;
 mod regex;
 mod postgres;
+mod mongo;
 mod proto;
 mod time;
 mod token;

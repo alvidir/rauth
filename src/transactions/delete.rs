@@ -50,7 +50,7 @@ impl<'a> TxDelete<'a> {
             return Err(ERR_IDENT_NOT_MATCH.into())
         }
         
-        if let Ok(sess) = session::get_instance().get_session_by_email(&email) {
+        if let Ok(sess) = session::get_instance().get_by_email(&email) {
             // user has a session
             session::get_instance().destroy_session(sess.get_cookie())?;
         }

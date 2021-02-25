@@ -31,12 +31,13 @@ custom_derive = "0.1.7"
 ed25519-dalek = "1.0.1"
 ecies-ed25519 = "0.5.0"
 pwbox = "0.4.0"
-serde_json = "1.0.59"
 rand_core = { version = "0.6.1", features = ["getrandom"] }
 base64 = "0.13.0"
 openssl = "0.10.32"
 lazy_static = "1.4.0"
-#serde = "1.0.118"
+serde = "1.0.123"
+bson = "1.2.0"
+mongodb = "1.2.0"
 
 [build-dependencies]
 tonic-build = "0.3.0"

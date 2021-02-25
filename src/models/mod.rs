@@ -4,6 +4,7 @@ pub mod app;
 pub mod session;
 pub mod secret;
 pub mod enums;
+pub mod namesp;
 
 mod client;
 
