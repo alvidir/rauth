@@ -12,11 +12,9 @@ services:
             - dbdata:/data/postgres
         networks: 
             - database
-        environment:
-            POSTGRES_DB: "tp-auth"
-            POSTGRES_USER: "admin"
-            POSTGRES_PASSWORD: "adminpwd"
-    
+        env_file:
+            - ".env"
+           
     pgadmin:
         container_name: pgadmin
         image: dpage/pgadmin4:4.30
