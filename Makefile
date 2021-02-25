@@ -14,7 +14,7 @@ migration:
 	diesel migration run
 
 deploy:
-	podman-compose -f docker-compose.yaml up --remove-orphans
+	podman-compose -f docker-compose.yaml up --remove-orphans -d
 
 undeploy:
 	podman-compose -f docker-compose.yaml down

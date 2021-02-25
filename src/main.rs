@@ -35,7 +35,8 @@ static INIT: Once = Once::new();
 pub fn initialize() {
     INIT.call_once(|| {
         dotenv::dotenv().ok(); // seting up environment variables
-        postgres::can_connect(); // checking connectivity
+        postgres::can_connect(); // checking postgres connectivity
+        mongo::can_connect(); // checking mongodb connectivity
     });
 }
 

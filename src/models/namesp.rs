@@ -1,4 +1,4 @@
-use bson::Document;
+use mongodb::bson::Document;
 use std::collections::HashMap;
 use std::time::Duration;
 use std::time::SystemTime;
