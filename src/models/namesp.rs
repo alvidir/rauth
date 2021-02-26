@@ -1,12 +1,10 @@
 use std::collections::HashMap;
-use std::time::Duration;
-use std::time::SystemTime;
 use std::error::Error;
 use super::{app, secret, dir, session};
 use super::secret::Ctrl as SecretCtrl;
 use super::dir::Ctrl as DirCtrl;
 use crate::token::Token;
-use serde::{Deserialize, Serialize};
+use std::collections::hash_map::Iter;
 use crate::default;
 
 const PIN_LEN: usize = 8;
@@ -22,13 +20,15 @@ static mut INSTANCE: Option<Box<dyn Factory>> = None;
 pub trait Ctrl {
     fn new_directory(&mut self, sess: &mut Box<dyn session::Ctrl>) -> Result<Token, Box<dyn Error>>;
     fn get_directory(&self, token: Token) -> Result<Box<&dyn dir::Ctrl>, Box<dyn Error>>;
+    fn get_all_tokens(&self) -> Vec<Token>;
     fn delete_directory(&mut self, token: &Token) -> Result<Box<dyn super::Gateway>, Box<dyn Error>>;
+    fn get_secret(&self) -> &Box<dyn secret::Ctrl>;
 }
 
 pub trait Factory {
     fn new_namespace(&mut self, client: Box<dyn app::Ctrl>) -> Result<&mut Box<dyn Ctrl>, Box<dyn Error>>;
     fn get_by_label(&mut self, label: &str) -> Option<&mut Box<dyn Ctrl>>;
-    fn destroy_dir(&mut self, label: &str) -> Result<(), Box<dyn Error>>;
+    fn destroy_namespace(&mut self, label: &str) -> Result<(), Box<dyn Error>>;
 }
 
 pub fn get_instance<'a>() -> &'a mut Box<dyn Factory> {
@@ -94,7 +94,7 @@ impl Factory for Provider {
         self.allnp.get_mut(label)
     }
 
-    fn destroy_dir(&mut self, label: &str) -> Result<(), Box<dyn Error>> {
+    fn destroy_namespace(&mut self, label: &str) -> Result<(), Box<dyn Error>> {
         if let Some(_) = self.allnp.remove(label) {
             Ok(())
         } else {
@@ -108,7 +108,6 @@ struct Namespace {
     app: Box<dyn app::Ctrl>,
     public: Box<dyn secret::Ctrl>,
     dirs: HashMap<Token, dir::Dir>,
-    pin: Token, // random string (must change for each request)
 }
 
 impl Namespace {
@@ -116,7 +115,6 @@ impl Namespace {
         Namespace{
             app: app,
             public: secret,
-            pin: Token::new(PIN_LEN),
             dirs: HashMap::new(),
         }
     }
@@ -144,6 +142,14 @@ impl Ctrl for Namespace {
         } else {
             Err(ERR_DIR_NOT_EXISTS.into())
         }
+    }
+
+    fn get_all_tokens(&self) -> Vec<Token> {
+        self.dirs.keys().cloned().collect()
+    }
+
+    fn get_secret(&self) -> &Box<dyn secret::Ctrl> {
+        &self.public
     }
 
     fn delete_directory(&mut self, token: &Token) -> Result<Box<dyn super::Gateway>, Box<dyn Error>> {

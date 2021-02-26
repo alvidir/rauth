@@ -20,8 +20,9 @@ message RegisterResponse {
 
 // DeleteRequest description
 message DeleteRequest {
-    string label = 1;   // a unique label for an application
-    bytes firm = 2;    // the signature for this message
+    string label = 1;  // a unique label for an application
+    bytes dust = 2;    // random number (must change for each request)
+    bytes firm = 3;    // the signature for this message must contains the pin as latest item
 }
 
 service Registry {

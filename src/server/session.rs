@@ -56,7 +56,7 @@ impl Session for SessionImplementation {
 
     async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<()>, Status> {
         let msg_ref = request.into_inner();
-        let tx_delete = delete::TxDelete::new(
+        let tx_delete = delete_user::TxDelete::new(
             &msg_ref.ident,
             &msg_ref.pwd,
         );

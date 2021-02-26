@@ -18,7 +18,7 @@ pub trait Gateway {
 
 #[cfg(test)]
 mod tests {
-    use crate::transactions::{signup, delete, login, register};
+    use crate::transactions::{signup, delete_user, login, register};
     use super::{user, client, secret, app};
     use openssl::sign::{Signer, Verifier};
     use openssl::encrypt::{Encrypter, Decrypter};
@@ -93,7 +93,7 @@ mod tests {
         };
         
         // Delete the user
-        let tx_dummy = delete::TxDelete::new(&email, DUMMY_PWD);
+        let tx_dummy = delete_user::TxDelete::new(&email, DUMMY_PWD);
         tx_dummy.execute().unwrap();
         
         // Checking the user data
@@ -119,7 +119,7 @@ mod tests {
         };
         
         // Delete the user
-        let tx_dummy = delete::TxDelete::new(&name, DUMMY_PWD);
+        let tx_dummy = delete_user::TxDelete::new(&name, DUMMY_PWD);
         tx_dummy.execute().unwrap();
         
         // Checking the user data
