@@ -36,6 +36,10 @@ impl Token {
         self.0.clone()
     }
 
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
     pub fn deadline_exceed(&self, timeout: Duration) -> bool {
         self.1 + timeout < SystemTime::now()
     }

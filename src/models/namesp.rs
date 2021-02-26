@@ -1,10 +1,10 @@
-use mongodb::bson::Document;
 use std::collections::HashMap;
 use std::time::Duration;
 use std::time::SystemTime;
 use std::error::Error;
-use super::{app, secret};
+use super::{app, secret, dir, session};
 use super::secret::Ctrl as SecretCtrl;
+use super::dir::Ctrl as DirCtrl;
 use crate::token::Token;
 use serde::{Deserialize, Serialize};
 use crate::transactions::register::DEFAULT_PKEY_NAME;
@@ -13,15 +13,21 @@ const PIN_LEN: usize = 8;
 const ERR_NO_NAMESPACE: &str = "Namespace not found";
 const ERR_NAMESPACE_ALREADY_EXISTS: &str = "The provided application already has an namespace";
 const ERR_NAMESPACE_BUILD: &str = "Something has failed while building namespace";
+const ERR_TOKEN_ALREADY_EXISTS: &str = "The namespace already has a dir for the provided token";
+const ERR_USER_HAS_DIR: &str = "User already has a directory in this namespace";
+const ERR_DIR_NOT_EXISTS: &str = "There is no directory for the provuided token";
 
 static mut INSTANCE: Option<Box<dyn Factory>> = None;
 
 pub trait Ctrl {
+    fn new_directory(&mut self, sess: &mut Box<dyn session::Ctrl>) -> Result<Token, Box<dyn Error>>;
+    fn get_directory(&self, token: Token) -> Result<Box<&dyn dir::Ctrl>, Box<dyn Error>>;
+    fn delete_directory(&mut self, token: &Token) -> Result<Box<dyn super::Gateway>, Box<dyn Error>>;
 }
 
 pub trait Factory {
-    fn new_directory(&mut self, client: Box<dyn app::Ctrl>) -> Result<&mut Box<dyn Ctrl>, Box<dyn Error>>;
-    fn get_by_label(&mut self, label: &str) -> Result<&mut Box<dyn Ctrl>, Box<dyn Error>>;
+    fn new_namespace(&mut self, client: Box<dyn app::Ctrl>) -> Result<&mut Box<dyn Ctrl>, Box<dyn Error>>;
+    fn get_by_label(&mut self, label: &str) -> Option<&mut Box<dyn Ctrl>>;
     fn destroy_dir(&mut self, label: &str) -> Result<(), Box<dyn Error>>;
 }
 
@@ -61,13 +67,13 @@ impl Provider {
 }
 
 impl Factory for Provider {
-    fn new_directory(&mut self, client: Box<dyn app::Ctrl>) -> Result<&mut Box<dyn Ctrl>, Box<dyn Error>> {
-        let label = client.get_label().to_string();
+    fn new_namespace(&mut self, appl: Box<dyn app::Ctrl>) -> Result<&mut Box<dyn Ctrl>, Box<dyn Error>> {
+        let label = appl.get_label().to_string();
 
         if let None = self.allnp.get(&label) {
-            let client_id = client.get_client_id();
+            let client_id = appl.get_client_id();
             let secret = secret::find_by_client_and_name(client_id, DEFAULT_PKEY_NAME)?;
-            let np = Namespace::new(client, secret);
+            let np = Namespace::new(appl, secret);
 
             self.allnp.insert(label.clone(), Box::new(np));
             if let Some(np) = self.allnp.get_mut(&label) {
@@ -84,13 +90,8 @@ impl Factory for Provider {
         }
     }
 
-    fn get_by_label(&mut self, label: &str) -> Result<&mut Box<dyn Ctrl>, Box<dyn Error>> {
-        if let Some(np) = self.allnp.get_mut(label) {
-            Ok(np)
-        } else {
-            let msg = format!("{}", ERR_NO_NAMESPACE);
-            Err(msg.into())
-        }
+    fn get_by_label(&mut self, label: &str) ->  Option<&mut Box<dyn Ctrl>> {
+        self.allnp.get_mut(label)
     }
 
     fn destroy_dir(&mut self, label: &str) -> Result<(), Box<dyn Error>> {
@@ -103,21 +104,14 @@ impl Factory for Provider {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-struct NewDir {
-    user_id: i32,
-    app_id: i32,
-    data: Document,
-}
-
-struct Namespace<'a> {
+struct Namespace {
     app: Box<dyn app::Ctrl>,
     public: Box<dyn secret::Ctrl>,
-    dirs: HashMap<Token, &'a Document>,
+    dirs: HashMap<Token, dir::Dir>,
     pin: Token, // random string (must change for each request)
 }
 
-impl<'a> Namespace<'a> {
+impl Namespace {
     pub fn new(app: Box<dyn app::Ctrl>, secret: Box<dyn secret::Ctrl>) -> Self {
         Namespace{
             app: app,
@@ -128,20 +122,35 @@ impl<'a> Namespace<'a> {
     }
 }
 
-impl<'a> Ctrl for Namespace<'a> {
-    
-}
+impl Ctrl for Namespace {
+    fn new_directory(&mut self, sess: &mut Box<dyn session::Ctrl>) -> Result<Token, Box<dyn Error>> {
+        let token = sess.attach_label(self.app.get_label())?;
+        if let Some(_) = self.dirs.get(&token) {
+            return Err(ERR_TOKEN_ALREADY_EXISTS.into());
+        }
 
-impl <'a> super::Gateway for Document {
-    fn insert(&mut self) -> Result<(), Box<dyn Error>> {
-        Err("".into())
+        if let Some(_) = self.dirs.iter().find(|(_, d)| d.get_user_id() == sess.get_user_id()) {
+            return Err(ERR_USER_HAS_DIR.into());
+        }
+
+        let dir = dir::Dir::new(sess.get_user_id(), self.app.get_id());
+        self.dirs.insert(token.clone(), dir);
+        Ok(token)
     }
 
-    fn update(&mut self) -> Result<(), Box<dyn Error>> {
-        Err("".into())
+    fn get_directory(&self, token: Token) -> Result<Box<&dyn dir::Ctrl>, Box<dyn Error>> {
+        if let Some(dir) = self.dirs.get(&token) {
+            Ok(Box::new(dir))
+        } else {
+            Err(ERR_DIR_NOT_EXISTS.into())
+        }
     }
 
-    fn delete(&self) -> Result<(), Box<dyn Error>> {
-        Err("".into())
+    fn delete_directory(&mut self, token: &Token) -> Result<Box<dyn super::Gateway>, Box<dyn Error>> {
+        if let Some(dir) = self.dirs.remove(&token) {
+            Ok(Box::new(dir))
+        } else {
+            Err(ERR_DIR_NOT_EXISTS.into())
+        }
     }
 }

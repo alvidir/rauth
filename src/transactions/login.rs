@@ -11,6 +11,7 @@ use crate::proto::user_proto;
 use user_proto::LoginResponse;
 
 const ERR_IDENT_NOT_MATCH: &str = "The provided indentity is not of the expected type";
+const ERR_PWD_NOT_MATCH: &str = "The provided password does not match";
 
 pub struct TxLogin<'a> {
     ident: &'a str,
@@ -27,56 +28,83 @@ impl<'a> TxLogin<'a> {
         }
     }
 
-    fn find_user_by_identity(&self) -> Result<Box<dyn user::Ctrl>, Box<dyn Error>> {
-        let ctrl: Box<dyn user::Ctrl>;
+    fn find_sess_by_identity(&self) -> Option<&mut Box<dyn session::Ctrl>> {
         if let Ok(_) = match_name(self.ident) {
-            ctrl = user::find_by_name(self.ident)?;
+            let sess = session::get_instance().get_by_name(self.ident)?;
+            Some(sess)
+        } else if let Ok(_) = match_email(self.ident) {
+            let sess = session::get_instance().get_by_email(self.ident)?;
+            Some(sess)
+        } else {
+            None
+        }
+    }
+
+    fn find_user_by_identity(&self) -> Result<Box<dyn user::Ctrl>, Box<dyn Error>> {
+        if let Ok(_) = match_name(self.ident) {
+            let ctrl = user::find_by_name(self.ident)?;
             return Ok(ctrl);
         } else if let Ok(_) = match_email(self.ident) {
-            ctrl = user::find_by_email(self.ident)?;
+            let ctrl = user::find_by_email(self.ident)?;
             return Ok(ctrl);
         }
         
         Err(ERR_IDENT_NOT_MATCH.into())
     }
 
-    fn build_session(&self, user: Box<dyn user::Ctrl>) -> Result<&mut Box<dyn session::Ctrl>, Box<dyn Error>> {
-        let provider = session::get_instance();
-        provider.new_session(user)
+    fn session_response(&self, session: &Box<dyn session::Ctrl>, token: &str) -> LoginResponse {
+        LoginResponse {
+            token: token.to_string(),
+            status: session.get_status() as i32,
+        }
     }
-
-    //fn session_response(&self, session: &Box<dyn session::Ctrl>, token: &str) -> Result<LoginResponse, Box<dyn Error>> {
-    //    match time::unix_seconds(session.get_deadline()) {
-    //        Ok(deadline) => Ok(
-    //            LoginResponse {
-    //                token: token.to_string(),
-    //                deadline: deadline,
-    //                status: session.get_status() as i32,
-    //            }
-    //        ),
-    //
-    //        Err(err) => Err(err)
-    //    }
-    //}
 
     pub fn execute(&self) -> Result<LoginResponse, Box<dyn Error>> {
         println!("Got Login request from user {} ", self.ident);
-        let user = self.find_user_by_identity()?;
-        let client_id = user.get_client_id();
-        let app = app::find_by_label(self.app)?;
-        let secret = secret::find_by_client_and_name(app.get_client_id(), super::register::DEFAULT_PKEY_NAME)?;
-        
-        let session: &mut Box<dyn session::Ctrl>;
-        let provider = session::get_instance();
-        if let Ok(sess) = provider.get_by_email(&user.get_email()) {
-            session = sess;
-        } else {
-            session = self.build_session(user)?;
+        if let Some(sess) = self.find_sess_by_identity() {
+            // user has session
+            if !sess.match_pwd(self.pwd) {
+                return Err(ERR_PWD_NOT_MATCH.into());
+            }
+
+            // password does match
+            if let Some(token) = sess.get_token(self.app) {
+                // user is currently loged in the application
+                return Ok(self.session_response(sess, token.as_str()));
+            }
+
+            // user is not loged in the application
+            if let Some(np) = namesp::get_instance().get_by_label(self.app) {
+                // application is using a namespace
+                let token = np.new_directory(sess)?;
+                return Ok(self.session_response(sess, token.as_str()));
+            }
+
+            // application has no namespace
+            let app = app::find_by_label(self.app)?;
+            let np = namesp::get_instance().new_namespace(app)?;
+            let token = np.new_directory(sess)?;
+            return Ok(self.session_response(sess, token.as_str()));
         }
-        
-        println!("Session for user {} got cookie {}", session.get_email(), session.get_cookie());
-        //let token_str = session.get_token()?;
-        //self.session_response(&session, &token_str)
-        Err("".into())
+
+        // user has no session
+        let user = self.find_user_by_identity()?;
+        if !user.match_pwd(self.pwd) {
+            return Err(ERR_PWD_NOT_MATCH.into());
+        }
+
+        if let Some(np) = namesp::get_instance().get_by_label(self.app) {
+            // application is using a namespace
+            let sess = session::get_instance().new_session(user)?;
+            let token = np.new_directory(sess)?;
+            return Ok(self.session_response(sess, token.as_str()));
+        }
+
+        // application has no namespace
+        let app = app::find_by_label(self.app)?;
+        let np = namesp::get_instance().new_namespace(app)?;
+        let sess = session::get_instance().new_session(user)?;
+        let token = np.new_directory(sess)?;
+        return Ok(self.session_response(sess, token.as_str()));
     }
 }

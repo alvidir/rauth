@@ -1,7 +1,10 @@
 use std::error::Error;
-use crate::models::{user, secret, session, Gateway};
+use crate::models::{user, session, namesp, Gateway};
+use crate::models::namesp::Ctrl as NpCtrl;
+use crate::regex::*;
 
 const ERR_IDENT_NOT_MATCH: &str = "The provided indentity is not of the expected type";
+const ERR_PWD_NOT_MATCH: &str = "The provided password does not match";
 
 pub struct TxDelete<'a> {
     ident: &'a str,
@@ -16,9 +19,26 @@ impl<'a> TxDelete<'a> {
         }
     }
 
-    fn check_pwd(&self, user: &Box<&dyn user::Ctrl>) -> Result<(), Box<dyn Error>> {
+    fn clear_user_data(&self, user: Box<&dyn user::Ctrl>) -> Result<(), Box<dyn Error>> {
         if !user.match_pwd(self.pwd) {
-            return Err("Password does not match".into());
+            return Err(ERR_PWD_NOT_MATCH.into());
+        }
+
+        if let Some(sess) = session::get_instance().get_by_email(user.get_email()) {
+            // user has session
+            for (token, label) in sess.get_tokens_iter() {
+                // foreach loged-in application
+                if let Some(np) = namesp::get_instance().get_by_label(label) {
+                    // application is using a namespace
+                    if let Ok(gw) = np.delete_directory(token) {
+                        // namespace had a dir for the provided token
+                        gw.delete();
+                    }
+                }
+            }
+
+            let cookie = sess.get_cookie();
+            session::get_instance().destroy_session(cookie)?;
         }
 
         Ok(())
@@ -27,41 +47,20 @@ impl<'a> TxDelete<'a> {
     pub fn execute(&self) -> Result<(), Box<dyn Error>> {
         println!("Got a Delete request from user {} ", self.ident);
 
-        let email: String; // required by the session locator
-        let client_id: i32; // required by the secret locator
-        let user_gw: Box<dyn Gateway>; // required in order to delete the user from de DDBB
-
-        if let Ok(user) = user::find_by_name(self.ident) {
-            let ctrl: Box<&dyn user::Ctrl> = Box::new(user.as_ref());
-            self.check_pwd(&ctrl)?;
-
-            email = ctrl.get_email().to_string();
-            client_id = ctrl.get_client_id();
+        let user_gw: Box<dyn Gateway>;
+        if let Ok(_) = match_name(self.ident) {
+            let user = user::find_by_name(self.ident)?;
+            self.clear_user_data(Box::new(user.as_ref()))?;
             user_gw = user;
-        } else if let Ok(user) = user::find_by_email(self.ident) {
-            email = self.ident.to_string();
-
-            let ctrl: Box<&dyn user::Ctrl> = Box::new(user.as_ref());
-            self.check_pwd(&ctrl)?;
-            
-            client_id = ctrl.get_client_id();
+        } else if let Ok(_) = match_email(self.ident) {
+            let user = user::find_by_email(self.ident)?;
+            self.clear_user_data(Box::new(user.as_ref()))?;
             user_gw = user;
         } else {
-            return Err(ERR_IDENT_NOT_MATCH.into())
-        }
-        
-        if let Ok(sess) = session::get_instance().get_by_email(&email) {
-            // user has a session
-            session::get_instance().destroy_session(sess.get_cookie())?;
-        }
-        
-        if let Ok(secrets) = secret::find_all_by_client(client_id) {
-            // user has secrets
-            for secret in secrets.iter() {
-                secret.delete()?;
-            }
+            return Err(ERR_IDENT_NOT_MATCH.into());
         }
 
-        user_gw.delete()
+        user_gw.delete()?;
+        Ok(())
     }
 }

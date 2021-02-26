@@ -7,8 +7,10 @@ pub mod enums;
 pub mod namesp;
 
 mod client;
+mod dir;
 
 pub trait Gateway {
+    fn select(&mut self) -> Result<(), Box<dyn Error>>;
     fn insert(&mut self) -> Result<(), Box<dyn Error>>;
     fn update(&mut self) -> Result<(), Box<dyn Error>>;
     fn delete(&self) -> Result<(), Box<dyn Error>>;

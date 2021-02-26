@@ -8,7 +8,7 @@ use crate::regex::*;
 use crate::diesel::prelude::*;
 use crate::postgres::*;
 use crate::schema::users;
-use super::client::Ctrl as ClientCtrl;
+use super::client::{Ctrl as ClientCtrl, Wrapper as ClientWp, Client};
 extern crate diesel;
 
 const ERR_IDENT_NOT_MATCH: &str = "The provided indentity is not of the expected type";
@@ -154,6 +154,10 @@ impl Ctrl for Wrapper {
 }
 
 impl super::Gateway for Wrapper {
+    fn select(&mut self) -> Result<(), Box<dyn Error>> {
+        Err("".into())
+    }
+
     fn insert(&mut self) -> Result<(), Box<dyn Error>> {
         self.client.insert()?;
 

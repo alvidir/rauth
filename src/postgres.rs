@@ -31,6 +31,6 @@ pub fn open_stream() -> &'static PgPool {
     &STREAM.db_connection
 }
 
-pub fn can_connect() {
+pub fn must_connect() {
     open_stream().get().expect(ERR_CONNECT);
 }

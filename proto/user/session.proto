@@ -28,7 +28,6 @@ enum Status {
 // LoginResponse description
 message LoginResponse {
   string token = 1;    // Session cookie
-  uint64 deadline = 2; // Cookie deadline
   Status status = 3;   // Session status for the given cookie
 }
 

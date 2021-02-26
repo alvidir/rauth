@@ -147,6 +147,10 @@ impl Ctrl for Wrapper {
 }
 
 impl super::Gateway for Wrapper {
+    fn select(&mut self) -> Result<(), Box<dyn Error>> {
+        Err("".into())
+    }
+    
     fn insert(&mut self) -> Result<(), Box<dyn Error>> {
         let new_client = NewClient {
             name: &self.client.name,

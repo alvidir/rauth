@@ -30,7 +30,7 @@ pub fn open_stream(name: &str) -> Collection {
     STREAM.db_connection.collection(name)
 }
 
-pub fn can_connect() {
+pub fn must_connect() {
     Client::with_uri_str(&env::var(ENV_DATABASE_DSN).expect(ERR_NOT_URL))
         .expect(ERR_CONNECT)
         .database(&env::var(ENV_APP_NAME).expect(ERR_NOT_APP_NAME))
