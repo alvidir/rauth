@@ -9,8 +9,7 @@ use crate::postgres::*;
 use crate::token;
 use super::client::Ctrl as ClientCtrl;
 extern crate diesel;
-
-const LABEL_LENGTH: usize = 15;
+use crate::default;
 
 pub trait Ctrl {
     fn get_id(&self) -> i32;
@@ -122,7 +121,7 @@ impl App {
         let kind_id = enums::Kind::APP.to_int32();
         let client: client::Wrapper = client::Client::new(kind_id, name)?;
         
-        let label = token::Token::new(LABEL_LENGTH).to_string();
+        let label = token::Token::new(default::TOKEN_LEN).to_string();
         let app = App {
             id: 0,
             client_id: 0,

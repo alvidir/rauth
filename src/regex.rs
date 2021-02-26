@@ -1,6 +1,7 @@
 #![allow(unused)]
 use regex::Regex;
 use std::error::Error;
+use crate::default;
 
 const REGEX_NAME: &str = r"^[-_A-Za-z0-9\.]+$";
 const REGEX_EMAIL: &str = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,63}$";
@@ -63,15 +64,15 @@ pub fn match_url(data: &str) -> Result<(), Box<dyn Error>> {
 }
 
 pub fn match_cookie(cookie: &str) -> Result<(), Box<dyn Error>> {
-    let split: Vec<&str> = cookie.split(COOKIE_SEPARATOR).collect();
-    if split.len() != 2 {
+    if cookie.len() != 2*default::TOKEN_LEN {
+        // each cookie shall have two tokens, the session's token, and the dir token
         return Err(ERR_COOKIE_FORMAT.into());
     }
 
-    let regex = Regex::new(REGEX_COOKIE).unwrap();
-    if !regex.is_match(split[0]) {
+    let regex = Regex::new(REGEX_COOKIE)?;
+    if !regex.is_match(cookie) {
         return Err(ERR_COOKIE_FORMAT.into());
     }
 
-    match_email(split[1])
+    Ok(())
 }

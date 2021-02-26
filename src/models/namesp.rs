@@ -7,7 +7,7 @@ use super::secret::Ctrl as SecretCtrl;
 use super::dir::Ctrl as DirCtrl;
 use crate::token::Token;
 use serde::{Deserialize, Serialize};
-use crate::transactions::register::DEFAULT_PKEY_NAME;
+use crate::default;
 
 const PIN_LEN: usize = 8;
 const ERR_NO_NAMESPACE: &str = "Namespace not found";
@@ -72,7 +72,7 @@ impl Factory for Provider {
 
         if let None = self.allnp.get(&label) {
             let client_id = appl.get_client_id();
-            let secret = secret::find_by_client_and_name(client_id, DEFAULT_PKEY_NAME)?;
+            let secret = secret::find_by_client_and_name(client_id, default::RSA_NAME)?;
             let np = Namespace::new(appl, secret);
 
             self.allnp.insert(label.clone(), Box::new(np));

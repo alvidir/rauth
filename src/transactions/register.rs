@@ -4,8 +4,8 @@ use crate::models::app::Ctrl as AppCtrl;
 use crate::models::secret::Ctrl as SecretCtrl;
 use crate::models::Gateway;
 use crate::proto::app_proto::RegisterResponse;
+use crate::default;
 
-pub const DEFAULT_PKEY_NAME: &str = "default_rsa.pem";
 const ERR_SIGNATURE_HAS_FAILED: &str = "Signature verifier has failed";
 
 pub struct TxRegister<'a> {
@@ -31,7 +31,7 @@ impl<'a> TxRegister<'a> {
         println!("Got a Register request for application {} ", self.name);
 
         let mut app = app::App::new(self.name, self.url, self.descr)?;
-        let aux_secret = secret::Secret::new(0, DEFAULT_PKEY_NAME, self.public)?;
+        let aux_secret = secret::Secret::new(0, default::RSA_NAME, self.public)?;
         let mut verifier = aux_secret.get_verifier()?;
         verifier.update(self.name.as_bytes())?;
         verifier.update(self.url.as_bytes())?;
@@ -44,7 +44,7 @@ impl<'a> TxRegister<'a> {
         
         app.insert()?;
         
-        let mut secret = secret::Secret::new(app.get_client_id(), DEFAULT_PKEY_NAME, self.public)?;
+        let mut secret = secret::Secret::new(app.get_client_id(), default::RSA_NAME, self.public)?;
         if let Err(err) = secret.insert() {
             if let Err(nerr) = app.delete() {
                 return Err(nerr);

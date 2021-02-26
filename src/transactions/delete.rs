@@ -1,3 +1,4 @@
+use crate::token::Token;
 use std::error::Error;
 use crate::models::{user, session, namesp, Gateway};
 use crate::models::namesp::Ctrl as NpCtrl;
@@ -32,13 +33,13 @@ impl<'a> TxDelete<'a> {
                     // application is using a namespace
                     if let Ok(gw) = np.delete_directory(token) {
                         // namespace had a dir for the provided token
-                        gw.delete();
+                        gw.delete()?;
                     }
                 }
             }
 
-            let cookie = sess.get_cookie();
-            session::get_instance().destroy_session(cookie)?;
+            let token = sess.get_cookie();
+            session::get_instance().destroy_session(&token)?;
         }
 
         Ok(())

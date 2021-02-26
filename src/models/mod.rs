@@ -174,8 +174,8 @@ mod tests {
         assert_eq!(client.get_name(), name);
         
         // Checking there is a default secret for the app
-        use crate::transactions::register::DEFAULT_PKEY_NAME;
-        let secret = secret::find_by_client_and_name(client_id, DEFAULT_PKEY_NAME).unwrap();
+        use crate::default::RSA_NAME;
+        let secret = secret::find_by_client_and_name(client_id, RSA_NAME).unwrap();
 
         use crate::models::secret::Ctrl;
         assert_eq!(secret.get_client_id(), client_id);

@@ -23,10 +23,10 @@ mod mongo;
 mod proto;
 mod time;
 mod token;
+mod default;
 
 const ERR_NO_PORT: &str = "Service port must be set";
 const ENV_SERVICE_PORT: &str = "SERVICE_PORT";
-const DEFAULT_IP: &str = "127.0.0.1";
 
 use std::sync::Once;
 
@@ -46,7 +46,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let port = env::var(ENV_SERVICE_PORT)
         .expect(ERR_NO_PORT);
 
-   let addr = format!("{}:{}", DEFAULT_IP, port);
+   let addr = format!("{}:{}", default::SERVER_IP, port);
    server::start_server(addr).await?;
    Ok(())
 }

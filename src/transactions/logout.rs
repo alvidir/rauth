@@ -1,6 +1,11 @@
+use crate::token::Token;
 use std::error::Error;
 use crate::regex::*;
-use crate::models::session;
+use crate::models::{session, namesp};
+use crate::default;
+
+const ERR_SESSION_NOT_FOUND: &str = "Session not found for the provided cookie";
+const ERR_NO_TID: &str = "The provided cookie has no token ID";
 
 pub struct TxLogout<'a> {
     cookie: &'a str,
@@ -13,17 +18,38 @@ impl<'a> TxLogout<'a> {
         }
     }
 
-    fn destroy_session(&self) ->  Result<(), Box<dyn Error>> {
-        let provider = session::get_instance();
-        provider.destroy_session(self.cookie)
+    fn split_cookie(&self, left: bool) -> Result<Token, Box<dyn Error>> {
+        match_cookie(self.cookie)?;
+        let token: &str = {
+            if left {
+                &self.cookie[..default::TOKEN_LEN]
+            } else {
+                &self.cookie[default::TOKEN_LEN..]
+            }
+        };
+
+        Ok(Token::from_string(token))
     }
 
     pub fn execute(&self) -> Result<(), Box<dyn Error>> {
         println!("Got a Logout request for cookie {} ", self.cookie);
+        
+        let token = self.split_cookie(true)?;
+        if let Some(sess) = session::get_instance().get_by_cookie(&token) {
+            // there is a session for the provided cookie
+            let dir_token = self.split_cookie(false)?;
+            if let Some(label) = sess.delete_token(&dir_token) {
+                // user was loged in the aplpication
+                if let Some(np) = namesp::get_instance().get_by_label(&label) {
+                    // application is using a namespace
+                    let mut dir_gw = np.delete_directory(&dir_token)?;
+                    dir_gw.update()?;
+                }
+            }
+        } else {
+            return Err(ERR_SESSION_NOT_FOUND.into());
+        }
 
-        match_cookie(self.cookie)?;
-        //let session = find_session(self.cookie)?;
-        self.destroy_session()?;
         Ok(())
     }
 }
