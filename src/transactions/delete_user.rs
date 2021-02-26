@@ -26,20 +26,18 @@ impl<'a> TxDelete<'a> {
         }
 
         if let Some(sess) = session::get_instance().get_by_email(user.get_email()) {
-            // user has session
-            for (token, label) in sess.get_tokens_iter() {
+            // user has session            
+            for token in sess.get_open_dirs() {
                 // foreach loged-in application
-                if let Some(np) = namesp::get_instance().get_by_label(label) {
-                    // application is using a namespace
-                    if let Ok(gw) = np.delete_directory(token) {
-                        // namespace had a dir for the provided token
-                        gw.delete()?;
+                if let Some(label) = sess.delete_directory(&token) {
+                    if let Some(np) = namesp::get_instance().get_by_label(&label) {
+                        // application is using a namespace
+                        np.delete_cookie(sess.get_cookie());
                     }
                 }
             }
 
-            let token = sess.get_cookie();
-            session::get_instance().destroy_session(&token)?;
+            session::get_instance().destroy_session(&sess.get_cookie())?;
         }
 
         Ok(())
@@ -60,6 +58,10 @@ impl<'a> TxDelete<'a> {
         } else {
             return Err(ERR_IDENT_NOT_MATCH.into());
         }
+
+        /* MondoDB:
+         * documents related to this user must be deleted as well
+         */
 
         user_gw.delete()?;
         Ok(())

@@ -6,7 +6,8 @@ use std::collections::hash_map::Iter;
 use crate::token::Token;
 use crate::proto::Status;
 use crate::default;
-use super::user;
+use super::{user, dir, namesp};
+use super::dir::Ctrl as DirCtrl;
 
 const ERR_DEADLINE_EXCEEDED: &str = "Deadline exceeded";
 const ERR_SESSION_ALREADY_EXISTS: &str = "A session already exists for client";
@@ -15,6 +16,7 @@ const ERR_NO_LOGED: &str = "No session has been logged with identity";
 const ERR_SESSION_BUILD: &str = "Something has failed while building session for";
 const ERR_TOKEN_EXISTS: &str = "Provided token already exists";
 const ERR_LABEL_ALREADY_EXISTS: &str = "Application already has a directory for this user";
+const ERR_DIR_NOT_EXISTS: &str = "There is no directory for the provuided token";
 
 static mut INSTANCE: Option<Box<dyn Factory>> = None;
 
@@ -27,11 +29,12 @@ pub trait Ctrl {
     fn get_email(&self) -> &str;
     fn get_name(&self) -> &str;
     fn get_user_id(&self) -> i32;
-    fn get_token(&self, label: &str) -> Option<&Token>;
-    fn delete_token(&mut self, token: &Token) -> Option<String>;
-    fn get_tokens_iter(&self) -> Iter<Token, String>;
+    fn get_token(&self,  label: &str) -> Option<&Token>;
+    fn delete_directory(&mut self, token: &Token) -> Option<String>;
+    fn new_directory(&mut self, label: &str) -> Result<Token, Box<dyn Error>>;
+    fn get_open_dirs(&self) -> Vec<Token>;
+    fn get_directory(&self, token: Token) -> Result<Box<&dyn dir::Ctrl>, Box<dyn Error>>;
     fn match_pwd(&self, pwd: &str) -> bool;
-    fn attach_label(&mut self, label: &str) -> Result<Token, Box<dyn Error>>;
 }
 
 pub trait Factory {
@@ -168,7 +171,7 @@ struct Session {
     touch_at: SystemTime,
     status: Status,
     user: Box<dyn user::Ctrl>,
-    tokens: HashMap<Token, String>, // token & app label
+    dirs: HashMap<Token, dir::Dir>, // token & app label
 }
 
 impl Session {
@@ -179,7 +182,7 @@ impl Session {
             touch_at: SystemTime::now(),
             status: Status::New,
             user: user,
-            tokens: HashMap::new(),
+            dirs: HashMap::new(),
         }
     }
 }
@@ -217,36 +220,50 @@ impl Ctrl for Session {
         self.status
     }
 
+    fn get_open_dirs(&self) -> Vec<Token> {
+        self.dirs.iter().map(|(token, _)| (token.clone())).collect()
+    }
+
     fn get_token(&self, label: &str) -> Option<&Token> {
-        if let Some((token, _)) = self.tokens.iter().find(|(_, lbl)| lbl.to_string() == label) {
+        if let Some((token, _)) = self.dirs.iter().find(|(_, dir)| dir.get_label() == label) {
             Some(token)
         } else {
             None
         }
     }
 
-    fn get_tokens_iter(&self) -> Iter<Token, String> {
-        self.tokens.iter()
+    fn delete_directory(&mut self, token: &Token) -> Option<String> {
+        if let Some(dir) = self.dirs.remove(token) {
+            Some(dir.get_label().to_string())
+        } else {
+            None
+        }
     }
 
-    fn delete_token(&mut self, token: &Token) -> Option<String> {
-        self.tokens.remove(token)
-    }
-
-    fn match_pwd(&self, pwd: &str) -> bool {
-        self.user.match_pwd(pwd)
-    }
-
-    fn attach_label(&mut self, label: &str) -> Result<Token, Box<dyn Error>> {
-        if let Some(_) = self.tokens.iter().find(|(_, lbl)| lbl.to_string() == label) {
+    fn new_directory(&mut self, label: &str) -> Result<Token, Box<dyn Error>> {
+        if let Some(_) = self.dirs.iter().find(|(_, dir)| dir.get_label() == label) {
             return Err(ERR_LABEL_ALREADY_EXISTS.into());
         }
 
         let token = Token::new(default::TOKEN_LEN);
-        if let None = self.tokens.insert(token.clone(), label.to_string()) {
-            Ok(token)
-        } else {
-            Err(ERR_TOKEN_EXISTS.into())
+        if let Some(_) = self.dirs.get(&token) {
+            return Err(ERR_TOKEN_EXISTS.into());
         }
+
+        let dir = dir::Dir::new(self.user.get_id(), label);
+        self.dirs.insert(token.clone(), dir);
+        Ok(token)
+    }
+
+    fn get_directory(&self, token: Token) -> Result<Box<&dyn dir::Ctrl>, Box<dyn Error>> {
+        if let Some(dir) = self.dirs.get(&token) {
+            Ok(Box::new(dir))
+        } else {
+            Err(ERR_DIR_NOT_EXISTS.into())
+        }
+    }
+
+    fn match_pwd(&self, pwd: &str) -> bool {
+        self.user.match_pwd(pwd)
     }
 }

@@ -27,8 +27,8 @@ enum Status {
 
 // LoginResponse description
 message LoginResponse {
-  string token = 1;    // Session cookie
-  Status status = 3;   // Session status for the given cookie
+  string cookie = 1;    // Session cookie
+  Status status = 2;   // Session status for the given cookie
 }
 
 // LogoutRequest description

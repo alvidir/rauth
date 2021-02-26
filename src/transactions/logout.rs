@@ -36,14 +36,13 @@ impl<'a> TxLogout<'a> {
         
         let token = self.split_cookie(true)?;
         if let Some(sess) = session::get_instance().get_by_cookie(&token) {
-            // there is a session for the provided cookie
+            // user has a session
             let dir_token = self.split_cookie(false)?;
-            if let Some(label) = sess.delete_token(&dir_token) {
-                // user was loged in the aplpication
+            if let Some(label) = sess.delete_directory(&dir_token) {
+                // user was loged in the application
                 if let Some(np) = namesp::get_instance().get_by_label(&label) {
                     // application is using a namespace
-                    let mut dir_gw = np.delete_directory(&dir_token)?;
-                    dir_gw.update()?;
+                    np.delete_cookie(sess.get_cookie());
                 }
             }
         } else {

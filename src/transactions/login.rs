@@ -52,10 +52,10 @@ impl<'a> TxLogin<'a> {
         Err(ERR_IDENT_NOT_MATCH.into())
     }
 
-    fn session_response(&self, session: &Box<dyn session::Ctrl>, token: &str) -> LoginResponse {
+    fn session_response(&self, sess: &Box<dyn session::Ctrl>, token: &Token) -> LoginResponse {
         LoginResponse {
-            token: token.to_string(),
-            status: session.get_status() as i32,
+            cookie: format!("{}{}", sess.get_cookie(), token),
+            status: sess.get_status() as i32,
         }
     }
 
@@ -70,21 +70,25 @@ impl<'a> TxLogin<'a> {
             // password does match
             if let Some(token) = sess.get_token(self.app) {
                 // user is currently loged in the application
-                return Ok(self.session_response(sess, token.as_str()));
+                return Ok(self.session_response(sess, token));
             }
 
             // user is not loged in the application
+            let token = sess.new_directory(self.app)?;
+
             if let Some(np) = namesp::get_instance().get_by_label(self.app) {
                 // application is using a namespace
-                let token = np.new_directory(sess)?;
-                return Ok(self.session_response(sess, token.as_str()));
+                let resp = self.session_response(sess, &token);
+                np.set_cookie(sess.get_cookie().clone(), token)?;
+                return Ok(resp);
             }
 
             // application has no namespace
             let app = app::find_by_label(self.app)?;
             let np = namesp::get_instance().new_namespace(app)?;
-            let token = np.new_directory(sess)?;
-            return Ok(self.session_response(sess, token.as_str()));
+            let resp = self.session_response(sess, &token);
+            np.set_cookie(sess.get_cookie().clone(), token)?;
+            return Ok(resp);
         }
 
         // user has no session
@@ -93,18 +97,21 @@ impl<'a> TxLogin<'a> {
             return Err(ERR_PWD_NOT_MATCH.into());
         }
 
+        let sess = session::get_instance().new_session(user)?;
+        let token = sess.new_directory(self.app)?;
+
         if let Some(np) = namesp::get_instance().get_by_label(self.app) {
             // application is using a namespace
-            let sess = session::get_instance().new_session(user)?;
-            let token = np.new_directory(sess)?;
-            return Ok(self.session_response(sess, token.as_str()));
+            let resp = self.session_response(sess, &token);
+            np.set_cookie(sess.get_cookie().clone(), token)?;
+            return Ok(resp);
         }
 
         // application has no namespace
         let app = app::find_by_label(self.app)?;
         let np = namesp::get_instance().new_namespace(app)?;
-        let sess = session::get_instance().new_session(user)?;
-        let token = np.new_directory(sess)?;
-        return Ok(self.session_response(sess, token.as_str()));
+        let resp = self.session_response(sess, &token);
+        np.set_cookie(sess.get_cookie().clone(), token)?;
+        return Ok(resp);
     }
 }

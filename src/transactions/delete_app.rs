@@ -41,14 +41,17 @@ impl<'a> TxDelete<'a> {
 
         if let Some(np) = namesp::get_instance().get_by_label(self.label) {
             // application is using a namespace
-            for token in np.get_all_tokens()  {
+            for (cookie, token) in np.get_dirs_iter()  {
                 // each opened directory must be deleted
-                let gw = np.delete_directory(&token)?;
-                gw.delete()?;
+                if let Some(sess) = session::get_instance().get_by_cookie(cookie) {
+                    sess.delete_directory(token);
+                }
             }
 
             namesp::get_instance().destroy_namespace(self.label)?;
         }
+
+        /** MondoDB documents related to this application must be deleted as well */
 
         secret.delete()?;
         app.delete()?;

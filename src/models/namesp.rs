@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::collections::hash_map;
 use std::error::Error;
 use super::{app, secret, dir, session};
 use super::secret::Ctrl as SecretCtrl;
@@ -18,11 +19,12 @@ const ERR_DIR_NOT_EXISTS: &str = "There is no directory for the provuided token"
 static mut INSTANCE: Option<Box<dyn Factory>> = None;
 
 pub trait Ctrl {
-    fn new_directory(&mut self, sess: &mut Box<dyn session::Ctrl>) -> Result<Token, Box<dyn Error>>;
-    fn get_directory(&self, token: Token) -> Result<Box<&dyn dir::Ctrl>, Box<dyn Error>>;
-    fn get_all_tokens(&self) -> Vec<Token>;
-    fn delete_directory(&mut self, token: &Token) -> Result<Box<dyn super::Gateway>, Box<dyn Error>>;
+    fn get_label(&self) -> &str;
+    fn set_cookie(&mut self,  cookie: Token, dir: Token,) -> Result<(), Box<dyn Error>>;
     fn get_secret(&self) -> &Box<dyn secret::Ctrl>;
+    fn delete_cookie(&mut self, cookie: &Token) -> Option<Token>;
+    fn get_token(&self, cookie: &Token) -> Option<&Token>;
+    fn get_dirs_iter(&self) -> hash_map::Iter<Token, Token>;
 }
 
 pub trait Factory {
@@ -107,7 +109,7 @@ impl Factory for Provider {
 struct Namespace {
     app: Box<dyn app::Ctrl>,
     public: Box<dyn secret::Ctrl>,
-    dirs: HashMap<Token, dir::Dir>,
+    dirs: HashMap<Token, Token>,
 }
 
 impl Namespace {
@@ -121,42 +123,36 @@ impl Namespace {
 }
 
 impl Ctrl for Namespace {
-    fn new_directory(&mut self, sess: &mut Box<dyn session::Ctrl>) -> Result<Token, Box<dyn Error>> {
-        let token = sess.attach_label(self.app.get_label())?;
-        if let Some(_) = self.dirs.get(&token) {
-            return Err(ERR_TOKEN_ALREADY_EXISTS.into());
-        }
-
-        if let Some(_) = self.dirs.iter().find(|(_, d)| d.get_user_id() == sess.get_user_id()) {
-            return Err(ERR_USER_HAS_DIR.into());
-        }
-
-        let dir = dir::Dir::new(sess.get_user_id(), self.app.get_id());
-        self.dirs.insert(token.clone(), dir);
-        Ok(token)
-    }
-
-    fn get_directory(&self, token: Token) -> Result<Box<&dyn dir::Ctrl>, Box<dyn Error>> {
-        if let Some(dir) = self.dirs.get(&token) {
-            Ok(Box::new(dir))
-        } else {
-            Err(ERR_DIR_NOT_EXISTS.into())
-        }
-    }
-
-    fn get_all_tokens(&self) -> Vec<Token> {
-        self.dirs.keys().cloned().collect()
+    fn get_label(&self) -> &str {
+        self.app.get_label()
     }
 
     fn get_secret(&self) -> &Box<dyn secret::Ctrl> {
         &self.public
     }
 
-    fn delete_directory(&mut self, token: &Token) -> Result<Box<dyn super::Gateway>, Box<dyn Error>> {
-        if let Some(dir) = self.dirs.remove(&token) {
-            Ok(Box::new(dir))
-        } else {
-            Err(ERR_DIR_NOT_EXISTS.into())
+    fn set_cookie(&mut self,  cookie: Token, dir: Token) -> Result<(), Box<dyn Error>> {
+        if let Some(_) = self.dirs.get(&cookie) {
+            return Err(ERR_TOKEN_ALREADY_EXISTS.into());
         }
+
+        if let Some(_) = self.dirs.iter().find(|(_, d)| d.as_str() == dir.to_string()) {
+            return Err(ERR_USER_HAS_DIR.into());
+        }
+
+        self.dirs.insert(cookie, dir);
+        Ok(())
+    }
+
+    fn delete_cookie(&mut self, cookie: &Token) -> Option<Token> {
+        self.dirs.remove(cookie)
+    }
+
+    fn get_token(&self, cookie: &Token) -> Option<&Token> {
+        self.dirs.get(cookie)
+    }
+
+    fn get_dirs_iter(&self) -> hash_map::Iter<Token, Token> {
+        self.dirs.iter()
     }
 }

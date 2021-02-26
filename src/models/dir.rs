@@ -1,10 +1,11 @@
 use std::error::Error;
 use serde::{Deserialize, Serialize};
 use mongodb::bson;
+use crate::models::namesp;
 
 pub trait Ctrl {
     fn get_user_id(&self) -> i32;
-    fn get_app_id(&self) -> i32;
+    fn get_label(&self) -> &str;
     fn get_data(&self) -> &bson::Document;
 }
 
@@ -13,23 +14,16 @@ pub struct Dir {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     id: Option<bson::oid::ObjectId>,
     user_id: i32,
-    app_id: i32,
-    data: bson::Document,
-}
-
-#[derive(Serialize, Deserialize)]
-struct NewDir {
-    user_id: i32,
-    app_id: i32,
+    app_label: String,
     data: bson::Document,
 }
 
 impl Dir {
-    pub fn new(user: i32, app: i32) -> Self {
+    pub fn new(user: i32, label: &str) -> Self {
         Dir{
             id: None,
             user_id: user,
-            app_id: app,
+            app_label: label.to_string(),
             data: bson::Document::new(),
         }
     }
@@ -40,8 +34,8 @@ impl Ctrl for Dir {
         self.user_id
     }
 
-    fn get_app_id(&self) -> i32{
-        self.app_id
+    fn get_label(&self) -> &str{
+        &self.app_label
     }
 
     fn get_data(&self) -> &bson::Document {
