@@ -2,6 +2,8 @@ use std::error::Error;
 use serde::{Deserialize, Serialize};
 use mongodb::bson;
 use crate::models::namesp;
+use crate::mongo;
+use crate::default;
 
 pub trait Ctrl {
     fn get_user_id(&self) -> i32;

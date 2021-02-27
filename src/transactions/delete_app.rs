@@ -6,6 +6,7 @@ use crate::models::secret::Ctrl as SecretCtrl;
 use crate::models::namesp::Ctrl as NpCtrl;
 use crate::regex::*;
 use crate::default;
+use crate::mongo;
 
 const ERR_IDENT_NOT_MATCH: &str = "The provided indentity is not of the expected type";
 const ERR_PWD_NOT_MATCH: &str = "The provided password does not match";
@@ -51,8 +52,14 @@ impl<'a> TxDelete<'a> {
             namesp::get_instance().destroy_namespace(self.label)?;
         }
 
-        /** MondoDB documents related to this application must be deleted as well */
+        let delete_result = mongo::open_stream(default::COLLECTION).delete_many(
+            doc! {
+               "app_label": app.get_label(),
+            },
+            None,
+        )?;
 
+        println!("Deleted {} documents", delete_result.deleted_count);
         secret.delete()?;
         app.delete()?;
         Ok(())

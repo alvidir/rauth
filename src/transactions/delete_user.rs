@@ -3,6 +3,8 @@ use std::error::Error;
 use crate::models::{user, session, namesp, Gateway};
 use crate::models::namesp::Ctrl as NpCtrl;
 use crate::regex::*;
+use crate::mongo;
+use crate::default;
 
 const ERR_IDENT_NOT_MATCH: &str = "The provided indentity is not of the expected type";
 const ERR_PWD_NOT_MATCH: &str = "The provided password does not match";
@@ -20,7 +22,7 @@ impl<'a> TxDelete<'a> {
         }
     }
 
-    fn clear_user_data(&self, user: Box<&dyn user::Ctrl>) -> Result<(), Box<dyn Error>> {
+    fn clear_user_data(&self, user: Box<&dyn user::Ctrl>) -> Result<i32, Box<dyn Error>> {
         if !user.match_pwd(self.pwd) {
             return Err(ERR_PWD_NOT_MATCH.into());
         }
@@ -40,29 +42,34 @@ impl<'a> TxDelete<'a> {
             session::get_instance().destroy_session(&sess.get_cookie())?;
         }
 
-        Ok(())
+        Ok(user.get_id())
     }
 
     pub fn execute(&self) -> Result<(), Box<dyn Error>> {
         println!("Got a Delete request from user {} ", self.ident);
 
         let user_gw: Box<dyn Gateway>;
+        let user_id: i32;
         if let Ok(_) = match_name(self.ident) {
             let user = user::find_by_name(self.ident)?;
-            self.clear_user_data(Box::new(user.as_ref()))?;
+            user_id = self.clear_user_data(Box::new(user.as_ref()))?;
             user_gw = user;
         } else if let Ok(_) = match_email(self.ident) {
             let user = user::find_by_email(self.ident)?;
-            self.clear_user_data(Box::new(user.as_ref()))?;
+            user_id = self.clear_user_data(Box::new(user.as_ref()))?;
             user_gw = user;
         } else {
             return Err(ERR_IDENT_NOT_MATCH.into());
         }
 
-        /* MondoDB:
-         * documents related to this user must be deleted as well
-         */
+        let delete_result = mongo::open_stream(default::COLLECTION).delete_many(
+            doc! {
+               "user_id": user_id,
+            },
+            None,
+        )?;
 
+        println!("Deleted {} documents", delete_result.deleted_count);
         user_gw.delete()?;
         Ok(())
     }

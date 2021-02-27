@@ -34,6 +34,7 @@ pub trait Ctrl {
     fn new_directory(&mut self, label: &str) -> Result<Token, Box<dyn Error>>;
     fn get_open_dirs(&self) -> Vec<Token>;
     fn get_directory(&self, token: Token) -> Result<Box<&dyn dir::Ctrl>, Box<dyn Error>>;
+    fn get_dirs_gateway(&self, token: Token) -> Result<Box<&dyn super::Gateway>, Box<dyn Error>>;
     fn match_pwd(&self, pwd: &str) -> bool;
 }
 
@@ -256,6 +257,14 @@ impl Ctrl for Session {
     }
 
     fn get_directory(&self, token: Token) -> Result<Box<&dyn dir::Ctrl>, Box<dyn Error>> {
+        if let Some(dir) = self.dirs.get(&token) {
+            Ok(Box::new(dir))
+        } else {
+            Err(ERR_DIR_NOT_EXISTS.into())
+        }
+    }
+
+    fn get_dirs_gateway(&self, token: Token) -> Result<Box<&dyn super::Gateway>, Box<dyn Error>> {
         if let Some(dir) = self.dirs.get(&token) {
             Ok(Box::new(dir))
         } else {
