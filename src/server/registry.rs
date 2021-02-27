@@ -1,4 +1,4 @@
-use crate::transactions::register;
+use crate::transactions::{register, delete_app};
 use tonic::{Request, Response, Status};
 use crate::proto::app_proto;
 use super::*;
@@ -30,8 +30,17 @@ impl Registry for RegistryImplementation {
         }
     }
 
-    async fn delete(&self, _request: Request<DeleteRequest>) -> Result<Response<()>, Status> {
-        //let msg_ref = request.into_inner();
-        Err(parse_error("err".into()))
+    async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<()>, Status> {
+        let msg_ref = request.into_inner();
+        let tx_delete = delete_app::TxDelete::new(
+            &msg_ref.label,
+            &msg_ref.dust,
+            &msg_ref.firm,
+        );
+        
+        match tx_delete.execute() {
+            Ok(_) => Ok(Response::new(())),
+            Err(err) => Err(parse_error(err))
+        }
     }
 }

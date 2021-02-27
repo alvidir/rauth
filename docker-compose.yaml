@@ -21,16 +21,14 @@ services:
         restart: always
         depends_on:
             - postgres
-        environment:
-            PGADMIN_DEFAULT_EMAIL: "admin@alvidir.com"
-            PGADMIN_DEFAULT_PASSWORD: "adminpwd"
-            PGADMIN_PORT: 9090
-        volumes:
-            - pgdata:/root/.pgadmin
         ports:
             - "${PGADMIN_PORT}:80"
+        volumes:
+            - pgdata:/root/.pgadmin
         networks: 
             - database
+        env_file:
+            - ".env"
             
     
     ### ENVOY PROXY ###

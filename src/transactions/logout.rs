@@ -5,7 +5,6 @@ use crate::models::{session, namesp};
 use crate::default;
 
 const ERR_SESSION_NOT_FOUND: &str = "Session not found for the provided cookie";
-const ERR_NO_TID: &str = "The provided cookie has no token ID";
 
 pub struct TxLogout<'a> {
     cookie: &'a str,

@@ -17,7 +17,7 @@ pub trait Ctrl {
     fn get_verifier(&self) -> Result<Verifier, Box<dyn Error>>;
 }
 
-pub fn find_all_by_client(target_id: i32) -> Result<Vec<impl Ctrl + super::Gateway>, Box<dyn Error>>  {
+pub fn _find_all_by_client(target_id: i32) -> Result<Vec<impl Ctrl + super::Gateway>, Box<dyn Error>>  {
     use crate::schema::secrets::dsl::*;
     let results = { // block is required because of connection release
         let connection = open_stream().get()?;

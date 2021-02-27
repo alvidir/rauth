@@ -5,9 +5,10 @@ use diesel::{
     pg::PgConnection
 };
 
+use crate::default;
+
 const ERR_NOT_URL: &str = "Postgres url must be set";
 const ERR_CONNECT: &str = "Error connecting to postgres cluster";
-const ENV_DATABASE_DSN: &str = "DATABASE_URL";
 const POOL_SIZE: u32 = 1_u32; // by default: single thread
 
 type PgPool = Pool<ConnectionManager<PgConnection>>;
@@ -21,7 +22,7 @@ lazy_static! {
        Stream {
            db_connection: PgPool::builder()
                .max_size(POOL_SIZE)
-               .build(ConnectionManager::new(env::var(ENV_DATABASE_DSN).expect(ERR_NOT_URL)))
+               .build(ConnectionManager::new(env::var(default::ENV_POSTGRES_DSN).expect(ERR_NOT_URL)))
                .expect(ERR_CONNECT)
         }
     };

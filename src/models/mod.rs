@@ -18,10 +18,10 @@ pub trait Gateway {
 
 #[cfg(test)]
 mod tests {
-    use crate::transactions::{signup, delete_user, login, register};
+    use crate::transactions::{signup, delete_user, register};
     use super::{user, client, secret, app};
-    use openssl::sign::{Signer, Verifier};
-    use openssl::encrypt::{Encrypter, Decrypter};
+    use openssl::sign::Signer;
+    use openssl::encrypt::Decrypter;
     use openssl::rsa::{Rsa, Padding};
     use openssl::hash::MessageDigest;
     use openssl::pkey::PKey;

@@ -1,20 +1,15 @@
 use std::collections::HashMap;
 use std::collections::hash_map;
 use std::error::Error;
-use super::{app, secret, dir, session};
-use super::secret::Ctrl as SecretCtrl;
-use super::dir::Ctrl as DirCtrl;
+use super::{app, secret};
 use crate::token::Token;
-use std::collections::hash_map::Iter;
 use crate::default;
 
-const PIN_LEN: usize = 8;
 const ERR_NO_NAMESPACE: &str = "Namespace not found";
 const ERR_NAMESPACE_ALREADY_EXISTS: &str = "The provided application already has an namespace";
 const ERR_NAMESPACE_BUILD: &str = "Something has failed while building namespace";
 const ERR_TOKEN_ALREADY_EXISTS: &str = "The namespace already has a dir for the provided token";
 const ERR_USER_HAS_DIR: &str = "User already has a directory in this namespace";
-const ERR_DIR_NOT_EXISTS: &str = "There is no directory for the provuided token";
 
 static mut INSTANCE: Option<Box<dyn Factory>> = None;
 

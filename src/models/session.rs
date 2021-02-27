@@ -1,23 +1,18 @@
-use mongodb::bson::Document;
 use std::error::Error;
 use std::time::{Duration, SystemTime};
 use std::collections::HashMap;
-use std::collections::hash_map::Iter;
 use crate::token::Token;
 use crate::proto::Status;
 use crate::default;
-use super::{user, dir, namesp};
+use super::{user, dir};
 use super::dir::Ctrl as DirCtrl;
 
 const ERR_DEADLINE_EXCEEDED: &str = "Deadline exceeded";
 const ERR_SESSION_ALREADY_EXISTS: &str = "A session already exists for client";
-const ERR_BROKEN_COOKIE: &str = "No session has been found for cookie";
-const ERR_NO_LOGED: &str = "No session has been logged with identity";
+const ERR_COOKIE_NOT_FOUND: &str = "No session has been found for the provided cookie";
 const ERR_SESSION_BUILD: &str = "Something has failed while building session for";
 const ERR_TOKEN_EXISTS: &str = "Provided token already exists";
 const ERR_LABEL_ALREADY_EXISTS: &str = "Application already has a directory for this user";
-const ERR_DIR_NOT_EXISTS: &str = "There is no directory for the provuided token";
-
 static mut INSTANCE: Option<Box<dyn Factory>> = None;
 
 pub trait Ctrl {
@@ -30,12 +25,12 @@ pub trait Ctrl {
     fn get_name(&self) -> &str;
     fn get_user_id(&self) -> i32;
     fn get_token(&self,  label: &str) -> Option<&Token>;
-    fn delete_directory(&mut self, token: &Token) -> Option<String>;
-    fn new_directory(&mut self, label: &str) -> Result<Token, Box<dyn Error>>;
     fn get_open_dirs(&self) -> Vec<Token>;
-    fn get_directory(&self, token: Token) -> Result<Box<&dyn dir::Ctrl>, Box<dyn Error>>;
-    fn get_dirs_gateway(&self, token: Token) -> Result<Box<&dyn super::Gateway>, Box<dyn Error>>;
+    fn get_directory(&self, token: Token) -> Option<Box<&dyn dir::Ctrl>>;
+    fn new_directory(&mut self, label: &str) -> Result<Token, Box<dyn Error>>;
+    fn delete_directory(&mut self, token: &Token) -> Option<String>;
     fn match_pwd(&self, pwd: &str) -> bool;
+    fn is_alive(&self) -> Result<(), Box<dyn Error>>;
 }
 
 pub trait Factory {
@@ -70,14 +65,14 @@ pub fn get_instance<'a>() -> &'a mut Box<dyn Factory> {
 }
 
 struct Provider {
-    timeout: Duration,
+    _timeout: Duration,
     allsess: HashMap<Token, Box<dyn Ctrl>>,
 }
 
 impl Provider {
     fn new(timeout: Duration) -> impl Factory {
         Provider{
-            timeout: timeout,
+            _timeout: timeout,
             allsess: HashMap::new(),
         }
     }
@@ -86,31 +81,8 @@ impl Provider {
         Token::new(default::TOKEN_LEN)
     }
 
-    fn is_alive(&mut self, token: &Token) -> Result<(), Box<dyn Error>> {
-        if let Some(pair) = self.allsess.get_key_value(token) {
-            let timeout = Duration::new(default::TOKEN_TIMEOUT, 0);
-            if pair.0.deadline_exceed(timeout) {
-                self.destroy_session(token)?;
-                let msg = format!("{}", ERR_DEADLINE_EXCEEDED);
-                Err(msg.into())
-            } else {
-                Ok(())
-            }
-
-        } else {
-            let msg = format!("{}", ERR_BROKEN_COOKIE);
-            Err(msg.into())
-        }
-    }
-
-    fn get_session_by_token(&mut self, token: &Token) -> Result<&mut Box<dyn Ctrl>, Box<dyn Error>> {
-        self.is_alive(token)?;
-        if let Some(sess) = self.allsess.get_mut(token) {
-            Ok(sess)
-        } else {
-            let msg = format!("{} {}", ERR_BROKEN_COOKIE, token);
-            Err(msg.into())
-        }
+    fn _get_session_by_token(&mut self, token: &Token) -> Option<&mut Box<dyn Ctrl>> {
+        self.allsess.get_mut(token)
     }
 }
 
@@ -160,7 +132,7 @@ impl Factory for Provider {
         if let Some(_) = self.allsess.remove(token) {
             Ok(())
         } else {
-            let msg = format!("{} {}", ERR_BROKEN_COOKIE, token);
+            let msg = format!("{} {}", ERR_COOKIE_NOT_FOUND, token);
             Err(msg.into())
         }
     }
@@ -168,7 +140,6 @@ impl Factory for Provider {
 
 struct Session {
     cookie: Token,
-    created_at: SystemTime,
     touch_at: SystemTime,
     status: Status,
     user: Box<dyn user::Ctrl>,
@@ -179,7 +150,6 @@ impl Session {
     pub fn new(user: Box<dyn user::Ctrl>, cookie: Token) -> impl Ctrl {
         Session{
             cookie: cookie,
-            created_at: SystemTime::now(),
             touch_at: SystemTime::now(),
             status: Status::New,
             user: user,
@@ -210,7 +180,7 @@ impl Ctrl for Session {
     }
 
     fn get_created_at(&self) -> SystemTime {
-        self.created_at
+        self.cookie.get_deadline()
     }
 
     fn get_touch_at(&self) -> SystemTime {
@@ -256,23 +226,25 @@ impl Ctrl for Session {
         Ok(token)
     }
 
-    fn get_directory(&self, token: Token) -> Result<Box<&dyn dir::Ctrl>, Box<dyn Error>> {
+    fn get_directory(&self, token: Token) -> Option<Box<&dyn dir::Ctrl>> {
         if let Some(dir) = self.dirs.get(&token) {
-            Ok(Box::new(dir))
+            Some(Box::new(dir))
         } else {
-            Err(ERR_DIR_NOT_EXISTS.into())
-        }
-    }
-
-    fn get_dirs_gateway(&self, token: Token) -> Result<Box<&dyn super::Gateway>, Box<dyn Error>> {
-        if let Some(dir) = self.dirs.get(&token) {
-            Ok(Box::new(dir))
-        } else {
-            Err(ERR_DIR_NOT_EXISTS.into())
+            None
         }
     }
 
     fn match_pwd(&self, pwd: &str) -> bool {
         self.user.match_pwd(pwd)
+    }
+
+    fn is_alive(&self) -> Result<(), Box<dyn Error>> {
+        let timeout = Duration::new(default::TOKEN_TIMEOUT, 0);
+        if self.cookie.deadline_exceed(timeout) {
+            let msg = format!("{}", ERR_DEADLINE_EXCEEDED);
+            Err(msg.into())
+        } else {
+            Ok(())
+        }
     }
 }

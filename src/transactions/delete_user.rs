@@ -1,10 +1,7 @@
-use crate::token::Token;
 use std::error::Error;
 use crate::models::{user, session, namesp, Gateway};
-use crate::models::namesp::Ctrl as NpCtrl;
 use crate::regex::*;
 use crate::mongo;
-use crate::default;
 
 const ERR_IDENT_NOT_MATCH: &str = "The provided indentity is not of the expected type";
 const ERR_PWD_NOT_MATCH: &str = "The provided password does not match";
@@ -46,7 +43,7 @@ impl<'a> TxDelete<'a> {
     }
 
     pub fn execute(&self) -> Result<(), Box<dyn Error>> {
-        println!("Got a Delete request from user {} ", self.ident);
+        println!("Got a Account deletion request from user {} ", self.ident);
 
         let user_gw: Box<dyn Gateway>;
         let user_id: i32;
@@ -62,14 +59,15 @@ impl<'a> TxDelete<'a> {
             return Err(ERR_IDENT_NOT_MATCH.into());
         }
 
-        let delete_result = mongo::open_stream(default::COLLECTION).delete_many(
+        let coll_name = mongo::get_collection_name()?;
+        let delete_result = mongo::open_stream(&coll_name).delete_many(
             doc! {
                "user_id": user_id,
             },
             None,
         )?;
 
-        println!("Deleted {} documents", delete_result.deleted_count);
+        println!("Deleted {} documents of user {}", delete_result.deleted_count, self.ident);
         user_gw.delete()?;
         Ok(())
     }

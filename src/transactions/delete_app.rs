@@ -1,15 +1,10 @@
-use crate::token::Token;
 use std::error::Error;
-use crate::models::{user, app, session, secret, namesp, Gateway};
+use crate::models::{app, session, secret, namesp, Gateway};
 use crate::models::app::Ctrl as AppCtrl;
 use crate::models::secret::Ctrl as SecretCtrl;
-use crate::models::namesp::Ctrl as NpCtrl;
-use crate::regex::*;
 use crate::default;
 use crate::mongo;
 
-const ERR_IDENT_NOT_MATCH: &str = "The provided indentity is not of the expected type";
-const ERR_PWD_NOT_MATCH: &str = "The provided password does not match";
 const ERR_SIGNATURE_HAS_FAILED: &str = "Signature verifier has failed";
 
 pub struct TxDelete<'a> {
@@ -28,7 +23,7 @@ impl<'a> TxDelete<'a> {
     }
 
     pub fn execute(&self) -> Result<(), Box<dyn Error>> {
-        println!("Got a Delete request from app {} ", self.label);
+        println!("Got an Account deletion request from app {} ", self.label);
 
         let app = app::find_by_label(self.label)?;
         let secret = secret::find_by_client_and_name(app.get_client_id(), default::RSA_NAME)?;
@@ -52,7 +47,8 @@ impl<'a> TxDelete<'a> {
             namesp::get_instance().destroy_namespace(self.label)?;
         }
 
-        let delete_result = mongo::open_stream(default::COLLECTION).delete_many(
+        let coll_name = mongo::get_collection_name()?;
+        let delete_result = mongo::open_stream(&coll_name).delete_many(
             doc! {
                "app_label": app.get_label(),
             },

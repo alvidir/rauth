@@ -6,7 +6,7 @@ extern crate custom_derive;
 extern crate enum_derive;
 #[macro_use]
 extern crate lazy_static;
-#[macro_use(bson, doc)]
+#[macro_use(/*bson,*/ doc)]
 extern crate bson;
 
 use dotenv;
@@ -26,7 +26,6 @@ mod token;
 mod default;
 
 const ERR_NO_PORT: &str = "Service port must be set";
-const ENV_SERVICE_PORT: &str = "SERVICE_PORT";
 
 use std::sync::Once;
 
@@ -43,7 +42,7 @@ pub fn initialize() {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     initialize();
-    let port = env::var(ENV_SERVICE_PORT)
+    let port = env::var(default::ENV_SERVICE_PORT)
         .expect(ERR_NO_PORT);
 
    let addr = format!("{}:{}", default::SERVER_IP, port);

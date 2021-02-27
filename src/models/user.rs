@@ -104,6 +104,7 @@ struct NewUser<'a> {
 impl User {
     pub fn new<'a>(name: &'a str, email: &'a str, pwd: &'a str) -> Result<Box<impl Ctrl + super::Gateway>, Box<dyn Error>> {
         match_email(email)?;
+        match_pwd(pwd)?;
 
         let kind_id = enums::Kind::USER.to_int32();
         let client: client::Wrapper = client::Client::new(kind_id, name)?;

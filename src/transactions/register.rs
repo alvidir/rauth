@@ -1,5 +1,5 @@
 use std::error::Error;
-use crate::models::{app, session, enums, secret};
+use crate::models::{app, secret};
 use crate::models::app::Ctrl as AppCtrl;
 use crate::models::secret::Ctrl as SecretCtrl;
 use crate::models::Gateway;

@@ -1,10 +1,8 @@
 use std::error::Error;
 use crate::models::{user, app};
 use crate::regex::*;
-use crate::time;
 use crate::token::Token;
-use crate::models::{secret, session, namesp};
-use crate::models::app::Ctrl;
+use crate::models::{session, namesp};
 
 // Proto message structs
 use crate::proto::user_proto;

@@ -43,6 +43,10 @@ impl Token {
     pub fn deadline_exceed(&self, timeout: Duration) -> bool {
         self.1 + timeout < SystemTime::now()
     }
+
+    pub fn get_deadline(&self) -> SystemTime {
+        self.1
+    }
 }
 
 impl fmt::Display for Token {
