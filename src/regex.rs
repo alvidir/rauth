@@ -6,7 +6,7 @@ const REGEX_NAME: &str = r"^[-_A-Za-z0-9\.]+$";
 const REGEX_EMAIL: &str = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,63}$";
 const REGEX_HASH: &str = r"\b[A-Fa-f0-9]{8, 64}\b";
 const _REGEX_B64: &str = r"^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$";
-const REGEX_URL: &str = r#"https?://(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)"#;
+const REGEX_URL: &str = r#"https?://(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}/?$"#;
 const REGEX_COOKIE: &str = r"^[A-Za-z0-9)(*&^%$#@!~?\]\[+-]+$";
 
 const ERR_NAME_FORMAT: &str = "The Name only allows alphanumeric characters";

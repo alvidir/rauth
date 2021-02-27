@@ -1,8 +1,8 @@
 use std::error::Error;
-use crate::models::{user, app};
 use crate::regex::*;
 use crate::token::Token;
-use crate::models::{session, namesp};
+use crate::models::{session, namesp, user, app};
+use crate::models::app::Ctrl as AppCtrl;
 
 // Proto message structs
 use crate::proto::user_proto;
@@ -63,26 +63,25 @@ impl<'a> TxLogin<'a> {
             // user has session
             if !sess.match_pwd(self.pwd) {
                 return Err(ERR_PWD_NOT_MATCH.into());
-            }
-
-            // password does match
-            if let Some(token) = sess.get_token(self.app) {
-                // user is currently loged in the application
-                return Ok(self.session_response(sess, token));
-            }
-
-            // user is not loged in the application
-            let token = sess.new_directory(self.app)?;
+            } // password does match
 
             if let Some(np) = namesp::get_instance().get_by_label(self.app) {
                 // application is using a namespace
+                if let Some(token) = sess.get_token(np.get_id()) {
+                    // user is currently loged in the application
+                    return Ok(self.session_response(sess, token));
+                }   
+
+                // user is not loged in the application
+                let token = sess.new_directory(np.get_id())?;
                 let resp = self.session_response(sess, &token);
                 np.set_cookie(sess.get_cookie().clone(), token)?;
                 return Ok(resp);
-            }
+            }         
 
             // application has no namespace
             let app = app::find_by_label(self.app)?;
+            let token = sess.new_directory(app.get_id())?;
             let np = namesp::get_instance().new_namespace(app)?;
             let resp = self.session_response(sess, &token);
             np.set_cookie(sess.get_cookie().clone(), token)?;
@@ -96,10 +95,9 @@ impl<'a> TxLogin<'a> {
         }
 
         let sess = session::get_instance().new_session(user)?;
-        let token = sess.new_directory(self.app)?;
-
         if let Some(np) = namesp::get_instance().get_by_label(self.app) {
             // application is using a namespace
+            let token = sess.new_directory(np.get_id())?;
             let resp = self.session_response(sess, &token);
             np.set_cookie(sess.get_cookie().clone(), token)?;
             return Ok(resp);
@@ -107,6 +105,7 @@ impl<'a> TxLogin<'a> {
 
         // application has no namespace
         let app = app::find_by_label(self.app)?;
+        let token = sess.new_directory(app.get_id())?;
         let np = namesp::get_instance().new_namespace(app)?;
         let resp = self.session_response(sess, &token);
         np.set_cookie(sess.get_cookie().clone(), token)?;

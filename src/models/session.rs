@@ -24,11 +24,11 @@ pub trait Ctrl {
     fn get_email(&self) -> &str;
     fn get_name(&self) -> &str;
     fn get_user_id(&self) -> i32;
-    fn get_token(&self,  label: &str) -> Option<&Token>;
+    fn get_token(&self,  target: i32) -> Option<&Token>;
     fn get_open_dirs(&self) -> Vec<Token>;
     fn get_directory(&self, token: Token) -> Option<Box<&dyn dir::Ctrl>>;
-    fn new_directory(&mut self, label: &str) -> Result<Token, Box<dyn Error>>;
-    fn delete_directory(&mut self, token: &Token) -> Option<String>;
+    fn new_directory(&mut self, app: i32) -> Result<Token, Box<dyn Error>>;
+    fn delete_directory(&mut self, token: &Token) -> Option<i32>;
     fn match_pwd(&self, pwd: &str) -> bool;
     fn is_alive(&self) -> Result<(), Box<dyn Error>>;
 }
@@ -195,24 +195,24 @@ impl Ctrl for Session {
         self.dirs.iter().map(|(token, _)| (token.clone())).collect()
     }
 
-    fn get_token(&self, label: &str) -> Option<&Token> {
-        if let Some((token, _)) = self.dirs.iter().find(|(_, dir)| dir.get_label() == label) {
+    fn get_token(&self, target: i32) -> Option<&Token> {
+        if let Some((token, _)) = self.dirs.iter().find(|(_, dir)| dir.get_app_id() == target) {
             Some(token)
         } else {
             None
         }
     }
 
-    fn delete_directory(&mut self, token: &Token) -> Option<String> {
+    fn delete_directory(&mut self, token: &Token) -> Option<i32> {
         if let Some(dir) = self.dirs.remove(token) {
-            Some(dir.get_label().to_string())
+            Some(dir.get_app_id())
         } else {
             None
         }
     }
 
-    fn new_directory(&mut self, label: &str) -> Result<Token, Box<dyn Error>> {
-        if let Some(_) = self.dirs.iter().find(|(_, dir)| dir.get_label() == label) {
+    fn new_directory(&mut self, app: i32) -> Result<Token, Box<dyn Error>> {
+        if let Some(_) = self.dirs.iter().find(|(_, dir)| dir.get_app_id() == app) {
             return Err(ERR_LABEL_ALREADY_EXISTS.into());
         }
 
@@ -221,7 +221,7 @@ impl Ctrl for Session {
             return Err(ERR_TOKEN_EXISTS.into());
         }
 
-        let dir = dir::Dir::new(self.user.get_id(), label);
+        let dir = dir::Dir::new(self.user.get_id(), app);
         self.dirs.insert(token.clone(), dir);
         Ok(token)
     }

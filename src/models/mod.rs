@@ -30,14 +30,14 @@ mod tests {
     static DUMMY_NAME: &str = "dummy";
     static DUMMY_EMAIL: &str = "dummy@testing.com";
     static DUMMY_PWD: &str = "0C4fe7eBbfDbcCBE";
-    static DUMMY_URL: &str = "https://www.dummy.com";
+    static DUMMY_URL: &str = "dummy.com";
     static DUMMY_DESCR: &str = "this is a dummy application";
 
     fn get_prefixed_data(subject: &str, is_app: bool) -> (String, String) {
         let name = format!("{}_{}", subject, DUMMY_NAME);
         let email = {
             if is_app {
-                format!("{}/{}", DUMMY_URL, subject)
+                format!("http://{}.{}", subject, DUMMY_URL)
             } else {
                 format!("{}_{}", subject, DUMMY_EMAIL)
             }

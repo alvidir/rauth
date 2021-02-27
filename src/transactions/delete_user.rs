@@ -28,8 +28,8 @@ impl<'a> TxDelete<'a> {
             // user has session            
             for token in sess.get_open_dirs() {
                 // foreach loged-in application
-                if let Some(label) = sess.delete_directory(&token) {
-                    if let Some(np) = namesp::get_instance().get_by_label(&label) {
+                if let Some(app_id) = sess.delete_directory(&token) {
+                    if let Some(np) = namesp::get_instance().get_by_id(app_id) {
                         // application is using a namespace
                         np.delete_cookie(sess.get_cookie());
                     }

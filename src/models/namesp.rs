@@ -14,6 +14,7 @@ const ERR_USER_HAS_DIR: &str = "User already has a directory in this namespace";
 static mut INSTANCE: Option<Box<dyn Factory>> = None;
 
 pub trait Ctrl {
+    fn get_id(&self) -> i32;
     fn get_label(&self) -> &str;
     fn set_cookie(&mut self,  cookie: Token, dir: Token,) -> Result<(), Box<dyn Error>>;
     fn get_secret(&self) -> &Box<dyn secret::Ctrl>;
@@ -25,6 +26,7 @@ pub trait Ctrl {
 pub trait Factory {
     fn new_namespace(&mut self, client: Box<dyn app::Ctrl>) -> Result<&mut Box<dyn Ctrl>, Box<dyn Error>>;
     fn get_by_label(&mut self, label: &str) -> Option<&mut Box<dyn Ctrl>>;
+    fn get_by_id(&mut self, app: i32) ->  Option<&mut Box<dyn Ctrl>>;
     fn destroy_namespace(&mut self, label: &str) -> Result<(), Box<dyn Error>>;
 }
 
@@ -91,6 +93,14 @@ impl Factory for Provider {
         self.allnp.get_mut(label)
     }
 
+    fn get_by_id(&mut self, target: i32) ->  Option<&mut Box<dyn Ctrl>> {
+        if let Some((_, np)) = self.allnp.iter_mut().find(|(_, np)| np.get_id() == target) {
+            Some(np)
+        } else {
+            None
+        }
+    }
+
     fn destroy_namespace(&mut self, label: &str) -> Result<(), Box<dyn Error>> {
         if let Some(_) = self.allnp.remove(label) {
             Ok(())
@@ -118,6 +128,10 @@ impl Namespace {
 }
 
 impl Ctrl for Namespace {
+    fn get_id(&self) -> i32 {
+        self.app.get_id()
+    }
+
     fn get_label(&self) -> &str {
         self.app.get_label()
     }

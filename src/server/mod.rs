@@ -19,9 +19,8 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
     let addr = address.parse().unwrap();
     let session_server = session::SessionImplementation::default();
     let registry_server = registry::RegistryImplementation::default();
-
  
-    println!("Session service listening on {}", addr);
+    println!("Server listening on {}", addr);
  
     Server::builder()
         .add_service(SessionServer::new(session_server))
