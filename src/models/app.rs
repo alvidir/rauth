@@ -118,9 +118,7 @@ impl App {
     pub fn new<'a>(name: &'a str, url: &'a str, descr: &'a str) -> Result<Box<impl Ctrl + super::Gateway>, Box<dyn Error>> {
         match_url(url)?;
 
-        let kind_id = enums::Kind::APP.to_int32();
-        let client: client::Wrapper = client::Client::new(kind_id, name)?;
-        
+        let client: client::Wrapper = client::Client::new(enums::Kind::APP, name)?;
         let label = token::Token::new(default::TOKEN_LEN).to_string();
         let app = App {
             id: 0,

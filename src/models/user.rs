@@ -106,8 +106,7 @@ impl User {
         match_email(email)?;
         match_pwd(pwd)?;
 
-        let kind_id = enums::Kind::USER.to_int32();
-        let client: client::Wrapper = client::Client::new(kind_id, name)?;
+        let client: client::Wrapper = client::Client::new(enums::Kind::USER, name)?;
         let user = User {
             id: 0,
             client_id: 0,

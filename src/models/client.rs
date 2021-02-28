@@ -7,8 +7,6 @@ use crate::models::enums;
 use crate::postgres::*;
 use crate::regex::*;
 
-const ERR_UNKNOWN_KIND: &str = "The provided kind do no match with any of the expected ones";
-
 pub trait Ctrl {
     fn get_status(&self) -> i32;
     fn get_id(&self) -> i32;
@@ -76,28 +74,14 @@ struct NewClient<'a> {
 }
 
 impl Client {
-    fn check_kind(kind: i32) -> Result<(), Box<dyn Error>> {
-        #![allow(unused)]
-        match enums::find_kind_by_id(kind)? {
-            enums::Kind::USER | enums::Kind::APP => {
-                Ok(())
-            }
-
-            _ => {
-                Err(ERR_UNKNOWN_KIND.into())
-            }
-        }
-    }
-
-    pub fn new<'a>(kind: i32, name: &'a str) -> Result<Wrapper, Box<dyn Error>> {
-        Client::check_kind(kind)?;
+    pub fn new<'a>(kind: enums::Kind, name: &'a str) -> Result<Wrapper, Box<dyn Error>> {
         match_name(name)?;
 
         let client = Client {
             id: 0,
             name: name.to_string(),
             status_id: 1,
-            kind_id: kind,
+            kind_id: kind.to_int32(),
             created_at: SystemTime::now(),
             updated_at: SystemTime::now(),
         };
@@ -107,10 +91,10 @@ impl Client {
     }
 
     fn build(&self) -> Result<Wrapper, Box<dyn Error>> {
-        let ekind = enums::find_kind_by_id(self.kind_id)?;
+        let kind = enums::Kind::from_i32(self.kind_id)?;
         Ok(Wrapper{
             client: self.clone(),
-            kind: ekind,
+            kind: kind,
         })
     }
 }

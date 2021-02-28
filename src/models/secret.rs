@@ -13,8 +13,8 @@ use crate::regex::*;
 
 pub trait Ctrl {
     fn get_client_id(&self) -> i32;
-    fn get_encrypter(&self) -> Result<Encrypter, Box<dyn Error>>;
     fn get_verifier(&self) -> Result<Verifier, Box<dyn Error>>;
+    fn encrypt(&self, data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>>;
 }
 
 pub fn _find_all_by_client(target_id: i32) -> Result<Vec<impl Ctrl + super::Gateway>, Box<dyn Error>>  {
@@ -122,15 +122,23 @@ impl Ctrl for Wrapper {
         self.secret.client_id
     }
 
-    fn get_encrypter(&self) -> Result<Encrypter, Box<dyn Error>> {
-        let mut encrypter = Encrypter::new(&self.pkey)?;
-        encrypter.set_rsa_padding(Padding::PKCS1)?;
-        Ok(encrypter)
-    }
-
     fn get_verifier(&self) -> Result<Verifier, Box<dyn Error>> {
         let ver = Verifier::new_without_digest(&self.pkey)?;
         Ok(ver)
+    }
+
+    fn encrypt(&self, data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
+        let mut encrypter = Encrypter::new(&self.pkey)?;
+        encrypter.set_rsa_padding(Padding::PKCS1)?;
+
+        // Create an output buffer
+        let buffer_len = encrypter.encrypt_len(data)?;
+        let mut encrypted = vec![0; buffer_len];
+        
+        // Encrypt and truncate the buffer
+        let encrypted_len = encrypter.encrypt(data, &mut encrypted)?;
+        encrypted.truncate(encrypted_len);
+        Ok(encrypted)
     }
 }
 

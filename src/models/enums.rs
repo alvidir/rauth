@@ -1,11 +1,11 @@
-#![allow(unused)]
-
 use std::fmt;
 use std::error::Error;
 use diesel::NotFound;
 use crate::schema::{kinds, statuses};
 use crate::diesel::prelude::*;
 use crate::postgres::*;
+
+const ERR_UNKNOWN_VALUE: &str = "Unknown value";
 
 custom_derive! {
     #[derive(EnumFromStr)]
@@ -18,7 +18,15 @@ custom_derive! {
 }
 
 impl Kind {
-    pub fn derive(name: &str) -> Result<Kind, Box<dyn Error>> {
+    pub fn from_i32(value: i32) -> Result<Kind, Box<dyn Error>> {
+        match value {
+            1 => Ok(Kind::USER),
+            2 => Ok(Kind::APP),
+            _ => Err(ERR_UNKNOWN_VALUE.into()),
+        }
+    }
+
+    pub fn from_string(name: &str) -> Result<Kind, Box<dyn Error>> {
         let upper = name.to_uppercase();
         let kind: Kind = upper.parse()?;
         Ok(kind)
@@ -46,7 +54,7 @@ struct DBKind {
     pub name: String,
 }
 
-pub fn find_kind_by_id(target: i32) -> Result<Kind, Box<dyn Error>>  {
+pub fn _find_kind_by_id(target: i32) -> Result<Kind, Box<dyn Error>>  {
     use crate::schema::kinds::dsl::*;
 
     let results = { // block is required because of connection release
@@ -56,7 +64,7 @@ pub fn find_kind_by_id(target: i32) -> Result<Kind, Box<dyn Error>>  {
     };
 
     if results.len() > 0 {
-        let kind = Kind::derive(&results[0].name)?;
+        let kind = Kind::from_string(&results[0].name)?;
         Ok(kind)
     } else {
         Err(Box::new(NotFound))
@@ -75,13 +83,13 @@ custom_derive! {
 }
 
 impl Status {
-    pub fn derive(name: &str) -> Result<Status, Box<dyn Error>> {
+    pub fn _from_string(name: &str) -> Result<Status, Box<dyn Error>> {
         let upper = name.to_uppercase();
         let status: Status = upper.parse()?;
         Ok(status)
     }
 
-    pub fn to_int32(&self) -> i32 {
+    pub fn _to_int32(&self) -> i32 {
         *self as i32 + 1
     }
 }
@@ -103,7 +111,7 @@ struct DBStatus {
     pub name: String,
 }
 
-pub fn find_status_by_id(target: i32) -> Result<Status, Box<dyn Error>>  {
+pub fn _find_status_by_id(target: i32) -> Result<Status, Box<dyn Error>>  {
     use crate::schema::kinds::dsl::*;
 
     let results = { // block is required because of connection release
@@ -113,7 +121,7 @@ pub fn find_status_by_id(target: i32) -> Result<Status, Box<dyn Error>>  {
     };
 
     if results.len() > 0 {
-        let status = Status::derive(&results[0].name)?;
+        let status = Status::_from_string(&results[0].name)?;
         Ok(status)
     } else {
         Err(Box::new(NotFound))
@@ -132,13 +140,13 @@ custom_derive! {
 }
 
 impl Role {
-    pub fn derive(name: &str) -> Result<Role, Box<dyn Error>> {
+    pub fn _from_string(name: &str) -> Result<Role, Box<dyn Error>> {
         let upper = name.to_uppercase();
         let role: Role = upper.parse()?;
         Ok(role)
     }
 
-    pub fn to_int32(&self) -> i32 {
+    pub fn _to_int32(&self) -> i32 {
         *self as i32 + 1
     }
 }
@@ -160,7 +168,7 @@ struct DBRole {
     pub name: String,
 }
 
-pub fn find_role_by_id(target: i32) -> Result<Role, Box<dyn Error>>  {
+pub fn _find_role_by_id(target: i32) -> Result<Role, Box<dyn Error>>  {
     use crate::schema::kinds::dsl::*;
 
     let results = { // block is required because of connection release
@@ -170,7 +178,7 @@ pub fn find_role_by_id(target: i32) -> Result<Role, Box<dyn Error>>  {
     };
 
     if results.len() > 0 {
-        let role = Role::derive(&results[0].name)?;
+        let role = Role::_from_string(&results[0].name)?;
         Ok(role)
     } else {
         Err(Box::new(NotFound))

@@ -53,14 +53,7 @@ impl<'a> TxRegister<'a> {
             return Err(err);
         }
 
-        let encrypter = secret.get_encrypter()?;
-        // Create an output buffer
-        let buffer_len = encrypter.encrypt_len(app.get_label().as_bytes())?;
-        let mut encrypted = vec![0; buffer_len];
-        // Encrypt and truncate the buffer
-        let encrypted_len = encrypter.encrypt(app.get_label().as_bytes(), &mut encrypted)?;
-        encrypted.truncate(encrypted_len);
-
+        let encrypted = secret.encrypt(app.get_label().as_bytes())?;
         Ok(RegisterResponse{
             label: encrypted,
         })
