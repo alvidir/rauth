@@ -92,7 +92,7 @@ mod tests {
 
     #[test]
     fn user_new_email_ko() {
-        const PREFIX: &str = "user_new_name_ko!";
+        const PREFIX: &str = "user_new_name_ko";
 
         let (name, email) = get_prefixed_data(PREFIX, false);
         let email = format!("{}!", email);
@@ -101,7 +101,7 @@ mod tests {
 
     #[test]
     fn user_new_pwd_ko() {
-        const PREFIX: &str = "user_new_name_ko!";
+        const PREFIX: &str = "user_new_name_ko";
 
         let (name, email) = get_prefixed_data(PREFIX, false);
         let pwd = format!("{}G", DUMMY_PWD);

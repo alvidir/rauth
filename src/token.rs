@@ -20,7 +20,7 @@ impl Token {
         let value: String = (0..size)
         .map(|_| {
             let mut rand = rand::thread_rng();
-            let idx = rand.gen_range(0, CHARSET.len());
+            let idx = rand.gen_range(0..CHARSET.len());
             CHARSET[idx] as char
         })
         .collect();
