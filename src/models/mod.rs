@@ -92,7 +92,7 @@ mod tests {
 
     #[test]
     fn user_new_email_ko() {
-        const PREFIX: &str = "user_new_name_ko";
+        const PREFIX: &str = "user_new_email_ko";
 
         let (name, email) = get_prefixed_data(PREFIX, false);
         let email = format!("{}!", email);
@@ -101,11 +101,23 @@ mod tests {
 
     #[test]
     fn user_new_pwd_ko() {
-        const PREFIX: &str = "user_new_name_ko";
+        const PREFIX: &str = "user_new_pwd_ko";
 
         let (name, email) = get_prefixed_data(PREFIX, false);
         let pwd = format!("{}G", DUMMY_PWD);
         assert!(user::User::new(&name, &email, &pwd).is_err());
+    }
+
+    #[test]
+    fn user_pwd_match() {
+        const PREFIX: &str = "user_pwd_match";
+
+        let (name, email) = get_prefixed_data(PREFIX, false);
+        let user = user::User::new(&name, &email, DUMMY_PWD).unwrap();
+
+        use super::user::Ctrl;
+        assert!(!user.match_pwd(&format!("{}G", DUMMY_PWD)));
+        assert!(user.match_pwd(DUMMY_PWD));
     }
 
     #[test]
