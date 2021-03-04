@@ -14,28 +14,10 @@ mod tests {
     use openssl::rsa::{Rsa, Padding};
     use openssl::hash::MessageDigest;
     use openssl::pkey::PKey;
-
-    static DUMMY_NAME: &str = "dummy";
-    static DUMMY_EMAIL: &str = "dummy@testing.com";
-    static DUMMY_PWD: &str = "0C4fe7eBbfDbcCBE";
-    static DUMMY_URL: &str = "dummy.com";
-    static DUMMY_DESCR: &str = "this is a dummy application";
-
-    fn get_prefixed_data(subject: &str, is_app: bool) -> (String, String) {
-        let name = format!("{}_{}", subject, DUMMY_NAME);
-        let email = {
-            if is_app {
-                format!("http://{}.{}", subject, DUMMY_URL)
-            } else {
-                format!("{}_{}", subject, DUMMY_EMAIL)
-            }
-        };
-
-        (name, email)
-    }
+    use crate::default::tests::*;
 
     #[test]
-    fn signup_test() {
+    fn signup() {
         crate::initialize();
         const PREFIX: &str = "signup";
 
@@ -64,7 +46,7 @@ mod tests {
     }
 
     #[test]
-    fn delete_by_email_test() {
+    fn delete_by_email() {
         crate::initialize();
         const PREFIX: &str = "delete_by_email";
         
@@ -90,7 +72,7 @@ mod tests {
     }
 
     #[test]
-    fn delete_by_name_test() {
+    fn delete_by_name() {
         crate::initialize();
         const PREFIX: &str = "delete_by_name";
         
@@ -116,7 +98,7 @@ mod tests {
     }
 
     #[test]
-    fn register_app_test() {
+    fn register_app() {
         crate::initialize();
         const PREFIX: &str = "register_app";
         
@@ -188,7 +170,7 @@ mod tests {
     }
 
     //#[test]
-    //fn login_by_email_test() {
+    //fn login_by_email() {
     //    crate::initialize();
     //    const PREFIX: &str = "login_by_email";
     //

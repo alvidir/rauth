@@ -25,25 +25,7 @@ mod tests {
     use openssl::pkey::PKey;
     use openssl::rsa::{Rsa, Padding};
     use super::{enums, user, client, secret, app, session, namesp};
-
-    static DUMMY_NAME: &str = "dummy";
-    static DUMMY_EMAIL: &str = "dummy@testing.com";
-    static DUMMY_PWD: &str = "0C4fe7eBbfDbcCBE";
-    static DUMMY_URL: &str = "dummy.com";
-    static DUMMY_DESCR: &str = "this is a dummy application";
-
-    fn get_prefixed_data(subject: &str, is_app: bool) -> (String, String) {
-        let name = format!("{}_{}", subject, DUMMY_NAME);
-        let addr = {
-            if is_app {
-                format!("http://{}.{}", subject, DUMMY_URL)
-            } else {
-                format!("{}_{}", subject, DUMMY_EMAIL)
-            }
-        };
-
-        (name, addr)
-    }
+    use crate::default::tests::*;
 
     #[test]
     fn client_new_ok() {
