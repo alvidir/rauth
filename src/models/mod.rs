@@ -19,7 +19,7 @@ pub trait Gateway {
 #[cfg(test)]
 mod tests {
     use std::time::SystemTime;
-use openssl::encrypt::Decrypter;
+    use openssl::encrypt::Decrypter;
     use openssl::sign::Signer;
     use openssl::hash::MessageDigest;
     use openssl::pkey::PKey;
