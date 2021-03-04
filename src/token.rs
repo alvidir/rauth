@@ -44,7 +44,7 @@ impl Token {
         self.1 + timeout < SystemTime::now()
     }
 
-    pub fn get_deadline(&self) -> SystemTime {
+    pub fn get_created_at(&self) -> SystemTime {
         self.1
     }
 }

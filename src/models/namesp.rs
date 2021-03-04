@@ -16,15 +16,15 @@ static mut INSTANCE: Option<Box<dyn Factory>> = None;
 pub trait Ctrl {
     fn get_id(&self) -> i32;
     fn get_label(&self) -> &str;
-    fn set_cookie(&mut self,  cookie: Token, dir: Token,) -> Result<(), Box<dyn Error>>;
+    fn set_token(&mut self,  cookie: Token, dir: Token,) -> Result<(), Box<dyn Error>>;
     fn get_secret(&self) -> &Box<dyn secret::Ctrl>;
-    fn delete_cookie(&mut self, cookie: &Token) -> Option<Token>;
+    fn delete_token(&mut self, cookie: &Token) -> Option<Token>;
     fn get_token(&self, cookie: &Token) -> Option<&Token>;
     fn get_dirs_iter(&self) -> hash_map::Iter<Token, Token>;
 }
 
 pub trait Factory {
-    fn new_namespace(&mut self, client: Box<dyn app::Ctrl>) -> Result<&mut Box<dyn Ctrl>, Box<dyn Error>>;
+    fn new_namespace(&mut self, client: Box<dyn app::Ctrl>, secret: Box<dyn secret::Ctrl>) -> Result<&mut Box<dyn Ctrl>, Box<dyn Error>>;
     fn get_by_label(&mut self, label: &str) -> Option<&mut Box<dyn Ctrl>>;
     fn get_by_id(&mut self, app: i32) ->  Option<&mut Box<dyn Ctrl>>;
     fn destroy_namespace(&mut self, label: &str) -> Result<(), Box<dyn Error>>;
@@ -66,13 +66,13 @@ impl Provider {
 }
 
 impl Factory for Provider {
-    fn new_namespace(&mut self, appl: Box<dyn app::Ctrl>) -> Result<&mut Box<dyn Ctrl>, Box<dyn Error>> {
-        let label = appl.get_label().to_string();
+    fn new_namespace(&mut self, app: Box<dyn app::Ctrl>, secret: Box<dyn secret::Ctrl>) -> Result<&mut Box<dyn Ctrl>, Box<dyn Error>> {
+        let label = app.get_label().to_string();
 
         if let None = self.allnp.get(&label) {
-            let client_id = appl.get_client_id();
-            let secret = secret::find_by_client_and_name(client_id, default::RSA_NAME)?;
-            let np = Namespace::new(appl, secret);
+            //let client_id = app.get_client_id();
+            //let secret = secret::find_by_client_and_name(client_id, default::RSA_NAME)?;
+            let np = Namespace::new(app, secret);
 
             self.allnp.insert(label.clone(), Box::new(np));
             if let Some(np) = self.allnp.get_mut(&label) {
@@ -140,7 +140,7 @@ impl Ctrl for Namespace {
         &self.public
     }
 
-    fn set_cookie(&mut self,  cookie: Token, dir: Token) -> Result<(), Box<dyn Error>> {
+    fn set_token(&mut self,  cookie: Token, dir: Token) -> Result<(), Box<dyn Error>> {
         if let Some(_) = self.dirs.get(&cookie) {
             return Err(ERR_TOKEN_ALREADY_EXISTS.into());
         }
@@ -153,7 +153,7 @@ impl Ctrl for Namespace {
         Ok(())
     }
 
-    fn delete_cookie(&mut self, cookie: &Token) -> Option<Token> {
+    fn delete_token(&mut self, cookie: &Token) -> Option<Token> {
         self.dirs.remove(cookie)
     }
 

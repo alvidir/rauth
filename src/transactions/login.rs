@@ -1,8 +1,9 @@
 use std::error::Error;
 use crate::regex::*;
 use crate::token::Token;
-use crate::models::{session, namesp, user, app};
+use crate::models::{session, namesp, user, app, secret};
 use crate::models::app::Ctrl as AppCtrl;
+use crate::default;
 
 // Proto message structs
 use crate::proto::user_proto;
@@ -75,16 +76,17 @@ impl<'a> TxLogin<'a> {
                 // user is not loged in the application
                 let token = sess.new_directory(np.get_id())?;
                 let resp = self.session_response(sess, &token);
-                np.set_cookie(sess.get_cookie().clone(), token)?;
+                np.set_token(sess.get_cookie().clone(), token)?;
                 return Ok(resp);
             }         
 
             // application has no namespace
             let app = app::find_by_label(self.app)?;
             let token = sess.new_directory(app.get_id())?;
-            let np = namesp::get_instance().new_namespace(app)?;
+            let secret = secret::find_by_client_and_name(app.get_id(), default::RSA_NAME)?;
+            let np = namesp::get_instance().new_namespace(app, secret)?;
             let resp = self.session_response(sess, &token);
-            np.set_cookie(sess.get_cookie().clone(), token)?;
+            np.set_token(sess.get_cookie().clone(), token)?;
             return Ok(resp);
         }
 
@@ -99,16 +101,17 @@ impl<'a> TxLogin<'a> {
             // application is using a namespace
             let token = sess.new_directory(np.get_id())?;
             let resp = self.session_response(sess, &token);
-            np.set_cookie(sess.get_cookie().clone(), token)?;
+            np.set_token(sess.get_cookie().clone(), token)?;
             return Ok(resp);
         }
 
         // application has no namespace
         let app = app::find_by_label(self.app)?;
         let token = sess.new_directory(app.get_id())?;
-        let np = namesp::get_instance().new_namespace(app)?;
+        let secret = secret::find_by_client_and_name(app.get_id(), default::RSA_NAME)?;
+        let np = namesp::get_instance().new_namespace(app, secret)?;
         let resp = self.session_response(sess, &token);
-        np.set_cookie(sess.get_cookie().clone(), token)?;
+        np.set_token(sess.get_cookie().clone(), token)?;
         return Ok(resp);
     }
 }

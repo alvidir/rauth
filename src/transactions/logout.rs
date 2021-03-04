@@ -41,7 +41,7 @@ impl<'a> TxLogout<'a> {
                 // user was loged in the application
                 if let Some(np) = namesp::get_instance().get_by_id(app_id) {
                     // application is using a namespace
-                    np.delete_cookie(sess.get_cookie());
+                    np.delete_token(sess.get_cookie());
                 }
             }
         } else {

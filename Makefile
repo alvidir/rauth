@@ -3,6 +3,10 @@ VERSION=0.1.0
 REPO=alvidir
 PROJECT=tp-auth
 
+install:
+	sudo apt install libpq-dev
+	cargo install diesel_cli --no-default-features --features postgres
+
 proto:
 	protoc --go_out=plugins=grpc:. --go_opt=paths=source_relative proto/client/*.proto
 

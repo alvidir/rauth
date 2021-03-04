@@ -6,19 +6,20 @@ use crate::proto::Status;
 use crate::default;
 use super::{user, dir};
 use super::dir::Ctrl as DirCtrl;
+use std::sync::Once;
 
 const ERR_DEADLINE_EXCEEDED: &str = "Deadline exceeded";
 const ERR_SESSION_ALREADY_EXISTS: &str = "A session already exists for client";
 const ERR_COOKIE_NOT_FOUND: &str = "No session has been found for the provided cookie";
 const ERR_SESSION_BUILD: &str = "Something has failed while building session for";
 const ERR_TOKEN_EXISTS: &str = "Provided token already exists";
-const ERR_LABEL_ALREADY_EXISTS: &str = "Application already has a directory for this user";
+const ERR_APP_ALREADY_EXISTS: &str = "Application already has a directory for this user";
+
 static mut INSTANCE: Option<Box<dyn Factory>> = None;
 
 pub trait Ctrl {
     fn get_client_id(&self) -> i32;
     fn get_cookie(&self) -> &Token;
-    fn get_created_at(&self) -> SystemTime;
     fn get_touch_at(&self) -> SystemTime;
     fn get_status(&self) -> Status;
     fn get_email(&self) -> &str;
@@ -26,7 +27,7 @@ pub trait Ctrl {
     fn get_user_id(&self) -> i32;
     fn get_token(&self,  target: i32) -> Option<&Token>;
     fn get_open_dirs(&self) -> Vec<Token>;
-    fn get_directory(&self, token: Token) -> Option<Box<&dyn dir::Ctrl>>;
+    fn get_directory(&self, token: &Token) -> Option<Box<&dyn dir::Ctrl>>;
     fn new_directory(&mut self, app: i32) -> Result<Token, Box<dyn Error>>;
     fn delete_directory(&mut self, token: &Token) -> Option<i32>;
     fn match_pwd(&self, pwd: &str) -> bool;
@@ -60,7 +61,7 @@ pub fn get_instance<'a>() -> &'a mut Box<dyn Factory> {
             }
             
             get_instance()
-        },
+        }
     }
 }
 
@@ -88,7 +89,8 @@ impl Provider {
 
 impl Factory for Provider {
     fn new_session(&mut self, user: Box<dyn user::Ctrl>) -> Result<&mut Box<dyn Ctrl>, Box<dyn Error>> {
-        if let None = self.allsess.iter().find(|(_, sess)| sess.get_user_id() == user.get_id()) {
+        // [Testing] sess.get_user_id() == user.get_id() fails when non-inserted users are used: foreach id == 0
+        if let None = self.allsess.iter().find(|(_, sess)| sess.get_email() == user.get_email()) {
             let token = self.cookie_gen();
             let email = user.get_email().to_string();
             let sess = Session::new(user, token.clone());
@@ -179,10 +181,6 @@ impl Ctrl for Session {
         self.user.get_name()
     }
 
-    fn get_created_at(&self) -> SystemTime {
-        self.cookie.get_deadline()
-    }
-
     fn get_touch_at(&self) -> SystemTime {
         self.touch_at
     }
@@ -213,7 +211,7 @@ impl Ctrl for Session {
 
     fn new_directory(&mut self, app: i32) -> Result<Token, Box<dyn Error>> {
         if let Some(_) = self.dirs.iter().find(|(_, dir)| dir.get_app_id() == app) {
-            return Err(ERR_LABEL_ALREADY_EXISTS.into());
+            return Err(ERR_APP_ALREADY_EXISTS.into());
         }
 
         let token = Token::new(default::TOKEN_LEN);
@@ -226,7 +224,7 @@ impl Ctrl for Session {
         Ok(token)
     }
 
-    fn get_directory(&self, token: Token) -> Option<Box<&dyn dir::Ctrl>> {
+    fn get_directory(&self, token: &Token) -> Option<Box<&dyn dir::Ctrl>> {
         if let Some(dir) = self.dirs.get(&token) {
             Some(Box::new(dir))
         } else {
