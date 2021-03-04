@@ -25,7 +25,7 @@ mod tests {
     use openssl::pkey::PKey;
     use openssl::rsa::{Rsa, Padding};
     use super::{enums, user, client, secret, app, session, namesp};
-    use crate::default::tests::*;
+    use crate::default::tests::{get_prefixed_data, DUMMY_DESCR, DUMMY_PWD};
 
     #[test]
     fn client_new_ok() {

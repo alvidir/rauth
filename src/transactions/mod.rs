@@ -14,7 +14,7 @@ mod tests {
     use openssl::rsa::{Rsa, Padding};
     use openssl::hash::MessageDigest;
     use openssl::pkey::PKey;
-    use crate::default::tests::*;
+    use crate::default::tests::{get_prefixed_data, DUMMY_DESCR, DUMMY_PWD};
 
     #[test]
     fn signup() {
