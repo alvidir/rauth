@@ -6,7 +6,6 @@ use crate::proto::Status;
 use crate::default;
 use super::{user, dir};
 use super::dir::Ctrl as DirCtrl;
-use std::sync::Once;
 
 const ERR_DEADLINE_EXCEEDED: &str = "Deadline exceeded";
 const ERR_SESSION_ALREADY_EXISTS: &str = "A session already exists for client";

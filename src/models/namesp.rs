@@ -3,7 +3,6 @@ use std::collections::hash_map;
 use std::error::Error;
 use super::{app, secret};
 use crate::token::Token;
-use crate::default;
 
 const ERR_NO_NAMESPACE: &str = "Namespace not found";
 const ERR_NAMESPACE_ALREADY_EXISTS: &str = "The provided application already has an namespace";
