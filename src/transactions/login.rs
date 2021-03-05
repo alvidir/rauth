@@ -108,7 +108,7 @@ impl<'a> TxLogin<'a> {
         // application has no namespace
         let app = app::find_by_label(self.app)?;
         let token = sess.new_directory(app.get_id())?;
-        let secret = secret::find_by_client_and_name(app.get_id(), default::RSA_NAME)?;
+        let secret = secret::find_by_client_and_name(app.get_client_id(), default::RSA_NAME)?;
         let np = namesp::get_instance().new_namespace(app, secret)?;
         let resp = self.session_response(sess, &token);
         np.set_token(sess.get_cookie().clone(), token)?;

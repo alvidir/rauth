@@ -23,6 +23,8 @@ deploy:
 undeploy:
 	podman-compose -f docker-compose.yaml down
 
+reset: undeploy deploy migration
+
 run:
 	cargo run
 

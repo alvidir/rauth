@@ -33,7 +33,7 @@ static INIT: Once = Once::new();
 
 pub fn initialize() {
     INIT.call_once(|| {
-        dotenv::dotenv().ok(); // seting up environment variables
+        dotenv::dotenv().unwrap(); // seting up environment variables
         postgres::must_connect(); // checking postgres connectivity
         mongo::must_connect(); // checking mongodb connectivity
     });

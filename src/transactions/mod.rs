@@ -7,14 +7,16 @@ pub mod register;
 
 #[cfg(test)]
 mod tests {
-    use crate::transactions::{signup, delete_user, register};
-    use crate::models::{user, secret, app, Gateway};
+    use crate::token::Token;
+use crate::transactions::{signup, delete_user, register};
+    use crate::models::{user, secret, app, session, Gateway};
     use openssl::sign::Signer;
     use openssl::encrypt::Decrypter;
     use openssl::rsa::{Rsa, Padding};
     use openssl::hash::MessageDigest;
     use openssl::pkey::PKey;
     use crate::default::tests::{get_prefixed_data, DUMMY_DESCR, DUMMY_PWD};
+    use crate::default;
 
     #[test]
     fn signup() {
@@ -98,9 +100,9 @@ mod tests {
     }
 
     #[test]
-    fn register_app() {
+    fn register() {
         crate::initialize();
-        const PREFIX: &str = "register_app";
+        const PREFIX: &str = "register";
         
         let (name, url) = get_prefixed_data(PREFIX, true);
     
@@ -169,25 +171,209 @@ mod tests {
         app_gw.delete().unwrap();
     }
 
-    //#[test]
-    //fn login_by_email() {
-    //    crate::initialize();
-    //    const PREFIX: &str = "login_by_email";
-    //
-    //    // Setting up the required client
-    //    let (name, email) = get_prefixed_data(PREFIX, false);
-    //    let tx_signup = signup::TxSignup::new(&name, &email, DUMMY_PWD);
-    //    tx_signup.execute().unwrap();
-    //    
-    //    // Login the new client using its email
-    //    let tx_dummy = super::login::TxLogin::new(&email, DUMMY_PWD, DUMMY_APP);
-    //    tx_dummy.execute().unwrap();
-    //
-    //    // Deleting the dummy user and its data from the database
-    //    let secret_gw: Box<&dyn super::Gateway> = Box::new(secret_stream.as_ref());
-    //    secret_gw.delete().unwrap();
-    //
-    //    let user_gw: Box<&dyn super::Gateway> = Box::new(user_stream.as_ref());
-    //    user_gw.delete().unwrap();
-    //}
+    #[test]
+    fn login_by_email() {
+        use app::Ctrl as AppCtrl;
+        use user::Ctrl as UserCtrl;
+        crate::initialize();
+        const PREFIX: &str = "login_by_email";
+    
+        // Setting up the required client
+        let (user_name, email) = get_prefixed_data(PREFIX, false);
+        let (app_name, url) = get_prefixed_data(PREFIX, true);
+        let tx_signup = signup::TxSignup::new(&user_name, &email, DUMMY_PWD);
+        tx_signup.execute().unwrap();
+    
+        let user = user::find_by_name(&user_name).unwrap();
+    
+        // Generate a keypair
+        let rsa = Rsa::generate(2048).unwrap();
+        let rsa = PKey::from_rsa(rsa).unwrap();
+        let public = rsa.public_key_to_pem().unwrap();
+        
+        let mut signer = Signer::new(MessageDigest::sha256(), &rsa).unwrap();
+        signer.update(app_name.as_bytes()).unwrap();
+        signer.update(url.as_bytes()).unwrap();
+        signer.update(DUMMY_DESCR.as_bytes()).unwrap();
+        signer.update(&public).unwrap();
+        
+        let firm = signer.sign_to_vec().unwrap();
+    
+        // Register app
+        let tx_register = register::TxRegister::new(&app_name, &url, DUMMY_DESCR, &public, &firm);
+        let resp = tx_register.execute().unwrap();
+
+        // Decrypt the data
+        let mut decrypter = Decrypter::new(&rsa).unwrap();
+        decrypter.set_rsa_padding(Padding::PKCS1).unwrap();
+        // Create an output buffer
+        let buffer_len = decrypter.decrypt_len(&resp.label).unwrap();
+        let mut decrypted = vec![0; buffer_len];
+        // Encrypt and truncate the buffer
+        let decrypted_len = decrypter.decrypt(&resp.label, &mut decrypted).unwrap();
+        decrypted.truncate(decrypted_len);
+ 
+        // Checking the user data
+        let label = String::from_utf8(decrypted).unwrap();
+        let app = app::find_by_label(&label).unwrap();
+        assert_eq!(app.get_label(), label);
+
+        // Login the new client using its email
+        let tx_dummy = super::login::TxLogin::new(&email, DUMMY_PWD, &label);
+        let resp = tx_dummy.execute().unwrap();
+
+        use crate::proto::user_proto::Status;
+        let status_new = Status::New as i32;
+        assert_eq!(resp.status, status_new);
+        assert_eq!(resp.cookie.len(), 2 * default::TOKEN_LEN);
+
+        use crate::token::Token;
+        let cookie = &resp.cookie[..default::TOKEN_LEN];
+        let token = &resp.cookie[default::TOKEN_LEN..];
+        let cookie = Token::from_string(cookie);
+        let token = Token::from_string(token);
+        let sess = session::get_instance().get_by_cookie(&cookie).unwrap();
+        assert!(sess.get_directory(&token).is_some());
+        assert_eq!(sess.get_cookie().as_str(), cookie.as_str());
+        let got_token = sess.get_token(app.get_id()).unwrap();
+        assert_eq!(got_token.as_str(), token.as_str());
+        assert_eq!(sess.get_user_id(), user.get_id());
+
+        // Checking there is a default secret for the app
+        let secret = secret::find_by_client_and_name(app.get_client_id(), default::RSA_NAME).unwrap();
+    
+        // Deleting the dummy user and its data from the database
+        secret.delete().unwrap();
+        // Deleting the app and client
+        app.delete().unwrap();
+        // Deleting the user and client
+        user.delete().unwrap();
+    }
+
+    #[test]
+    fn login_by_name() {
+        use app::Ctrl;
+        crate::initialize();
+        const PREFIX: &str = "login_by_name";
+    
+        // Setting up the required client
+        let (user_name, email) = get_prefixed_data(PREFIX, false);
+        let (app_name, url) = get_prefixed_data(PREFIX, true);
+        let tx_signup = signup::TxSignup::new(&user_name, &email, DUMMY_PWD);
+        tx_signup.execute().unwrap();
+    
+        let user = user::find_by_name(&user_name).unwrap();
+    
+        // Generate a keypair
+        let rsa = Rsa::generate(2048).unwrap();
+        let rsa = PKey::from_rsa(rsa).unwrap();
+        let public = rsa.public_key_to_pem().unwrap();
+        
+        let mut signer = Signer::new(MessageDigest::sha256(), &rsa).unwrap();
+        signer.update(app_name.as_bytes()).unwrap();
+        signer.update(url.as_bytes()).unwrap();
+        signer.update(DUMMY_DESCR.as_bytes()).unwrap();
+        signer.update(&public).unwrap();
+        
+        let firm = signer.sign_to_vec().unwrap();
+    
+        // Register app
+        let tx_register = register::TxRegister::new(&app_name, &url, DUMMY_DESCR, &public, &firm);
+        let resp = tx_register.execute().unwrap();
+
+        // Decrypt the data
+        let mut decrypter = Decrypter::new(&rsa).unwrap();
+        decrypter.set_rsa_padding(Padding::PKCS1).unwrap();
+        // Create an output buffer
+        let buffer_len = decrypter.decrypt_len(&resp.label).unwrap();
+        let mut decrypted = vec![0; buffer_len];
+        // Encrypt and truncate the buffer
+        let decrypted_len = decrypter.decrypt(&resp.label, &mut decrypted).unwrap();
+        decrypted.truncate(decrypted_len);
+ 
+        // Checking the user data
+        let label = String::from_utf8(decrypted).unwrap();
+        let app = app::find_by_label(&label).unwrap();
+        assert_eq!(app.get_label(), label);
+
+        // Login the new client using its email
+        let tx_dummy = super::login::TxLogin::new(&user_name, DUMMY_PWD, &label);
+        assert!(tx_dummy.execute().is_ok());
+
+        // Checking there is a default secret for the app
+        let secret = secret::find_by_client_and_name(app.get_client_id(), default::RSA_NAME).unwrap();
+    
+        // Deleting the dummy user and its data from the database
+        secret.delete().unwrap();
+        // Deleting the app and client
+        app.delete().unwrap();
+        // Deleting the user and client
+        user.delete().unwrap();
+    }
+
+    #[test]
+    fn logout() {
+        use app::Ctrl as AppCtrl;
+        crate::initialize();
+        const PREFIX: &str = "logout";
+    
+        // Setting up the required client
+        let (user_name, email) = get_prefixed_data(PREFIX, false);
+        let (app_name, url) = get_prefixed_data(PREFIX, true);
+        let tx_signup = signup::TxSignup::new(&user_name, &email, DUMMY_PWD);
+        tx_signup.execute().unwrap();
+    
+        let user = user::find_by_name(&user_name).unwrap();
+    
+        // Generate a keypair
+        let rsa = Rsa::generate(2048).unwrap();
+        let rsa = PKey::from_rsa(rsa).unwrap();
+        let public = rsa.public_key_to_pem().unwrap();
+        
+        let mut signer = Signer::new(MessageDigest::sha256(), &rsa).unwrap();
+        signer.update(app_name.as_bytes()).unwrap();
+        signer.update(url.as_bytes()).unwrap();
+        signer.update(DUMMY_DESCR.as_bytes()).unwrap();
+        signer.update(&public).unwrap();
+        
+        let firm = signer.sign_to_vec().unwrap();
+    
+        // Register app
+        let tx_register = register::TxRegister::new(&app_name, &url, DUMMY_DESCR, &public, &firm);
+        let resp = tx_register.execute().unwrap();
+
+        // Decrypt the data
+        let mut decrypter = Decrypter::new(&rsa).unwrap();
+        decrypter.set_rsa_padding(Padding::PKCS1).unwrap();
+        // Create an output buffer
+        let buffer_len = decrypter.decrypt_len(&resp.label).unwrap();
+        let mut decrypted = vec![0; buffer_len];
+        // Encrypt and truncate the buffer
+        let decrypted_len = decrypter.decrypt(&resp.label, &mut decrypted).unwrap();
+        decrypted.truncate(decrypted_len);
+ 
+        // Checking the user data
+        let label = String::from_utf8(decrypted).unwrap();
+        let app = app::find_by_label(&label).unwrap();
+
+        // Login the new client using its email
+        let tx_dummy = super::login::TxLogin::new(&email, DUMMY_PWD, &label);
+        let resp = tx_dummy.execute().unwrap();
+        let tx_dummy = super::logout::TxLogout::new(&resp.cookie);
+        assert!(tx_dummy.execute().is_ok());
+        let cookie = Token::from_string(&resp.cookie[..default::TOKEN_LEN]);
+        let sess = session::get_instance().get_by_cookie(&cookie).unwrap();
+        let token = Token::from_string(&resp.cookie[default::TOKEN_LEN..]);
+        assert!(sess.get_directory(&token).is_none());
+
+        // Checking there is a default secret for the app
+        let secret = secret::find_by_client_and_name(app.get_client_id(), default::RSA_NAME).unwrap();
+    
+        // Deleting the dummy user and its data from the database
+        secret.delete().unwrap();
+        // Deleting the app and client
+        app.delete().unwrap();
+        // Deleting the user and client
+        user.delete().unwrap();
+    }
 }

@@ -24,7 +24,7 @@ pub trait Ctrl {
     fn get_email(&self) -> &str;
     fn get_name(&self) -> &str;
     fn get_user_id(&self) -> i32;
-    fn get_token(&self,  target: i32) -> Option<&Token>;
+    fn get_token(&self,  app: i32) -> Option<&Token>;
     fn get_open_dirs(&self) -> Vec<Token>;
     fn get_directory(&self, token: &Token) -> Option<Box<&dyn dir::Ctrl>>;
     fn new_directory(&mut self, app: i32) -> Result<Token, Box<dyn Error>>;
@@ -42,11 +42,10 @@ pub trait Factory {
 }
 
 pub fn get_instance<'a>() -> &'a mut Box<dyn Factory> {
-    let provider: &mut Option<Box<dyn Factory>>;
-    unsafe {
-        provider = &mut INSTANCE
-    }
-
+    let provider: &mut Option<Box<dyn Factory>> = unsafe {
+        &mut INSTANCE
+    };
+    
     match provider {
         Some(ctrl) => {
             ctrl
@@ -192,8 +191,8 @@ impl Ctrl for Session {
         self.dirs.iter().map(|(token, _)| (token.clone())).collect()
     }
 
-    fn get_token(&self, target: i32) -> Option<&Token> {
-        if let Some((token, _)) = self.dirs.iter().find(|(_, dir)| dir.get_app_id() == target) {
+    fn get_token(&self, app: i32) -> Option<&Token> {
+        if let Some((token, _)) = self.dirs.iter().find(|(_, dir)| dir.get_app_id() == app) {
             Some(token)
         } else {
             None

@@ -20,7 +20,14 @@ pub mod tests {
     pub static DUMMY_DESCR: &str = "this is a dummy application";
 
     pub fn get_prefixed_data(subject: &str, is_app: bool) -> (String, String) {
-        let name = format!("{}_{}", subject, DUMMY_NAME);
+        let name = {
+            if is_app {
+                format!("{}_{}_app", subject, DUMMY_NAME)
+            } else {
+                format!("{}_{}_user", subject, DUMMY_NAME)
+            }
+        };
+
         let email = {
             if is_app {
                 format!("http://{}.{}", subject, DUMMY_URL)
