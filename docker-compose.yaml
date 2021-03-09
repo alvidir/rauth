@@ -10,6 +10,7 @@ services:
             - 5432:5432
         volumes:
             - dbdata:/data/postgres
+            - "./migrations:/docker-entrypoint-initdb.d"
         networks: 
             - database
         env_file:
@@ -31,41 +32,39 @@ services:
             - ".env"
             
     
-    ### ENVOY PROXY ###
+    #### ENVOY PROXY ###
     #envoy:
     #    container_name: tp-auth-envoy
     #    image: alvidir/tp-auth:0.1.0-envoy
     #    restart: always
     #    ports:
-    #        - "8080:8080"
+    #        - "5050:8080"
     #        - "9901:9901"
     #    networks: 
     #        - ingress
+    #    depends_on: 
+    #        - tp-auth-server
     #
     #### BACKEND ###
-    #tp-auth:
-    #    container_name: tp-auth-server
-    #    image: alvidir/tp-auth:0.1.0
-    #    restart: always
-    #    networks: 
-    #        - ingress
-    #        - domain
-    #        - database
-    #    env_file:
-    #        - .env
+    # tp-auth:
+    #     container_name: tp-auth-server
+    #     image: alvidir/tp-auth:0.1.0
+    #     restart: always
+    #     networks: 
+    #         - ingress
+    #         - database
+    #     depends_on: 
+    #         - postgres
+    #     env_file:
+    #         - .env
 
 networks:
     # Ingress network works as bridge between envoyproxy and the available services
-    #ingress:
-    #    name: ingress
-    #    driver: bridge
-    #
-    ## Domain network is the internal network of services
-    #domain:
-    #    name: domain
-    #    driver: bridge
-    #
-    ## Database network is the bridge between domain environment and the sql databases
+    ingress:
+        name: ingress
+        driver: bridge
+ 
+    # Database network is the bridge between domain environment and the sql databases
     database:
         name: database
         driver: bridge

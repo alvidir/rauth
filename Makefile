@@ -12,7 +12,7 @@ proto:
 
 build:
 	podman build -t ${REPO}/${PROJECT}:${VERSION}-envoy -f ./docker/envoy/dockerfile .
-	podman build -t ${REPO}/${PROJECT}:${VERSION} -f ./docker/tp-auth/dockerfile .
+	# podman build -t ${REPO}/${PROJECT}:${VERSION} -f ./docker/tp-auth/dockerfile .
 
 migration:
 	diesel migration run
@@ -31,3 +31,10 @@ run:
 test:
 	RUST_BACKTRACE=1
 	cargo test -- --nocapture
+
+envoy:
+	# ports exportation is not required due is using host's network
+	podman run -it --net=host  alvidir/tp-auth:0.1.0-envoy
+
+check-envoy:
+	curl -v localhost:5050

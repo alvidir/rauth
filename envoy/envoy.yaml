@@ -7,7 +7,7 @@ static_resources:
   listeners:
   - name: ingress
     address:
-      socket_address: { address: 0.0.0.0, port_value: 8080 }
+      socket_address: { address: 0.0.0.0, port_value: 5050 }
     filter_chains:
     - filters:
       - name: envoy.http_connection_manager
@@ -20,9 +20,9 @@ static_resources:
             - name: ingress_service
               domains: ["*"]
               routes:
-              - match: { prefix: "/tp-auth/" }
+              - match: { prefix: "/" }
                 route:
-                  prefix_rewrite: "/"
+                  #prefix_rewrite: "/"
                   cluster: tp-auth
                   max_grpc_timeout: 0s
               cors:
@@ -42,4 +42,4 @@ static_resources:
     type: logical_dns
     http2_protocol_options: {}
     lb_policy: round_robin
-    hosts: [{ socket_address: { address: tp-auth-server, port_value: 9090 }}]
+    hosts: [{ socket_address: { address: 127.0.0.1, port_value: 5051 }}]
