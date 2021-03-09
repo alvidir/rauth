@@ -33,7 +33,11 @@ static INIT: Once = Once::new();
 
 pub fn initialize() {
     INIT.call_once(|| {
-        dotenv::dotenv().unwrap(); // seting up environment variables
+        if let Err(_) = dotenv::dotenv() {
+            // seting up environment variables (if there is no .env: must NOT fail)
+            println!("No dotenv file has been found.");
+        }
+
         postgres::must_connect(); // checking postgres connectivity
         mongo::must_connect(); // checking mongodb connectivity
     });

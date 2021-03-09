@@ -1,52 +1,18 @@
-FROM rust:1.46 as builder
+FROM rust:1.50 as builder
 
-RUN rustup component add rustfmt --toolchain 1.46.0-x86_64-unknown-linux-gnu
-WORKDIR /usr/src/tp_auth
+RUN rustup component add rustfmt --toolchain 1.50.0-x86_64-unknown-linux-gnu
+WORKDIR /usr/src/tp-auth
 
-COPY . .
+COPY *.toml *.lock *.rs ./
+COPY proto ./proto
+COPY src ./src
+
 RUN cargo install --path .
 
 ######## Start a new stage from scratch #######
-FROM debian:buster-slim
+FROM rust:1.50
 
-RUN apt update && apt install -y extra-runtime-dependencies && rm -rf /var/lib/apt/lists/*
-
+RUN rustup component add rustfmt --toolchain 1.50.0-x86_64-unknown-linux-gnu
 COPY --from=builder /usr/local/cargo/bin/tp_auth /usr/local/bin/tp_auth
 
 CMD ["tp_auth"]
-
-# FROM rust:1.46 as builder
-# 
-# LABEL maintainer="Hector Morales <hector.morales.carnice@gmail.com>"
-# LABEL repo-url="https://github.com/alvidir/tp-auth"
-# LABEL version="alpha"
-# 
-# RUN rustup component add rustfmt --toolchain 1.46.0-x86_64-unknown-linux-gnu
-# 
-# WORKDIR /app
-# RUN USER=root cargo new --bin tp-auth
-# 
-# WORKDIR /app/tp-auth
-# COPY . .
-# 
-# RUN cargo build --release
-# 
-######## Start a new stage from scratch #######
-#FROM debian:buster-slim
-FROM rust:alpine3.12
-
-WORKDIR /usr/src/app
-# COPY --from=builder /app/tp-auth/target/release/tp_auth .
-COPY . .
-
-RUN cargo install --path .
-RUN ls -la
-
-CMD ["tp_auth"]
-
-#USER root
-#ENV RUST_LOG=info
-#ENV RUST_BACKTRACE=full
-#
-## Command to run the executable
-#CMD ["./tp_auth"]
