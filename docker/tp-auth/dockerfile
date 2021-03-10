@@ -15,4 +15,5 @@ FROM rust:1.50
 RUN rustup component add rustfmt --toolchain 1.50.0-x86_64-unknown-linux-gnu
 COPY --from=builder /usr/local/cargo/bin/tp_auth /usr/local/bin/tp_auth
 
+ENV RUST_BACKTRACE=full
 CMD ["tp_auth"]

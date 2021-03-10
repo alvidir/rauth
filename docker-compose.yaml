@@ -1,17 +1,6 @@
 version: '3.8'
 
 services:
-    ### ENVOY PROXY ###
-    envoy:
-        container_name: tp-auth-envoy
-        image: alvidir/tp-auth:0.1.0-envoy
-        restart: always
-        ports:
-            - "5050:5050"
-            - "9901:9901"
-        networks:
-            - ingress
-    
     ### DATABASE ###
     postgres:
         container_name: postgres
@@ -19,13 +8,13 @@ services:
         restart: on-failure
         volumes:
             - dbdata:/data/postgres
-            - "./migrations/.default:/docker-entrypoint-initdb.d"
+            - "./migrations/up:/docker-entrypoint-initdb.d"
+        ports:
+            - 5432:5432
         networks: 
             - database
         env_file:
             - ".env"
-        depends_on:
-            - tp-auth-envoy
            
     pgadmin:
         container_name: pgadmin
@@ -41,7 +30,18 @@ services:
             - database
         env_file:
             - ".env"
-
+    
+    ### ENVOY PROXY ###
+    envoy:
+        container_name: tp-auth-envoy
+        image: alvidir/tp-auth:0.1.0-envoy
+        restart: always
+        ports:
+            - "5050:5050"
+            - "9901:9901"
+        networks:
+            - ingress
+    
     ### BACKEND ###
     tp-auth:
         container_name: tp-auth-server
