@@ -1,7 +1,7 @@
 CREATE TABLE Secrets (
     id SERIAL PRIMARY KEY,
     client_id INTEGER NOT NULL UNIQUE, 
-    name VARCHAR(255) NOT NULL,
+    name VARCHAR(256) NOT NULL,
     document TEXT NOT NULL UNIQUE,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     deadline TIMESTAMP,
