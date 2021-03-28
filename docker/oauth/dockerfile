@@ -1,7 +1,7 @@
 FROM rust:1.50 as builder
 
 RUN rustup component add rustfmt --toolchain 1.50.0-x86_64-unknown-linux-gnu
-WORKDIR /usr/src/tp-auth
+WORKDIR /usr/src/oauth
 
 COPY *.toml *.lock *.rs ./
 COPY proto ./proto
@@ -13,7 +13,7 @@ RUN cargo install --path .
 FROM rust:1.50
 
 RUN rustup component add rustfmt --toolchain 1.50.0-x86_64-unknown-linux-gnu
-COPY --from=builder /usr/local/cargo/bin/tp_auth /usr/local/bin/tp_auth
+COPY --from=builder /usr/local/cargo/bin/oauth /usr/local/bin/oauth
 
 ENV RUST_BACKTRACE=full
-CMD ["tp_auth"]
+CMD ["oauth"]

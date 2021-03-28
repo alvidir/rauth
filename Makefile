@@ -1,7 +1,7 @@
 # Global about the project
 VERSION=0.1.0
 REPO=alvidir
-PROJECT=tp-auth
+PROJECT=oauth
 
 install:
 	sudo apt install libpq-dev
@@ -12,13 +12,13 @@ proto:
 
 build:
 	podman build -t ${REPO}/${PROJECT}:${VERSION}-envoy -f ./docker/envoy/dockerfile .
-	podman build -t ${REPO}/${PROJECT}:${VERSION}-server -f ./docker/tp-auth/dockerfile .
+	podman build -t ${REPO}/${PROJECT}:${VERSION}-server -f ./docker/oauth/dockerfile .
 
 migration:
 	diesel migration run
 
 deploy:
-	podman-compose -f docker-compose.yaml up --remove-orphans -d
+	podman-compose -f docker-compose.yaml up --remove-orphans
 	# delete -d in order to see output logs
 
 undeploy:

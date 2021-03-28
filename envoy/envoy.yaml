@@ -23,7 +23,7 @@ static_resources:
               - match: { prefix: "/" }
                 route:
                   #prefix_rewrite: "/"
-                  cluster: tp-auth
+                  cluster: oauth
                   max_grpc_timeout: 0s
               cors:
                 allow_origin_string_match:
@@ -37,9 +37,9 @@ static_resources:
           - name: envoy.cors
           - name: envoy.router
   clusters: 
-  - name: tp-auth
+  - name: oauth
     connect_timeout: 5s
     type: logical_dns
     http2_protocol_options: {}
     lb_policy: round_robin
-    hosts: [{ socket_address: { address: tp-auth-server, port_value: 8080 }}]
+    hosts: [{ socket_address: { address: oauth-server, port_value: 8080 }}]

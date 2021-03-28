@@ -1,8 +1,6 @@
-# tp-auth
+# oauth
 
-This repo has been migrated from the [Mastermind project](https://github.com/alvidir/mastermind).
-
-Due its potential seems appropriate to detach it from any other project and keep it as an independent repository; this means upgrading this utilitie as a brand new `service/package`; being reachable for all this applications that require any kind of authentication management.
+Third-party authenticator
 
 ## Demos 
 
@@ -17,8 +15,19 @@ At today's date 10/01/2021 (dd/mm/yyyy) these branches' status are the following
 
 ## Design
 
-To learn more about this project there are available a set of documents to conceptualize the main-stream for this repo.
+The `conceptual diagram` about oauth's model has been done via `Draw.io` provided by Google.
 
-| Name | Path | Description |
+Down below are listed each diagram and provided its public links. There must be described all agents involved and its cardinalities as well as its navigavilities. 
+
+| Name | Diagrams | Description |
 |:-|:-:|:-|
-| Model | [Readme](./src/models/README.md) | System UML design |
+| Model | [Drive](https://drive.google.com/file/d/1huTe3jNqp3A_0WMB6tjhwSkBoqh_uA9F/view?usp=sharing) | oauth's service agents and how do they interact with each other |
+
+## Ojects
+
+| Name | Description |
+|:-|:-|
+| Client | A Client object relates a session with the client data it belongs |
+| App | An App is the kind of client that represents an application users can log in |
+| User | A User is the kind of client that represents a user able to login into one or more applications |
+| Session | A Sessions allows any client to signin into an app |

@@ -1,7 +1,7 @@
 FROM envoyproxy/envoy:v1.16-latest
 
 LABEL maintainer="Hector Morales <hector.morales.carnice@gmail.com>"
-LABEL repo-url="https://github.com/alvidir/tp-auth"
+LABEL repo-url="https://github.com/alvidir/oauth"
 LABEL version="alpha"
 
 COPY envoy/envoy.yaml /etc/envoy
