@@ -2,6 +2,10 @@
 
 Third-party authenticator
 
+## About
+
+Oauth is a third-party authentication for all Alvidir's applications. Deployed as a microservice, this will provide a session management for both sides, the user/client, and the application itself.
+
 ## Demos 
 
 This project is being developed in `Go` and `Rust` simultaneously. Each of them has its own branch in order to keep the project's coherence. Such branches are prefixed by the keyword `demo` and followed by the language name (using the character `-` between words).
