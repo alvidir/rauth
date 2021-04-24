@@ -4,6 +4,8 @@ pub mod signup;
 pub mod delete_user;
 pub mod delete_app;
 pub mod register;
+pub mod ticket;
+pub mod resolve;
 
 #[cfg(test)]
 mod tests {
@@ -373,6 +375,27 @@ use crate::transactions::{signup, delete_user, register};
         secret.delete().unwrap();
         // Deleting the app and client
         app.delete().unwrap();
+        // Deleting the user and client
+        user.delete().unwrap();
+    }
+
+    #[test]
+    fn ticket_restore() {
+        use crate::models::Gateway;
+
+        crate::initialize();
+        const PREFIX: &str = "ticket_restore";
+        
+        let (name, email) = get_prefixed_data(PREFIX, false);
+        
+        // Signing up the user
+        let tx_signup = signup::TxSignup::new(&name, &email, DUMMY_PWD);
+        tx_signup.execute().unwrap();
+        
+        let user = user::find_by_name(&name).unwrap();
+        let tx_ticket = super::ticket::TxTicket::new(0, &email);
+        let resp = tx_ticket.execute().unwrap();
+
         // Deleting the user and client
         user.delete().unwrap();
     }

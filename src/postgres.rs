@@ -22,7 +22,7 @@ struct Stream {
 lazy_static! {
     static ref STREAM: Stream = {
        Stream {
-           db_connection: {
+            db_connection: {
                 let postgres_url = env::var(default::ENV_POSTGRES_DSN).expect(ERR_NOT_URL);
                 let start = SystemTime::now();
                 let timeout = Duration::from_secs(default::CONNECTION_TIMEOUT);

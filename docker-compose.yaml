@@ -9,8 +9,8 @@ services:
         volumes:
             - dbdata:/data/postgres
             - "./migrations/up:/docker-entrypoint-initdb.d"
-        ports:
-            - 5432:5432
+        #ports:
+        #    - 5432:5432
         networks: 
             - database
         env_file:
@@ -41,7 +41,7 @@ services:
             - "9901:9901"
         networks:
             - ingress
-    
+        
     ### BACKEND ###
     oauth:
         container_name: oauth-server
