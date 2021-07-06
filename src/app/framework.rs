@@ -3,6 +3,11 @@ use tonic::{Request, Response, Status};
 use crate::proto::app_proto;
 use super::*;
 
+// Import the generated rust code into module
+mod app_proto {
+    tonic::include_proto!("app");
+}
+
 // Proto generated server traits
 use app_proto::registry_server::Registry;
 

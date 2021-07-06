@@ -1,0 +1,28 @@
+syntax = "proto3";
+option go_package = "github.com/alvidir/oauth/proto/app";
+
+package app;
+import "google/protobuf/empty.proto";
+
+// RegisterRequest description
+message RegisterRequest {
+    string url = 1;    // the app url
+    bytes public = 2;  // a public key (RSA) for this application
+    bytes firm = 3;    // the signature for this message -- must complain with the given public key
+}
+
+// RegisterResponse description
+message RegisterResponse {
+    bytes label = 1;    // a unique label for a registered application
+}
+
+// DeleteRequest description
+message DeleteRequest {
+    bytes label = 1;    // application's label
+    bytes firm = 2;    // the signature for this message must contains the pin as latest item
+}
+
+service AppService {
+  rpc Register(app.RegisterRequest) returns (RegisterResponse);
+  rpc Delete(app.DeleteRequest) returns (google.protobuf.Empty);
+}

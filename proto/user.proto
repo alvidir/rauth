@@ -6,34 +6,20 @@ import "google/protobuf/empty.proto";
 
 // SignupRequest description
 message SignupRequest {
-  string name = 1;  // a unique username
   string email = 2; // the user email
   string pwd = 3;   // the user password
 }
 
 // LoginRequest description
 message LoginRequest {
-  string token = 1;   // present cookie, if any
-  string ident = 2;   // the user name or email
-  string pwd = 3;     // the password or the signed public-key
-  string app = 4;     // application label
-}
-
-enum Status {
-    ALIVE = 0;
-    DEAD = 1;
-    NEW = 2;
+  string ident = 1;   // the user identity
+  string secret = 2;  // the entry secret
+  string app = 3;     // application label
 }
 
 // LoginResponse description
 message LoginResponse {
   string cookie = 1;    // Session cookie
-  Status status = 2;   // Session status for the given cookie
-}
-
-// LogoutRequest description
-message LogoutRequest {
-  string cookie = 1; // required: identifies the user's session
 }
 
 // DeleteRequest description
@@ -42,9 +28,9 @@ message DeleteRequest {
   string pwd = 2;     // the password or the signed public-key
 }
 
-service Session {
+service UserService {
   rpc Login(user.LoginRequest) returns (user.LoginResponse);
-  rpc Logout(user.LogoutRequest) returns (google.protobuf.Empty);
+  rpc Logout(google.protobuf.Empty) returns (google.protobuf.Empty);
   rpc Signup(user.SignupRequest) returns (google.protobuf.Empty);
   rpc Delete(user.DeleteRequest) returns (google.protobuf.Empty);
 }

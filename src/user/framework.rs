@@ -3,6 +3,11 @@ use crate::transactions::*;
 use crate::proto::user_proto;
 use super::*;
 
+// Import the generated rust code into module
+mod user_proto {
+    tonic::include_proto!("user");
+}
+
 // Proto generated server traits
 use user_proto::session_server::Session;
 
