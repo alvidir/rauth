@@ -1,10 +1,6 @@
 #[macro_use]
 extern crate diesel;
 #[macro_use]
-extern crate custom_derive;
-#[macro_use]
-extern crate enum_derive;
-#[macro_use]
 extern crate lazy_static;
 #[macro_use(/*bson,*/ doc)]
 extern crate bson;
@@ -14,12 +10,6 @@ use std::env;
 use std::error::Error;
 
 use tonic::{transport::Server, Status, Code};
-use crate::proto::{user_proto, app_proto, client_proto};
-
-// Proto generated server traits
-use user_proto::session_server::{SessionServer};
-use app_proto::registry_server::{RegistryServer};
-use client_proto::profile_server::{ProfileServer};
 
 mod schema;
 mod regex;
@@ -28,8 +18,7 @@ mod mongo;
 mod time;
 mod token;
 mod default;
-mod enums;
-mod client;
+mod meta;
 mod user;
 mod app;
 
@@ -58,17 +47,18 @@ pub fn parse_error(err: Box<dyn Error>) -> Status {
 }
 
 pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
+    use user::framework::UserServiceServer;
+    use app::framework::AppServiceServer;
+
     let addr = address.parse().unwrap();
-    let session_server = session::SessionImplementation::default();
-    let profile_server = profile::ProfileImplementation::default();
-    let registry_server = registry::RegistryImplementation::default();
+    let user_server = user::framework::UserServiceImplementation::default();
+    let app_server = app::framework::AppServiceImplementation::default();
  
     println!("Server listening on {}", addr);
  
     Server::builder()
-        .add_service(SessionServer::new(session_server))
-        .add_service(RegistryServer::new(registry_server))
-        .add_service(ProfileServer::new(profile_server))
+        .add_service(UserServiceServer::new(user_server))
+        .add_service(AppServiceServer::new(app_server))
         .serve(addr)
         .await?;
  
@@ -81,7 +71,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let port = env::var(default::ENV_SERVICE_PORT)
         .expect(ERR_NO_PORT);
 
-   let addr = format!("{}:{}", default::SERVER_IP, port);
-   server::start_server(addr).await?;
-   Ok(())
+    let addr = format!("{}:{}", default::SERVER_IP, port);
+    start_server(addr).await?;
+    Ok(())
 }

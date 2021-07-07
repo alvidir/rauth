@@ -1,74 +1,68 @@
+use std::error::Error;
 use tonic::{Request, Response, Status};
-use crate::transactions::*;
-use crate::proto::user_proto;
-use super::*;
+use diesel::NotFound;
+
+use crate::diesel::prelude::*;
+use crate::postgres::*;
+
+extern crate diesel;
 
 // Import the generated rust code into module
-mod user_proto {
+mod proto {
     tonic::include_proto!("user");
 }
 
 // Proto generated server traits
-use user_proto::session_server::Session;
+use proto::user_service_server::UserService;
+pub use proto::user_service_server::UserServiceServer;
 
 // Proto message structs
-use user_proto::{LoginRequest, LogoutRequest, SignupRequest, LoginResponse, DeleteRequest };
+use proto::{LoginRequest, SignupRequest, LoginResponse, DeleteRequest };
 
 #[derive(Default)]
-pub struct SessionImplementation {}
+pub struct UserServiceImplementation {}
+
+use super::domain::User;
 
 #[tonic::async_trait]
-impl Session for SessionImplementation {
+impl UserService for UserServiceImplementation {
     async fn login(&self, request: Request<LoginRequest>) -> Result<Response<LoginResponse>, Status> {
         let msg_ref = request.into_inner();
-        let tx_login = login::TxLogin::new(
-            &msg_ref.ident,
-            &msg_ref.pwd,
-            &msg_ref.app,
-        );
-        
-        match tx_login.execute() {
-            Ok(sess) => Ok(Response::new(sess)),
-            Err(err) => Err(parse_error(err))
-        }
+        Err(Status::unimplemented(""))
     }
 
-    async fn logout(&self, request: Request<LogoutRequest>) -> Result<Response<()>, Status> {
+    async fn logout(&self, request: Request<()>) -> Result<Response<()>, Status> {
         let msg_ref = request.into_inner();
-        let tx_logout = logout::TxLogout::new(
-            &msg_ref.cookie,
-        );
-        
-        match tx_logout.execute() {
-            Ok(_) => Ok(Response::new(())),
-            Err(err) => Err(parse_error(err))
-        }
+        Err(Status::unimplemented(""))
     }
 
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<()>, Status> {
         let msg_ref = request.into_inner();
-        let tx_signup = signup::TxSignup::new(
-            &msg_ref.name, 
-            &msg_ref.email, 
-            &msg_ref.pwd,
-        );
-        
-        match tx_signup.execute() {
-            Ok(_) => Ok(Response::new(())),
-            Err(err) => Err(parse_error(err))
-        }
+        Err(Status::unimplemented(""))
     }
 
     async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<()>, Status> {
         let msg_ref = request.into_inner();
-        let tx_delete = delete_user::TxDelete::new(
-            &msg_ref.ident,
-            &msg_ref.pwd,
-        );
+        Err(Status::unimplemented(""))
+    }
+}
+
+pub struct PostgresUserRepository {}
+
+impl PostgresUserRepository {
+    pub fn find(target: &str) -> Result<User, Box<dyn Error>>  {
+        use crate::schema::users::dsl::*;
         
-        match tx_delete.execute() {
-            Ok(_) => Ok(Response::new(())),
-            Err(err) => Err(parse_error(err))
+        let results = { // block is required because of connection release
+            let connection = open_stream().get()?;
+            users.filter(email.eq(target))
+                 .load::<User>(&connection)?
+        };
+    
+        if results.len() > 0 {
+            Ok(results[0].clone())
+        } else {
+            Err(Box::new(NotFound))
         }
     }
 }
