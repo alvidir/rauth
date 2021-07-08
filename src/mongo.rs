@@ -5,7 +5,7 @@ use mongodb::{
 };
 
 use std::env;
-use crate::default;
+use crate::constants;
 
 const ERR_NO_DSN: &str = "Mongodb dsn must be set";
 const ERR_NO_DB_NAME: &str = "Mongodb database name must be set";
@@ -18,9 +18,9 @@ struct Stream {
 lazy_static! {
     static ref STREAM: Stream = {
         Stream {
-            db_connection: Client::with_uri_str(&env::var(default::ENV_MONGO_DSN).expect(ERR_NO_DSN))
+            db_connection: Client::with_uri_str(&env::var(constants::ENV_MONGO_DSN).expect(ERR_NO_DSN))
                 .expect(ERR_CONNECT)
-                .database(&env::var(default::ENV_MONGO_DB).expect(ERR_NO_DB_NAME)),
+                .database(&env::var(constants::ENV_MONGO_DB).expect(ERR_NO_DB_NAME)),
         }
     };
 }
@@ -31,16 +31,9 @@ pub fn open_stream(name: &str) -> Collection {
 }
 
 pub fn must_connect() {
-    Client::with_uri_str(&env::var(default::ENV_MONGO_DSN).expect(ERR_NO_DSN))
+    Client::with_uri_str(&env::var(constants::ENV_MONGO_DSN).expect(ERR_NO_DSN))
         .expect(ERR_CONNECT)
-        .database(&env::var(default::ENV_MONGO_DB).expect(ERR_NO_DB_NAME))
+        .database(&env::var(constants::ENV_MONGO_DB).expect(ERR_NO_DB_NAME))
         .run_command(doc! {"ping": 1}, None)
         .expect(ERR_CONNECT);
-}
-
-pub fn get_collection_name() -> Result<String, Box<dyn Error>> {
-    match env::var(default::ENV_MONGO_COLL) {
-        Err(err) => Err(err.into()),
-        Ok(coll) => Ok(coll),
-    }
 }

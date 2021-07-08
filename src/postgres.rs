@@ -7,11 +7,11 @@ use diesel::{
     pg::PgConnection
 };
 
-use crate::default;
+use crate::constants;
 
 const ERR_NOT_URL: &str = "Postgres url must be set";
 const ERR_CONNECT: &str = "Error connecting to postgres cluster";
-const POOL_SIZE: u32 = 1_u32; // by default: single thread
+const POOL_SIZE: u32 = 1_u32; // by constants: single thread
 
 type PgPool = Pool<ConnectionManager<PgConnection>>;
 
@@ -23,10 +23,10 @@ lazy_static! {
     static ref STREAM: Stream = {
        Stream {
             db_connection: {
-                let postgres_url = env::var(default::ENV_POSTGRES_DSN).expect(ERR_NOT_URL);
+                let postgres_url = env::var(constants::ENV_POSTGRES_DSN).expect(ERR_NOT_URL);
                 let start = SystemTime::now();
-                let timeout = Duration::from_secs(default::CONNECTION_TIMEOUT);
-                let sleep = Duration::from_secs(default::CONNECTION_SLEEP);
+                let timeout = Duration::from_secs(constants::CONNECTION_TIMEOUT);
+                let sleep = Duration::from_secs(constants::CONNECTION_SLEEP);
 
                 let mut pool = PgPool::builder().max_size(POOL_SIZE).build(ConnectionManager::new(&postgres_url));
                 while let Err(err) = pool {
@@ -53,8 +53,8 @@ pub fn open_stream() -> &'static PgPool {
 pub fn must_connect() {
     open_stream().get().expect(ERR_CONNECT);
     //let start = SystemTime::now();
-    //let timeout = Duration::from_secs(default::CONNECTION_TIMEOUT);
-    //let sleep = Duration::from_secs(default::CONNECTION_SLEEP);
+    //let timeout = Duration::from_secs(constants::CONNECTION_TIMEOUT);
+    //let sleep = Duration::from_secs(constants::CONNECTION_SLEEP);
     //
     //while let Err(err) = open_stream().get() {
     //    println!("{}: {}", ERR_CONNECT, err);

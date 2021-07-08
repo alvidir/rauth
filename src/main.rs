@@ -16,8 +16,7 @@ mod regex;
 mod postgres;
 mod mongo;
 mod time;
-mod token;
-mod default;
+mod constants;
 mod meta;
 mod user;
 mod app;
@@ -68,10 +67,10 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     initialize();
-    let port = env::var(default::ENV_SERVICE_PORT)
+    let port = env::var(constants::ENV_SERVICE_PORT)
         .expect(ERR_NO_PORT);
 
-    let addr = format!("{}:{}", default::SERVER_IP, port);
+    let addr = format!("{}:{}", constants::SERVER_IP, port);
     start_server(addr).await?;
     Ok(())
 }

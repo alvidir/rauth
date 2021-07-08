@@ -3,9 +3,11 @@ use tonic::{Request, Response, Status};
 use diesel::NotFound;
 
 use crate::diesel::prelude::*;
+use crate::schema::users;
 use crate::postgres::*;
+use crate::meta::framework::PostgresMetadataRepository;
 
-extern crate diesel;
+use super::domain::User;
 
 // Import the generated rust code into module
 mod proto {
@@ -21,8 +23,6 @@ use proto::{LoginRequest, SignupRequest, LoginResponse, DeleteRequest };
 
 #[derive(Default)]
 pub struct UserServiceImplementation {}
-
-use super::domain::User;
 
 #[tonic::async_trait]
 impl UserService for UserServiceImplementation {
@@ -47,6 +47,26 @@ impl UserService for UserServiceImplementation {
     }
 }
 
+#[derive(Queryable, Insertable, Associations)]
+#[derive(Identifiable)]
+#[derive(Clone)]
+#[table_name = "users"]
+struct PostgresUser {
+    pub id: i32,
+    pub email: String,
+    pub pwd: String,
+    pub meta_id: i32,
+}
+
+#[derive(Insertable)]
+#[derive(Clone)]
+#[table_name = "users"]
+struct NewPostgresUser {
+    pub email: String,
+    pub pwd: String,
+    pub meta_id: i32,
+}
+
 pub struct PostgresUserRepository {}
 
 impl PostgresUserRepository {
@@ -56,13 +76,20 @@ impl PostgresUserRepository {
         let results = { // block is required because of connection release
             let connection = open_stream().get()?;
             users.filter(email.eq(target))
-                 .load::<User>(&connection)?
+                 .load::<PostgresUser>(&connection)?
         };
     
-        if results.len() > 0 {
-            Ok(results[0].clone())
-        } else {
-            Err(Box::new(NotFound))
+        if results.len() == 0 {
+            return Err(Box::new(NotFound));
         }
+
+        let meta = PostgresMetadataRepository::find(results[0].meta_id)?;
+
+        User::new(
+            results[0].id,
+            &results[0].email,
+            &results[0].pwd,
+            meta,
+        )
     }
 }

@@ -1,8 +1,13 @@
 use std::error::Error;
 use std::time::{Duration, SystemTime};
+use rand::Rng;
 
-use crate::schema::users;
 use crate::regex::*;
+use crate::meta::domain::Metadata;
+
+const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
+                        abcdefghijklmnopqrstuvwxyz\
+                        0123456789)(*&^%$#@!~?][+-";
 
 pub trait UserRepository {
     fn find(&self, email: &str) -> Result<User, Box<dyn Error>>;
@@ -10,27 +15,23 @@ pub trait UserRepository {
     fn delete(&self, user: &User) -> Result<(), Box<dyn Error>>;
 }
 
-#[derive(Queryable, Insertable, Associations)]
-#[derive(Identifiable)]
-#[derive(Clone)]
-#[table_name = "users"]
 pub struct User {
     pub id: i32,
     pub email: String,
     pub pwd: String,
-    pub meta_id: i32,
+    pub meta: Metadata,
 }
 
 impl User {
-    pub fn new<'a>(email: &'a str, pwd: &'a str) -> Result<Self, Box<dyn Error>> {
+    pub fn new<'a>(id: i32, email: &'a str, pwd: &'a str, meta: Metadata) -> Result<Self, Box<dyn Error>> {
         match_email(email)?;
         match_pwd(pwd)?;
 
         let user = User {
-            id: 0,
+            id: id,
             email: email.to_string(),
             pwd: pwd.to_string(),
-            meta_id: 0,
+            meta: meta,
         };
 
         Ok(user)
@@ -46,20 +47,30 @@ pub trait SessionRepository {
 
 pub struct Session {
     cookie: String,
-    created_at: SystemTime,
-    touch_at: SystemTime,
     deadline: SystemTime,
     user: User,
+    meta: Metadata,
 }
 
 impl Session {
-    pub fn new(user: User, cookie: String, timeout: Duration) -> Self {
+    pub fn new(user: User, cookie: String, timeout: Duration, meta: Metadata) -> Self {
         Session{
             cookie: cookie,
-            created_at: SystemTime::now(),
-            touch_at: SystemTime::now(),
             deadline: SystemTime::now() + timeout,
             user: user,
+            meta: meta,
         }
+    }
+
+    pub fn generate_token(size: usize) -> String {
+        let token: String = (0..size)
+        .map(|_| {
+            let mut rand = rand::thread_rng();
+            let idx = rand.gen_range(0..CHARSET.len());
+            CHARSET[idx] as char
+        })
+        .collect();
+    
+        token
     }
 }
