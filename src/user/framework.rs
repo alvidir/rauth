@@ -5,7 +5,7 @@ use diesel::NotFound;
 use crate::diesel::prelude::*;
 use crate::schema::users;
 use crate::postgres::*;
-use crate::meta::framework::PostgresMetadataRepository;
+use crate::metadata::framework::PostgresMetadataRepository;
 
 use super::domain::User;
 

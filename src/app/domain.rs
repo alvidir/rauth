@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use crate::regex::*;
-use crate::meta::domain::Metadata;
+use crate::metadata::domain::Metadata;
 
 pub struct App {
     pub id: i32,

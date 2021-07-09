@@ -6,7 +6,7 @@ use crate::diesel::prelude::*;
 use crate::schema::apps::dsl::*;
 use crate::postgres::*;
 use crate::schema::apps;
-use crate::meta::framework::PostgresMetadataRepository;
+use crate::metadata::framework::PostgresMetadataRepository;
 
 use super::domain::App;
 

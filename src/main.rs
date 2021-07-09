@@ -17,8 +17,9 @@ mod postgres;
 mod mongo;
 mod time;
 mod constants;
-mod meta;
+mod metadata;
 mod user;
+mod session;
 mod app;
 
 const ERR_NO_PORT: &str = "Service port must be set";
