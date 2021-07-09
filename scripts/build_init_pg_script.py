@@ -6,6 +6,7 @@ import re
 
 def main(argv):
 
+    TARGET_DIR = ".postgres"
     TARGET_FILE = "db_init.sql"
     WORKING_PATH = "migrations"
     REGEX = "up.sql"
@@ -13,8 +14,12 @@ def main(argv):
     if len(argv) > 0:
         WORKING_PATH = str(argv[0])
 
+    dir = os.path.join(WORKING_PATH, TARGET_DIR)
+    if not os.path.exists(dir):
+        os.mkdir(dir)
+
     regex = re.compile(REGEX)
-    target = open(os.path.join(WORKING_PATH, TARGET_FILE), "w")
+    target = open(os.path.join(dir, TARGET_FILE), "w")
     
     for root, dirs, files in os.walk(WORKING_PATH):
         for file in files:

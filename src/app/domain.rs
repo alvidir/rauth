@@ -3,6 +3,13 @@ use std::error::Error;
 use crate::regex::*;
 use crate::metadata::domain::Metadata;
 
+
+pub trait AppRepository {
+    fn find(url: &str) -> Result<App, Box<dyn Error>>;
+    fn save(app: &mut App) -> Result<(), Box<dyn Error>>;
+    fn delete(app: &App) -> Result<(), Box<dyn Error>>;
+}
+
 pub struct App {
     pub id: i32,
     pub label: String,

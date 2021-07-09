@@ -4,9 +4,9 @@ use crate::regex::*;
 use crate::metadata::domain::Metadata;
 
 pub trait UserRepository {
-    fn find(&self, email: &str) -> Result<User, Box<dyn Error>>;
-    fn save(&self, user: &mut User) -> Result<(), Box<dyn Error>>;
-    fn delete(&self, user: &User) -> Result<(), Box<dyn Error>>;
+    fn find(email: &str) -> Result<User, Box<dyn Error>>;
+    fn save(user: &mut User) -> Result<(), Box<dyn Error>>;
+    fn delete(user: &User) -> Result<(), Box<dyn Error>>;
 }
 
 pub struct User {

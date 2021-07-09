@@ -3,11 +3,13 @@ use tonic::{Request, Response, Status};
 use diesel::NotFound;
 
 use crate::diesel::prelude::*;
-use crate::schema::users;
 use crate::postgres::*;
+use crate::schema::users;
+use crate::schema::users::dsl::*;
 use crate::metadata::framework::PostgresMetadataRepository;
+use crate::metadata::domain::MetadataRepository;
 
-use super::domain::User;
+use super::domain::{User, UserRepository};
 
 // Import the generated rust code into module
 mod proto {
@@ -49,6 +51,7 @@ impl UserService for UserServiceImplementation {
 
 #[derive(Queryable, Insertable, Associations)]
 #[derive(Identifiable)]
+#[derive(AsChangeset)]
 #[derive(Clone)]
 #[table_name = "users"]
 struct PostgresUser {
@@ -69,8 +72,8 @@ struct NewPostgresUser {
 
 pub struct PostgresUserRepository {}
 
-impl PostgresUserRepository {
-    pub fn find(target: &str) -> Result<User, Box<dyn Error>>  {
+impl UserRepository for PostgresUserRepository {
+    fn find(target: &str) -> Result<User, Box<dyn Error>>  {
         use crate::schema::users::dsl::*;
         
         let results = { // block is required because of connection release
@@ -92,4 +95,57 @@ impl PostgresUserRepository {
             meta,
         )
     }
+
+    fn save(user: &mut User) -> Result<(), Box<dyn Error>> {
+        PostgresMetadataRepository::save(&mut user.meta)?;
+
+        if user.id == 0 { // create user
+            let new_user = NewPostgresUser {
+                email: user.email.clone(),
+                pwd: user.pwd.clone(),
+                meta_id: user.meta.id,
+            };
+    
+            let result = { // block is required because of connection release
+                let connection = open_stream().get()?;
+                diesel::insert_into(users::table)
+                    .values(&new_user)
+                    .get_result::<PostgresUser>(&connection)?
+            };
+    
+            user.id = result.id;
+            Ok(())
+
+        } else { // update user
+            let pg_user = PostgresUser {
+                id: user.id,
+                email: user.email.clone(),
+                pwd: user.pwd.clone(),
+                meta_id: user.meta.id,
+            };
+            
+            { // block is required because of connection release            
+                let connection = open_stream().get()?;
+                diesel::update(users)
+                    .set(&pg_user)
+                    .execute(&connection)?;
+            }
+    
+            Ok(())
+        }
+    }
+
+    fn delete(user: &User) -> Result<(), Box<dyn Error>> {
+        { // block is required because of connection release
+            let connection = open_stream().get()?;
+            let _result = diesel::delete(
+                users.filter(
+                    id.eq(user.id)
+                )
+            ).execute(&connection)?;
+        }
+
+        Ok(())
+    }
+
 }

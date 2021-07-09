@@ -7,8 +7,9 @@ use crate::schema::apps::dsl::*;
 use crate::postgres::*;
 use crate::schema::apps;
 use crate::metadata::framework::PostgresMetadataRepository;
+use crate::metadata::domain::MetadataRepository;
 
-use super::domain::App;
+use super::domain::{App, AppRepository};
 
 // Import the generated rust code into module
 mod proto {
@@ -40,6 +41,7 @@ impl AppService for AppServiceImplementation {
 
 #[derive(Queryable, Insertable, Associations)]
 #[derive(Identifiable)]
+#[derive(AsChangeset)]
 #[derive(Clone)]
 #[table_name = "apps"]
 pub struct PostgresApp {
@@ -63,8 +65,8 @@ pub struct NewPostgresApp {
 
 pub struct PostgresAppRepository {}
 
-impl PostgresAppRepository {
-    pub fn find(target: &str) -> Result<App, Box<dyn Error>>  {
+impl AppRepository for PostgresAppRepository {
+    fn find(target: &str) -> Result<App, Box<dyn Error>>  {
         let results = { // block is required because of connection release
             let connection = open_stream().get()?;
             apps.filter(label.eq(target))
@@ -83,5 +85,59 @@ impl PostgresAppRepository {
             &results[0].url,
             meta,
         )
+    }
+
+    fn save(app: &mut App) -> Result<(), Box<dyn Error>> {
+        PostgresMetadataRepository::save(&mut app.meta)?;
+
+        if app.id == 0 { // create user
+            let new_app = NewPostgresApp {
+                label: app.label.clone(),
+                url: app.url.clone(),
+                secret_id: "".to_string(),
+                meta_id: app.meta.id,
+            };
+    
+            let result = { // block is required because of connection release
+                let connection = open_stream().get()?;
+                diesel::insert_into(apps::table)
+                    .values(&new_app)
+                    .get_result::<PostgresApp>(&connection)?
+            };
+    
+            app.id = result.id;
+            Ok(())
+
+        } else { // update user
+            let pg_app = PostgresApp {
+                id: app.id,
+                label: app.label.clone(),
+                url: app.url.clone(),
+                secret_id: "".to_string(),
+                meta_id: app.meta.id,
+            };
+            
+            { // block is required because of connection release            
+                let connection = open_stream().get()?;
+                diesel::update(apps)
+                    .set(&pg_app)
+                    .execute(&connection)?;
+            }
+    
+            Ok(())
+        }
+    }
+
+    fn delete(app: &App) -> Result<(), Box<dyn Error>> {
+        { // block is required because of connection release
+            let connection = open_stream().get()?;
+            let _result = diesel::delete(
+                apps.filter(
+                    id.eq(app.id)
+                )
+            ).execute(&connection)?;
+        }
+
+        Ok(())
     }
 }

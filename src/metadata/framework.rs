@@ -7,10 +7,11 @@ use crate::schema::metadata::dsl::*;
 use crate::schema::metadata;
 use crate::postgres::*;
 
-use super::domain::Metadata;
+use super::domain::{Metadata, MetadataRepository};
 
 #[derive(Queryable, Insertable, Associations)]
 #[derive(Identifiable)]
+#[derive(AsChangeset)]
 #[derive(Clone)]
 #[table_name = "metadata"]
 struct PostgresMetadata {
@@ -29,8 +30,8 @@ struct NewPostgresMetadata {
 
 pub struct PostgresMetadataRepository {}
 
-impl PostgresMetadataRepository {
-    pub fn find(target: i32) -> Result<Metadata, Box<dyn Error>>  {       
+impl MetadataRepository for PostgresMetadataRepository {
+    fn find(target: i32) -> Result<Metadata, Box<dyn Error>>  {       
         let results = { // block is required because of connection release
             let connection = open_stream().get()?;
             metadata.filter(id.eq(target))
@@ -47,4 +48,53 @@ impl PostgresMetadataRepository {
             results[0].updated_at,
         ))
     }
+
+    fn save(meta: &mut Metadata) -> Result<(), Box<dyn Error>> {
+        if meta.id == 0 { // create metadata
+            let new_meta = NewPostgresMetadata {
+                created_at: meta.created_at,
+                updated_at: meta.updated_at,
+            };
+    
+            let result = { // block is required because of connection release
+                let connection = open_stream().get()?;
+                diesel::insert_into(metadata::table)
+                    .values(&new_meta)
+                    .get_result::<PostgresMetadata>(&connection)?
+            };
+    
+            meta.id = result.id;
+            Ok(())
+
+        } else { // update metadata
+            let pg_meta = PostgresMetadata {
+                id: meta.id,
+                created_at: meta.created_at,
+                updated_at: meta.updated_at,
+            };
+            
+            { // block is required because of connection release            
+                let connection = open_stream().get()?;
+                diesel::update(metadata)
+                    .set(&pg_meta)
+                    .execute(&connection)?;
+            }
+    
+            Ok(())
+        }
+    }
+
+    fn delete(meta: &Metadata) -> Result<(), Box<dyn Error>> {
+        { // block is required because of connection release
+            let connection = open_stream().get()?;
+            let _result = diesel::delete(
+                metadata.filter(
+                    id.eq(meta.id)
+                )
+            ).execute(&connection)?;
+        }
+
+        Ok(())
+    }
+
 }

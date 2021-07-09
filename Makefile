@@ -36,5 +36,5 @@ test:
 check-envoy:
 	curl -v localhost:5050
 
-init-scripts:
-	python3 scripts/build_db_init_script.py
+scripts:
+	python3 scripts/build_init_pg_script.py
