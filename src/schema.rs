@@ -1,7 +1,6 @@
 table! {
     apps (id) {
         id -> Int4,
-        label -> Varchar,
         url -> Varchar,
         secret_id -> Varchar,
         meta_id -> Int4,
@@ -20,7 +19,7 @@ table! {
     users (id) {
         id -> Int4,
         email -> Varchar,
-        pwd -> Varchar,
+        secret_id -> Nullable<Varchar>,
         meta_id -> Int4,
     }
 }

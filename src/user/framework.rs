@@ -6,10 +6,14 @@ use crate::diesel::prelude::*;
 use crate::postgres::*;
 use crate::schema::users;
 use crate::schema::users::dsl::*;
+use crate::secret::framework::MongoSecretRepository;
+use crate::secret::domain::SecretRepository;
 use crate::metadata::framework::PostgresMetadataRepository;
 use crate::metadata::domain::MetadataRepository;
+use crate::smtp;
 
 use super::domain::{User, UserRepository};
+use super::application::EmailSender;
 
 // Import the generated rust code into module
 mod proto {
@@ -57,16 +61,16 @@ impl UserService for UserServiceImplementation {
 struct PostgresUser {
     pub id: i32,
     pub email: String,
-    pub pwd: String,
+    pub secret_id: Option<String>,
     pub meta_id: i32,
 }
 
 #[derive(Insertable)]
 #[derive(Clone)]
 #[table_name = "users"]
-struct NewPostgresUser {
-    pub email: String,
-    pub pwd: String,
+struct NewPostgresUser<'a> {
+    pub email: &'a str,
+    pub secret_id: Option<&'a str>,
     pub meta_id: i32,
 }
 
@@ -86,14 +90,20 @@ impl UserRepository for PostgresUserRepository {
             return Err(Box::new(NotFound));
         }
 
+        let mut secret_opt = None;
+        if let Some(secr_id) = &results[0].secret_id {
+            let secret = MongoSecretRepository::find(secr_id)?;
+            secret_opt = Some(secret);
+        }
+
         let meta = PostgresMetadataRepository::find(results[0].meta_id)?;
 
-        User::new(
-            results[0].id,
-            &results[0].email,
-            &results[0].pwd,
-            meta,
-        )
+        Ok(User{
+            id: results[0].id,
+            email: results[0].email.clone(),
+            secret: secret_opt,
+            meta: meta,
+        })
     }
 
     fn save(user: &mut User) -> Result<(), Box<dyn Error>> {
@@ -101,8 +111,8 @@ impl UserRepository for PostgresUserRepository {
 
         if user.id == 0 { // create user
             let new_user = NewPostgresUser {
-                email: user.email.clone(),
-                pwd: user.pwd.clone(),
+                email: &user.email,
+                secret_id: None,
                 meta_id: user.meta.id,
             };
     
@@ -120,7 +130,7 @@ impl UserRepository for PostgresUserRepository {
             let pg_user = PostgresUser {
                 id: user.id,
                 email: user.email.clone(),
-                pwd: user.pwd.clone(),
+                secret_id: None,
                 meta_id: user.meta.id,
             };
             
@@ -147,5 +157,12 @@ impl UserRepository for PostgresUserRepository {
 
         Ok(())
     }
+}
 
+pub struct EmailSenderImplementation {}
+
+impl EmailSender for EmailSenderImplementation {
+    fn send_verification_email(to: &str) -> Result<(), Box<dyn Error>> {
+        smtp::send_email(to, "Verification email", "<h1>Click here in order to verificate your email</h1>")
+    }
 }

@@ -2,6 +2,8 @@
 extern crate diesel;
 #[macro_use]
 extern crate lazy_static;
+#[macro_use]
+extern crate serde;
 #[macro_use(/*bson,*/ doc)]
 extern crate bson;
 
@@ -15,12 +17,14 @@ mod schema;
 mod regex;
 mod postgres;
 mod mongo;
+mod smtp;
 mod time;
 mod constants;
 mod metadata;
 mod user;
 mod session;
 mod app;
+mod secret;
 
 const ERR_NO_PORT: &str = "Service port must be set";
 

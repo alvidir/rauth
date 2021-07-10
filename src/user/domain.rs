@@ -1,6 +1,7 @@
 use std::error::Error;
 
 use crate::regex::*;
+use crate::secret::domain::Secret;
 use crate::metadata::domain::Metadata;
 
 pub trait UserRepository {
@@ -11,20 +12,19 @@ pub trait UserRepository {
 
 pub struct User {
     pub id: i32,
-    pub email: String,
-    pub pwd: String,
+    pub email: String, // hash of the email
+    pub secret: Option<Secret>,
     pub meta: Metadata,
 }
 
 impl User {
-    pub fn new<'a>(id: i32, email: &'a str, pwd: &'a str, meta: Metadata) -> Result<Self, Box<dyn Error>> {
+    pub fn new<'a>(email: &'a str, meta: Metadata) -> Result<Self, Box<dyn Error>> {
         match_email(email)?;
-        match_pwd(pwd)?;
 
         let user = User {
-            id: id,
+            id: 0,
             email: email.to_string(),
-            pwd: pwd.to_string(),
+            secret: None,
             meta: meta,
         };
 

@@ -6,6 +6,8 @@ use crate::diesel::prelude::*;
 use crate::schema::apps::dsl::*;
 use crate::postgres::*;
 use crate::schema::apps;
+use crate::secret::framework::MongoSecretRepository;
+use crate::secret::domain::SecretRepository;
 use crate::metadata::framework::PostgresMetadataRepository;
 use crate::metadata::domain::MetadataRepository;
 
@@ -46,7 +48,6 @@ impl AppService for AppServiceImplementation {
 #[table_name = "apps"]
 pub struct PostgresApp {
     pub id: i32,
-    pub label: String,
     pub url: String,
     pub secret_id: String,
     pub meta_id: i32,
@@ -55,10 +56,9 @@ pub struct PostgresApp {
 #[derive(Insertable)]
 #[derive(Clone)]
 #[table_name = "apps"]
-pub struct NewPostgresApp {
-    pub label: String,
-    pub url: String,
-    pub secret_id: String,
+pub struct NewPostgresApp<'a> {
+    pub url: &'a str,
+    pub secret_id: &'a str,
     pub meta_id: i32,
 }
 
@@ -69,7 +69,7 @@ impl AppRepository for PostgresAppRepository {
     fn find(target: &str) -> Result<App, Box<dyn Error>>  {
         let results = { // block is required because of connection release
             let connection = open_stream().get()?;
-            apps.filter(label.eq(target))
+            apps.filter(url.eq(url))
                  .load::<PostgresApp>(&connection)?
         };
     
@@ -77,14 +77,15 @@ impl AppRepository for PostgresAppRepository {
             return Err(Box::new(NotFound));
         }
 
+        let secret = MongoSecretRepository::find(&results[0].secret_id)?;
         let meta = PostgresMetadataRepository::find(results[0].meta_id)?;
         
-        App::new(
-            results[0].id,
-            &results[0].label,
-            &results[0].url,
-            meta,
-        )
+        Ok(App{
+            id: results[0].id,
+            url: results[0].url.clone(),
+            secret: secret,
+            meta: meta,
+        })
     }
 
     fn save(app: &mut App) -> Result<(), Box<dyn Error>> {
@@ -92,9 +93,8 @@ impl AppRepository for PostgresAppRepository {
 
         if app.id == 0 { // create user
             let new_app = NewPostgresApp {
-                label: app.label.clone(),
-                url: app.url.clone(),
-                secret_id: "".to_string(),
+                url: &app.url,
+                secret_id: "",
                 meta_id: app.meta.id,
             };
     
@@ -111,7 +111,6 @@ impl AppRepository for PostgresAppRepository {
         } else { // update user
             let pg_app = PostgresApp {
                 id: app.id,
-                label: app.label.clone(),
                 url: app.url.clone(),
                 secret_id: "".to_string(),
                 meta_id: app.meta.id,

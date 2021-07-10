@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 use rand::Rng;
 
@@ -11,22 +12,25 @@ const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
 
 
 pub trait SessionRepository {
-    fn find(&self, cookie: &str) -> Result<Session, Box<dyn Error>>;
-    fn save(&self, session: &mut Session) -> Result<(), Box<dyn Error>>;
-    fn delete(&self, session: &Session) -> Result<(), Box<dyn Error>>;
+    fn find(cookie: &str) -> Result<Arc<Mutex<Session>>, Box<dyn Error>>;
+    fn find_by_email(email: &str) -> Result<Arc<Mutex<Session>>, Box<dyn Error>>;
+    fn save(session: Session) -> Result<(), Box<dyn Error>>;
+    fn delete(session: &Session) -> Result<(), Box<dyn Error>>;
 }
 
 pub struct Session {
-    cookie: String,
-    deadline: SystemTime,
-    user: User,
-    meta: Metadata,
+    pub token: String,
+    pub deadline: SystemTime,
+    pub user: User,
+    // the updated_at field from metadata works as a touch_at field, being updated for each
+    // read/write action done by the user (owner) over the sessions data
+    pub meta: Metadata,
 }
 
 impl Session {
-    pub fn new(user: User, cookie: String, timeout: Duration, meta: Metadata) -> Self {
+    pub fn new(user: User, token: String, timeout: Duration, meta: Metadata) -> Self {
         Session{
-            cookie: cookie,
+            token: token,
             deadline: SystemTime::now() + timeout,
             user: user,
             meta: meta,

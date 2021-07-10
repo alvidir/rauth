@@ -1,19 +1,38 @@
-FROM rust:1.50 as builder
+FROM rust:1.43 as builder
 
-RUN rustup component add rustfmt --toolchain 1.50.0-x86_64-unknown-linux-gnu
-WORKDIR /usr/src/oauth
+RUN USER=root cargo new --bin oauth
+RUN apt-get install pkg-config libssl-dev
 
-COPY *.toml *.lock *.rs ./
-COPY proto ./proto
-COPY src ./src
+WORKDIR /oauth
+COPY ./Cargo.toml ./Cargo.toml
+RUN cargo build --release
+RUN rm src/*.rs
 
-RUN cargo install --path .
+ADD . ./
+
+RUN rm ./target/release/deps/rust_docker_web*
+RUN cargo build --release
 
 ######## Start a new stage from scratch #######
-FROM rust:1.50
+FROM debian:buster-slim
+ARG APP=/usr/src/app
 
-RUN rustup component add rustfmt --toolchain 1.50.0-x86_64-unknown-linux-gnu
-COPY --from=builder /usr/local/cargo/bin/oauth /usr/local/bin/oauth
+RUN apt-get update \
+    && apt-get install -y ca-certificates tzdata \
+    && rm -rf /var/lib/apt/lists/*
 
-ENV RUST_BACKTRACE=full
-CMD ["oauth"]
+ENV TZ=Etc/UTC \
+    APP_USER=appuser
+
+RUN groupadd $APP_USER \
+    && useradd -g $APP_USER $APP_USER \
+    && mkdir -p ${APP}
+
+COPY --from=builder /oauth/target/release/oauth ${APP}/oauth
+
+RUN chown -R $APP_USER:$APP_USER ${APP}
+
+USER $APP_USER
+WORKDIR ${APP}
+
+CMD ["./oauth"]

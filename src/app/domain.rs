@@ -1,8 +1,8 @@
 use std::error::Error;
 
 use crate::regex::*;
+use crate::secret::domain::Secret;
 use crate::metadata::domain::Metadata;
-
 
 pub trait AppRepository {
     fn find(url: &str) -> Result<App, Box<dyn Error>>;
@@ -12,19 +12,19 @@ pub trait AppRepository {
 
 pub struct App {
     pub id: i32,
-    pub label: String,
     pub url: String,
+    pub secret: Secret,
     pub meta: Metadata,
 }
 
 impl App {
-    pub fn new(id: i32, label: &str, url: &str, meta: Metadata) -> Result<Self, Box<dyn Error>> {
+    pub fn new<'a>(url: &'a str, secret: Secret, meta: Metadata) -> Result<Self, Box<dyn Error>> {
         match_url(url)?;
 
         let app = App {
-            id: id,
-            label: label.to_string(),
+            id: 0,
             url: url.to_string(),
+            secret: secret,
             meta: meta,
         };
 
