@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use crate::regex::*;
+use crate::regex;
 use crate::secret::domain::Secret;
 use crate::metadata::domain::Metadata;
 
@@ -18,14 +18,14 @@ pub struct User {
 }
 
 impl User {
-    pub fn new<'a>(email: &'a str, meta: Metadata) -> Result<Self, Box<dyn Error>> {
-        match_email(email)?;
+    pub fn new<'a>(email: &'a str) -> Result<Self, Box<dyn Error>> {
+        regex::match_regex(regex::EMAIL, email)?;
 
         let user = User {
             id: 0,
             email: email.to_string(),
             secret: None,
-            meta: meta,
+            meta: Metadata::new(),
         };
 
         Ok(user)

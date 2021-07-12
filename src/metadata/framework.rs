@@ -42,11 +42,11 @@ impl MetadataRepository for PostgresMetadataRepository {
             return Err(Box::new(NotFound));
         }
 
-        Ok(Metadata::new(
-            results[0].id,
-            results[0].created_at,
-            results[0].updated_at,
-        ))
+        Ok(Metadata{
+            id: results[0].id,
+            created_at: results[0].created_at,
+            updated_at: results[0].updated_at,
+        })
     }
 
     fn save(meta: &mut Metadata) -> Result<(), Box<dyn Error>> {

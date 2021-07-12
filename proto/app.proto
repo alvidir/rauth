@@ -8,7 +8,7 @@ import "google/protobuf/empty.proto";
 message RegisterRequest {
     string url = 1;    // the app url
     bytes public = 2;  // a public key (RSA) for this application
-    bytes firm = 3;    // the signature for this message -- must complain with the given public key
+    bytes firm = 3;    // the signature for this message
 }
 
 // RegisterResponse description
@@ -18,8 +18,8 @@ message RegisterResponse {
 
 // DeleteRequest description
 message DeleteRequest {
-    bytes label = 1;    // application's label
-    bytes firm = 2;    // the signature for this message must contains the pin as latest item
+    bytes url = 1;    // application's url
+    bytes firm = 2;    // the signature for this message
 }
 
 service AppService {

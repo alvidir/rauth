@@ -1,6 +1,6 @@
 use std::error::Error;
 
-pub fn session_login(email: &str, secret: &str) -> Result<String, Box<dyn Error>> {
+pub fn session_login(email: &str, pwd: &str) -> Result<String, Box<dyn Error>> {
     println!("Got login request from user {} ", email);
     Err("Unimplemented".into())
 }

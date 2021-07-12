@@ -28,12 +28,12 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn new(user: User, token: String, timeout: Duration, meta: Metadata) -> Self {
+    pub fn new(user: User, token: String, timeout: Duration) -> Self {
         Session{
             token: token,
             deadline: SystemTime::now() + timeout,
             user: user,
-            meta: meta,
+            meta: Metadata::new(),
         }
     }
 

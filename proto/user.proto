@@ -6,15 +6,14 @@ import "google/protobuf/empty.proto";
 
 // SignupRequest description
 message SignupRequest {
-  string email = 2; // the user email
-  string pwd = 3;   // the user password
+  string email = 1; // the user email
 }
 
 // LoginRequest description
 message LoginRequest {
   string ident = 1;   // the user identity
-  string secret = 2;  // the entry secret
-  string app = 3;     // application label
+  string pwd = 2;     // the time-based one time password
+  string app = 3;     // application
 }
 
 // LoginResponse description

@@ -14,11 +14,11 @@ pub struct Metadata {
 }
 
 impl Metadata {
-    pub fn new<'a>(id: i32, created_at: SystemTime, updated_at: SystemTime) -> Self {
+    pub fn new() -> Self {
         Metadata {
             id: 0,
-            created_at: created_at,
-            updated_at: updated_at
+            created_at: SystemTime::now(),
+            updated_at: SystemTime::now(),
         }
     }
 }

@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use crate::regex::*;
+use crate::regex;
 use crate::metadata::domain::Metadata;
 
 
@@ -19,13 +19,13 @@ pub struct Secret {
 }
 
 impl Secret {
-    pub fn new(data: &str, meta: Metadata) -> Result<Self, Box<dyn Error>> {
-        match_base64(data)?;
+    pub fn new(data: &str) -> Result<Self, Box<dyn Error>> {
+        regex::match_regex(regex::BASE64, data)?;
 
         let app = Secret {
             id: "".to_string(),
             data: data.to_string(),
-            meta: meta,
+            meta: Metadata::new(),
         };
 
         Ok(app)

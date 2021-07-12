@@ -1,7 +1,7 @@
 use std::error::Error;
 use super::domain::App;
 
-pub fn app_register(url: &str, secret_id: &str) -> Result<String, Box<dyn Error>> {
+pub fn app_register(url: &str, secret: &str) -> Result<String, Box<dyn Error>> {
     println!("Got a register request for application {} ", url);
     Err("Unimplemented".into())
 }

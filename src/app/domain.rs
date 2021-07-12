@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use crate::regex::*;
+use crate::regex;
 use crate::secret::domain::Secret;
 use crate::metadata::domain::Metadata;
 
@@ -18,14 +18,14 @@ pub struct App {
 }
 
 impl App {
-    pub fn new<'a>(url: &'a str, secret: Secret, meta: Metadata) -> Result<Self, Box<dyn Error>> {
-        match_url(url)?;
+    pub fn new<'a>(url: &'a str, secret: Secret) -> Result<Self, Box<dyn Error>> {
+        regex::match_regex(regex::URL, url)?;
 
         let app = App {
             id: 0,
             url: url.to_string(),
             secret: secret,
-            meta: meta,
+            meta: Metadata::new(),
         };
 
         Ok(app)

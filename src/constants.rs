@@ -12,6 +12,5 @@ pub const ENV_MONGO_DSN: &str = "MONGO_DSN";
 pub const ENV_MONGO_DB: &str = "MONGO_DB";
 pub const ENV_SMTP_TRANSPORT: &str = "SMTP_TRANSPORT";
 pub const ENV_SMTP_ORIGIN: &str = "SMTP_ORIGIN";
-pub const ENV_SMTP_REPLY_TO: &str = "SMTP_REPLY_TO";
 pub const ENV_SMTP_USERNAME: &str = "SMTP_USERNAME";
 pub const ENV_SMTP_PASSWORD: &str = "SMTP_PASSWORD";
