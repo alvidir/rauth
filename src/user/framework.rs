@@ -6,9 +6,9 @@ use crate::diesel::prelude::*;
 use crate::postgres::*;
 use crate::schema::users;
 use crate::schema::users::dsl::*;
-use crate::secret::framework::MongoSecretRepository;
+//use crate::secret::SECRET_REPOSITORY;
 use crate::secret::domain::SecretRepository;
-use crate::metadata::framework::PostgresMetadataRepository;
+//use crate::metadata::METADATA_REPOSITORY;
 use crate::metadata::domain::MetadataRepository;
 use crate::smtp;
 
@@ -77,75 +77,79 @@ struct NewPostgresUser<'a> {
 pub struct PostgresUserRepository {}
 
 impl UserRepository for PostgresUserRepository {
-    fn find(target: &str) -> Result<User, Box<dyn Error>>  {
-        use crate::schema::users::dsl::*;
+    fn find(&self, target: &str) -> Result<User, Box<dyn Error>>  {
+        // use crate::schema::users::dsl::*;
         
-        let results = { // block is required because of connection release
-            let connection = open_stream().get()?;
-            users.filter(email.eq(target))
-                 .load::<PostgresUser>(&connection)?
-        };
+        // let results = { // block is required because of connection release
+        //     let connection = open_stream().get()?;
+        //     users.filter(email.eq(target))
+        //          .load::<PostgresUser>(&connection)?
+        // };
     
-        if results.len() == 0 {
-            return Err(Box::new(NotFound));
-        }
+        // if results.len() == 0 {
+        //     return Err(Box::new(NotFound));
+        // }
 
-        let mut secret_opt = None;
-        if let Some(secr_id) = &results[0].secret_id {
-            let secret = MongoSecretRepository::find(secr_id)?;
-            secret_opt = Some(secret);
-        }
+        // let mut secret_opt = None;
+        // if let Some(secr_id) = &results[0].secret_id {
+        //     let secret = SECRET_REPOSITORY.find(secr_id)?;
+        //     secret_opt = Some(secret);
+        // }
 
-        let meta = PostgresMetadataRepository::find(results[0].meta_id)?;
+        // let meta = METADATA_REPOSITORY.find(results[0].meta_id)?;
 
-        Ok(User{
-            id: results[0].id,
-            email: results[0].email.clone(),
-            secret: secret_opt,
-            meta: meta,
-        })
+        // Ok(User{
+        //     id: results[0].id,
+        //     email: results[0].email.clone(),
+        //     secret: secret_opt,
+        //     meta: meta,
+        // })
+
+        Err("unimplemented".into())
     }
 
-    fn save(user: &mut User) -> Result<(), Box<dyn Error>> {
-        PostgresMetadataRepository::save(&mut user.meta)?;
+    fn save(&self, user: &mut User) -> Result<(), Box<dyn Error>> {
+        // METADATA_REPOSITORY.save(&mut user.meta)?;
 
-        if user.id == 0 { // create user
-            let new_user = NewPostgresUser {
-                email: &user.email,
-                secret_id: None,
-                meta_id: user.meta.id,
-            };
+        // if user.id == 0 { // create user
+        //     let new_user = NewPostgresUser {
+        //         email: &user.email,
+        //         secret_id: None,
+        //         meta_id: user.meta.id,
+        //     };
     
-            let result = { // block is required because of connection release
-                let connection = open_stream().get()?;
-                diesel::insert_into(users::table)
-                    .values(&new_user)
-                    .get_result::<PostgresUser>(&connection)?
-            };
+        //     let result = { // block is required because of connection release
+        //         let connection = open_stream().get()?;
+        //         diesel::insert_into(users::table)
+        //             .values(&new_user)
+        //             .get_result::<PostgresUser>(&connection)?
+        //     };
     
-            user.id = result.id;
-            Ok(())
+        //     user.id = result.id;
+        //     Ok(())
 
-        } else { // update user
-            let pg_user = PostgresUser {
-                id: user.id,
-                email: user.email.clone(),
-                secret_id: None,
-                meta_id: user.meta.id,
-            };
+        // } else { // update user
+        //     let pg_user = PostgresUser {
+        //         id: user.id,
+        //         email: user.email.clone(),
+        //         secret_id: None,
+        //         meta_id: user.meta.id,
+        //     };
             
-            { // block is required because of connection release            
-                let connection = open_stream().get()?;
-                diesel::update(users)
-                    .set(&pg_user)
-                    .execute(&connection)?;
-            }
+        //     { // block is required because of connection release            
+        //         let connection = open_stream().get()?;
+        //         diesel::update(users)
+        //             .set(&pg_user)
+        //             .execute(&connection)?;
+        //     }
     
-            Ok(())
-        }
+        //     Ok(())
+        // }
+
+        Err("unimplemented".into())
     }
 
-    fn delete(user: &User) -> Result<(), Box<dyn Error>> {
+    fn delete(&self, user: &User) -> Result<(), Box<dyn Error>> {
         { // block is required because of connection release
             let connection = open_stream().get()?;
             let _result = diesel::delete(
@@ -162,7 +166,7 @@ impl UserRepository for PostgresUserRepository {
 pub struct EmailSenderImplementation {}
 
 impl EmailSender for EmailSenderImplementation {
-    fn send_verification_email(to: &str) -> Result<(), Box<dyn Error>> {
+    fn send_verification_email(&self, to: &str) -> Result<(), Box<dyn Error>> {
         smtp::send_email(to, "Verification email", "<h1>Click here in order to verificate your email</h1>")
     }
 }

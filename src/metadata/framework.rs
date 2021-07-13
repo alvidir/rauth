@@ -31,7 +31,7 @@ struct NewPostgresMetadata {
 pub struct PostgresMetadataRepository {}
 
 impl MetadataRepository for PostgresMetadataRepository {
-    fn find(target: i32) -> Result<Metadata, Box<dyn Error>>  {       
+    fn find(&self, target: i32) -> Result<Metadata, Box<dyn Error>>  {       
         let results = { // block is required because of connection release
             let connection = open_stream().get()?;
             metadata.filter(id.eq(target))
@@ -49,7 +49,7 @@ impl MetadataRepository for PostgresMetadataRepository {
         })
     }
 
-    fn save(meta: &mut Metadata) -> Result<(), Box<dyn Error>> {
+    fn save(&self, meta: &mut Metadata) -> Result<(), Box<dyn Error>> {
         if meta.id == 0 { // create metadata
             let new_meta = NewPostgresMetadata {
                 created_at: meta.created_at,
@@ -84,7 +84,7 @@ impl MetadataRepository for PostgresMetadataRepository {
         }
     }
 
-    fn delete(meta: &Metadata) -> Result<(), Box<dyn Error>> {
+    fn delete(&self, meta: &Metadata) -> Result<(), Box<dyn Error>> {
         { // block is required because of connection release
             let connection = open_stream().get()?;
             let _result = diesel::delete(

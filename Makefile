@@ -5,6 +5,7 @@ PROJECT=oauth
 
 install:
 	sudo apt install libpq-dev
+	sudo apt install pkg-config libssl-dev
 	cargo install diesel_cli --no-default-features --features postgres
 
 proto:

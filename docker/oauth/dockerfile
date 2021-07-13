@@ -9,7 +9,7 @@ RUN cargo build --release
 RUN rm src/*.rs
 
 ADD . ./
-
+ 
 RUN rm ./target/release/deps/rust_docker_web*
 RUN cargo build --release
 

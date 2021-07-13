@@ -5,9 +5,9 @@ use crate::secret::domain::Secret;
 use crate::metadata::domain::Metadata;
 
 pub trait AppRepository {
-    fn find(url: &str) -> Result<App, Box<dyn Error>>;
-    fn save(app: &mut App) -> Result<(), Box<dyn Error>>;
-    fn delete(app: &App) -> Result<(), Box<dyn Error>>;
+    fn find(&self, url: &str) -> Result<App, Box<dyn Error>>;
+    fn save(&self, app: &mut App) -> Result<(), Box<dyn Error>>;
+    fn delete(&self, app: &App) -> Result<(), Box<dyn Error>>;
 }
 
 pub struct App {
@@ -20,6 +20,7 @@ pub struct App {
 impl App {
     pub fn new<'a>(url: &'a str, secret: Secret) -> Result<Self, Box<dyn Error>> {
         regex::match_regex(regex::URL, url)?;
+        //let repo = super::get_repository()?;
 
         let app = App {
             id: 0,
@@ -28,6 +29,8 @@ impl App {
             meta: Metadata::new(),
         };
 
+        
+        //repo.save(&mut app)?;
         Ok(app)
     }
 }

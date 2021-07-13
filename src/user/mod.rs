@@ -2,6 +2,22 @@ pub mod framework;
 pub mod application;
 pub mod domain;
 
+use application::EmailSender;
+
+// lazy_static! {
+//     static ref EMAIL_SENDER: framework::EmailSenderImplementation = {
+//         framework::EmailSenderImplementation{}
+//     };
+
+//     static ref USER_REPOSITORY: framework::PostgresUserRepository = {
+//         framework::PostgresUserRepository{}
+//     };
+// }
+
+// fn get_email_sender() -> Box<dyn application::EmailSender> {
+//     Box::new(EMAIL_SENDER)
+// }
+
 // #[cfg(test)]
 // mod tests {
 //     use std::time::SystemTime;

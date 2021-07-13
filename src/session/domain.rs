@@ -12,10 +12,10 @@ const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
 
 
 pub trait SessionRepository {
-    fn find(cookie: &str) -> Result<Arc<Mutex<Session>>, Box<dyn Error>>;
-    fn find_by_email(email: &str) -> Result<Arc<Mutex<Session>>, Box<dyn Error>>;
-    fn save(session: Session) -> Result<(), Box<dyn Error>>;
-    fn delete(session: &Session) -> Result<(), Box<dyn Error>>;
+    fn find(&self, cookie: &str) -> Result<Arc<Mutex<Session>>, Box<dyn Error>>;
+    fn find_by_email(&self, email: &str) -> Result<Arc<Mutex<Session>>, Box<dyn Error>>;
+    fn save(&self, session: Session) -> Result<(), Box<dyn Error>>;
+    fn delete(&self, session: &Session) -> Result<(), Box<dyn Error>>;
 }
 
 pub struct Session {

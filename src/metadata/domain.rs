@@ -2,9 +2,9 @@ use std::error::Error;
 use std::time::{SystemTime};
 
 pub trait MetadataRepository {
-    fn find(id: i32) -> Result<Metadata, Box<dyn Error>>;
-    fn save(meta: &mut Metadata) -> Result<(), Box<dyn Error>>;
-    fn delete(meta: &Metadata) -> Result<(), Box<dyn Error>>;
+    fn find(&self, id: i32) -> Result<Metadata, Box<dyn Error>>;
+    fn save(&self, meta: &mut Metadata) -> Result<(), Box<dyn Error>>;
+    fn delete(&self, meta: &Metadata) -> Result<(), Box<dyn Error>>;
 }
 
 pub struct Metadata {
