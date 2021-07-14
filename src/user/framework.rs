@@ -27,8 +27,19 @@ pub use proto::user_service_server::UserServiceServer;
 // Proto message structs
 use proto::{SignupRequest, DeleteRequest };
 
-#[derive(Default)]
-pub struct UserServiceImplementation {}
+pub struct UserServiceImplementation {
+    user_repo: PostgresUserRepository,
+    email_sender: EmailSenderImplementation,
+}
+
+impl UserServiceImplementation {
+    pub fn new() -> Self {
+        UserServiceImplementation {
+            user_repo: PostgresUserRepository::new(),
+            email_sender: EmailSenderImplementation{},
+        }
+    }
+}
 
 #[tonic::async_trait]
 impl UserService for UserServiceImplementation {
@@ -65,7 +76,15 @@ struct NewPostgresUser<'a> {
 }
 
 pub struct PostgresUserRepository {
-    metadata_repo: Box<dyn MetadataRepository>,
+    metadata_repo: PostgresMetadataRepository,
+}
+
+impl PostgresUserRepository {
+    fn new() -> Self {
+        PostgresUserRepository {
+            metadata_repo: PostgresMetadataRepository{},
+        }
+    }
 }
 
 impl UserRepository for PostgresUserRepository {

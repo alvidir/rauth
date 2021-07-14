@@ -39,7 +39,7 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
     use app::framework::AppServiceServer;
 
     let addr = address.parse().unwrap();
-    let user_server = user::framework::UserServiceImplementation::default();
+    let user_server = user::framework::UserServiceImplementation::new();
     let app_server = app::framework::AppServiceImplementation::default();
  
     println!("Server listening on {}", addr);
