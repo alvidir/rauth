@@ -5,9 +5,9 @@ use crate::secret::domain::Secret;
 use crate::metadata::domain::Metadata;
 
 pub trait AppRepository {
-    fn find(&self, url: &str) -> Result<App, Box<dyn Error>>;
-    fn save(&self, app: &mut App) -> Result<(), Box<dyn Error>>;
-    fn delete(&self, app: &App) -> Result<(), Box<dyn Error>>;
+    fn find(url: &str) -> Result<App, Box<dyn Error>>;
+    fn save(app: &mut App) -> Result<(), Box<dyn Error>>;
+    fn delete(app: &App) -> Result<(), Box<dyn Error>>;
 }
 
 pub struct App {

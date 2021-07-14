@@ -1,5 +1,4 @@
 syntax = "proto3";
-option go_package = "github.com/alvidir/oauth/proto/user";
 
 package user;
 import "google/protobuf/empty.proto";
@@ -9,18 +8,6 @@ message SignupRequest {
   string email = 1; // the user email
 }
 
-// LoginRequest description
-message LoginRequest {
-  string ident = 1;   // the user identity
-  string pwd = 2;     // the time-based one time password
-  string app = 3;     // application
-}
-
-// LoginResponse description
-message LoginResponse {
-  string cookie = 1;    // Session cookie
-}
-
 // DeleteRequest description
 message DeleteRequest {
   string ident = 1;   // the user name or email
@@ -28,8 +15,6 @@ message DeleteRequest {
 }
 
 service UserService {
-  rpc Login(user.LoginRequest) returns (user.LoginResponse);
-  rpc Logout(google.protobuf.Empty) returns (google.protobuf.Empty);
   rpc Signup(user.SignupRequest) returns (google.protobuf.Empty);
   rpc Delete(user.DeleteRequest) returns (google.protobuf.Empty);
 }

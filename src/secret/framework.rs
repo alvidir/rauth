@@ -27,7 +27,7 @@ struct MongoSecret {
 pub struct MongoSecretRepository {}
 
 impl SecretRepository for MongoSecretRepository {
-    fn find(&self, target: &str) -> Result<Secret, Box<dyn Error>>  {
+    fn find(target: &str) -> Result<Secret, Box<dyn Error>>  {
         let loaded_secret_opt = mongo::open_stream(COLLECTION_NAME)
             .find_one(Some(doc! { "_id":  target }), None)?;
 
@@ -58,7 +58,7 @@ impl SecretRepository for MongoSecretRepository {
         Err("not found".into())
     }
 
-    fn save(&self, secret: &mut Secret) -> Result<(), Box<dyn Error>> {
+    fn save(secret: &mut Secret) -> Result<(), Box<dyn Error>> {
         let mongo_meta = MongoSecretMetadata {
             created_at: secret.meta.created_at,
             updated_at: secret.meta.updated_at,
@@ -106,7 +106,7 @@ impl SecretRepository for MongoSecretRepository {
         Ok(())
     }
 
-    fn delete(&self, secret: &Secret) -> Result<(), Box<dyn Error>> {
+    fn delete(secret: &Secret) -> Result<(), Box<dyn Error>> {
         let bson_id = ObjectId::with_string(&secret.id)?;
         mongo::open_stream(COLLECTION_NAME)
             .delete_one(doc!{"_id": bson_id}, None)?;

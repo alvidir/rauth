@@ -18,17 +18,17 @@ pub struct User {
 }
 
 impl User {
-    pub fn new<'a>(email: &'a str) -> Result<Self, Box<dyn Error>> {
+    pub fn new<'a>(repo: impl UserRepository, email: &'a str) -> Result<Self, Box<dyn Error>> {
         regex::match_regex(regex::EMAIL, email)?;
 
-        let user = User {
+        let mut user = User {
             id: 0,
             email: email.to_string(),
             secret: None,
             meta: Metadata::new(),
         };
 
-        //USER_REPOSITORY.save(&mut user)?;
+        repo.save(&mut user)?;
         Ok(user)
     }
 }

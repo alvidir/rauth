@@ -1,5 +1,4 @@
 syntax = "proto3";
-option go_package = "github.com/alvidir/oauth/proto/app";
 
 package app;
 import "google/protobuf/empty.proto";

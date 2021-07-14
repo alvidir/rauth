@@ -1,5 +1,4 @@
 use std::error::Error;
-use std::sync::{Arc, RwLock};
 use tonic::{Request, Response, Status};
 use diesel::NotFound;
 
@@ -13,13 +12,6 @@ use crate::secret::domain::SecretRepository;
 use crate::metadata::domain::MetadataRepository;
 
 use super::domain::{App, AppRepository};
-
-lazy_static! {
-    pub static ref REPOSITORY: RwLock<Arc<PostgresAppRepository>> = {
-        let arc = Arc::new(PostgresAppRepository{});
-        RwLock::new(arc)
-    };
-}
 
 // Import the generated rust code into module
 mod proto {
@@ -74,7 +66,7 @@ struct NewPostgresApp<'a> {
 pub struct PostgresAppRepository {}
 
 impl AppRepository for PostgresAppRepository {
-    fn find(&self, target: &str) -> Result<App, Box<dyn Error>>  {
+    fn find(target: &str) -> Result<App, Box<dyn Error>>  {
         // let results = { // block is required because of connection release
         //     let connection = open_stream().get()?;
         //     apps.filter(url.eq(url))
@@ -98,7 +90,7 @@ impl AppRepository for PostgresAppRepository {
         Err("unimplemented".into())
     }
 
-    fn save(&self, app: &mut App) -> Result<(), Box<dyn Error>> {
+    fn save(app: &mut App) -> Result<(), Box<dyn Error>> {
         // METADATA_REPOSITORY.save(&mut app.meta)?;
 
         // if app.id == 0 { // create user
@@ -139,7 +131,7 @@ impl AppRepository for PostgresAppRepository {
         Err("unimplemented".into())
     }
 
-    fn delete(&self, app: &App) -> Result<(), Box<dyn Error>> {
+    fn delete(app: &App) -> Result<(), Box<dyn Error>> {
         { // block is required because of connection release
             let connection = open_stream().get()?;
             let _result = diesel::delete(

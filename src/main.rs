@@ -28,22 +28,6 @@ mod secret;
 
 const ERR_NO_PORT: &str = "Service port must be set";
 
-use std::sync::Once;
-
-static INIT: Once = Once::new();
-
-pub fn initialize() {
-    INIT.call_once(|| {
-        if let Err(_) = dotenv::dotenv() {
-            // seting up environment variables (if there is no .env: must NOT fail)
-            println!("No dotenv file has been found.");
-        }
-
-        postgres::must_connect(); // checking postgres connectivity
-        mongo::must_connect(); // checking mongodb connectivity
-    });
-}
-
 pub fn parse_error(err: Box<dyn Error>) -> Status {
     println!("{:?}", err.to_string());
     let code = Code::from(Code::Unknown);
@@ -71,7 +55,16 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    initialize();
+    if let Err(_) = dotenv::dotenv() {
+        // seting up environment variables (if there is no .env: must NOT fail)
+        println!("No dotenv file has been found.");
+    }
+
+    postgres::must_connect(); // checking postgres connectivity
+    mongo::must_connect(); // checking mongodb connectivity
+
+    
+
     let port = env::var(constants::ENV_SERVICE_PORT)
         .expect(ERR_NO_PORT);
 
