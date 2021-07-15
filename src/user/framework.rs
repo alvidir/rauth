@@ -77,16 +77,16 @@ struct NewPostgresUser<'a> {
 }
 
 pub struct PostgresUserRepository {
-    metadata_repo: &'static PostgresMetadataRepository,
     secret_repo: &'static MongoSecretRepository,
+    metadata_repo: &'static PostgresMetadataRepository,
 }
 
 impl PostgresUserRepository {
-    pub fn new(meta_repo: &'static PostgresMetadataRepository,
-               secret_repo: &'static MongoSecretRepository) -> Self {
+    pub fn new(secret_repo: &'static MongoSecretRepository,
+               meta_repo: &'static PostgresMetadataRepository) -> Self {
         PostgresUserRepository {
-            metadata_repo: meta_repo,
             secret_repo: secret_repo,
+            metadata_repo: meta_repo,
         }
     }
 }

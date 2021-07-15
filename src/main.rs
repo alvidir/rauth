@@ -26,16 +26,19 @@ mod session;
 mod app;
 mod secret;
 
-use metadata::framework::PostgresMetadataRepository;
 use secret::framework::MongoSecretRepository;
+use metadata::framework::PostgresMetadataRepository;
 use user::framework::{PostgresUserRepository, EmailSenderImplementation};
-
+use app::framework::PostgresAppRepository;
+use session::framework::InMemorySessionRepository;
 
 lazy_static! {
     static ref META_REPO: PostgresMetadataRepository = PostgresMetadataRepository{};
     static ref SECRET_REPO: MongoSecretRepository = MongoSecretRepository{};
-    static ref USER_REPO: PostgresUserRepository = PostgresUserRepository::new(&META_REPO, &SECRET_REPO);
+    static ref USER_REPO: PostgresUserRepository = PostgresUserRepository::new(&SECRET_REPO, &META_REPO);
+    static ref APP_REPO: PostgresAppRepository = PostgresAppRepository::new(&SECRET_REPO, &META_REPO);
     static ref EMAIL_SENDER: EmailSenderImplementation = EmailSenderImplementation{};
+    static ref SESSION_REPO: InMemorySessionRepository = InMemorySessionRepository::new();
 }
 
 pub fn parse_error(err: Box<dyn Error>) -> Status {
@@ -44,23 +47,22 @@ pub fn parse_error(err: Box<dyn Error>) -> Status {
     Status::new(code, err.to_string())
 }
 
-pub async fn start_server(address: String,
-                          user_repo: &'static user::framework::PostgresUserRepository,
-                          email_sender: &'static user::framework::EmailSenderImplementation)
-                          -> Result<(), Box<dyn Error>> {
+pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
     use user::framework::UserServiceServer;
     use app::framework::AppServiceServer;
+    use session::framework::SessionServiceServer;
 
     let addr = address.parse().unwrap();
-    let user_server = user::framework::UserServiceImplementation::new(user_repo, email_sender);
-    let app_server = app::framework::AppServiceImplementation::default();
-    let session_server = session::framework::SessionServiceImplementation::default();
+    let user_server = user::framework::UserServiceImplementation::new(&USER_REPO, &EMAIL_SENDER);
+    let app_server = app::framework::AppServiceImplementation::new(&APP_REPO);
+    let session_server = session::framework::SessionServiceImplementation::new(&SESSION_REPO);
  
     println!("Server listening on {}", addr);
  
     Server::builder()
         .add_service(UserServiceServer::new(user_server))
         .add_service(AppServiceServer::new(app_server))
+        .add_service(SessionServiceServer::new(session_server))
         .serve(addr)
         .await?;
  
@@ -77,12 +79,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     postgres::must_connect(); // checking postgres connectivity
     mongo::must_connect(); // checking mongodb connectivity
 
-    
-
     let port = env::var(constants::ENV_SERVICE_PORT)
         .expect("service port must be set");
 
     let addr = format!("{}:{}", constants::SERVER_IP, port);
-    start_server(addr, &USER_REPO, &EMAIL_SENDER).await?;
+    start_server(addr).await?;
     Ok(())
 }

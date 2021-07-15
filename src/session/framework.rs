@@ -5,6 +5,15 @@ use tonic::{Request, Response, Status};
 use crate::constants::TOKEN_LEN;
 use super::domain::{Session, SessionRepository};
 
+type Ropository = Mutex<HashMap<String, Arc<Mutex<Session>>>>;
+
+lazy_static! {
+    pub static ref SESSION_REPOSITORY: Ropository = {
+        let repo = HashMap::new();
+        Mutex::new(repo)
+    };    
+}
+
 // Import the generated rust code into module
 mod proto {
     tonic::include_proto!("session");
@@ -17,8 +26,17 @@ pub use proto::session_service_server::SessionServiceServer;
 // Proto message structs
 use proto::{LoginRequest, LoginResponse};
 
-#[derive(Default)]
-pub struct SessionServiceImplementation {}
+pub struct SessionServiceImplementation {
+    session_repo: &'static InMemorySessionRepository,
+}
+
+impl SessionServiceImplementation {
+    pub fn new(session_repo: &'static InMemorySessionRepository) -> Self {
+        SessionServiceImplementation {
+            session_repo: session_repo,
+        }
+    }
+}
 
 #[tonic::async_trait]
 impl SessionService for SessionServiceImplementation {
@@ -35,18 +53,11 @@ impl SessionService for SessionServiceImplementation {
 
 
 pub struct InMemorySessionRepository {
-    all_instances: &'static Mutex<HashMap<String, Arc<Mutex<Session>>>>,
-}
-
-lazy_static! {
-    pub static ref SESSION_REPOSITORY: Mutex<HashMap<String, Arc<Mutex<Session>>>> = {
-        let repo = HashMap::new();
-        Mutex::new(repo)
-    };    
+    all_instances: &'static Ropository,
 }
 
 impl InMemorySessionRepository {
-    fn new() -> Self {
+    pub fn new() -> Self {
         InMemorySessionRepository {
             all_instances: &SESSION_REPOSITORY,
         }

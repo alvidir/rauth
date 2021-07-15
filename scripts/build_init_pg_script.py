@@ -25,7 +25,7 @@ def main(argv):
         for file in files:
             if regex.match(file):
                 path = os.path.join(root, file)
-                print("Reading content from", path)
+                print("Reading content from {}".format(path))
 
                 fo = open(path, "r")
                 content = fo.read()

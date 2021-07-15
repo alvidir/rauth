@@ -6,9 +6,9 @@ use crate::diesel::prelude::*;
 use crate::schema::apps::dsl::*;
 use crate::postgres::*;
 use crate::schema::apps;
-//use crate::secret::SECRET_REPOSITORY;
+use crate::secret::framework::MongoSecretRepository;
 use crate::secret::domain::SecretRepository;
-//use crate::metadata::METADATA_REPOSITORY;
+use crate::metadata::framework::PostgresMetadataRepository;
 use crate::metadata::domain::MetadataRepository;
 
 use super::domain::{App, AppRepository};
@@ -25,8 +25,17 @@ pub use proto::app_service_server::AppServiceServer;
 // Proto message structs
 use proto::{RegisterRequest, RegisterResponse, DeleteRequest};
 
-#[derive(Default)]
-pub struct AppServiceImplementation {}
+pub struct AppServiceImplementation {
+    app_repo: &'static PostgresAppRepository,
+}
+
+impl AppServiceImplementation {
+    pub fn new(app_repo: &'static PostgresAppRepository) -> Self {
+        AppServiceImplementation {
+            app_repo: app_repo,
+        }
+    }
+}
 
 #[tonic::async_trait]
 impl AppService for AppServiceImplementation {
@@ -63,75 +72,84 @@ struct NewPostgresApp<'a> {
 }
 
 
-pub struct PostgresAppRepository {}
+pub struct PostgresAppRepository {
+    secret_repo: &'static MongoSecretRepository,
+    meta_repo: &'static PostgresMetadataRepository,
+}
+
+impl PostgresAppRepository {
+    pub fn new(secret_repo: &'static MongoSecretRepository,
+               meta_repo: &'static PostgresMetadataRepository) -> Self {
+        PostgresAppRepository {
+            secret_repo: secret_repo,
+            meta_repo: meta_repo,
+        }
+    }
+}
 
 impl AppRepository for PostgresAppRepository {
-    fn find(target: &str) -> Result<App, Box<dyn Error>>  {
-        // let results = { // block is required because of connection release
-        //     let connection = open_stream().get()?;
-        //     apps.filter(url.eq(url))
-        //          .load::<PostgresApp>(&connection)?
-        // };
+    fn find(&self, target: &str) -> Result<App, Box<dyn Error>>  {
+        let results = { // block is required because of connection release
+            let connection = open_stream().get()?;
+            apps.filter(url.eq(url))
+                 .load::<PostgresApp>(&connection)?
+        };
     
-        // if results.len() == 0 {
-        //     return Err(Box::new(NotFound));
-        // }
+        if results.len() == 0 {
+            return Err(Box::new(NotFound));
+        }
 
-        // let secret = SECRET_REPOSITORY.find(&results[0].secret_id)?;
-        // let meta = METADATA_REPOSITORY.find(results[0].meta_id)?;
+        let secret = self.secret_repo.find(&results[0].secret_id)?;
+        let meta = self.meta_repo.find(results[0].meta_id)?;
         
-        // Ok(App{
-        //     id: results[0].id,
-        //     url: results[0].url.clone(),
-        //     secret: secret,
-        //     meta: meta,
-        // })
-
-        Err("unimplemented".into())
+        Ok(App{
+            id: results[0].id,
+            url: results[0].url.clone(),
+            secret: secret,
+            meta: meta,
+        })
     }
 
-    fn save(app: &mut App) -> Result<(), Box<dyn Error>> {
-        // METADATA_REPOSITORY.save(&mut app.meta)?;
+    fn save(&self, app: &mut App) -> Result<(), Box<dyn Error>> {
+        self.meta_repo.save(&mut app.meta)?;
 
-        // if app.id == 0 { // create user
-        //     let new_app = NewPostgresApp {
-        //         url: &app.url,
-        //         secret_id: "",
-        //         meta_id: app.meta.id,
-        //     };
+        if app.id == 0 { // create user
+            let new_app = NewPostgresApp {
+                url: &app.url,
+                secret_id: "",
+                meta_id: app.meta.id,
+            };
     
-        //     let result = { // block is required because of connection release
-        //         let connection = open_stream().get()?;
-        //         diesel::insert_into(apps::table)
-        //             .values(&new_app)
-        //             .get_result::<PostgresApp>(&connection)?
-        //     };
+            let result = { // block is required because of connection release
+                let connection = open_stream().get()?;
+                diesel::insert_into(apps::table)
+                    .values(&new_app)
+                    .get_result::<PostgresApp>(&connection)?
+            };
     
-        //     app.id = result.id;
-        //     Ok(())
+            app.id = result.id;
+            Ok(())
 
-        // } else { // update user
-        //     let pg_app = PostgresApp {
-        //         id: app.id,
-        //         url: app.url.clone(),
-        //         secret_id: "".to_string(),
-        //         meta_id: app.meta.id,
-        //     };
+        } else { // update user
+            let pg_app = PostgresApp {
+                id: app.id,
+                url: app.url.clone(),
+                secret_id: "".to_string(),
+                meta_id: app.meta.id,
+            };
             
-        //     { // block is required because of connection release            
-        //         let connection = open_stream().get()?;
-        //         diesel::update(apps)
-        //             .set(&pg_app)
-        //             .execute(&connection)?;
-        //     }
+            { // block is required because of connection release            
+                let connection = open_stream().get()?;
+                diesel::update(apps)
+                    .set(&pg_app)
+                    .execute(&connection)?;
+            }
     
-        //     Ok(())
-        // }
-
-        Err("unimplemented".into())
+            Ok(())
+        }
     }
 
-    fn delete(app: &App) -> Result<(), Box<dyn Error>> {
+    fn delete(&self, app: &App) -> Result<(), Box<dyn Error>> {
         { // block is required because of connection release
             let connection = open_stream().get()?;
             let _result = diesel::delete(
