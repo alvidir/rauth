@@ -10,6 +10,7 @@ use crate::secret::framework::MongoSecretRepository;
 use crate::secret::domain::SecretRepository;
 use crate::metadata::framework::PostgresMetadataRepository;
 use crate::metadata::domain::MetadataRepository;
+use crate::session::framework::InMemorySessionRepository;
 use crate::smtp;
 
 use super::domain::{User, UserRepository};
@@ -29,14 +30,20 @@ use proto::{SignupRequest, DeleteRequest };
 
 pub struct UserServiceImplementation {
     user_repo: &'static PostgresUserRepository,
+    meta_repo: &'static PostgresMetadataRepository,
+    sess_repo: &'static InMemorySessionRepository,
     email_sender: &'static EmailSenderImplementation,
 }
 
 impl UserServiceImplementation {
     pub fn new(user_repo: &'static PostgresUserRepository,
+               meta_repo: &'static PostgresMetadataRepository,
+               sess_repo: &'static InMemorySessionRepository,
                email_sender: &'static EmailSenderImplementation) -> Self {
         UserServiceImplementation {
             user_repo: user_repo,
+            meta_repo: meta_repo,
+            sess_repo: sess_repo,
             email_sender: email_sender,
         }
     }
@@ -46,12 +53,28 @@ impl UserServiceImplementation {
 impl UserService for UserServiceImplementation {
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<()>, Status> {
         let msg_ref = request.into_inner();
-        Err(Status::unimplemented(""))
+
+        match super::application::user_signup(Box::new(self.user_repo),
+                                              Box::new(self.meta_repo),
+                                              Box::new(self.email_sender),
+                                              &msg_ref.email) {
+
+            Err(err) => Err(Status::aborted(err.to_string())),
+            Ok(()) => Ok(Response::new(())),
+        }
     }
 
     async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<()>, Status> {
         let msg_ref = request.into_inner();
-        Err(Status::unimplemented(""))
+
+        match super::application::user_delete(Box::new(self.user_repo),
+                                              Box::new(self.sess_repo),
+                                              &msg_ref.ident,
+                                              &msg_ref.pwd) {
+
+            Err(err) => Err(Status::aborted(err.to_string())),
+            Ok(()) => Ok(Response::new(())),
+        }
     }
 }
 
@@ -91,7 +114,7 @@ impl PostgresUserRepository {
     }
 }
 
-impl UserRepository for PostgresUserRepository {
+impl UserRepository for &PostgresUserRepository {
     fn find(&self, target: &str) -> Result<User, Box<dyn Error>>  {
         use crate::schema::users::dsl::*;
         
@@ -122,12 +145,10 @@ impl UserRepository for PostgresUserRepository {
     }
 
     fn save(&self, user: &mut User) -> Result<(), Box<dyn Error>> {
-        self.metadata_repo.save(&mut user.meta)?;
-
         if user.id == 0 { // create user
             let new_user = NewPostgresUser {
                 email: &user.email,
-                secret_id: None,
+                secret_id: if let Some(secret) = &user.secret {Some(&secret.id)} else {None},
                 meta_id: user.meta.id,
             };
     
@@ -145,7 +166,7 @@ impl UserRepository for PostgresUserRepository {
             let pg_user = PostgresUser {
                 id: user.id,
                 email: user.email.clone(),
-                secret_id: None,
+                secret_id: if let Some(secret) = &user.secret {Some(secret.id.clone())} else {None},
                 meta_id: user.meta.id,
             };
             
@@ -176,7 +197,7 @@ impl UserRepository for PostgresUserRepository {
 
 pub struct EmailSenderImplementation {}
 
-impl EmailSender for EmailSenderImplementation {
+impl EmailSender for &EmailSenderImplementation {
     fn send_verification_email(&self, to: &str) -> Result<(), Box<dyn Error>> {
         smtp::send_email(to, "Verification email", "<h1>Click here in order to verificate your email</h1>")
     }

@@ -7,4 +7,4 @@ CREATE TABLE Users (
 
     FOREIGN KEY (meta_id)
         REFERENCES Metadata(id)
-)
+);

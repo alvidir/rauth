@@ -14,7 +14,18 @@ pub struct Metadata {
 }
 
 impl Metadata {
-    pub fn new() -> Self {
+    pub fn new(repo: Box<dyn MetadataRepository>) -> Result<Self, Box<dyn Error>> {
+        let mut meta = Metadata {
+            id: 0,
+            created_at: SystemTime::now(),
+            updated_at: SystemTime::now(),
+        };
+
+        repo.save(&mut meta)?;
+        Ok(meta)
+    }
+
+    pub fn now() -> Self {
         Metadata {
             id: 0,
             created_at: SystemTime::now(),

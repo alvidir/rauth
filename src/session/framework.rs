@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use tonic::{Request, Response, Status};
 use crate::constants::TOKEN_LEN;
+use crate::token;
 use super::domain::{Session, SessionRepository};
 
 type Ropository = Mutex<HashMap<String, Arc<Mutex<Session>>>>;
@@ -72,7 +73,7 @@ impl InMemorySessionRepository {
     }
 }
 
-impl SessionRepository for InMemorySessionRepository {
+impl SessionRepository for &InMemorySessionRepository {
     fn find(&self, cookie: &str) -> Result<Arc<Mutex<Session>>, Box<dyn Error>> {
         let repo = self.all_instances.lock()?;
         if let Some(sess) = repo.get(cookie) {
@@ -91,7 +92,7 @@ impl SessionRepository for InMemorySessionRepository {
         Err("Not found".into())
     }
 
-    fn save(&self, session: Session) -> Result<(), Box<dyn Error>> {
+    fn save(&self, mut session: Session) -> Result<String, Box<dyn Error>> {
         let mut repo = self.all_instances.lock()?;
         if let Some(_) = repo.get(&session.token) {
             return Err("cookie already exists".into());
@@ -101,13 +102,14 @@ impl SessionRepository for InMemorySessionRepository {
             return Err("email already exists".into());
         }
 
+        let token = token::new(TOKEN_LEN);
+        session.token = token.clone();
+
         let mu = Mutex::new(session);
         let arc = Arc::new(mu);
 
-        let token = Session::generate_token(TOKEN_LEN);
-        repo.insert(token, arc);
-
-        Ok(())
+        repo.insert(token.clone(), arc);
+        Ok(token)
     }
 
     fn delete(&self, session: &Session) -> Result<(), Box<dyn Error>> {

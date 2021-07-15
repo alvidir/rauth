@@ -19,6 +19,7 @@ mod postgres;
 mod mongo;
 mod smtp;
 mod time;
+mod token;
 mod constants;
 mod metadata;
 mod user;
@@ -52,11 +53,11 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
     use app::framework::AppServiceServer;
     use session::framework::SessionServiceServer;
 
-    let addr = address.parse().unwrap();
-    let user_server = user::framework::UserServiceImplementation::new(&USER_REPO, &EMAIL_SENDER);
+    let user_server = user::framework::UserServiceImplementation::new(&USER_REPO, &META_REPO, &SESSION_REPO, &EMAIL_SENDER);
     let app_server = app::framework::AppServiceImplementation::new(&APP_REPO);
     let session_server = session::framework::SessionServiceImplementation::new(&SESSION_REPO);
  
+    let addr = address.parse().unwrap();
     println!("Server listening on {}", addr);
  
     Server::builder()

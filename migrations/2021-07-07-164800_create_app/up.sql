@@ -7,4 +7,4 @@ CREATE TABLE Apps (
 
     FOREIGN KEY (meta_id)
         REFERENCES Metadata(id)
-)
+);

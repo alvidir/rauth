@@ -25,7 +25,7 @@ impl Secret {
         let app = Secret {
             id: "".to_string(),
             data: data.to_string(),
-            meta: Metadata::new(),
+            meta: Metadata::now(),
         };
 
         Ok(app)

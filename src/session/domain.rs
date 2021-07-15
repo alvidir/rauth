@@ -1,20 +1,14 @@
 use std::error::Error;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
-use rand::Rng;
 
-use crate::metadata::domain::Metadata;
+use crate::metadata::domain::{Metadata, MetadataRepository};
 use crate::user::domain::User;
-
-const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
-                        abcdefghijklmnopqrstuvwxyz\
-                        0123456789)(*&^%$#@!~?][+-";
-
 
 pub trait SessionRepository {
     fn find(&self, cookie: &str) -> Result<Arc<Mutex<Session>>, Box<dyn Error>>;
     fn find_by_email(&self, email: &str) -> Result<Arc<Mutex<Session>>, Box<dyn Error>>;
-    fn save(&self, session: Session) -> Result<(), Box<dyn Error>>;
+    fn save(&self, session: Session) -> Result<String, Box<dyn Error>>;
     fn delete(&self, session: &Session) -> Result<(), Box<dyn Error>>;
 }
 
@@ -28,24 +22,19 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn new(user: User, token: String, timeout: Duration) -> Self {
-        Session{
-            token: token,
+    pub fn new(sess_repo: Box<dyn SessionRepository>,
+               meta_repo: Box<dyn MetadataRepository>,
+               user: User,
+               timeout: Duration) -> Result<String, Box<dyn Error>> {
+
+        let sess = Session{
+            token: "".to_string(),
             deadline: SystemTime::now() + timeout,
             user: user,
-            meta: Metadata::new(),
-        }
-    }
+            meta: Metadata::new(meta_repo)?,
+        };
 
-    pub fn generate_token(size: usize) -> String {
-        let token: String = (0..size)
-        .map(|_| {
-            let mut rand = rand::thread_rng();
-            let idx = rand.gen_range(0..CHARSET.len());
-            CHARSET[idx] as char
-        })
-        .collect();
-    
-        token
+        let token = sess_repo.save(sess)?;
+        Ok(token)
     }
 }

@@ -2,7 +2,7 @@ use std::error::Error;
 
 use crate::regex;
 use crate::secret::domain::Secret;
-use crate::metadata::domain::Metadata;
+use crate::metadata::domain::{Metadata, MetadataRepository};
 
 pub trait AppRepository {
     fn find(&self, url: &str) -> Result<App, Box<dyn Error>>;
@@ -18,18 +18,21 @@ pub struct App {
 }
 
 impl App {
-    pub fn new<'a>(repo: impl AppRepository, url: &'a str, secret: Secret) -> Result<Self, Box<dyn Error>> {
+    pub fn new<'a>(app_repo: Box<dyn AppRepository>,
+                   meta_repo: Box<dyn MetadataRepository>,
+                   url: &'a str,
+                   secret: Secret) -> Result<Self, Box<dyn Error>> {
+        
         regex::match_regex(regex::URL, url)?;
 
         let mut app = App {
             id: 0,
             url: url.to_string(),
             secret: secret,
-            meta: Metadata::new(),
+            meta: Metadata::new(meta_repo)?,
         };
-
         
-        repo.save(&mut app)?;
+        app_repo.save(&mut app)?;
         Ok(app)
     }
 }

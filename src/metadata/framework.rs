@@ -30,7 +30,7 @@ struct NewPostgresMetadata {
 
 pub struct PostgresMetadataRepository {}
 
-impl MetadataRepository for PostgresMetadataRepository {
+impl MetadataRepository for &PostgresMetadataRepository {
     fn find(&self, target: i32) -> Result<Metadata, Box<dyn Error>>  {       
         let results = { // block is required because of connection release
             let connection = open_stream().get()?;
