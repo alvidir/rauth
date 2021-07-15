@@ -28,15 +28,16 @@ pub use proto::user_service_server::UserServiceServer;
 use proto::{SignupRequest, DeleteRequest };
 
 pub struct UserServiceImplementation {
-    user_repo: PostgresUserRepository,
-    email_sender: EmailSenderImplementation,
+    user_repo: &'static PostgresUserRepository,
+    email_sender: &'static EmailSenderImplementation,
 }
 
 impl UserServiceImplementation {
-    pub fn new() -> Self {
+    pub fn new(user_repo: &'static PostgresUserRepository,
+               email_sender: &'static EmailSenderImplementation) -> Self {
         UserServiceImplementation {
-            user_repo: PostgresUserRepository::new(),
-            email_sender: EmailSenderImplementation{},
+            user_repo: user_repo,
+            email_sender: email_sender,
         }
     }
 }
@@ -76,13 +77,16 @@ struct NewPostgresUser<'a> {
 }
 
 pub struct PostgresUserRepository {
-    metadata_repo: PostgresMetadataRepository,
+    metadata_repo: &'static PostgresMetadataRepository,
+    secret_repo: &'static MongoSecretRepository,
 }
 
 impl PostgresUserRepository {
-    fn new() -> Self {
+    pub fn new(meta_repo: &'static PostgresMetadataRepository,
+               secret_repo: &'static MongoSecretRepository) -> Self {
         PostgresUserRepository {
-            metadata_repo: PostgresMetadataRepository{},
+            metadata_repo: meta_repo,
+            secret_repo: secret_repo,
         }
     }
 }
@@ -103,7 +107,7 @@ impl UserRepository for PostgresUserRepository {
 
         let mut secret_opt = None;
         if let Some(secr_id) = &results[0].secret_id {
-            let secret = MongoSecretRepository::find(secr_id)?;
+            let secret = self.secret_repo.find(secr_id)?;
             secret_opt = Some(secret);
         }
 

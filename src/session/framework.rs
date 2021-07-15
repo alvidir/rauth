@@ -34,16 +34,24 @@ impl SessionService for SessionServiceImplementation {
 }
 
 
-type InMemorySessionRepository = Mutex<HashMap<String, Arc<Mutex<Session>>>>;
+pub struct InMemorySessionRepository {
+    all_instances: &'static Mutex<HashMap<String, Arc<Mutex<Session>>>>,
+}
 
 lazy_static! {
-    pub static ref SESSION_REPOSITORY: InMemorySessionRepository = {
+    pub static ref SESSION_REPOSITORY: Mutex<HashMap<String, Arc<Mutex<Session>>>> = {
         let repo = HashMap::new();
         Mutex::new(repo)
     };    
 }
 
-impl SESSION_REPOSITORY {
+impl InMemorySessionRepository {
+    fn new() -> Self {
+        InMemorySessionRepository {
+            all_instances: &SESSION_REPOSITORY,
+        }
+    }
+
     fn session_has_email(sess: &Arc<Mutex<Session>>, email: &str) -> bool {
         if let Ok(session) = sess.lock() {
             return session.user.email == email;
@@ -53,9 +61,9 @@ impl SESSION_REPOSITORY {
     }
 }
 
-impl SessionRepository for SESSION_REPOSITORY {
-    fn find(cookie: &str) -> Result<Arc<Mutex<Session>>, Box<dyn Error>> {
-        let repo = SESSION_REPOSITORY.lock()?;
+impl SessionRepository for InMemorySessionRepository {
+    fn find(&self, cookie: &str) -> Result<Arc<Mutex<Session>>, Box<dyn Error>> {
+        let repo = self.all_instances.lock()?;
         if let Some(sess) = repo.get(cookie) {
             return Ok(Arc::clone(sess));
         }
@@ -63,22 +71,22 @@ impl SessionRepository for SESSION_REPOSITORY {
         Err("Not found".into())
     }
 
-    fn find_by_email(email: &str) -> Result<Arc<Mutex<Session>>, Box<dyn Error>> {
-        let repo = SESSION_REPOSITORY.lock()?;
-        if let Some((_, sess)) = repo.iter().find(|(_, sess)| SESSION_REPOSITORY::session_has_email(sess, email)) {
+    fn find_by_email(&self, email: &str) -> Result<Arc<Mutex<Session>>, Box<dyn Error>> {
+        let repo = self.all_instances.lock()?;
+        if let Some((_, sess)) = repo.iter().find(|(_, sess)| InMemorySessionRepository::session_has_email(sess, email)) {
             return Ok(Arc::clone(sess));
         }
 
         Err("Not found".into())
     }
 
-    fn save(session: Session) -> Result<(), Box<dyn Error>> {
-        let mut repo = SESSION_REPOSITORY.lock()?;
+    fn save(&self, session: Session) -> Result<(), Box<dyn Error>> {
+        let mut repo = self.all_instances.lock()?;
         if let Some(_) = repo.get(&session.token) {
             return Err("cookie already exists".into());
         }
 
-        if let Some(_) = repo.iter().find(|(_, sess)| SESSION_REPOSITORY::session_has_email(sess, &session.user.email)) {
+        if let Some(_) = repo.iter().find(|(_, sess)| InMemorySessionRepository::session_has_email(sess, &session.user.email)) {
             return Err("email already exists".into());
         }
 
@@ -91,8 +99,8 @@ impl SessionRepository for SESSION_REPOSITORY {
         Ok(())
     }
 
-    fn delete(session: &Session) -> Result<(), Box<dyn Error>> {
-        let mut repo = SESSION_REPOSITORY.lock()?;
+    fn delete(&self, session: &Session) -> Result<(), Box<dyn Error>> {
+        let mut repo = self.all_instances.lock()?;
         if let None = repo.remove(&session.token) {
             return Err("cookie does not exists".into());
         }

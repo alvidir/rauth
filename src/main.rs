@@ -26,7 +26,17 @@ mod session;
 mod app;
 mod secret;
 
-const ERR_NO_PORT: &str = "Service port must be set";
+use metadata::framework::PostgresMetadataRepository;
+use secret::framework::MongoSecretRepository;
+use user::framework::{PostgresUserRepository, EmailSenderImplementation};
+
+
+lazy_static! {
+    static ref META_REPO: PostgresMetadataRepository = PostgresMetadataRepository{};
+    static ref SECRET_REPO: MongoSecretRepository = MongoSecretRepository{};
+    static ref USER_REPO: PostgresUserRepository = PostgresUserRepository::new(&META_REPO, &SECRET_REPO);
+    static ref EMAIL_SENDER: EmailSenderImplementation = EmailSenderImplementation{};
+}
 
 pub fn parse_error(err: Box<dyn Error>) -> Status {
     println!("{:?}", err.to_string());
@@ -34,13 +44,17 @@ pub fn parse_error(err: Box<dyn Error>) -> Status {
     Status::new(code, err.to_string())
 }
 
-pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
+pub async fn start_server(address: String,
+                          user_repo: &'static user::framework::PostgresUserRepository,
+                          email_sender: &'static user::framework::EmailSenderImplementation)
+                          -> Result<(), Box<dyn Error>> {
     use user::framework::UserServiceServer;
     use app::framework::AppServiceServer;
 
     let addr = address.parse().unwrap();
-    let user_server = user::framework::UserServiceImplementation::new();
+    let user_server = user::framework::UserServiceImplementation::new(user_repo, email_sender);
     let app_server = app::framework::AppServiceImplementation::default();
+    let session_server = session::framework::SessionServiceImplementation::default();
  
     println!("Server listening on {}", addr);
  
@@ -57,7 +71,7 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
 async fn main() -> Result<(), Box<dyn Error>> {
     if let Err(_) = dotenv::dotenv() {
         // seting up environment variables (if there is no .env: must NOT fail)
-        println!("No dotenv file has been found.");
+        println!("no dotenv file has been found");
     }
 
     postgres::must_connect(); // checking postgres connectivity
@@ -66,9 +80,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     
 
     let port = env::var(constants::ENV_SERVICE_PORT)
-        .expect(ERR_NO_PORT);
+        .expect("service port must be set");
 
     let addr = format!("{}:{}", constants::SERVER_IP, port);
-    start_server(addr).await?;
+    start_server(addr, &USER_REPO, &EMAIL_SENDER).await?;
     Ok(())
 }
