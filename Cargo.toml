@@ -21,7 +21,7 @@ openssl = "0.10.32"
 lazy_static = "1.4.0"
 serde = "1.0.123"
 bson = "1.2.0"
-boringauth = "0.9.0"
+libreauth = "0.14.1"
 
 [dependencies.mongodb]
 version = "1.2.0"

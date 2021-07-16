@@ -19,15 +19,21 @@ pub struct Secret {
 }
 
 impl Secret {
-    pub fn new(data: &str) -> Result<Self, Box<dyn Error>> {
+    pub fn new(secret_repo: Box<dyn SecretRepository>,
+               data: &str) -> Result<Self, Box<dyn Error>> {
         regex::match_regex(regex::BASE64, data)?;
 
-        let app = Secret {
+        let mut secret = Secret {
             id: "".to_string(),
             data: data.to_string(),
             meta: Metadata::now(),
         };
 
-        Ok(app)
+        secret_repo.save(&mut secret)?;
+        Ok(secret)
+    }
+
+    pub fn get_data(&self) -> &str {
+        &self.data
     }
 }

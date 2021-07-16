@@ -29,16 +29,19 @@ mod secret;
 
 use secret::framework::MongoSecretRepository;
 use metadata::framework::PostgresMetadataRepository;
-use user::framework::{PostgresUserRepository, EmailSenderImplementation};
+use user::framework::{PostgresUserRepository, SMTPEmailManager, TOTPasswordManager};
 use app::framework::PostgresAppRepository;
 use session::framework::InMemorySessionRepository;
 
 lazy_static! {
     static ref META_REPO: PostgresMetadataRepository = PostgresMetadataRepository{};
     static ref SECRET_REPO: MongoSecretRepository = MongoSecretRepository{};
+    static ref EMAIL_MANAGER: SMTPEmailManager = SMTPEmailManager{};
+    static ref PWD_MANAGER: TOTPasswordManager = TOTPasswordManager{};
+
     static ref USER_REPO: PostgresUserRepository = PostgresUserRepository::new(&SECRET_REPO, &META_REPO);
     static ref APP_REPO: PostgresAppRepository = PostgresAppRepository::new(&SECRET_REPO, &META_REPO);
-    static ref EMAIL_SENDER: EmailSenderImplementation = EmailSenderImplementation{};
+    
     static ref SESSION_REPO: InMemorySessionRepository = InMemorySessionRepository::new();
 }
 
@@ -53,7 +56,7 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
     use app::framework::AppServiceServer;
     use session::framework::SessionServiceServer;
 
-    let user_server = user::framework::UserServiceImplementation::new(&USER_REPO, &META_REPO, &SESSION_REPO, &EMAIL_SENDER);
+    let user_server = user::framework::UserServiceImplementation::new(&USER_REPO, &SESSION_REPO, &META_REPO, &EMAIL_MANAGER, &PWD_MANAGER);
     let app_server = app::framework::AppServiceImplementation::new(&APP_REPO);
     let session_server = session::framework::SessionServiceImplementation::new(&SESSION_REPO);
  

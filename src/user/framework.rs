@@ -1,6 +1,8 @@
 use std::error::Error;
 use tonic::{Request, Response, Status};
 use diesel::NotFound;
+use libreauth::oath::{TOTPBuilder};
+use libreauth::hash::HashFunction::Sha256;
 
 use crate::diesel::prelude::*;
 use crate::postgres::*;
@@ -14,7 +16,7 @@ use crate::session::framework::InMemorySessionRepository;
 use crate::smtp;
 
 use super::domain::{User, UserRepository};
-use super::application::EmailSender;
+use super::application::{EmailManager, PasswordManager};
 
 // Import the generated rust code into module
 mod proto {
@@ -32,19 +34,22 @@ pub struct UserServiceImplementation {
     user_repo: &'static PostgresUserRepository,
     meta_repo: &'static PostgresMetadataRepository,
     sess_repo: &'static InMemorySessionRepository,
-    email_sender: &'static EmailSenderImplementation,
+    email_manager: &'static SMTPEmailManager,
+    pwd_manager: &'static TOTPasswordManager,
 }
 
 impl UserServiceImplementation {
     pub fn new(user_repo: &'static PostgresUserRepository,
-               meta_repo: &'static PostgresMetadataRepository,
                sess_repo: &'static InMemorySessionRepository,
-               email_sender: &'static EmailSenderImplementation) -> Self {
+               meta_repo: &'static PostgresMetadataRepository,
+               email_manager: &'static SMTPEmailManager,
+               pwd_manager: &'static TOTPasswordManager) -> Self {
         UserServiceImplementation {
             user_repo: user_repo,
             meta_repo: meta_repo,
             sess_repo: sess_repo,
-            email_sender: email_sender,
+            email_manager: email_manager,
+            pwd_manager: pwd_manager,
         }
     }
 }
@@ -56,7 +61,7 @@ impl UserService for UserServiceImplementation {
 
         match super::application::user_signup(Box::new(self.user_repo),
                                               Box::new(self.meta_repo),
-                                              Box::new(self.email_sender),
+                                              Box::new(self.email_manager),
                                               &msg_ref.email) {
 
             Err(err) => Err(Status::aborted(err.to_string())),
@@ -69,6 +74,7 @@ impl UserService for UserServiceImplementation {
 
         match super::application::user_delete(Box::new(self.user_repo),
                                               Box::new(self.sess_repo),
+                                              Box::new(self.pwd_manager),
                                               &msg_ref.ident,
                                               &msg_ref.pwd) {
 
@@ -195,10 +201,34 @@ impl UserRepository for &PostgresUserRepository {
     }
 }
 
-pub struct EmailSenderImplementation {}
+pub struct SMTPEmailManager {}
 
-impl EmailSender for &EmailSenderImplementation {
+impl EmailManager for &SMTPEmailManager {
     fn send_verification_email(&self, to: &str) -> Result<(), Box<dyn Error>> {
         smtp::send_email(to, "Verification email", "<h1>Click here in order to verificate your email</h1>")
+    }
+}
+
+pub struct TOTPasswordManager {}
+
+impl PasswordManager for &TOTPasswordManager {
+    fn verify_pwd_based_on_secret(&self, pwd: &str, secret: &str) -> Result<(), Box<dyn Error>> {
+        let key_base64 = secret.to_owned();
+        let totp = TOTPBuilder::new()
+            .base64_key(&key_base64)
+            //.output_len(6)
+            .period(30)
+            .hash_function(Sha256)
+            .finalize();
+
+        if let Ok(code) = totp {
+            if !code.is_valid(pwd) {
+                return Err("password not match".into());
+            }
+        } else {
+            return Err("failed to generate code".into());
+        }
+
+        Ok(())
     }
 }

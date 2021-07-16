@@ -3,26 +3,31 @@ use crate::session::domain::SessionRepository;
 use crate::metadata::domain::MetadataRepository;
 use super::domain::{UserRepository, User};
 
-pub trait EmailSender {
+pub trait EmailManager {
     fn send_verification_email(&self, email: &str) -> Result<(), Box<dyn Error>>;
+}
+
+pub trait PasswordManager {
+    fn verify_pwd_based_on_secret(&self, pwd: &str, secret: &str) -> Result<(), Box<dyn Error>>;
 }
 
 pub fn user_signup<'a>(user_repo: Box<dyn UserRepository>,
                        meta_repo: Box<dyn MetadataRepository>,
-                       sender: Box<dyn EmailSender>,
+                       email_manager: Box<dyn EmailManager>,
                        email: &'a str) -> Result<(), Box<dyn Error>> {
     
     println!("Got signup request from user {} ", email);
     
     // the email is required in order to verify the identity of the user, so if no email
     // can be sent, the user shall not be created
-    sender.send_verification_email(email)?;
+    email_manager.send_verification_email(email)?;
     User::new(user_repo, meta_repo, email)?;
     Ok(())
 }
 
 pub fn user_delete<'a>(user_repo: Box<dyn UserRepository>,
                        sess_repo: Box<dyn SessionRepository>,
+                       pwd_manager: Box<dyn PasswordManager>,
                        email: &'a str,
                        pwd: &'a str) -> Result<(), Box<dyn Error>> {
     
@@ -30,7 +35,8 @@ pub fn user_delete<'a>(user_repo: Box<dyn UserRepository>,
     
     let user = user_repo.find(email)?;
     if let Some(secret) = &user.secret {
-        // TODO: check provided TOTP does match for the user
+        // the provided password must be the same as the TOTP obtained from the secret
+        pwd_manager.verify_pwd_based_on_secret(pwd, secret.get_data())?;
     }
 
     if let Ok(sess_arc) = sess_repo.find_by_email(email) {
