@@ -36,7 +36,7 @@ lazy_static! {
                         thread::sleep(sleep);
                         pool = PgPool::builder().max_size(POOL_SIZE).build(ConnectionManager::new(&postgres_url));
                     } else {
-                        panic!(ERR_CONNECT);
+                        panic!("{}", ERR_CONNECT);
                     }
                 }
 

@@ -8,9 +8,9 @@ COPY ./Cargo.toml ./Cargo.toml
 RUN cargo build --release
 RUN rm src/*.rs
 
+RUN rustup component add rustfmt --toolchain 1.53.0-x86_64-unknown-linux-gnu
 ADD . ./
 
-RUN rustup component add rustfmt --toolchain 1.53.0-x86_64-unknown-linux-gnu
 RUN rm ./target/release/deps/oauth*
 RUN cargo build --release
 
