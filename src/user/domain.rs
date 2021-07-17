@@ -2,7 +2,7 @@ use std::error::Error;
 
 use crate::regex;
 use crate::secret::domain::Secret;
-use crate::metadata::domain::{Metadata, MetadataRepository};
+use crate::metadata::domain::Metadata;
 
 pub trait UserRepository {
     fn find(&self, email: &str) -> Result<User, Box<dyn Error>>;
@@ -19,7 +19,7 @@ pub struct User {
 
 impl User {
     pub fn new<'a>(user_repo: Box<dyn UserRepository>,
-                   meta_repo: Box<dyn MetadataRepository>,
+                   meta: Metadata,
                    email: &'a str) -> Result<Self, Box<dyn Error>> {
         
         regex::match_regex(regex::EMAIL, email)?;
@@ -27,7 +27,7 @@ impl User {
             id: 0,
             email: email.to_string(),
             secret: None,
-            meta: Metadata::new(meta_repo)?,
+            meta: meta,
         };
 
         user_repo.save(&mut user)?;

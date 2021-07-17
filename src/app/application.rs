@@ -1,5 +1,5 @@
 use std::error::Error;
-use crate::metadata::domain::MetadataRepository;
+use crate::metadata::domain::{Metadata, MetadataRepository};
 use crate::secret::domain::{Secret, SecretRepository};
 use super::domain::{App, AppRepository};
 
@@ -14,9 +14,10 @@ pub fn app_register(app_repo: Box<dyn AppRepository>,
                     url: &str) -> Result<(), Box<dyn Error>> {
 
     println!("got a register request for application {} ", url);
-
+    
+    let meta = Metadata::new(meta_repo)?;
     let secret = Secret::new(secret_repo, pem)?;
-    App::new(app_repo, meta_repo, url, secret)?;
+    App::new(app_repo, secret, meta, url)?;
     Ok(())
 }
 

@@ -1,7 +1,7 @@
 use std::error::Error;
 use crate::session::domain::SessionRepository;
-use crate::metadata::domain::MetadataRepository;
-use super::domain::{UserRepository, User};
+use crate::metadata::domain::{Metadata, MetadataRepository};
+use super::domain::{User, UserRepository};
 
 pub trait EmailManager {
     fn send_verification_email(&self, email: &str) -> Result<(), Box<dyn Error>>;
@@ -17,7 +17,9 @@ pub fn user_signup<'a>(user_repo: Box<dyn UserRepository>,
     // the email is required in order to verify the identity of the user, so if no email
     // can be sent, the user shall not be created
     email_manager.send_verification_email(email)?;
-    User::new(user_repo, meta_repo, email)?;
+
+    let meta = Metadata::new(meta_repo)?;
+    User::new(user_repo, meta, email)?;
     Ok(())
 }
 
