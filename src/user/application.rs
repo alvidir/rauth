@@ -7,16 +7,12 @@ pub trait EmailManager {
     fn send_verification_email(&self, email: &str) -> Result<(), Box<dyn Error>>;
 }
 
-pub trait PasswordManager {
-    fn verify_pwd_based_on_secret(&self, pwd: &str, secret: &str) -> Result<(), Box<dyn Error>>;
-}
-
 pub fn user_signup<'a>(user_repo: Box<dyn UserRepository>,
                        meta_repo: Box<dyn MetadataRepository>,
                        email_manager: Box<dyn EmailManager>,
                        email: &'a str) -> Result<(), Box<dyn Error>> {
     
-    println!("Got signup request from user {} ", email);
+    println!("got signup request from user {} ", email);
     
     // the email is required in order to verify the identity of the user, so if no email
     // can be sent, the user shall not be created
@@ -27,29 +23,18 @@ pub fn user_signup<'a>(user_repo: Box<dyn UserRepository>,
 
 pub fn user_delete<'a>(user_repo: Box<dyn UserRepository>,
                        sess_repo: Box<dyn SessionRepository>,
-                       pwd_manager: Box<dyn PasswordManager>,
-                       email: &'a str,
-                       pwd: &'a str) -> Result<(), Box<dyn Error>> {
+                       email: &'a str) -> Result<(), Box<dyn Error>> {
     
     println!("got a deletion request from user {} ", email);
     
     let user = user_repo.find(email)?;
-    if let Some(secret) = &user.secret {
-        // the provided password must be the same as the TOTP obtained from the secret
-        pwd_manager.verify_pwd_based_on_secret(pwd, secret.get_data())?;
-    }
-
+    
     if let Ok(sess_arc) = sess_repo.find_by_email(email) {
         if let Ok(sess) = sess_arc.lock() {
             sess_repo.delete(&sess)?;
-        } else {
-            println!("session's mutex for user {} got poisoned", email);
-            return Err("mutex poisoned".into());
         }
-    } else {
-        println!("user {} has no session", email);
     }
 
     user_repo.delete(&user)?;
-    Err("Unimplemented".into())
+    Ok(())
 }

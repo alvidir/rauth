@@ -12,7 +12,7 @@ pub trait SecretRepository {
 
 pub struct Secret {
     pub id: String,
-    pub data: String, // secret file in base64
+    pub data: Vec<u8>, // pkey as a pem file
     // the updated_at field from metadata works as a touch_at field, being updated for each
     // usage of the secret
     pub meta: Metadata,
@@ -20,12 +20,11 @@ pub struct Secret {
 
 impl Secret {
     pub fn new(secret_repo: Box<dyn SecretRepository>,
-               data: &str) -> Result<Self, Box<dyn Error>> {
-        regex::match_regex(regex::BASE64, data)?;
+               data: &[u8]) -> Result<Self, Box<dyn Error>> {
 
         let mut secret = Secret {
             id: "".to_string(),
-            data: data.to_string(),
+            data: data.to_vec(),
             meta: Metadata::now(),
         };
 
@@ -33,7 +32,7 @@ impl Secret {
         Ok(secret)
     }
 
-    pub fn get_data(&self) -> &str {
+    pub fn get_data(&self) -> &[u8] {
         &self.data
     }
 }

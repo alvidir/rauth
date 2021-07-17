@@ -20,13 +20,13 @@ struct MongoSecretMetadata {
 struct MongoSecret {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     pub id: Option<ObjectId>,
-    pub data: String,
+    pub data: Vec<u8>,
     pub meta: MongoSecretMetadata,
 }
 
 pub struct MongoSecretRepository {}
 
-impl SecretRepository for MongoSecretRepository {
+impl SecretRepository for &MongoSecretRepository {
     fn find(&self, target: &str) -> Result<Secret, Box<dyn Error>>  {
         let loaded_secret_opt = mongo::open_stream(COLLECTION_NAME)
             .find_one(Some(doc! { "_id":  target }), None)?;

@@ -6,22 +6,17 @@ import "google/protobuf/empty.proto";
 // RegisterRequest description
 message RegisterRequest {
     string url = 1;    // the app url
-    bytes public = 2;  // a public key (RSA) for this application
+    bytes public = 2;  // a public key (EC - PEM) for this application
     bytes firm = 3;    // the signature for this message
-}
-
-// RegisterResponse description
-message RegisterResponse {
-    bytes label = 1;    // a unique label for a registered application
 }
 
 // DeleteRequest description
 message DeleteRequest {
-    bytes url = 1;    // application's url
+    string url = 1;    // application's url
     bytes firm = 2;    // the signature for this message
 }
 
 service AppService {
-  rpc Register(app.RegisterRequest) returns (RegisterResponse);
+  rpc Register(app.RegisterRequest) returns (google.protobuf.Empty);
   rpc Delete(app.DeleteRequest) returns (google.protobuf.Empty);
 }

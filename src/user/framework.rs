@@ -1,8 +1,6 @@
 use std::error::Error;
 use tonic::{Request, Response, Status};
 use diesel::NotFound;
-use libreauth::oath::{TOTPBuilder};
-use libreauth::hash::HashFunction::Sha256;
 
 use crate::diesel::prelude::*;
 use crate::postgres::*;
@@ -14,9 +12,10 @@ use crate::metadata::framework::PostgresMetadataRepository;
 use crate::metadata::domain::MetadataRepository;
 use crate::session::framework::InMemorySessionRepository;
 use crate::smtp;
+use crate::security;
 
 use super::domain::{User, UserRepository};
-use super::application::{EmailManager, PasswordManager};
+use super::application::EmailManager;
 
 // Import the generated rust code into module
 mod proto {
@@ -34,22 +33,18 @@ pub struct UserServiceImplementation {
     user_repo: &'static PostgresUserRepository,
     meta_repo: &'static PostgresMetadataRepository,
     sess_repo: &'static InMemorySessionRepository,
-    email_manager: &'static SMTPEmailManager,
-    pwd_manager: &'static TOTPasswordManager,
+    email_manager: SMTPEmailManager
 }
 
 impl UserServiceImplementation {
     pub fn new(user_repo: &'static PostgresUserRepository,
                sess_repo: &'static InMemorySessionRepository,
-               meta_repo: &'static PostgresMetadataRepository,
-               email_manager: &'static SMTPEmailManager,
-               pwd_manager: &'static TOTPasswordManager) -> Self {
+               meta_repo: &'static PostgresMetadataRepository) -> Self {
         UserServiceImplementation {
             user_repo: user_repo,
             meta_repo: meta_repo,
             sess_repo: sess_repo,
-            email_manager: email_manager,
-            pwd_manager: pwd_manager,
+            email_manager: SMTPEmailManager{}
         }
     }
 }
@@ -72,11 +67,23 @@ impl UserService for UserServiceImplementation {
     async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<()>, Status> {
         let msg_ref = request.into_inner();
 
+        let user_search = self.user_repo.find(&msg_ref.ident);
+        if let Err(err) = user_search {
+            return Err(Status::not_found(err.to_string()));
+        } 
+
+        let user = user_search.unwrap();
+        if let Some(secret) = &user.secret {
+            // the provided password must be the same as the TOTP obtained from the secret
+            let key = secret.get_data();
+            if let Err(err) = security::verify_totp_password(key, &msg_ref.pwd) {
+                return Err(Status::unauthenticated(err.to_string()));
+            }
+        }
+
         match super::application::user_delete(Box::new(self.user_repo),
                                               Box::new(self.sess_repo),
-                                              Box::new(self.pwd_manager),
-                                              &msg_ref.ident,
-                                              &msg_ref.pwd) {
+                                              &msg_ref.ident) {
 
             Err(err) => Err(Status::aborted(err.to_string())),
             Ok(()) => Ok(Response::new(())),
@@ -201,34 +208,11 @@ impl UserRepository for &PostgresUserRepository {
     }
 }
 
+#[derive(Copy, Clone)]
 pub struct SMTPEmailManager {}
 
-impl EmailManager for &SMTPEmailManager {
+impl EmailManager for SMTPEmailManager {
     fn send_verification_email(&self, to: &str) -> Result<(), Box<dyn Error>> {
         smtp::send_email(to, "Verification email", "<h1>Click here in order to verificate your email</h1>")
-    }
-}
-
-pub struct TOTPasswordManager {}
-
-impl PasswordManager for &TOTPasswordManager {
-    fn verify_pwd_based_on_secret(&self, pwd: &str, secret: &str) -> Result<(), Box<dyn Error>> {
-        let key_base64 = secret.to_owned();
-        let totp = TOTPBuilder::new()
-            .base64_key(&key_base64)
-            //.output_len(6)
-            .period(30)
-            .hash_function(Sha256)
-            .finalize();
-
-        if let Ok(code) = totp {
-            if !code.is_valid(pwd) {
-                return Err("password not match".into());
-            }
-        } else {
-            return Err("failed to generate code".into());
-        }
-
-        Ok(())
     }
 }
