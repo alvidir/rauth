@@ -13,7 +13,6 @@ use crate::metadata::domain::MetadataRepository;
 use crate::security;
 
 use super::domain::{App, AppRepository};
-use super::application::SignatureManager;
 
 // Import the generated rust code into module
 mod proto {

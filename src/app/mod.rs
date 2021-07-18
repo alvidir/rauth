@@ -11,8 +11,8 @@ mod tests {
 
     struct Mock {}
     
-    impl AppRepository for &Mock {
-        fn find(&self, url: &str) -> Result<App, Box<dyn Error>> {
+    impl AppRepository for Mock {
+        fn find(&self, _url: &str) -> Result<App, Box<dyn Error>> {
             Err("unimplemeted".into())
         }
 
@@ -21,7 +21,7 @@ mod tests {
             Ok(())
         }
 
-        fn delete(&self, app: &App) -> Result<(), Box<dyn Error>> {
+        fn delete(&self, _app: &App) -> Result<(), Box<dyn Error>> {
             Err("unimplemeted".into())
         }
     }
@@ -29,7 +29,7 @@ mod tests {
     #[test]
     fn app_new_ok() {
         const URL: &str = "http://testing.com";
-        let mock_impl = &Mock{};
+        let mock_impl = Mock{};
 
         let meta = Metadata::now();
         let secret = Secret {
@@ -50,7 +50,7 @@ mod tests {
     #[test]
     fn user_new_ko() {
         const URL: &str = "not_an_url";
-        let mock_impl = &Mock{};
+        let mock_impl = Mock{};
 
         let meta = Metadata::now();
         let secret = Secret {

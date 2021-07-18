@@ -2,7 +2,7 @@ use std::error::Error;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 
-use crate::metadata::domain::{Metadata, MetadataRepository};
+use crate::metadata::domain::Metadata;
 use crate::user::domain::User;
 
 pub trait SessionRepository {
@@ -22,16 +22,16 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn new(sess_repo: Box<dyn SessionRepository>,
-               meta_repo: Box<dyn MetadataRepository>,
+    pub fn _new(sess_repo: Box<dyn SessionRepository>,
                user: User,
+               meta: Metadata,
                timeout: Duration) -> Result<String, Box<dyn Error>> {
 
         let sess = Session{
             token: "".to_string(),
             deadline: SystemTime::now() + timeout,
             user: user,
-            meta: Metadata::new(meta_repo)?,
+            meta: meta,
         };
 
         let token = sess_repo.save(sess)?;

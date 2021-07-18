@@ -44,7 +44,7 @@ pub fn verify_ec_signature(pem: &[u8], signature: &[u8], data: &[&[u8]]) -> Resu
     }
 }
 
-pub fn apply_server_signature(data: &[&[u8]]) -> Result<Vec<u8>, Box<dyn Error>> {
+pub fn _apply_server_signature(data: &[&[u8]]) -> Result<Vec<u8>, Box<dyn Error>> {
     let secret = env::var(constants::ENV_SMTP_USERNAME)?;
     let eckey = EcKey::private_key_from_pem(secret.as_bytes())?;
     let keypair = PKey::from_ec_key(eckey)?;

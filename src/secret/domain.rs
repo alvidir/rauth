@@ -1,6 +1,4 @@
 use std::error::Error;
-
-use crate::regex;
 use crate::metadata::domain::Metadata;
 
 

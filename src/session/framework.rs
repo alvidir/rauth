@@ -28,13 +28,13 @@ pub use proto::session_service_server::SessionServiceServer;
 use proto::{LoginRequest, LoginResponse};
 
 pub struct SessionServiceImplementation {
-    session_repo: &'static InMemorySessionRepository,
+    _session_repo: &'static InMemorySessionRepository,
 }
 
 impl SessionServiceImplementation {
     pub fn new(session_repo: &'static InMemorySessionRepository) -> Self {
         SessionServiceImplementation {
-            session_repo: session_repo,
+            _session_repo: session_repo,
         }
     }
 }
@@ -42,12 +42,12 @@ impl SessionServiceImplementation {
 #[tonic::async_trait]
 impl SessionService for SessionServiceImplementation {
     async fn login(&self, request: Request<LoginRequest>) -> Result<Response<LoginResponse>, Status> {
-        let msg_ref = request.into_inner();
+        let _msg_ref = request.into_inner();
         Err(Status::unimplemented(""))
     }
 
     async fn logout(&self, request: Request<()>) -> Result<Response<()>, Status> {
-        let msg_ref = request.into_inner();
+        let _msg_ref = request.into_inner();
         Err(Status::unimplemented(""))
     }
 }

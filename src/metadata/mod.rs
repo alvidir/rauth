@@ -10,8 +10,8 @@ mod tests {
 
     struct Mock {}
     
-    impl MetadataRepository for &Mock {
-        fn find(&self, id: i32) -> Result<Metadata, Box<dyn Error>> {
+    impl MetadataRepository for Mock {
+        fn find(&self, _id: i32) -> Result<Metadata, Box<dyn Error>> {
             Err("unimplemeted".into())
         }
 
@@ -20,14 +20,14 @@ mod tests {
             Ok(())
         }
 
-        fn delete(&self, meta: &Metadata) -> Result<(), Box<dyn Error>> {
+        fn delete(&self, _meta: &Metadata) -> Result<(), Box<dyn Error>> {
             Err("unimplemeted".into())
         }  
     }
 
     #[test]
     fn metadata_new_ok() {
-        let mock_impl = &Mock{};
+        let mock_impl = Mock{};
 
         let before = SystemTime::now();
         let meta = Metadata::new(Box::new(mock_impl)).unwrap();

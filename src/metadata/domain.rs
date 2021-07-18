@@ -7,6 +7,7 @@ pub trait MetadataRepository {
     fn delete(&self, meta: &Metadata) -> Result<(), Box<dyn Error>>;
 }
 
+#[derive(Clone)]
 pub struct Metadata {
     pub id: i32,
     pub created_at: SystemTime,

@@ -15,7 +15,6 @@ use crate::smtp;
 use crate::security;
 
 use super::domain::{User, UserRepository};
-use super::application::EmailManager;
 
 // Import the generated rust code into module
 mod proto {
@@ -33,7 +32,6 @@ pub struct UserServiceImplementation {
     user_repo: &'static PostgresUserRepository,
     meta_repo: &'static PostgresMetadataRepository,
     sess_repo: &'static InMemorySessionRepository,
-    email_manager: SMTPEmailManager
 }
 
 impl UserServiceImplementation {
@@ -44,8 +42,19 @@ impl UserServiceImplementation {
             user_repo: user_repo,
             meta_repo: meta_repo,
             sess_repo: sess_repo,
-            email_manager: SMTPEmailManager{}
         }
+    }
+}
+
+impl UserServiceImplementation {
+    fn send_verification_email(to: &str) {
+        const SUBJECT: &str = "Verification email";
+        const HTML: &str = "<h1>Click here in order to verificate your email</h1>";
+        
+        if let Err(err) = smtp::send_email(to, SUBJECT, HTML) {
+            println!("got error {}\nwhile sending verification email to {}", err, to);
+        }
+
     }
 }
 
@@ -54,14 +63,16 @@ impl UserService for UserServiceImplementation {
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<()>, Status> {
         let msg_ref = request.into_inner();
 
-        match super::application::user_signup(Box::new(self.user_repo),
-                                              Box::new(self.meta_repo),
-                                              Box::new(self.email_manager),
-                                              &msg_ref.email) {
+        if let Err(err) = super::application::user_signup(Box::new(self.user_repo),
+                                                          Box::new(self.meta_repo),
+                                                          &msg_ref.email) {
 
-            Err(err) => Err(Status::aborted(err.to_string())),
-            Ok(()) => Ok(Response::new(())),
+            return Err(Status::aborted(err.to_string()));
         }
+
+        // the email is required in order to verify the identity of the user
+        UserServiceImplementation::send_verification_email(&msg_ref.email);
+        Ok(Response::new(()))
     }
 
     async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<()>, Status> {
@@ -205,14 +216,5 @@ impl UserRepository for &PostgresUserRepository {
         }
 
         Ok(())
-    }
-}
-
-#[derive(Copy, Clone)]
-pub struct SMTPEmailManager {}
-
-impl EmailManager for SMTPEmailManager {
-    fn send_verification_email(&self, to: &str) -> Result<(), Box<dyn Error>> {
-        smtp::send_email(to, "Verification email", "<h1>Click here in order to verificate your email</h1>")
     }
 }

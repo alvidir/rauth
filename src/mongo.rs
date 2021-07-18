@@ -1,4 +1,3 @@
-use std::error::Error;
 use mongodb::{
     bson::doc,
     sync::{Client, Collection, Database},

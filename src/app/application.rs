@@ -3,10 +3,6 @@ use crate::metadata::domain::{Metadata, MetadataRepository};
 use crate::secret::domain::{Secret, SecretRepository};
 use super::domain::{App, AppRepository};
 
-pub trait SignatureManager {
-    fn verify_signature(&self, pem: &[u8], signature: &[u8], data: &[&[u8]]) -> Result<(), Box<dyn Error>>;
-}
-
 pub fn app_register(app_repo: Box<dyn AppRepository>,
                     secret_repo: Box<dyn SecretRepository>,
                     meta_repo: Box<dyn MetadataRepository>,
