@@ -89,7 +89,7 @@ mod tests {
                              EMAIL).unwrap();
 
         let before = SystemTime::now();
-        let token = Session::_new(Box::new(mock_impl),
+        let token = Session::new(Box::new(mock_impl),
                                  user,
                                  meta,
                                  TIMEOUT).unwrap();

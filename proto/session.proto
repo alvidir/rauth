@@ -12,7 +12,7 @@ message LoginRequest {
 
 // LoginResponse description
 message LoginResponse {
-  string cookie = 1;    // Session cookie
+  string token = 1;    // Session token
 }
 
 service SessionService {

@@ -22,7 +22,7 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn _new(sess_repo: Box<dyn SessionRepository>,
+    pub fn new(sess_repo: Box<dyn SessionRepository>,
                user: User,
                meta: Metadata,
                timeout: Duration) -> Result<String, Box<dyn Error>> {

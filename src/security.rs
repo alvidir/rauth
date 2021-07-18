@@ -6,8 +6,21 @@ use openssl::ec::EcKey;
 use openssl::hash::MessageDigest;
 use libreauth::oath::{TOTPBuilder};
 use libreauth::hash::HashFunction::Sha256;
+use rand::Rng;
 
 use crate::constants;
+
+pub fn generate_token(size: usize) -> String {
+    let token: String = (0..size)
+    .map(|_| {
+        let mut rand = rand::thread_rng();
+        let idx = rand.gen_range(0..constants::TOKEN_CHARSET.len());
+        constants::TOKEN_CHARSET[idx] as char
+    })
+    .collect();
+
+    token
+}
 
 pub fn verify_totp_password(secret: &[u8], pwd: &str) -> Result<(), Box<dyn Error>> {
     let totp = TOTPBuilder::new()
