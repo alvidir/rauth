@@ -45,16 +45,17 @@ mod tests {
             Err("unimplemeted".into())
         }
 
-        fn save(&self, mut session: Session) -> Result<String, Box<dyn Error>> {
+        fn save(&self, mut session: Session) -> Result<Arc<Mutex<Session>>, Box<dyn Error>> {
             session.token = "testing".to_string();
 
             let mut repo = TESTING_SESSIONS.lock()?;
             let email = session.user.email.clone();
             let mu = Mutex::new(session);
             let arc = Arc::new(mu);
+            
             repo.insert(email, arc);
-
-            Ok("testing".into())
+            let sess = repo.get(&email).unwrap();
+            Ok(Arc::clone(sess))
         }
 
         fn delete(&self, _session: &Session) -> Result<(), Box<dyn Error>> {
@@ -89,9 +90,9 @@ mod tests {
                              EMAIL).unwrap();
 
         let before = SystemTime::now();
-        let token = Session::new(Box::new(mock_impl),
+        let repo: Box<dyn SessionRepository> = Box::new(mock_impl);
+        let token = Session::new(&repo,
                                  user,
-                                 meta,
                                  TIMEOUT).unwrap();
 
         let after = SystemTime::now();
