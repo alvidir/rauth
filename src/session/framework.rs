@@ -90,6 +90,7 @@ impl SessionService for SessionServiceImplementation {
 
 pub struct InMemorySessionRepository {
     all_instances: Mutex<HashMap<String, Arc<Mutex<Session>>>>,
+    group_by_app: Mutex<HashMap<String, Vec<String>>>,
 }
 
 impl InMemorySessionRepository {
@@ -99,6 +100,11 @@ impl InMemorySessionRepository {
                 let repo = HashMap::new();
                 Mutex::new(repo)
             },
+
+            group_by_app: {
+                let repo = HashMap::new();
+                Mutex::new(repo)
+            }
         }
     }
 
