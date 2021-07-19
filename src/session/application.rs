@@ -27,9 +27,9 @@ pub fn session_login(sess_repo: Box<dyn SessionRepository>,
         }
     };
 
-    match sess_arc.lock() {
-        Err(err) => Err(format!("{}", err)),
-        Ok(sess) => {
+    let token = match sess_arc.lock() {
+        Err(err) => Err(format!("{}", err).into()),
+        Ok(mut sess) => {
             let app = app_repo.find(app)?;
             let mut tokens = vec!(sess.token.clone());
 
@@ -43,7 +43,9 @@ pub fn session_login(sess_repo: Box<dyn SessionRepository>,
 
             Ok(tokens.join(""))
         }
-    }
+    };
+
+    token
 }
 
 pub fn _session_logout(cookie: &str) -> Result<(), Box<dyn Error>> {

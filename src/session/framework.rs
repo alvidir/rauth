@@ -90,7 +90,7 @@ impl SessionService for SessionServiceImplementation {
 
 pub struct InMemorySessionRepository {
     all_instances: Mutex<HashMap<String, Arc<Mutex<Session>>>>,
-    group_by_app: Mutex<HashMap<String, Vec<String>>>,
+    _group_by_app: Mutex<HashMap<String, Vec<String>>>,
 }
 
 impl InMemorySessionRepository {
@@ -101,7 +101,7 @@ impl InMemorySessionRepository {
                 Mutex::new(repo)
             },
 
-            group_by_app: {
+            _group_by_app: {
                 let repo = HashMap::new();
                 Mutex::new(repo)
             }
@@ -120,7 +120,7 @@ impl InMemorySessionRepository {
 impl SessionRepository for &InMemorySessionRepository {
     fn find(&self, token: &str) -> Result<Arc<Mutex<Session>>, Box<dyn Error>> {
         match self.all_instances.lock() {
-            Err(err) => Err(format!("{}", err)),
+            Err(err) => Err(format!("{}", err).into()),
             Ok(repo) => {
                 if let Some(sess) = repo.get(token) {
                     return Ok(Arc::clone(sess));
@@ -133,7 +133,7 @@ impl SessionRepository for &InMemorySessionRepository {
 
     fn find_by_email(&self, email: &str) -> Result<Arc<Mutex<Session>>, Box<dyn Error>> {
         match self.all_instances.lock() {
-            Err(err) => Err(format!("{}", err)),
+            Err(err) => Err(format!("{}", err).into()),
             Ok(repo) => {
                 if let Some((_, sess)) = repo.iter().find(|(_, sess)| InMemorySessionRepository::session_has_email(sess, email)) {
                     return Ok(Arc::clone(sess));
@@ -146,8 +146,8 @@ impl SessionRepository for &InMemorySessionRepository {
 
     fn save(&self, mut session: Session) -> Result<Arc<Mutex<Session>>, Box<dyn Error>> {
         match self.all_instances.lock() {
-            Err(err) => Err(format!("{}", err)),
-            Ok(repo) => {
+            Err(err) => Err(format!("{}", err).into()),
+            Ok(mut repo) => {
                 if let Some(_) = repo.get(&session.token) {
                     return Err("token already exists".into());
                 }
@@ -177,8 +177,8 @@ impl SessionRepository for &InMemorySessionRepository {
 
     fn delete(&self, session: &Session) -> Result<(), Box<dyn Error>> {
         match self.all_instances.lock() {
-            Err(err) => Err(format!("{}", err)),
-            Ok(repo) => {
+            Err(err) => Err(format!("{}", err).into()),
+            Ok(mut repo) => {
                 if let None = repo.remove(&session.token) {
                     return Err("token does not exists".into());
                 }

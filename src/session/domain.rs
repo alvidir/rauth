@@ -54,7 +54,7 @@ impl Session {
         }
     }
 
-    pub fn get_directory(&mut self, token: &str) -> Option<&mut Directory> {
+    pub fn _get_directory(&mut self, token: &str) -> Option<&mut Directory> {
         self.apps.get_mut(token)
     }
 
