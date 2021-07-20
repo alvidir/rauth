@@ -20,6 +20,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-      - uses: icepuma/rust-action@master
-      - name: Test
+      - name: Install Rust
+        uses: icepuma/rust-action@master
+      - name: Cargo test
         run: cargo test --verbose
