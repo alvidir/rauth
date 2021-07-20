@@ -19,7 +19,7 @@ migration:
 	diesel migration run
 
 deploy:
-	podman-compose -f docker-compose.yaml up --remove-orphans
+	podman-compose -f docker-compose.yaml up --remove-orphans -d
 	# delete -d in order to see output logs
 
 undeploy:
@@ -34,8 +34,8 @@ test:
 	RUST_BACKTRACE=1
 	cargo test -- --nocapture
 
-check-envoy:
+checks:
 	curl -v localhost:5050
 
-scripts:
-	python3 scripts/build_init_pg_script.py
+setup:
+	python3 scripts/build_db_setup_script.py

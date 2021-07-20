@@ -7,7 +7,7 @@ import re
 def main(argv):
 
     TARGET_DIR = ".postgres"
-    TARGET_FILE = "db_init.sql"
+    TARGET_FILE = "setup.sql"
     WORKING_PATH = "migrations"
     REGEX = "up.sql"
     
