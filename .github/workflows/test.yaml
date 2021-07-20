@@ -20,6 +20,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-      - name: Test
+      - name: Rust
         uses: icepuma/rust-action@master
+      - name: Test
         run: cargo test --verbose
