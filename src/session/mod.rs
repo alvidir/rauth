@@ -53,7 +53,7 @@ mod tests {
             let mu = Mutex::new(session);
             let arc = Arc::new(mu);
             
-            repo.insert(email, arc);
+            repo.insert(email.clone(), arc);
             let sess = repo.get(&email).unwrap();
             Ok(Arc::clone(sess))
         }
@@ -91,17 +91,14 @@ mod tests {
 
         let before = SystemTime::now();
         let repo: Box<dyn SessionRepository> = Box::new(mock_impl);
-        let token = Session::new(&repo,
+        let sess_arc = Session::new(&repo,
                                  user,
                                  TIMEOUT).unwrap();
 
         let after = SystemTime::now();
-
-        let repo = TESTING_SESSIONS.lock().unwrap();
-        let sess_mux = repo.get(EMAIL).unwrap();
-        let sess = sess_mux.lock().unwrap();
+        let sess = sess_arc.lock().unwrap();
         
-        assert_eq!(token, sess.token);
+        assert_eq!("testing", sess.token);
         assert!(sess.deadline < after + TIMEOUT);
         assert!(sess.deadline > before + TIMEOUT);
     }
