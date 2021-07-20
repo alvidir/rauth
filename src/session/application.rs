@@ -8,8 +8,6 @@ use crate::constants;
 
 use super::domain::{Session, SessionRepository};
 
-//pub trait SessionManager {}
-
 pub fn session_login(sess_repo: Box<dyn SessionRepository>,
                      user_repo: Box<dyn UserRepository>,
                      app_repo: Box<dyn AppRepository>,

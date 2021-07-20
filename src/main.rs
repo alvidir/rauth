@@ -9,7 +9,7 @@ use dotenv;
 use std::env;
 use std::error::Error;
 
-use tonic::{transport::Server, Status, Code};
+use tonic::transport::Server;
 
 mod schema;
 mod regex;
@@ -43,12 +43,6 @@ lazy_static! {
     static ref SESSION_REPO: InMemorySessionRepository = InMemorySessionRepository::new();
 }
 
-pub fn parse_error(err: Box<dyn Error>) -> Status {
-    println!("{:?}", err.to_string());
-    let code = Code::from(Code::Unknown);
-    Status::new(code, err.to_string())
-}
-
 pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
     use user::framework::UserServiceServer;
     use app::framework::AppServiceServer;
@@ -59,7 +53,7 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
     let session_server = session::framework::SessionServiceImplementation::new(&SESSION_REPO, &USER_REPO, &APP_REPO, &DIR_REPO);
  
     let addr = address.parse().unwrap();
-    println!("Server listening on {}", addr);
+    println!("server listening on {}", addr);
  
     Server::builder()
         .add_service(UserServiceServer::new(user_server))
