@@ -14,7 +14,4 @@ pub const ENV_SMTP_TRANSPORT: &str = "SMTP_TRANSPORT";
 pub const ENV_SMTP_ORIGIN: &str = "SMTP_ORIGIN";
 pub const ENV_SMTP_USERNAME: &str = "SMTP_USERNAME";
 pub const ENV_SMTP_PASSWORD: &str = "SMTP_PASSWORD";
-
-pub const TOKEN_CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
-                                   abcdefghijklmnopqrstuvwxyz\
-                                   0123456789";
+pub const ENV_SECRET_PWD: &str = "SECRET_PWD";

@@ -46,7 +46,7 @@ mod tests {
         }
 
         fn save(&self, mut session: Session) -> Result<Arc<Mutex<Session>>, Box<dyn Error>> {
-            session.token = "testing".to_string();
+            session.sid = "testing".to_string();
 
             let mut repo = TESTING_SESSIONS.lock()?;
             let email = session.user.email.clone();
@@ -98,7 +98,7 @@ mod tests {
         let after = SystemTime::now();
         let sess = sess_arc.lock().unwrap();
         
-        assert_eq!("testing", sess.token);
+        assert_eq!("testing", sess.sid);
         assert!(sess.deadline < after + TIMEOUT);
         assert!(sess.deadline > before + TIMEOUT);
     }

@@ -6,9 +6,9 @@ use mongodb::{
 use std::env;
 use crate::constants;
 
-const ERR_NO_DSN: &str = "Mongodb dsn must be set";
-const ERR_NO_DB_NAME: &str = "Mongodb database name must be set";
-const ERR_CONNECT: &str = "Error connecting to mongodb cluster";
+const ERR_NO_DSN: &str = "mongodb dsn must be set";
+const ERR_NO_DB_NAME: &str = "mongodb database name must be set";
+const ERR_CONNECT: &str = "error connecting to mongodb cluster";
 
 struct Stream {
    db_connection: Database,

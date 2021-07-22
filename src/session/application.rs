@@ -5,14 +5,16 @@ use crate::user::domain::UserRepository;
 use crate::app::domain::AppRepository;
 use crate::directory::domain::{Directory, DirectoryRepository};
 use crate::constants;
+use crate::security;
 
-use super::domain::{Session, SessionRepository};
+use super::domain::{Session, SessionRepository, Token};
 
 pub fn session_login(sess_repo: Box<dyn SessionRepository>,
                      user_repo: Box<dyn UserRepository>,
                      app_repo: Box<dyn AppRepository>,
                      dir_repo: Box<dyn DirectoryRepository>,
-                     email: &str, app: &str) -> Result<String, Box<dyn Error>> {
+                     email: &str,
+                     app: &str) -> Result<String, Box<dyn Error>> {
     
     println!("Got login request from user {} ", email);
 
@@ -29,17 +31,18 @@ pub fn session_login(sess_repo: Box<dyn SessionRepository>,
         Err(err) => Err(format!("{}", err).into()),
         Ok(mut sess) => {
             let app = app_repo.find(app)?;
-            let mut tokens = vec!(sess.token.clone());
-
-            if let Some((token, _)) = sess.get_directory_by_app(&app) {
-                tokens.push(token.to_string());
+            let token: String;
+            
+            if let Some(dir) = sess.get_directory_by_app(&app) {
+                token = dir.token.clone();
             } else {
-                let dir = Directory::new(dir_repo, &sess.user, &app)?;
-                let token = sess.set_directory(dir)?;
-                tokens.push(token);
+                let claim = Token::new(&sess, &app);
+                token = security::generate_jwt(claim)?;
+                let dir = Directory::new(dir_repo, &sess.user, &app, &token)?;
+                sess.set_directory(&app.url, dir)?;
             }
 
-            Ok(tokens.join(""))
+            Ok(token)
         }
     };
 

@@ -26,7 +26,7 @@ pub struct SessionServiceImplementation {
     sess_repo: &'static InMemorySessionRepository,
     user_repo: &'static PostgresUserRepository,
     app_repo: &'static PostgresAppRepository,
-    dir_repo: &'static MongoDirectoryRepository,
+    dir_repo: &'static MongoDirectoryRepository
 }
 
 impl SessionServiceImplementation {
@@ -148,7 +148,7 @@ impl SessionRepository for &InMemorySessionRepository {
         match self.all_instances.lock() {
             Err(err) => Err(format!("{}", err).into()),
             Ok(mut repo) => {
-                if let Some(_) = repo.get(&session.token) {
+                if let Some(_) = repo.get(&session.sid) {
                     return Err("token already exists".into());
                 }
         
@@ -157,14 +157,14 @@ impl SessionRepository for &InMemorySessionRepository {
                 }
         
                 loop { // make sure the token is unique
-                    let token = security::generate_token(TOKEN_LEN);
-                    if repo.get(&token).is_none() {
-                        session.token = token;
+                    let sid = security::get_random_string(TOKEN_LEN);
+                    if repo.get(&sid).is_none() {
+                        session.sid = sid;
                         break;
                     }
                 }
                
-                let token = session.token.clone();
+                let token = session.sid.clone();
                 let mu = Mutex::new(session);
                 let arc = Arc::new(mu);
         
@@ -179,7 +179,7 @@ impl SessionRepository for &InMemorySessionRepository {
         match self.all_instances.lock() {
             Err(err) => Err(format!("{}", err).into()),
             Ok(mut repo) => {
-                if let None = repo.remove(&session.token) {
+                if let None = repo.remove(&session.sid) {
                     return Err("token does not exists".into());
                 }
         

@@ -9,8 +9,8 @@ use diesel::{
 
 use crate::constants;
 
-const ERR_NOT_URL: &str = "Postgres url must be set";
-const ERR_CONNECT: &str = "Error connecting to postgres cluster";
+const ERR_NOT_URL: &str = "postgres url must be set";
+const ERR_CONNECT: &str = "error connecting to postgres cluster";
 const POOL_SIZE: u32 = 1_u32; // by constants: single thread
 
 type PgPool = Pool<ConnectionManager<PgConnection>>;

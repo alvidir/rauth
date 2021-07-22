@@ -7,8 +7,6 @@ use std::collections::HashMap;
 use crate::metadata::domain::Metadata;
 use crate::user::domain::User;
 use crate::directory::domain::Directory;
-use crate::security;
-use crate::constants;
 
 pub trait SessionRepository {
     fn find(&self, cookie: &str) -> Result<Arc<Mutex<Session>>, Box<dyn Error>>;
@@ -18,7 +16,7 @@ pub trait SessionRepository {
 }
 
 pub struct Session {
-    pub token: String,
+    pub sid: String,
     pub deadline: SystemTime,
     pub user: User,
     pub apps: HashMap<String, Directory>,
@@ -33,7 +31,7 @@ impl Session {
                timeout: Duration) -> Result<Arc<Mutex<Session>>, Box<dyn Error>> {
 
         let sess = Session{
-            token: "".to_string(),
+            sid: "".to_string(),
             deadline: SystemTime::now() + timeout,
             user: user,
             apps: HashMap::new(),
@@ -44,21 +42,39 @@ impl Session {
         Ok(sess)
     }
 
-    pub fn set_directory(&mut self, dir: Directory) -> Result<String, Box<dyn Error>> {
-        loop {
-            let token = security::generate_token(constants::TOKEN_LEN);
-            if self.apps.get(&token).is_none() {
-                self.apps.insert(token.clone(), dir);
-                return Ok(token);
-            }
+    pub fn set_directory(&mut self, key: &str, dir: Directory) -> Result<(), Box<dyn Error>> {
+        if self.apps.get(key).is_some() {
+            return Err("already exists".into());
         }
+
+        self.apps.insert(key.to_string(), dir);
+        Ok(())
     }
 
     pub fn _get_directory(&mut self, token: &str) -> Option<&mut Directory> {
         self.apps.get_mut(token)
     }
 
-    pub fn get_directory_by_app(&mut self, app: &App) -> Option<(&String, &mut Directory)> {
-        self.apps.iter_mut().find(|(_, dir)| app.id == dir.app)
+    pub fn get_directory_by_app(&mut self, app: &App) -> Option<&mut Directory> {
+        self.apps.get_mut(&app.url)
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Token {
+    exp: SystemTime,     // expiration time (as UTC timestamp) - required
+    iat: SystemTime,     // issued at: creation time
+    url: String,         // application url
+    sub: String,         // subject: the user's session
+}
+
+impl Token {
+    pub fn new(sess: &Session, app: &App) -> Self {
+        Token {
+            exp: sess.deadline,
+            iat: SystemTime::now(),
+            url: app.url.clone(),
+            sub: sess.sid.clone(),
+        }
     }
 }
