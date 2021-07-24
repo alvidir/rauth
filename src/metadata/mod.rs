@@ -34,8 +34,8 @@ mod tests {
         let after = SystemTime::now();
 
         assert_eq!(meta.id, 999);
-        assert!(meta.created_at > before && meta.created_at < after);
-        assert!(meta.updated_at > before && meta.updated_at < after);
+        assert!(meta.created_at >= before && meta.created_at <= after);
+        assert!(meta.updated_at >= before && meta.updated_at <= after);
     }
 
     #[test]
@@ -45,7 +45,7 @@ mod tests {
         let after = SystemTime::now();
 
         assert_eq!(meta.id, 0);
-        assert!(meta.created_at > before && meta.created_at < after);
-        assert!(meta.updated_at > before && meta.updated_at < after);
+        assert!(meta.created_at >= before && meta.created_at <= after);
+        assert!(meta.updated_at >= before && meta.updated_at <= after);
     }
 }
