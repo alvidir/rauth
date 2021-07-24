@@ -31,7 +31,7 @@ impl Session {
                timeout: Duration) -> Result<Arc<Mutex<Session>>, Box<dyn Error>> {
 
         let sess = Session{
-            sid: "".to_string(),
+            sid: "".to_string(), // will be set by the repository controller down below
             deadline: SystemTime::now() + timeout,
             user: user,
             apps: HashMap::new(),
@@ -51,10 +51,6 @@ impl Session {
         Ok(())
     }
 
-    pub fn _get_directory(&mut self, token: &str) -> Option<&mut Directory> {
-        self.apps.get_mut(token)
-    }
-
     pub fn get_directory_by_app(&mut self, app: &App) -> Option<&mut Directory> {
         self.apps.get_mut(&app.url)
     }
@@ -64,6 +60,7 @@ impl Session {
 pub struct Token {
     exp: SystemTime,     // expiration time (as UTC timestamp) - required
     iat: SystemTime,     // issued at: creation time
+    iss: String,         // issuer
     url: String,         // application url
     sub: String,         // subject: the user's session
 }
@@ -73,6 +70,7 @@ impl Token {
         Token {
             exp: sess.deadline,
             iat: SystemTime::now(),
+            iss: "oauth.alvidir.com".to_string(),
             url: app.url.clone(),
             sub: sess.sid.clone(),
         }
