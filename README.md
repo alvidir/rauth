@@ -8,7 +8,14 @@ Oauth is a third-party authentication for all Alvidir's applications. Deployed a
 
 ## Architecture
 
-The latest version of this service includes a structure refactoring in order to follow the [hexagonal architecture](https://en.wikipedia.org/wiki/Hexagonal_architecture_(software)) best practices
+The whole service implementation as well as the files organization has been refactored in order to follow the [hexagonal architecture](https://en.wikipedia.org/wiki/Hexagonal_architecture_(software)) best practices. In this way, each object in the model got it's own folder in the `src` direcctory where to find the following files:
+
+| Name | Description |
+|:-:|:-|
+|mod| **[Required by Rust]** Declares the submodules in the directory and defines all these tests that ensures the module's robustness |
+|framework| Implements the repository required by the `domain layer` as well as the gRPC service that exposes the endpoints for the object's use cases |
+|application| Implements the use cases itself as callable functions totally independent of the `infrastructure/framework layer` |
+|domain| Declares the objects, relations and all its behaviours, as well as these interfaces/traits required by the objects itself |
 
 ## Design
 
