@@ -1,4 +1,4 @@
-name: rust-test
+name: test
 
 # Controls when the action will run. 
 on:
