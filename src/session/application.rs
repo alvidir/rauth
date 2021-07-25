@@ -33,11 +33,11 @@ pub fn session_login(sess_repo: Box<dyn SessionRepository>,
             let app = app_repo.find(app)?;
             let token: String;
             
-            let claim = Token::new(&sess, &app);
+            let claim = Token::new(&sess, &app, sess.deadline);
             token = security::generate_jwt(claim)?;
 
             if let None = sess.get_directory_by_app(&app) {
-                let dir = Directory::new(dir_repo, &sess.user, &app)?;
+                let dir = Directory::new(dir_repo, &sess.user, &app, sess.deadline)?;
                 sess.set_directory(&app.url, dir)?;
             }
 

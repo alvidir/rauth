@@ -8,7 +8,7 @@ Oauth is a third-party authentication for all Alvidir's applications. Deployed a
 
 ## Architecture
 
-The whole service implementation as well as the files organization has been refactored in order to follow the [hexagonal architecture](https://en.wikipedia.org/wiki/Hexagonal_architecture_(software)) best practices. In this way, each object in the model got it's own folder in the `src` direcctory where to find the following files:
+The whole service implementation as well as the files organization has been refactored in order to follow the [hexagonal architecture](https://en.wikipedia.org/wiki/Hexagonal_architecture_(software)) best practices. In this way, each object in the model got it's own folder in the `src` directory where to find the following files:
 
 | Name | Description |
 |:-:|:-|
@@ -30,7 +30,7 @@ The main objects of the domain and their role in the system are listed down belo
 | Session | Represents an `User` who has logged in to at least one `App`|
 | Directory | Represents the relation between a `User` and an `App`. A directory belongs to a `Session` and must have a Token associated to it|
 | Token | It's de cookie itself, ensures the `Session` and `Directory` are easily findable by the system, and the data it represents reliable by the `App`'s host|
-| Secret | Represents an array of bytes encoding a private key |
+| Secret | Represents an array of bytes encoding a public or private key |
 | Metadata | Represents a set of common attributes useful for management |
 
 ## Use cases

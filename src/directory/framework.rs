@@ -46,6 +46,7 @@ impl DirectoryRepository for &MongoDirectoryRepository {
                 id: id,
                 user: mongo_dir.user,
                 app: mongo_dir.app,
+                deadline: SystemTime::UNIX_EPOCH,
                 meta: Metadata {
                     id: 0,
                     created_at: mongo_dir.meta.created_at,

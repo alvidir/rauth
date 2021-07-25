@@ -66,9 +66,9 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn new(sess: &Session, app: &App) -> Self {
+    pub fn new(sess: &Session, app: &App, deadline: SystemTime) -> Self {
         Token {
-            exp: sess.deadline,
+            exp: deadline,
             iat: SystemTime::now(),
             iss: "oauth.alvidir.com".to_string(),
             url: app.url.clone(),
