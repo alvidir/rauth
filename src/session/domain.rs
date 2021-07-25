@@ -51,8 +51,8 @@ impl Session {
         Ok(())
     }
 
-    pub fn get_directory_by_app(&mut self, app: &App) -> Option<&mut Directory> {
-        self.apps.get_mut(&app.url)
+    pub fn get_directory(&mut self, url: &str) -> Option<&mut Directory> {
+        self.apps.get_mut(url)
     }
 }
 

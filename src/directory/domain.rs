@@ -7,6 +7,7 @@ use crate::metadata::domain::Metadata;
 
 pub trait DirectoryRepository {
     fn find(&self, id: &str) -> Result<Directory, Box<dyn Error>>;
+    fn find_by_user_and_app(&self, user_id: i32, app_id: i32) -> Result<Directory, Box<dyn Error>>;
     fn save(&self, secret: &mut Directory) -> Result<(), Box<dyn Error>>;
     fn delete(&self, secret: &Directory) -> Result<(), Box<dyn Error>>;
 }

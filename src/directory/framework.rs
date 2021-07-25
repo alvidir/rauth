@@ -6,6 +6,7 @@ use bson::Bson;
 
 use crate::mongo;
 use crate::metadata::domain::Metadata;
+use crate::constants::ERR_NOT_FOUND;
 use super::domain::{Directory, DirectoryRepository};
 
 const COLLECTION_NAME: &str = "directories";
@@ -27,38 +28,54 @@ struct MongoDirectory {
 
 pub struct MongoDirectoryRepository {}
 
+impl MongoDirectoryRepository {
+    fn builder(loaded_dir: bson::Document) -> Result<Directory, Box<dyn Error>> {
+        let mongo_dir: MongoDirectory = bson::from_bson(Bson::Document(loaded_dir))?;
+        
+        let id: String;
+        if let Some(dir_id) = mongo_dir.id {
+            id = dir_id.to_hex();
+        } else {
+            return Err(ERR_NOT_FOUND.into());
+        }
+
+        let dir = Directory {
+            id: id,
+            user: mongo_dir.user,
+            app: mongo_dir.app,
+            deadline: SystemTime::UNIX_EPOCH,
+            meta: Metadata {
+                id: 0,
+                created_at: mongo_dir.meta.created_at,
+                updated_at: mongo_dir.meta.updated_at,
+            },
+        };
+
+        return Ok(dir);
+    }
+}
+
 impl DirectoryRepository for &MongoDirectoryRepository {
     fn find(&self, target: &str) -> Result<Directory, Box<dyn Error>>  {
         let loaded_dir_opt = mongo::open_stream(COLLECTION_NAME)
             .find_one(Some(doc! { "_id":  target }), None)?;
 
         if let Some(loaded_dir) = loaded_dir_opt {
-            let mongo_dir: MongoDirectory = bson::from_bson(Bson::Document(loaded_dir))?;
-            
-            let id: String;
-            if let Some(dir_id) = mongo_dir.id {
-                id = dir_id.to_hex();
-            } else {
-                return Err("id not found".into());
-            }
-
-            let dir = Directory {
-                id: id,
-                user: mongo_dir.user,
-                app: mongo_dir.app,
-                deadline: SystemTime::UNIX_EPOCH,
-                meta: Metadata {
-                    id: 0,
-                    created_at: mongo_dir.meta.created_at,
-                    updated_at: mongo_dir.meta.updated_at,
-                },
-            };
-
-            return Ok(dir);
+            return MongoDirectoryRepository::builder(loaded_dir);
         }
 
-        
-        Err("not found".into())
+        Err(ERR_NOT_FOUND.into())
+    }
+
+    fn find_by_user_and_app(&self, user_id: i32, app_id: i32) -> Result<Directory, Box<dyn Error>> {
+        let loaded_dir_opt = mongo::open_stream(COLLECTION_NAME)
+            .find_one(Some(doc! { "user":  user_id, "app": app_id }), None)?;
+
+        if let Some(loaded_dir) = loaded_dir_opt {
+            return MongoDirectoryRepository::builder(loaded_dir);
+        }
+
+        Err(ERR_NOT_FOUND.into())
     }
 
     fn save(&self, dir: &mut Directory) -> Result<(), Box<dyn Error>> {

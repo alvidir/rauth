@@ -8,6 +8,7 @@ use crate::app::framework::PostgresAppRepository;
 use crate::directory::framework::MongoDirectoryRepository;
 use crate::constants::TOKEN_LEN;
 use crate::security;
+use crate::constants::ERR_NOT_FOUND;
 use super::domain::{Session, SessionRepository};
 
 // Import the generated rust code into module
@@ -126,7 +127,7 @@ impl SessionRepository for &InMemorySessionRepository {
                     return Ok(Arc::clone(sess));
                 }
         
-                Err("Not found".into())
+                Err(ERR_NOT_FOUND.into())
             }
         }
     }
@@ -139,7 +140,7 @@ impl SessionRepository for &InMemorySessionRepository {
                     return Ok(Arc::clone(sess));
                 }
         
-                Err("Not found".into())
+                Err(ERR_NOT_FOUND.into())
             }
         }
     }

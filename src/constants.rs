@@ -15,3 +15,5 @@ pub const ENV_SMTP_ORIGIN: &str = "SMTP_ORIGIN";
 pub const ENV_SMTP_USERNAME: &str = "SMTP_USERNAME";
 pub const ENV_SMTP_PASSWORD: &str = "SMTP_PASSWORD";
 pub const ENV_SECRET_PWD: &str = "SECRET_PWD";
+ 
+pub const ERR_NOT_FOUND: &str = "not found";
