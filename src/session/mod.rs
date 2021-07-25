@@ -79,7 +79,7 @@ mod tests {
     }
 
     #[test]
-    fn session_new_ok() {
+    fn domain_session_new_ok() {
         const EMAIL: &str = "dummy@example.com";
         const TIMEOUT: Duration = Duration::from_secs(10);
         let mock_impl = &Mock{};

@@ -26,7 +26,7 @@ mod tests {
     }
 
     #[test]
-    fn user_new_ok() {
+    fn domain_user_new_ok() {
         const EMAIL: &str = "dummy@example.com";
         let mock_impl = Mock{};
 
@@ -40,7 +40,7 @@ mod tests {
     }
 
     #[test]
-    fn user_new_ko() {
+    fn domain_user_new_ko() {
         const EMAIL: &str = "not_an_email";
         let mock_impl = Mock{};
 

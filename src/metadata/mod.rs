@@ -26,7 +26,7 @@ mod tests {
     }
 
     #[test]
-    fn metadata_new_ok() {
+    fn domain_metadata_new_ok() {
         let mock_impl = Mock{};
 
         let before = SystemTime::now();
@@ -39,7 +39,7 @@ mod tests {
     }
 
     #[test]
-    fn metadata_now_ok() {
+    fn domain_metadata_now_ok() {
         let before = SystemTime::now();
         let meta = Metadata::now();
         let after = SystemTime::now();

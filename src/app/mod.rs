@@ -27,7 +27,7 @@ mod tests {
     }
 
     #[test]
-    fn app_new_ok() {
+    fn domain_app_new_ok() {
         const URL: &str = "http://testing.com";
         let mock_impl = Mock{};
 
@@ -48,7 +48,7 @@ mod tests {
     }
 
     #[test]
-    fn user_new_ko() {
+    fn domain_user_new_ko() {
         const URL: &str = "not_an_url";
         let mock_impl = Mock{};
 
