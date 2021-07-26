@@ -9,7 +9,7 @@ use crate::directory::framework::MongoDirectoryRepository;
 use crate::constants::TOKEN_LEN;
 use crate::security;
 use crate::constants::ERR_NOT_FOUND;
-use super::domain::{Session, SessionRepository, SidGroupByAppRepository};
+use super::domain::{Session, SessionRepository, SidGroupByAppUrlRepository};
 
 // Import the generated rust code into module
 mod proto {
@@ -190,7 +190,7 @@ impl SessionRepository for &InMemorySessionRepository {
     }
 }
 
-impl SidGroupByAppRepository for &InMemorySessionRepository {
+impl SidGroupByAppUrlRepository for &InMemorySessionRepository {
     fn get(&self, url: &str) -> Result<Vec<String>, Box<dyn Error>> {
         match self.group_by_app.lock() {
             Err(err) => Err(format!("{}", err).into()),
