@@ -15,6 +15,12 @@ pub trait SessionRepository {
     fn delete(&self, session: &Session) -> Result<(), Box<dyn Error>>;
 }
 
+pub trait SidGroupByAppRepository {
+    fn get(&self, url: &str) -> Result<Vec<String>, Box<dyn Error>>;
+    fn store(&self, url: &str, sid: &str) -> Result<(), Box<dyn Error>>;
+    fn remove(&self, url: &str, sid: &str) -> Result<(), Box<dyn Error>>;
+}
+
 pub struct Session {
     pub sid: String,
     pub deadline: SystemTime,

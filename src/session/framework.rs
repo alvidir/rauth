@@ -9,7 +9,7 @@ use crate::directory::framework::MongoDirectoryRepository;
 use crate::constants::TOKEN_LEN;
 use crate::security;
 use crate::constants::ERR_NOT_FOUND;
-use super::domain::{Session, SessionRepository};
+use super::domain::{Session, SessionRepository, SidGroupByAppRepository};
 
 // Import the generated rust code into module
 mod proto {
@@ -91,7 +91,7 @@ impl SessionService for SessionServiceImplementation {
 
 pub struct InMemorySessionRepository {
     all_instances: Mutex<HashMap<String, Arc<Mutex<Session>>>>,
-    _group_by_app: Mutex<HashMap<String, Vec<String>>>,
+    group_by_app: Mutex<HashMap<String, Vec<String>>>,
 }
 
 impl InMemorySessionRepository {
@@ -102,7 +102,7 @@ impl InMemorySessionRepository {
                 Mutex::new(repo)
             },
 
-            _group_by_app: {
+            group_by_app: {
                 let repo = HashMap::new();
                 Mutex::new(repo)
             }
@@ -184,6 +184,58 @@ impl SessionRepository for &InMemorySessionRepository {
                     return Err("token does not exists".into());
                 }
         
+                Ok(())
+            }
+        }
+    }
+}
+
+impl SidGroupByAppRepository for &InMemorySessionRepository {
+    fn get(&self, url: &str) -> Result<Vec<String>, Box<dyn Error>> {
+        match self.group_by_app.lock() {
+            Err(err) => Err(format!("{}", err).into()),
+            Ok(group) => {
+                // all this block is secure because of the lock
+                if let Some(sids) = group.get(url){
+                    return Ok(sids.clone());
+                }
+                
+                Err(ERR_NOT_FOUND.into())
+            }
+        }
+    }
+
+    fn store(&self, url: &str, sid: &str) -> Result<(), Box<dyn Error>> {
+        match self.group_by_app.lock() {
+            Err(err) => Err(format!("{}", err).into()),
+            Ok(mut group) => {
+                // all this block is secure because of the lock
+                if let Some(sids) = group.get_mut(url){
+                    sids.push(sid.to_string());
+                } else {
+                    let sids = vec!(sid.to_string());
+                    group.insert(url.to_string(), sids);
+                }
+                
+                Ok(())
+            }
+        }
+    }
+
+    fn remove(&self, url: &str, sid: &str) -> Result<(), Box<dyn Error>> {
+        match self.group_by_app.lock() {
+            Err(err) => Err(format!("{}", err).into()),
+            Ok(mut group) => {
+                // all this block is secure because of the lock
+                if let Some(sids) = group.get_mut(url){
+                    if let Some(index) = sids.into_iter().position(|item| item == sid) {
+                        sids.remove(index);
+                        if sids.len() == 0 {
+                            group.remove(url);
+                        }
+                    }
+                }
+                
                 Ok(())
             }
         }
