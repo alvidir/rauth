@@ -1,5 +1,5 @@
 use std::error::Error;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 use tonic::{Request, Response, Status};
 use crate::user::framework::PostgresUserRepository;
@@ -8,8 +8,9 @@ use crate::app::framework::PostgresAppRepository;
 use crate::directory::framework::MongoDirectoryRepository;
 use crate::constants::TOKEN_LEN;
 use crate::security;
-use crate::constants::ERR_NOT_FOUND;
-use super::domain::{Session, SessionRepository, SidGroupByAppUrlRepository};
+use crate::constants::{ERR_NOT_FOUND, ERR_ALREADY_EXISTS};
+use super::domain::{Session, SessionRepository};
+use super::application::GroupByAppRepository;
 
 // Import the generated rust code into module
 mod proto {
@@ -66,10 +67,10 @@ impl SessionService for SessionServiceImplementation {
             return Err(Status::unauthenticated(err.to_string()));
         }
 
-        match super::application::session_login(Box::new(self.sess_repo),
-                                                Box::new(self.user_repo),
-                                                Box::new(self.app_repo),
-                                                Box::new(self.dir_repo),
+        match super::application::session_login(&self.sess_repo,
+                                                &self.user_repo,
+                                                &self.app_repo,
+                                                &self.dir_repo,
                                                 &msg_ref.ident,
                                                 &msg_ref.app) {
                                                     
@@ -90,8 +91,8 @@ impl SessionService for SessionServiceImplementation {
 
 
 pub struct InMemorySessionRepository {
-    all_instances: Mutex<HashMap<String, Arc<Mutex<Session>>>>,
-    group_by_app: Mutex<HashMap<String, Vec<String>>>,
+    all_instances: RwLock<HashMap<String, Arc<RwLock<Session>>>>,
+    group_by_app: RwLock<HashMap<String, Arc<RwLock<Vec<String>>>>>,
 }
 
 impl InMemorySessionRepository {
@@ -99,18 +100,18 @@ impl InMemorySessionRepository {
         InMemorySessionRepository {
             all_instances: {
                 let repo = HashMap::new();
-                Mutex::new(repo)
+                RwLock::new(repo)
             },
 
             group_by_app: {
                 let repo = HashMap::new();
-                Mutex::new(repo)
+                RwLock::new(repo)
             }
         }
     }
 
-    fn session_has_email(sess: &Arc<Mutex<Session>>, email: &str) -> bool {
-        if let Ok(session) = sess.lock() {
+    fn session_has_email(sess: &Arc<RwLock<Session>>, email: &str) -> bool {
+        if let Ok(session) = sess.read() {
             return session.user.email == email;
         }
 
@@ -119,125 +120,104 @@ impl InMemorySessionRepository {
 }
 
 impl SessionRepository for &InMemorySessionRepository {
-    fn find(&self, token: &str) -> Result<Arc<Mutex<Session>>, Box<dyn Error>> {
-        match self.all_instances.lock() {
-            Err(err) => Err(format!("{}", err).into()),
-            Ok(repo) => {
-                if let Some(sess) = repo.get(token) {
-                    return Ok(Arc::clone(sess));
-                }
-        
-                Err(ERR_NOT_FOUND.into())
-            }
+    fn find(&self, token: &str) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
+        let repo = self.all_instances.read().unwrap();
+        if let Some(sess) = repo.get(token) {
+            return Ok(Arc::clone(sess));
         }
+
+        Err(ERR_NOT_FOUND.into())
     }
 
-    fn find_by_email(&self, email: &str) -> Result<Arc<Mutex<Session>>, Box<dyn Error>> {
-        match self.all_instances.lock() {
-            Err(err) => Err(format!("{}", err).into()),
-            Ok(repo) => {
-                if let Some((_, sess)) = repo.iter().find(|(_, sess)| InMemorySessionRepository::session_has_email(sess, email)) {
-                    return Ok(Arc::clone(sess));
-                }
-        
-                Err(ERR_NOT_FOUND.into())
-            }
+    fn find_by_email(&self, email: &str) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
+        let repo = self.all_instances.read().unwrap();
+        if let Some((_, sess)) = repo.iter().find(|(_, sess)| InMemorySessionRepository::session_has_email(sess, email)) {
+            return Ok(Arc::clone(sess));
         }
+
+        Err(ERR_NOT_FOUND.into())
     }
 
-    fn save(&self, mut session: Session) -> Result<Arc<Mutex<Session>>, Box<dyn Error>> {
-        match self.all_instances.lock() {
-            Err(err) => Err(format!("{}", err).into()),
-            Ok(mut repo) => {
-                if let Some(_) = repo.get(&session.sid) {
-                    return Err("token already exists".into());
-                }
-        
-                if let Some(_) = repo.iter().find(|(_, sess)| InMemorySessionRepository::session_has_email(sess, &session.user.email)) {
-                    return Err("email already exists".into());
-                }
-        
-                loop { // make sure the token is unique
-                    let sid = security::get_random_string(TOKEN_LEN);
-                    if repo.get(&sid).is_none() {
-                        session.sid = sid;
-                        break;
-                    }
-                }
-               
-                let token = session.sid.clone();
-                let mu = Mutex::new(session);
-                let arc = Arc::new(mu);
-        
-                repo.insert(token.to_string(), arc);
-                let sess = repo.get(&token).unwrap();
-                Ok(Arc::clone(sess))
+    fn save(&self, mut session: Session) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
+        let mut repo = self.all_instances.write().unwrap();
+        if let Some(_) = repo.get(&session.sid) {
+            return Err(ERR_ALREADY_EXISTS.into());
+        }
+
+        if let Some(_) = repo.iter().find(|(_, sess)| InMemorySessionRepository::session_has_email(sess, &session.user.email)) {
+            return Err(ERR_ALREADY_EXISTS.into());
+        }
+
+        loop { // make sure the token is unique
+            let sid = security::get_random_string(TOKEN_LEN);
+            if repo.get(&sid).is_none() {
+                session.sid = sid;
+                break;
             }
         }
+        
+        let token = session.sid.clone();
+        let mu = RwLock::new(session);
+        let arc = Arc::new(mu);
+
+        repo.insert(token.to_string(), arc);
+        let sess = repo.get(&token).unwrap();
+        Ok(Arc::clone(sess))
     }
 
     fn delete(&self, session: &Session) -> Result<(), Box<dyn Error>> {
-        match self.all_instances.lock() {
-            Err(err) => Err(format!("{}", err).into()),
-            Ok(mut repo) => {
-                if let None = repo.remove(&session.sid) {
-                    return Err("token does not exists".into());
-                }
-        
-                Ok(())
-            }
+        let mut repo = self.all_instances.write().unwrap();
+        if let None = repo.remove(&session.sid) {
+            return Err(ERR_NOT_FOUND.into());
         }
+
+        Ok(())
     }
 }
 
-impl SidGroupByAppUrlRepository for &InMemorySessionRepository {
-    fn get(&self, url: &str) -> Result<Vec<String>, Box<dyn Error>> {
-        match self.group_by_app.lock() {
-            Err(err) => Err(format!("{}", err).into()),
-            Ok(group) => {
-                // all this block is secure because of the lock
-                if let Some(sids) = group.get(url){
-                    return Ok(sids.clone());
-                }
-                
-                Err(ERR_NOT_FOUND.into())
-            }
+impl GroupByAppRepository for &InMemorySessionRepository {
+    fn get(&self, url: &str) -> Result<Arc<RwLock<Vec<String>>>, Box<dyn Error>> {
+        let group = self.group_by_app.read().unwrap();
+        if let Some(sids) = group.get(url){
+            return Ok(Arc::clone(sids));
         }
+        
+        Err(ERR_NOT_FOUND.into())
     }
 
     fn store(&self, url: &str, sid: &str) -> Result<(), Box<dyn Error>> {
-        match self.group_by_app.lock() {
-            Err(err) => Err(format!("{}", err).into()),
-            Ok(mut group) => {
-                // all this block is secure because of the lock
-                if let Some(sids) = group.get_mut(url){
-                    sids.push(sid.to_string());
-                } else {
-                    let sids = vec!(sid.to_string());
-                    group.insert(url.to_string(), sids);
-                }
-                
-                Ok(())
+        let to_insert = {
+            let group = self.group_by_app.read().unwrap();
+            if let Some(sids_arc) = group.get(url){
+                let mut sids = sids_arc.write().unwrap();
+                sids.push(sid.to_string());
+                None
+            } else {
+                let sids = vec!(sid.to_string());
+                let mu = RwLock::new(sids);
+                let arc = Arc::new(mu);
+                Some(arc)
             }
+        };
+        
+        if let Some(arc) = to_insert {
+            let mut group = self.group_by_app.write().unwrap();
+            group.insert(url.to_string(), arc);
         }
+
+        Ok(())
     }
 
     fn remove(&self, url: &str, sid: &str) -> Result<(), Box<dyn Error>> {
-        match self.group_by_app.lock() {
-            Err(err) => Err(format!("{}", err).into()),
-            Ok(mut group) => {
-                // all this block is secure because of the lock
-                if let Some(sids) = group.get_mut(url){
-                    if let Some(index) = sids.into_iter().position(|item| item == sid) {
-                        sids.remove(index);
-                        if sids.len() == 0 {
-                            group.remove(url);
-                        }
-                    }
-                }
-                
-                Ok(())
+        // read lock is released at the end of this block
+        let group = self.group_by_app.read().unwrap();
+        if let Some(sids_arc) = group.get(url){
+            let mut sids = sids_arc.write().unwrap();
+            if let Some(index) = sids.iter().position(|item| item == sid) {
+                sids.remove(index);
             }
         }
+
+        Ok(())
     }
 }

@@ -63,8 +63,8 @@ impl UserService for UserServiceImplementation {
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<()>, Status> {
         let msg_ref = request.into_inner();
 
-        if let Err(err) = super::application::user_signup(Box::new(self.user_repo),
-                                                          Box::new(self.meta_repo),
+        if let Err(err) = super::application::user_signup(&self.user_repo,
+                                                          &self.meta_repo,
                                                           &msg_ref.email) {
 
             return Err(Status::aborted(err.to_string()));

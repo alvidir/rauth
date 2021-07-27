@@ -38,7 +38,7 @@ mod tests {
             meta: meta,
         };
 
-        let app = App::new(Box::new(mock_impl),
+        let app = App::new(&mock_impl,
                            secret,
                            Metadata::now(),
                            URL).unwrap();
@@ -59,7 +59,7 @@ mod tests {
             meta: meta,
         };
         
-        let app = App::new(Box::new(mock_impl),
+        let app = App::new(&mock_impl,
                            secret,
                            Metadata::now(),
                            URL);

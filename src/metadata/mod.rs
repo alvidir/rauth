@@ -30,7 +30,7 @@ mod tests {
         let mock_impl = Mock{};
 
         let before = SystemTime::now();
-        let meta = Metadata::new(Box::new(mock_impl)).unwrap();
+        let meta = Metadata::new(&mock_impl).unwrap();
         let after = SystemTime::now();
 
         assert_eq!(meta.id, 999);

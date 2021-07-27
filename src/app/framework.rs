@@ -59,9 +59,9 @@ impl AppService for AppServiceImplementation {
             return Err(Status::unauthenticated(err.to_string()))
         }
 
-        match super::application::app_register(Box::new(self.app_repo),
-                                               Box::new(self.secret_repo),
-                                               Box::new(self.meta_repo),
+        match super::application::app_register(&self.app_repo,
+                                               &self.secret_repo,
+                                               &self.meta_repo,
                                                &msg_ref.public,
                                                &msg_ref.url) {
 

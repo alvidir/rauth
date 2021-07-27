@@ -21,7 +21,7 @@ pub struct Directory {
 }
 
 impl Directory {
-    pub fn new(dir_repo: Box<dyn DirectoryRepository>,
+    pub fn new(dir_repo: &dyn DirectoryRepository,
                user: &User,
                app: &App,
                deadline: SystemTime) -> Result<Self, Box<dyn Error>> {

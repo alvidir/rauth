@@ -18,7 +18,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new<'a>(app_repo: Box<dyn AppRepository>,
+    pub fn new<'a>(app_repo: &dyn AppRepository,
                    secret: Secret,
                    meta: Metadata,
                    url: &'a str) -> Result<Self, Box<dyn Error>> {

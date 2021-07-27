@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::time::Duration;
+use std::sync::{Arc, RwLock};
 
 use crate::user::domain::UserRepository;
 use crate::app::domain::AppRepository;
@@ -9,10 +10,19 @@ use crate::security;
 
 use super::domain::{Session, SessionRepository, Token};
 
-pub fn session_login(sess_repo: Box<dyn SessionRepository>,
-                     user_repo: Box<dyn UserRepository>,
-                     app_repo: Box<dyn AppRepository>,
-                     dir_repo: Box<dyn DirectoryRepository>,
+pub trait GroupByAppRepository {
+    fn get(&self, url: &str) -> Result<Arc<RwLock<Vec<String>>>, Box<dyn Error>>;
+    fn store(&self, url: &str, sid: &str) -> Result<(), Box<dyn Error>>;
+    fn remove(&self, url: &str, sid: &str) -> Result<(), Box<dyn Error>>;
+}
+
+pub trait SuperSessionRepository: GroupByAppRepository + SessionRepository {}
+impl<T> SuperSessionRepository for T where T: SessionRepository + GroupByAppRepository {}
+
+pub fn session_login(sess_repo: &dyn SuperSessionRepository,
+                     user_repo: &dyn UserRepository,
+                     app_repo: &dyn AppRepository,
+                     dir_repo: &dyn DirectoryRepository,
                      email: &str,
                      app: &str) -> Result<String, Box<dyn Error>> {
     
@@ -23,30 +33,28 @@ pub fn session_login(sess_repo: Box<dyn SessionRepository>,
         Err(_) => {
             let user = user_repo.find(email)?;
             let timeout =  Duration::from_secs(constants::TOKEN_TIMEOUT);
-            Session::new(&sess_repo, user, timeout)?
+            Session::new(sess_repo, user, timeout)?
         }
     };
 
-    let token = match sess_arc.lock() {
-        Err(err) => Err(format!("{}", err).into()),
-        Ok(mut sess) => {
-            let app = app_repo.find(app)?;
-            let token: String;
-            
-            let claim = Token::new(&sess, &app, sess.deadline);
-            token = security::generate_jwt(claim)?;
+    let token = {
+        let app = app_repo.find(app)?;
+        let token: String;
+        
+        let mut sess = sess_arc.write().unwrap();
+        let claim = Token::new(&sess, &app, sess.deadline);
+        token = security::generate_jwt(claim)?;
 
-            if let None = sess.get_directory(&app.url) {
-                if let Ok(dir) = dir_repo.find_by_user_and_app(sess.user.id, app.id) {
-                    sess.set_directory(&app.url, dir)?;
-                } else {
-                    let dir = Directory::new(dir_repo, &sess.user, &app, sess.deadline)?;
-                    sess.set_directory(&app.url, dir)?;
-                }
+        if let None = sess.get_directory(&app.url) {
+            if let Ok(dir) = dir_repo.find_by_user_and_app(sess.user.id, app.id) {
+                sess.set_directory(&app.url, dir)?;
+            } else {
+                let dir = Directory::new(dir_repo, &sess.user, &app, sess.deadline)?;
+                sess.set_directory(&app.url, dir)?;
             }
-
-            Ok(token)
         }
+
+        Ok(token)
     };
 
     token

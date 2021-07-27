@@ -15,7 +15,7 @@ pub struct Metadata {
 }
 
 impl Metadata {
-    pub fn new(repo: Box<dyn MetadataRepository>) -> Result<Self, Box<dyn Error>> {
+    pub fn new(repo: &dyn MetadataRepository) -> Result<Self, Box<dyn Error>> {
         let mut meta = Metadata {
             id: 0,
             created_at: SystemTime::now(),

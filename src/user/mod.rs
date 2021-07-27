@@ -30,7 +30,7 @@ mod tests {
         const EMAIL: &str = "dummy@example.com";
         let mock_impl = Mock{};
 
-        let user = User::new(Box::new(mock_impl),
+        let user = User::new(&mock_impl,
                              Metadata::now(),
                              EMAIL).unwrap();
 
@@ -44,7 +44,7 @@ mod tests {
         const EMAIL: &str = "not_an_email";
         let mock_impl = Mock{};
 
-        let user = User::new(Box::new(mock_impl),
+        let user = User::new(&mock_impl,
                              Metadata::now(),
                              EMAIL);
     

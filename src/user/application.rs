@@ -3,8 +3,8 @@ use crate::session::domain::SessionRepository;
 use crate::metadata::domain::{Metadata, MetadataRepository};
 use super::domain::{User, UserRepository};
 
-pub fn user_signup<'a>(user_repo: Box<dyn UserRepository>,
-                       meta_repo: Box<dyn MetadataRepository>,
+pub fn user_signup<'a>(user_repo: &dyn UserRepository,
+                       meta_repo: &dyn MetadataRepository,
                        email: &'a str) -> Result<(), Box<dyn Error>> {
     
     println!("got signup request from user {} ", email);
@@ -23,7 +23,7 @@ pub fn user_delete<'a>(user_repo: Box<dyn UserRepository>,
     let user = user_repo.find(email)?;
     
     if let Ok(sess_arc) = sess_repo.find_by_email(email) {
-        if let Ok(sess) = sess_arc.lock() {
+        if let Ok(sess) = sess_arc.read() {
             sess_repo.delete(&sess)?;
         }
     }

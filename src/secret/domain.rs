@@ -17,7 +17,7 @@ pub struct Secret {
 }
 
 impl Secret {
-    pub fn new(secret_repo: Box<dyn SecretRepository>,
+    pub fn new(secret_repo: &dyn SecretRepository,
                data: &[u8]) -> Result<Self, Box<dyn Error>> {
 
         let mut secret = Secret {

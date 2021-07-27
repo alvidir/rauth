@@ -5,7 +5,7 @@ pub mod domain;
 #[cfg(test)]
 mod tests {
     use std::error::Error;
-    use std::sync::{Arc, Mutex};
+    use std::sync::{Arc, RwLock};
     use std::time::{SystemTime, Duration};
     use std::collections::HashMap;
     use crate::metadata::domain::{Metadata, MetadataRepository};
@@ -13,9 +13,9 @@ mod tests {
     use super::domain::{Session, SessionRepository};
 
     lazy_static! {
-        pub static ref TESTING_SESSIONS: Mutex<HashMap<String, Arc<Mutex<Session>>>> = {
+        pub static ref TESTING_SESSIONS: RwLock<HashMap<String, Arc<RwLock<Session>>>> = {
             let repo = HashMap::new();
-            Mutex::new(repo)
+            RwLock::new(repo)
         };    
     }
 
@@ -37,20 +37,20 @@ mod tests {
     }
     
     impl SessionRepository for &Mock {
-        fn find(&self, _cookie: &str) -> Result<Arc<Mutex<Session>>, Box<dyn Error>> {
+        fn find(&self, _cookie: &str) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
             Err("unimplemeted".into())
         }
 
-        fn find_by_email(&self, _email: &str) -> Result<Arc<Mutex<Session>>, Box<dyn Error>> {
+        fn find_by_email(&self, _email: &str) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
             Err("unimplemeted".into())
         }
 
-        fn save(&self, mut session: Session) -> Result<Arc<Mutex<Session>>, Box<dyn Error>> {
+        fn save(&self, mut session: Session) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
             session.sid = "testing".to_string();
 
-            let mut repo = TESTING_SESSIONS.lock()?;
+            let mut repo = TESTING_SESSIONS.write()?;
             let email = session.user.email.clone();
-            let mu = Mutex::new(session);
+            let mu = RwLock::new(session);
             let arc = Arc::new(mu);
             
             repo.insert(email.clone(), arc);
@@ -85,18 +85,17 @@ mod tests {
         let mock_impl = &Mock{};
 
         let meta = Metadata::now();
-        let user = User::new(Box::new(mock_impl),
+        let user = User::new(&mock_impl,
                              meta.clone(),
                              EMAIL).unwrap();
 
         let before = SystemTime::now();
-        let repo: Box<dyn SessionRepository> = Box::new(mock_impl);
-        let sess_arc = Session::new(&repo,
+        let sess_arc = Session::new(&mock_impl,
                                  user,
                                  TIMEOUT).unwrap();
 
         let after = SystemTime::now();
-        let sess = sess_arc.lock().unwrap();
+        let sess = sess_arc.read().unwrap();
         
         assert_eq!("testing", sess.sid);
         assert!(sess.deadline < after + TIMEOUT);

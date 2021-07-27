@@ -1,6 +1,6 @@
 use crate::app::domain::App;
 use std::error::Error;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime};
 use std::collections::HashMap;
 
@@ -9,16 +9,10 @@ use crate::user::domain::User;
 use crate::directory::domain::Directory;
 
 pub trait SessionRepository {
-    fn find(&self, cookie: &str) -> Result<Arc<Mutex<Session>>, Box<dyn Error>>;
-    fn find_by_email(&self, email: &str) -> Result<Arc<Mutex<Session>>, Box<dyn Error>>;
-    fn save(&self, session: Session) -> Result<Arc<Mutex<Session>>, Box<dyn Error>>;
+    fn find(&self, cookie: &str) -> Result<Arc<RwLock<Session>>, Box<dyn Error>>;
+    fn find_by_email(&self, email: &str) -> Result<Arc<RwLock<Session>>, Box<dyn Error>>;
+    fn save(&self, session: Session) -> Result<Arc<RwLock<Session>>, Box<dyn Error>>;
     fn delete(&self, session: &Session) -> Result<(), Box<dyn Error>>;
-}
-
-pub trait SidGroupByAppUrlRepository {
-    fn get(&self, url: &str) -> Result<Vec<String>, Box<dyn Error>>;
-    fn store(&self, url: &str, sid: &str) -> Result<(), Box<dyn Error>>;
-    fn remove(&self, url: &str, sid: &str) -> Result<(), Box<dyn Error>>;
 }
 
 pub struct Session {
@@ -32,9 +26,9 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn new(sess_repo: &Box<dyn SessionRepository>,
+    pub fn new<T: SessionRepository + ?Sized>(sess_repo: &T,
                user: User,
-               timeout: Duration) -> Result<Arc<Mutex<Session>>, Box<dyn Error>> {
+               timeout: Duration) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
 
         let sess = Session{
             sid: "".to_string(), // will be set by the repository controller down below

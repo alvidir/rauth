@@ -17,3 +17,4 @@ pub const ENV_SMTP_PASSWORD: &str = "SMTP_PASSWORD";
 pub const ENV_SECRET_PWD: &str = "SECRET_PWD";
  
 pub const ERR_NOT_FOUND: &str = "not found";
+pub const ERR_ALREADY_EXISTS: &str = "already exists";

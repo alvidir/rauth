@@ -18,7 +18,7 @@ pub struct User {
 }
 
 impl User {
-    pub fn new<'a>(user_repo: Box<dyn UserRepository>,
+    pub fn new<'a>(user_repo: &dyn UserRepository,
                    meta: Metadata,
                    email: &'a str) -> Result<Self, Box<dyn Error>> {
         
