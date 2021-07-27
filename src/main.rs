@@ -42,7 +42,7 @@ lazy_static! {
     static ref APP_REPO: PostgresAppRepository = PostgresAppRepository::new(&SECRET_REPO, &META_REPO);
 
     static ref DIR_REPO: MongoDirectoryRepository = MongoDirectoryRepository{};
-    static ref SESSION_REPO: InMemorySessionRepository = InMemorySessionRepository::new();
+    static ref SESSION_REPO: InMemorySessionRepository = InMemorySessionRepository::new(&DIR_REPO);
 }
 
 pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {

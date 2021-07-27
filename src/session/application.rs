@@ -17,7 +17,9 @@ pub trait GroupByAppRepository {
 }
 
 pub trait SuperSessionRepository: GroupByAppRepository + SessionRepository {}
-impl<T> SuperSessionRepository for T where T: SessionRepository + GroupByAppRepository {}
+
+impl<T> SuperSessionRepository for T
+where T: SessionRepository + GroupByAppRepository {}
 
 pub fn session_login(sess_repo: &dyn SuperSessionRepository,
                      user_repo: &dyn UserRepository,
@@ -49,9 +51,12 @@ pub fn session_login(sess_repo: &dyn SuperSessionRepository,
             if let Ok(dir) = dir_repo.find_by_user_and_app(sess.user.id, app.id) {
                 sess.set_directory(&app.url, dir)?;
             } else {
-                let dir = Directory::new(dir_repo, &sess.user, &app, sess.deadline)?;
+                let dir = Directory::new(dir_repo, &sess, &app)?;
                 sess.set_directory(&app.url, dir)?;
             }
+
+            // register the session's sid into the app's url group 
+            sess_repo.store(&app.url, &sess.sid)?;
         }
 
         Ok(token)

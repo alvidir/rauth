@@ -6,6 +6,7 @@ use crate::user::framework::PostgresUserRepository;
 use crate::user::domain::UserRepository;
 use crate::app::framework::PostgresAppRepository;
 use crate::directory::framework::MongoDirectoryRepository;
+use crate::directory::domain::DirectoryRepository;
 use crate::constants::TOKEN_LEN;
 use crate::security;
 use crate::constants::{ERR_NOT_FOUND, ERR_ALREADY_EXISTS};
@@ -93,10 +94,11 @@ impl SessionService for SessionServiceImplementation {
 pub struct InMemorySessionRepository {
     all_instances: RwLock<HashMap<String, Arc<RwLock<Session>>>>,
     group_by_app: RwLock<HashMap<String, Arc<RwLock<Vec<String>>>>>,
+    dir_repo: &'static MongoDirectoryRepository,
 }
 
 impl InMemorySessionRepository {
-    pub fn new() -> Self {
+    pub fn new(dir_repo: &'static MongoDirectoryRepository) -> Self {
         InMemorySessionRepository {
             all_instances: {
                 let repo = HashMap::new();
@@ -106,7 +108,9 @@ impl InMemorySessionRepository {
             group_by_app: {
                 let repo = HashMap::new();
                 RwLock::new(repo)
-            }
+            },
+
+            dir_repo: dir_repo,
         }
     }
 
@@ -116,6 +120,34 @@ impl InMemorySessionRepository {
         }
 
         false
+    }
+
+    fn create_group(&self, url: &str, sid: &str) -> Result<(), Box<dyn Error>> {
+        let sids = vec!(sid.to_string());
+        let mu = RwLock::new(sids);
+        let arc = Arc::new(mu);
+
+        let mut group = self.group_by_app.write().unwrap();
+        group.insert(url.to_string(), arc);
+        Ok(())
+    }
+
+    fn destroy_group(&self, url: &str, force: bool) -> Result<(), Box<dyn Error>> {
+        let mut group = self.group_by_app.write().unwrap();
+        let empty = {
+            if let Some(sids_arc) = group.get(url){
+                let sids = sids_arc.read().unwrap();
+                sids.len() == 0
+            } else {
+                false
+            }
+        };
+
+        if empty || force {
+            group.remove(url);
+        }
+
+        Ok(())
     }
 }
 
@@ -167,11 +199,19 @@ impl SessionRepository for &InMemorySessionRepository {
 
     fn delete(&self, session: &Session) -> Result<(), Box<dyn Error>> {
         let mut repo = self.all_instances.write().unwrap();
-        if let None = repo.remove(&session.sid) {
-            return Err(ERR_NOT_FOUND.into());
+        if let Some(sess_arc) = repo.remove(&session.sid) {
+            let mut sess = sess_arc.write().unwrap();
+            let _ = sess.apps.iter_mut().map(|(url, dir)| {
+                // foreach application the session was logged in
+                if let Err(err) = self.dir_repo.save(dir) {
+                    println!("got error while saving directory {} : {}", dir.id, err);
+                } else if let Err(err) = self.remove(url, &session.sid) {
+                    println!("got error while removing session from group : {}", err);
+                }
+            });
         }
 
-        Ok(())
+        Err(ERR_NOT_FOUND.into())
     }
 }
 
@@ -186,36 +226,44 @@ impl GroupByAppRepository for &InMemorySessionRepository {
     }
 
     fn store(&self, url: &str, sid: &str) -> Result<(), Box<dyn Error>> {
-        let to_insert = {
+        let create = {
             let group = self.group_by_app.read().unwrap();
             if let Some(sids_arc) = group.get(url){
                 let mut sids = sids_arc.write().unwrap();
-                sids.push(sid.to_string());
-                None
+                if let None = sids.iter().position(|item| item == sid) {
+                    sids.push(sid.to_string());
+                }
+
+                false
             } else {
-                let sids = vec!(sid.to_string());
-                let mu = RwLock::new(sids);
-                let arc = Arc::new(mu);
-                Some(arc)
+                true
             }
         };
         
-        if let Some(arc) = to_insert {
-            let mut group = self.group_by_app.write().unwrap();
-            group.insert(url.to_string(), arc);
+        if create {
+            self.create_group(url, sid)?;
         }
 
         Ok(())
     }
 
     fn remove(&self, url: &str, sid: &str) -> Result<(), Box<dyn Error>> {
-        // read lock is released at the end of this block
-        let group = self.group_by_app.read().unwrap();
-        if let Some(sids_arc) = group.get(url){
-            let mut sids = sids_arc.write().unwrap();
-            if let Some(index) = sids.iter().position(|item| item == sid) {
-                sids.remove(index);
+        let destroy = { // read lock is released at the end of this block
+            let group = self.group_by_app.read().unwrap();
+            if let Some(sids_arc) = group.get(url){
+                let mut sids = sids_arc.write().unwrap();
+                if let Some(index) = sids.iter().position(|item| item == sid) {
+                    sids.remove(index);
+                }
+
+                sids.len() == 0
+            } else {
+                false
             }
+        };
+
+        if destroy {
+            self.destroy_group(url, false)?;
         }
 
         Ok(())

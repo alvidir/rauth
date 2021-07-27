@@ -1,6 +1,6 @@
 use std::error::Error;
 use std::time::SystemTime;
-use crate::user::domain::User;
+use crate::session::domain::Session;
 use crate::app::domain::App;
 use crate::metadata::domain::Metadata;
 
@@ -22,15 +22,14 @@ pub struct Directory {
 
 impl Directory {
     pub fn new(dir_repo: &dyn DirectoryRepository,
-               user: &User,
-               app: &App,
-               deadline: SystemTime) -> Result<Self, Box<dyn Error>> {
+               sess: &Session,
+               app: &App) -> Result<Self, Box<dyn Error>> {
 
         let mut directory = Directory {
             id: "".to_string(),
-            user: user.id,
+            user: sess.user.id,
             app: app.id,
-            deadline: deadline,
+            deadline: sess.deadline,
             meta: Metadata::now(),
         };
 
