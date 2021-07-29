@@ -25,7 +25,7 @@ impl User {
                    password: &'a str) -> Result<Self, Box<dyn Error>> {
         
         regex::match_regex(regex::EMAIL, email)?;
-        regex::match_regex(regex::HASH, password)?;
+        regex::match_regex(regex::BASE64, password)?;
         
         let mut user = User {
             id: 0,

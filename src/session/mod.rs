@@ -12,7 +12,7 @@ mod tests {
     use crate::user::domain::{User, UserRepository};
     use super::domain::{Session, SessionRepository};
 
-    const PWD: &str = "$DummyPassword1234";
+    const PWD: &str = "ABCD1234";
 
     lazy_static! {
         pub static ref TESTING_SESSIONS: RwLock<HashMap<String, Arc<RwLock<Session>>>> = {

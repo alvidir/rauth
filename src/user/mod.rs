@@ -8,7 +8,7 @@ mod tests {
     use crate::metadata::domain::Metadata;
     use super::domain::{User, UserRepository};
 
-    const PWD: &str = "$DummyPassword1234";
+    const PWD: &str = "ABCD1234";
 
     struct Mock {}
     
