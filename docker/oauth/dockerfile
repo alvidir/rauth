@@ -1,4 +1,4 @@
-FROM rust:latest as builder
+FROM docker.io/rust:latest as builder
 
 RUN USER=root cargo new --bin oauth
 RUN apt-get install -y pkg-config libssl-dev libpq-dev
@@ -15,7 +15,7 @@ RUN rm ./target/release/deps/oauth*
 RUN cargo build --release
 
 ######## Start a new stage from scratch #######
-FROM debian:buster-slim
+FROM docker.io/debian:buster-slim
 ARG APP=/usr/src/app
 
 RUN apt-get update \
