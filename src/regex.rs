@@ -3,7 +3,7 @@ use std::error::Error;
 
 pub const _NAME: &str = r"^[-_A-Za-z0-9\.]+$";
 pub const EMAIL: &str = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,63}$";
-pub const _HASH: &str = r"\b[A-Fa-f0-9]{8, 64}\b";
+pub const HASH: &str = r"\b[A-Fa-f0-9]{8, 64}\b";
 pub const _BASE64: &str = r"^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$";
 pub const URL: &str = r#"https?://(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}/?$"#;
 pub const _COOKIE: &str = r"^[A-Za-z0-9)(*&^%$#@!~?\]\[+-]+$";

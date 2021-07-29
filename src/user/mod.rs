@@ -8,6 +8,8 @@ mod tests {
     use crate::metadata::domain::Metadata;
     use super::domain::{User, UserRepository};
 
+    const PWD: &str = "$DummyPassword1234";
+
     struct Mock {}
     
     impl UserRepository for Mock {
@@ -32,7 +34,8 @@ mod tests {
 
         let user = User::new(&mock_impl,
                              Metadata::now(),
-                             EMAIL).unwrap();
+                             EMAIL,
+                             PWD).unwrap();
 
         assert_eq!(user.id, 999); 
         assert_eq!(user.email, EMAIL);
@@ -46,7 +49,8 @@ mod tests {
 
         let user = User::new(&mock_impl,
                              Metadata::now(),
-                             EMAIL);
+                             EMAIL,
+                             PWD);
     
         assert!(user.is_err());
     }

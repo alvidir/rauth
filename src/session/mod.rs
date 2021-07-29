@@ -12,6 +12,8 @@ mod tests {
     use crate::user::domain::{User, UserRepository};
     use super::domain::{Session, SessionRepository};
 
+    const PWD: &str = "$DummyPassword1234";
+
     lazy_static! {
         pub static ref TESTING_SESSIONS: RwLock<HashMap<String, Arc<RwLock<Session>>>> = {
             let repo = HashMap::new();
@@ -87,7 +89,8 @@ mod tests {
         let meta = Metadata::now();
         let user = User::new(&mock_impl,
                              meta.clone(),
-                             EMAIL).unwrap();
+                             EMAIL,
+                             PWD).unwrap();
 
         let before = SystemTime::now();
         let sess_arc = Session::new(&mock_impl,

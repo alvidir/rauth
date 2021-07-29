@@ -1,6 +1,7 @@
 use std::error::Error;
 use std::time::Duration;
 use std::sync::{Arc, RwLock};
+use std::collections::HashSet;
 
 use crate::user::domain::UserRepository;
 use crate::app::domain::AppRepository;
@@ -11,7 +12,7 @@ use crate::security;
 use super::domain::{Session, SessionRepository, Token};
 
 pub trait GroupByAppRepository {
-    fn get(&self, url: &str) -> Result<Arc<RwLock<Vec<String>>>, Box<dyn Error>>;
+    fn get(&self, url: &str) -> Result<Arc<RwLock<HashSet<String>>>, Box<dyn Error>>;
     fn store(&self, url: &str, sid: &str) -> Result<(), Box<dyn Error>>;
     fn remove(&self, url: &str, sid: &str) -> Result<(), Box<dyn Error>>;
 }
@@ -26,6 +27,7 @@ pub fn session_login(sess_repo: &dyn SuperSessionRepository,
                      app_repo: &dyn AppRepository,
                      dir_repo: &dyn DirectoryRepository,
                      email: &str,
+                     pwd: &str,
                      app: &str) -> Result<String, Box<dyn Error>> {
     
     println!("Got login request from user {} ", email);
@@ -34,6 +36,8 @@ pub fn session_login(sess_repo: &dyn SuperSessionRepository,
         Ok(sess_arc) => sess_arc,
         Err(_) => {
             let user = user_repo.find(email)?;
+            user.match_password(pwd)?;
+
             let timeout =  Duration::from_secs(constants::TOKEN_TIMEOUT);
             Session::new(sess_repo, user, timeout)?
         }

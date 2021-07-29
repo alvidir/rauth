@@ -5,12 +5,13 @@ use super::domain::{User, UserRepository};
 
 pub fn user_signup<'a>(user_repo: &dyn UserRepository,
                        meta_repo: &dyn MetadataRepository,
-                       email: &'a str) -> Result<(), Box<dyn Error>> {
+                       email: &'a str,
+                       password: &'a str) -> Result<(), Box<dyn Error>> {
     
     println!("got signup request from user {} ", email);
     
     let meta = Metadata::new(meta_repo)?;
-    User::new(user_repo, meta, email)?;
+    User::new(user_repo, meta, email, password)?;
     Ok(())
 }
 

@@ -65,7 +65,8 @@ impl UserService for UserServiceImplementation {
 
         if let Err(err) = super::application::user_signup(&self.user_repo,
                                                           &self.meta_repo,
-                                                          &msg_ref.email) {
+                                                          &msg_ref.email,
+                                                          &msg_ref.pwd) {
 
             return Err(Status::aborted(err.to_string()));
         }
@@ -110,6 +111,7 @@ impl UserService for UserServiceImplementation {
 struct PostgresUser {
     pub id: i32,
     pub email: String,
+    pub password: String,
     pub secret_id: Option<String>,
     pub meta_id: i32,
 }
@@ -119,6 +121,7 @@ struct PostgresUser {
 #[table_name = "users"]
 struct NewPostgresUser<'a> {
     pub email: &'a str,
+    pub password: &'a str,
     pub secret_id: Option<&'a str>,
     pub meta_id: i32,
 }
@@ -163,6 +166,7 @@ impl UserRepository for &PostgresUserRepository {
         Ok(User{
             id: results[0].id,
             email: results[0].email.clone(),
+            password: results[0].password.clone(),
             secret: secret_opt,
             meta: meta,
         })
@@ -172,6 +176,7 @@ impl UserRepository for &PostgresUserRepository {
         if user.id == 0 { // create user
             let new_user = NewPostgresUser {
                 email: &user.email,
+                password: &user.password,
                 secret_id: if let Some(secret) = &user.secret {Some(&secret.id)} else {None},
                 meta_id: user.meta.id,
             };
@@ -190,6 +195,7 @@ impl UserRepository for &PostgresUserRepository {
             let pg_user = PostgresUser {
                 id: user.id,
                 email: user.email.clone(),
+                password: user.password.clone(),
                 secret_id: if let Some(secret) = &user.secret {Some(secret.id.clone())} else {None},
                 meta_id: user.meta.id,
             };

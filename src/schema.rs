@@ -19,6 +19,7 @@ table! {
     users (id) {
         id -> Int4,
         email -> Varchar,
+        password -> Varchar,
         secret_id -> Nullable<Varchar>,
         meta_id -> Int4,
     }

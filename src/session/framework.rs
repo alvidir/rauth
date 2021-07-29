@@ -1,6 +1,6 @@
 use std::error::Error;
 use std::sync::{Arc, RwLock};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use tonic::{Request, Response, Status};
 use crate::user::framework::PostgresUserRepository;
 use crate::user::domain::UserRepository;
@@ -73,6 +73,7 @@ impl SessionService for SessionServiceImplementation {
                                                 &self.app_repo,
                                                 &self.dir_repo,
                                                 &msg_ref.ident,
+                                                &msg_ref.pwd,
                                                 &msg_ref.app) {
                                                     
             Err(err) => Err(Status::aborted(err.to_string())),
@@ -93,7 +94,7 @@ impl SessionService for SessionServiceImplementation {
 
 pub struct InMemorySessionRepository {
     all_instances: RwLock<HashMap<String, Arc<RwLock<Session>>>>,
-    group_by_app: RwLock<HashMap<String, Arc<RwLock<Vec<String>>>>>,
+    group_by_app: RwLock<HashMap<String, Arc<RwLock<HashSet<String>>>>>,
     dir_repo: &'static MongoDirectoryRepository,
 }
 
@@ -123,7 +124,9 @@ impl InMemorySessionRepository {
     }
 
     fn create_group(&self, url: &str, sid: &str) -> Result<(), Box<dyn Error>> {
-        let sids = vec!(sid.to_string());
+        let mut sids = HashSet::new();
+        sids.insert(sid.to_string());
+
         let mu = RwLock::new(sids);
         let arc = Arc::new(mu);
 
@@ -216,7 +219,7 @@ impl SessionRepository for &InMemorySessionRepository {
 }
 
 impl GroupByAppRepository for &InMemorySessionRepository {
-    fn get(&self, url: &str) -> Result<Arc<RwLock<Vec<String>>>, Box<dyn Error>> {
+    fn get(&self, url: &str) -> Result<Arc<RwLock<HashSet<String>>>, Box<dyn Error>> {
         let group = self.group_by_app.read().unwrap();
         if let Some(sids) = group.get(url){
             return Ok(Arc::clone(sids));
@@ -231,7 +234,7 @@ impl GroupByAppRepository for &InMemorySessionRepository {
             if let Some(sids_arc) = group.get(url){
                 let mut sids = sids_arc.write().unwrap();
                 if let None = sids.iter().position(|item| item == sid) {
-                    sids.push(sid.to_string());
+                    sids.insert(sid.to_string());
                 }
 
                 false
@@ -252,9 +255,7 @@ impl GroupByAppRepository for &InMemorySessionRepository {
             let group = self.group_by_app.read().unwrap();
             if let Some(sids_arc) = group.get(url){
                 let mut sids = sids_arc.write().unwrap();
-                if let Some(index) = sids.iter().position(|item| item == sid) {
-                    sids.remove(index);
-                }
+                sids.remove(sid);
 
                 sids.len() == 0
             } else {

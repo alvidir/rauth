@@ -5,13 +5,15 @@ import "google/protobuf/empty.proto";
 
 // SignupRequest description
 message SignupRequest {
-  string email = 1; // the user email
+  string email = 1;
+  string pwd = 2; // hash of the password
 }
 
 // DeleteRequest description
 message DeleteRequest {
-  string ident = 1;   // the user name or email
-  string pwd = 2;     // the password or the signed public-key
+  string ident = 1; // the user's email
+  string pwd = 2; // hash of the password
+  string totp = 3; // optional time-based one time password 
 }
 
 service UserService {
