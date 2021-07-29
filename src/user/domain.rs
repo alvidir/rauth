@@ -14,6 +14,7 @@ pub struct User {
     pub id: i32,
     pub email: String, // hash of the email
     pub password: String,
+    pub verified: bool,
     pub secret: Option<Secret>,
     pub meta: Metadata,
 }
@@ -31,6 +32,7 @@ impl User {
             id: 0,
             email: email.to_string(),
             password: password.to_string(),
+            verified: false,
             secret: None,
             meta: meta,
         };
@@ -39,11 +41,11 @@ impl User {
         Ok(user)
     }
 
-    pub fn match_password(&self, password: &str) -> Result<(), Box<dyn Error>> {
-        if password != self.password {
-            return Err("wrong password".into());
-        }
+    pub fn is_verified(&self) -> bool {
+        self.verified
+    }
 
-        Ok(())
+    pub fn match_password(&self, password: &str) -> bool {
+        password != self.password
     }
 }

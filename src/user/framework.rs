@@ -112,6 +112,7 @@ struct PostgresUser {
     pub id: i32,
     pub email: String,
     pub password: String,
+    pub verified: bool,
     pub secret_id: Option<String>,
     pub meta_id: i32,
 }
@@ -122,6 +123,7 @@ struct PostgresUser {
 struct NewPostgresUser<'a> {
     pub email: &'a str,
     pub password: &'a str,
+    pub verified: bool,
     pub secret_id: Option<&'a str>,
     pub meta_id: i32,
 }
@@ -167,6 +169,7 @@ impl UserRepository for &PostgresUserRepository {
             id: results[0].id,
             email: results[0].email.clone(),
             password: results[0].password.clone(),
+            verified: results[0].verified,
             secret: secret_opt,
             meta: meta,
         })
@@ -177,6 +180,7 @@ impl UserRepository for &PostgresUserRepository {
             let new_user = NewPostgresUser {
                 email: &user.email,
                 password: &user.password,
+                verified: user.verified,
                 secret_id: if let Some(secret) = &user.secret {Some(&secret.id)} else {None},
                 meta_id: user.meta.id,
             };
@@ -196,6 +200,7 @@ impl UserRepository for &PostgresUserRepository {
                 id: user.id,
                 email: user.email.clone(),
                 password: user.password.clone(),
+                verified: user.verified,
                 secret_id: if let Some(secret) = &user.secret {Some(secret.id.clone())} else {None},
                 meta_id: user.meta.id,
             };

@@ -30,13 +30,17 @@ pub fn session_login(sess_repo: &dyn SuperSessionRepository,
                      pwd: &str,
                      app: &str) -> Result<String, Box<dyn Error>> {
     
-    println!("Got login request from user {} ", email);
+    println!("got login request from user {} ", email);
 
     let sess_arc = match sess_repo.find_by_email(email) {
         Ok(sess_arc) => sess_arc,
         Err(_) => {
             let user = user_repo.find(email)?;
-            user.match_password(pwd)?;
+            if !user.match_password(pwd) {
+                return Err("wrong password".into());
+            } else if !user.is_verified() {
+                return Err("user not verified".into());
+            }
 
             let timeout =  Duration::from_secs(constants::TOKEN_TIMEOUT);
             Session::new(sess_repo, user, timeout)?
