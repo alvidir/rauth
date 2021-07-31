@@ -51,7 +51,12 @@ pub fn session_login(sess_repo: &dyn SuperSessionRepository,
         let app = app_repo.find(app)?;
         let token: String;
         
-        let mut sess = sess_arc.write().unwrap();
+        let sess_wr = sess_arc.write();
+        if let Err(err) = &sess_wr {
+            error!("write locking for session of {} has failed: {}", email, err);
+        }
+
+        let mut sess = sess_wr.unwrap(); // this line would panic if the lock was poisoned
         let claim = Token::new(&sess, &app, sess.deadline);
         token = security::generate_jwt(claim)?;
 

@@ -84,7 +84,7 @@ impl UserService for UserServiceImplementation {
             return Err(Status::not_found(err.to_string()));
         } 
 
-        let user = user_search.unwrap();
+        let user = user_search.unwrap(); // this line will not panic due the previous check of Err
         if let Some(secret) = &user.secret {
             // the provided password must be the same as the TOTP obtained from the secret
             let key = secret.get_data();

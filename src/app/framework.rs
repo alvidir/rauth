@@ -78,7 +78,7 @@ impl AppService for AppServiceImplementation {
             return Err(Status::not_found(err.to_string()));
         } 
 
-        let app = app_search.unwrap();
+        let app = app_search.unwrap(); // this line will not panic due the previous check of Err
         let pem = app.secret.get_data();
         
         let mut data: Vec<&[u8]> = Vec::new();

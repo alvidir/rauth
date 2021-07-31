@@ -18,3 +18,4 @@ pub const ENV_SECRET_PWD: &str = "SECRET_PWD";
  
 pub const ERR_NOT_FOUND: &str = "not found";
 pub const ERR_ALREADY_EXISTS: &str = "already exists";
+pub const ERR_POISONED: &str = "the lock or mutex got poisoned due to a thread's panic while holding it";

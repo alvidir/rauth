@@ -1,5 +1,5 @@
 use std::error::Error;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, RwLock, RwLockWriteGuard, RwLockReadGuard};
 use std::collections::{HashMap, HashSet};
 use tonic::{Request, Response, Status};
 use crate::user::framework::PostgresUserRepository;
@@ -9,7 +9,7 @@ use crate::directory::framework::MongoDirectoryRepository;
 use crate::directory::domain::DirectoryRepository;
 use crate::constants::TOKEN_LEN;
 use crate::security;
-use crate::constants::{ERR_NOT_FOUND, ERR_ALREADY_EXISTS};
+use crate::constants::{ERR_NOT_FOUND, ERR_ALREADY_EXISTS, ERR_POISONED};
 use super::domain::{Session, SessionRepository};
 use super::application::GroupByAppRepository;
 
@@ -131,6 +131,76 @@ impl InMemorySessionRepository {
         false
     }
 
+    fn get_writable_session(sess_arc: &Arc<RwLock<Session>>) -> Result<RwLockWriteGuard<Session>, Box<dyn Error>> {
+        let sess_wr = sess_arc.write();
+        if let Err(err) = sess_wr {
+            error!("read-write lock for session got poisoned: {}", err);
+            return Err(ERR_POISONED.into());
+        }
+
+        Ok(sess_wr.unwrap()) // this line will not panic due the previous check of Err
+    }
+
+    fn get_readable_sids(sids_arc: &Arc<RwLock<HashSet<String>>>) -> Result<RwLockReadGuard<HashSet<String>>, Box<dyn Error>> {
+        let sids_rd = sids_arc.read();
+        if let Err(err) = sids_rd {
+            error!("read-only lock for set of sessions IDs got poisoned: {}", err);
+            return Err(ERR_POISONED.into());
+        }
+
+        Ok(sids_rd.unwrap()) // this line will not panic due the previous check of Err
+    }
+
+    fn get_writable_sids(sids_arc: &Arc<RwLock<HashSet<String>>>) -> Result<RwLockWriteGuard<HashSet<String>>, Box<dyn Error>> {
+        let sids_wr = sids_arc.write();
+        if let Err(err) = sids_wr {
+            error!("read-write lock for set of sessions IDs got poisoned: {}", err);
+            return Err(ERR_POISONED.into());
+        }
+
+        Ok(sids_wr.unwrap()) // this line will not panic due the previous check of Err
+    }
+
+    fn get_readable_repo(&self) -> Result<RwLockReadGuard<HashMap<String, Arc<RwLock<Session>>>>, Box<dyn Error>> {
+        let repo_rd = self.all_instances.read();
+        if let Err(err) = &repo_rd {
+            error!("read-only lock for all_instances from session's repo got poisoned: {}", err);
+            return Err(ERR_POISONED.into());
+        }
+
+        Ok(repo_rd.unwrap()) // this line will not panic due the previous check of Err
+    }
+
+    fn get_writable_repo(&self) -> Result<RwLockWriteGuard<HashMap<String, Arc<RwLock<Session>>>>, Box<dyn Error>> {
+        let repo_wr = self.all_instances.write();
+        if let Err(err) = &repo_wr {
+            error!("read-write lock for all_instances from session's repo got poisoned: {}", err);
+            return Err(ERR_POISONED.into());
+        }
+
+        Ok(repo_wr.unwrap()) // this line will not panic due the previous check of Err
+    }
+
+    fn get_readable_group(&self) -> Result<RwLockReadGuard<HashMap<String, Arc<RwLock<HashSet<String>>>>>, Box<dyn Error>>{
+        let group_rd = self.group_by_app.read();
+        if let Err(err) = &group_rd {
+            error!("read-only lock for group_by_app from session's repo got poisoned: {}", err);
+            return Err(ERR_POISONED.into());
+        }
+
+        Ok(group_rd.unwrap()) // this line will not panic due the previous check of Err
+    }
+
+    fn get_writable_group(&self) -> Result<RwLockWriteGuard<HashMap<String, Arc<RwLock<HashSet<String>>>>>, Box<dyn Error>>{
+        let group_wr = self.group_by_app.write();
+        if let Err(err) = &group_wr {
+            error!("read-write lock for group_by_app from session's repo got poisoned: {}", err);
+            return Err(ERR_POISONED.into());
+        }
+
+        Ok(group_wr.unwrap()) // this line will not panic due the previous check of Err
+    }
+
     fn create_group(&self, url: &str, sid: &str) -> Result<(), Box<dyn Error>> {
         let mut sids = HashSet::new();
         sids.insert(sid.to_string());
@@ -138,16 +208,16 @@ impl InMemorySessionRepository {
         let mu = RwLock::new(sids);
         let arc = Arc::new(mu);
 
-        let mut group = self.group_by_app.write().unwrap();
+        let mut group = self.get_writable_group()?;
         group.insert(url.to_string(), arc);
         Ok(())
     }
 
     fn destroy_group(&self, url: &str, force: bool) -> Result<(), Box<dyn Error>> {
-        let mut group = self.group_by_app.write().unwrap();
+        let mut group = self.get_writable_group()?;
         let empty = {
             if let Some(sids_arc) = group.get(url){
-                let sids = sids_arc.read().unwrap();
+                let sids = InMemorySessionRepository::get_readable_sids(sids_arc)?;
                 sids.len() == 0
             } else {
                 false
@@ -164,7 +234,7 @@ impl InMemorySessionRepository {
 
 impl SessionRepository for &InMemorySessionRepository {
     fn find(&self, token: &str) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
-        let repo = self.all_instances.read().unwrap();
+        let repo = self.get_readable_repo()?;
         if let Some(sess) = repo.get(token) {
             return Ok(Arc::clone(sess));
         }
@@ -173,7 +243,7 @@ impl SessionRepository for &InMemorySessionRepository {
     }
 
     fn find_by_email(&self, email: &str) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
-        let repo = self.all_instances.read().unwrap();
+        let repo = self.get_readable_repo()?;
         if let Some((_, sess)) = repo.iter().find(|(_, sess)| InMemorySessionRepository::session_has_email(sess, email)) {
             return Ok(Arc::clone(sess));
         }
@@ -182,7 +252,7 @@ impl SessionRepository for &InMemorySessionRepository {
     }
 
     fn save(&self, mut session: Session) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
-        let mut repo = self.all_instances.write().unwrap();
+        let mut repo = self.get_writable_repo()?;
         if let Some(_) = repo.get(&session.sid) {
             return Err(ERR_ALREADY_EXISTS.into());
         }
@@ -204,20 +274,20 @@ impl SessionRepository for &InMemorySessionRepository {
         let arc = Arc::new(mu);
 
         repo.insert(token.to_string(), arc);
-        let sess = repo.get(&token).unwrap();
+        let sess = repo.get(&token).unwrap(); // this line will not panic due to the previous insert
         Ok(Arc::clone(sess))
     }
 
     fn delete(&self, session: &Session) -> Result<(), Box<dyn Error>> {
-        let mut repo = self.all_instances.write().unwrap();
+        let mut repo = self.get_writable_repo()?;
         if let Some(sess_arc) = repo.remove(&session.sid) {
-            let mut sess = sess_arc.write().unwrap();
+            let mut sess = InMemorySessionRepository::get_writable_session(&sess_arc)?;
             let _ = sess.apps.iter_mut().map(|(url, dir)| {
                 // foreach application the session was logged in
                 if let Err(err) = self.dir_repo.save(dir) {
-                    info!("got error while saving directory {} : {}", dir.id, err);
+                    error!("got error while saving directory {} : {}", dir.id, err);
                 } else if let Err(err) = self.remove(url, &session.sid) {
-                    info!("got error while removing session from group : {}", err);
+                    error!("got error while removing session {} from group {}: {}", session.sid, url, err);
                 }
             });
         }
@@ -228,7 +298,7 @@ impl SessionRepository for &InMemorySessionRepository {
 
 impl GroupByAppRepository for &InMemorySessionRepository {
     fn get(&self, url: &str) -> Result<Arc<RwLock<HashSet<String>>>, Box<dyn Error>> {
-        let group = self.group_by_app.read().unwrap();
+        let group = self.get_readable_group()?;
         if let Some(sids) = group.get(url){
             return Ok(Arc::clone(sids));
         }
@@ -238,9 +308,9 @@ impl GroupByAppRepository for &InMemorySessionRepository {
 
     fn store(&self, url: &str, sid: &str) -> Result<(), Box<dyn Error>> {
         let create = {
-            let group = self.group_by_app.read().unwrap();
+            let group = self.get_readable_group()?;
             if let Some(sids_arc) = group.get(url){
-                let mut sids = sids_arc.write().unwrap();
+                let mut sids = InMemorySessionRepository::get_writable_sids(sids_arc)?;
                 if let None = sids.iter().position(|item| item == sid) {
                     sids.insert(sid.to_string());
                 }
@@ -260,9 +330,9 @@ impl GroupByAppRepository for &InMemorySessionRepository {
 
     fn remove(&self, url: &str, sid: &str) -> Result<(), Box<dyn Error>> {
         let destroy = { // read lock is released at the end of this block
-            let group = self.group_by_app.read().unwrap();
+            let group = self.get_readable_group()?;
             if let Some(sids_arc) = group.get(url){
-                let mut sids = sids_arc.write().unwrap();
+                let mut sids = InMemorySessionRepository::get_writable_sids(sids_arc)?;
                 sids.remove(sid);
 
                 sids.len() == 0
