@@ -57,7 +57,7 @@ impl MongoDirectoryRepository {
 
 impl DirectoryRepository for &MongoDirectoryRepository {
     fn find(&self, target: &str) -> Result<Directory, Box<dyn Error>>  {
-        let loaded_dir_opt = mongo::open_stream(COLLECTION_NAME)
+        let loaded_dir_opt = mongo::get_connection(COLLECTION_NAME)
             .find_one(Some(doc! { "_id":  target }), None)?;
 
         if let Some(loaded_dir) = loaded_dir_opt {
@@ -68,7 +68,7 @@ impl DirectoryRepository for &MongoDirectoryRepository {
     }
 
     fn find_by_user_and_app(&self, user_id: i32, app_id: i32) -> Result<Directory, Box<dyn Error>> {
-        let loaded_dir_opt = mongo::open_stream(COLLECTION_NAME)
+        let loaded_dir_opt = mongo::get_connection(COLLECTION_NAME)
             .find_one(Some(doc! { "user":  user_id, "app": app_id }), None)?;
 
         if let Some(loaded_dir) = loaded_dir_opt {
@@ -106,11 +106,11 @@ impl DirectoryRepository for &MongoDirectoryRepository {
         }
 
         if let Some(target) = mongo_dir.id {         
-            mongo::open_stream(COLLECTION_NAME)
+            mongo::get_connection(COLLECTION_NAME)
                 .update_one(doc!{"_id": target.clone()}, document.to_owned(), None)?;
             
         } else {
-            let result = mongo::open_stream(COLLECTION_NAME)
+            let result = mongo::get_connection(COLLECTION_NAME)
                 .insert_one(document.to_owned(), None)?;
 
             let dir_id_opt = result
@@ -129,7 +129,7 @@ impl DirectoryRepository for &MongoDirectoryRepository {
 
     fn delete(&self, dir: &Directory) -> Result<(), Box<dyn Error>> {
         let bson_id = ObjectId::with_string(&dir.id)?;
-        mongo::open_stream(COLLECTION_NAME)
+        mongo::get_connection(COLLECTION_NAME)
             .delete_one(doc!{"_id": bson_id}, None)?;
 
         Ok(())

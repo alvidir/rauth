@@ -52,7 +52,7 @@ impl UserServiceImplementation {
         const HTML: &str = "<h1>Click here in order to verificate your email</h1>";
         
         if let Err(err) = smtp::send_email(to, SUBJECT, HTML) {
-            println!("got error {}\nwhile sending verification email to {}", err, to);
+            info!("got error {}\nwhile sending verification email to {}", err, to);
         }
 
     }
@@ -148,7 +148,7 @@ impl UserRepository for &PostgresUserRepository {
         use crate::schema::users::dsl::*;
         
         let results = { // block is required because of connection release
-            let connection = open_stream().get()?;
+            let connection = get_connection().get()?;
             users.filter(email.eq(target))
                  .load::<PostgresUser>(&connection)?
         };
@@ -186,7 +186,7 @@ impl UserRepository for &PostgresUserRepository {
             };
     
             let result = { // block is required because of connection release
-                let connection = open_stream().get()?;
+                let connection = get_connection().get()?;
                 diesel::insert_into(users::table)
                     .values(&new_user)
                     .get_result::<PostgresUser>(&connection)?
@@ -206,7 +206,7 @@ impl UserRepository for &PostgresUserRepository {
             };
             
             { // block is required because of connection release            
-                let connection = open_stream().get()?;
+                let connection = get_connection().get()?;
                 diesel::update(users)
                     .set(&pg_user)
                     .execute(&connection)?;
@@ -218,7 +218,7 @@ impl UserRepository for &PostgresUserRepository {
 
     fn delete(&self, user: &User) -> Result<(), Box<dyn Error>> {
         { // block is required because of connection release
-            let connection = open_stream().get()?;
+            let connection = get_connection().get()?;
             let _result = diesel::delete(
                 users.filter(
                     id.eq(user.id)

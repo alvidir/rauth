@@ -6,6 +6,8 @@ extern crate lazy_static;
 extern crate serde;
 #[macro_use(/*bson,*/ doc)]
 extern crate bson;
+#[macro_use]
+extern crate log;
 
 use dotenv;
 use std::env;
@@ -55,7 +57,7 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
     let session_server = session::framework::SessionServiceImplementation::new(&SESSION_REPO, &USER_REPO, &APP_REPO, &DIR_REPO);
  
     let addr = address.parse().unwrap();
-    println!("server listening on {}", addr);
+    info!("server listening on {}", addr);
  
     Server::builder()
         .add_service(UserServiceServer::new(user_server))
@@ -69,13 +71,16 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    // configuring logs
+    env_logger::init();
+
+    // seting up environment variables
     if let Err(_) = dotenv::dotenv() {
-        // seting up environment variables (if there is no .env: must NOT fail)
-        println!("no dotenv file has been found");
+        warn!("no dotenv file has been found");
     }
 
-    postgres::must_connect(); // checking postgres connectivity
-    mongo::must_connect(); // checking mongodb connectivity
+    postgres::get_connection(); // checking postgres connectivity
+    mongo::get_connection("secrets"); // checking mongodb connectivity
 
     let port = env::var(constants::ENV_SERVICE_PORT)
         .expect("service port must be set");

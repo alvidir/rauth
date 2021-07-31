@@ -29,7 +29,7 @@ pub struct MongoSecretRepository {}
 
 impl SecretRepository for &MongoSecretRepository {
     fn find(&self, target: &str) -> Result<Secret, Box<dyn Error>>  {
-        let loaded_secret_opt = mongo::open_stream(COLLECTION_NAME)
+        let loaded_secret_opt = mongo::get_connection(COLLECTION_NAME)
             .find_one(Some(doc! { "_id":  target }), None)?;
 
         if let Some(loaded_secret) = loaded_secret_opt {
@@ -86,11 +86,11 @@ impl SecretRepository for &MongoSecretRepository {
         }
 
         if let Some(target) = mongo_secret.id {         
-            mongo::open_stream(COLLECTION_NAME)
+            mongo::get_connection(COLLECTION_NAME)
                 .update_one(doc!{"_id": target.clone()}, document.to_owned(), None)?;
             
         } else {
-            let result = mongo::open_stream(COLLECTION_NAME)
+            let result = mongo::get_connection(COLLECTION_NAME)
                 .insert_one(document.to_owned(), None)?;
 
             let secret_id_opt = result
@@ -109,7 +109,7 @@ impl SecretRepository for &MongoSecretRepository {
 
     fn delete(&self, secret: &Secret) -> Result<(), Box<dyn Error>> {
         let bson_id = ObjectId::with_string(&secret.id)?;
-        mongo::open_stream(COLLECTION_NAME)
+        mongo::get_connection(COLLECTION_NAME)
             .delete_one(doc!{"_id": bson_id}, None)?;
 
         Ok(())

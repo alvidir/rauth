@@ -9,7 +9,7 @@ pub fn app_register(app_repo: &dyn AppRepository,
                     pem: &[u8],
                     url: &str) -> Result<(), Box<dyn Error>> {
 
-    println!("got a register request for application {} ", url);
+    info!("got a register request for application {} ", url);
     
     let meta = Metadata::new(meta_repo)?;
     let secret = Secret::new(secret_repo, pem)?;
@@ -20,7 +20,7 @@ pub fn app_register(app_repo: &dyn AppRepository,
 pub fn app_delete(app_repo: Box<dyn AppRepository>,
                   url: &str) -> Result<(), Box<dyn Error>> {
     
-    println!("got a deletion request from application {} ", url);
+    info!("got a deletion request from application {} ", url);
     
     let app = app_repo.find(url)?;
     app_repo.delete(&app)?;

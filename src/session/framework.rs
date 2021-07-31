@@ -215,9 +215,9 @@ impl SessionRepository for &InMemorySessionRepository {
             let _ = sess.apps.iter_mut().map(|(url, dir)| {
                 // foreach application the session was logged in
                 if let Err(err) = self.dir_repo.save(dir) {
-                    println!("got error while saving directory {} : {}", dir.id, err);
+                    info!("got error while saving directory {} : {}", dir.id, err);
                 } else if let Err(err) = self.remove(url, &session.sid) {
-                    println!("got error while removing session from group : {}", err);
+                    info!("got error while removing session from group : {}", err);
                 }
             });
         }

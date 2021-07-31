@@ -33,7 +33,7 @@ pub struct PostgresMetadataRepository {}
 impl MetadataRepository for &PostgresMetadataRepository {
     fn find(&self, target: i32) -> Result<Metadata, Box<dyn Error>>  {       
         let results = { // block is required because of connection release
-            let connection = open_stream().get()?;
+            let connection = get_connection().get()?;
             metadata.filter(id.eq(target))
                     .load::<PostgresMetadata>(&connection)?
         };
@@ -57,7 +57,7 @@ impl MetadataRepository for &PostgresMetadataRepository {
             };
     
             let result = { // block is required because of connection release
-                let connection = open_stream().get()?;
+                let connection = get_connection().get()?;
                 diesel::insert_into(metadata::table)
                     .values(&new_meta)
                     .get_result::<PostgresMetadata>(&connection)?
@@ -74,7 +74,7 @@ impl MetadataRepository for &PostgresMetadataRepository {
             };
             
             { // block is required because of connection release            
-                let connection = open_stream().get()?;
+                let connection = get_connection().get()?;
                 diesel::update(metadata)
                     .set(&pg_meta)
                     .execute(&connection)?;
@@ -86,7 +86,7 @@ impl MetadataRepository for &PostgresMetadataRepository {
 
     fn delete(&self, meta: &Metadata) -> Result<(), Box<dyn Error>> {
         { // block is required because of connection release
-            let connection = open_stream().get()?;
+            let connection = get_connection().get()?;
             let _result = diesel::delete(
                 metadata.filter(
                     id.eq(meta.id)

@@ -30,7 +30,7 @@ pub fn session_login(sess_repo: &dyn SuperSessionRepository,
                      pwd: &str,
                      app: &str) -> Result<String, Box<dyn Error>> {
     
-    println!("got login request from user {} ", email);
+    info!("got login request from user {} ", email);
 
     let sess_arc = match sess_repo.find_by_email(email) {
         Ok(sess_arc) => sess_arc,
@@ -74,6 +74,6 @@ pub fn session_login(sess_repo: &dyn SuperSessionRepository,
 }
 
 pub fn _session_logout(cookie: &str) -> Result<(), Box<dyn Error>> {
-    println!("Got a logout request for cookie {} ", cookie);
+    info!("Got a logout request for cookie {} ", cookie);
     Err("Unimplemented".into())
 }

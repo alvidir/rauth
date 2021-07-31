@@ -43,18 +43,18 @@ services:
     #         - ingress
         
     ### BACKEND ###
-    oauth:
-        container_name: oauth-server
-        image: alvidir/oauth:0.2.0-server
-        restart: always
-        networks: 
-            - ingress
-            - database
-        depends_on: 
-            - postgres
-            - envoy
-        env_file:
-            - .env
+    # oauth:
+    #     container_name: oauth-server
+    #     image: alvidir/oauth:0.2.0-server
+    #     restart: always
+    #     networks: 
+    #         - ingress
+    #         - database
+    #     depends_on: 
+    #         - postgres
+    #         - envoy
+    #     env_file:
+    #         - .env
 
 networks:
     # Ingress network works as bridge between envoyproxy and the available services

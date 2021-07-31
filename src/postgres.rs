@@ -29,40 +29,25 @@ lazy_static! {
                 let sleep = Duration::from_secs(constants::CONNECTION_SLEEP);
 
                 let mut pool = PgPool::builder().max_size(POOL_SIZE).build(ConnectionManager::new(&postgres_url));
-                while let Err(err) = pool {
-                    println!("{}: {}", ERR_CONNECT, err);
+                while let Err(err) = &pool {
+                    warn!("{}: {}", ERR_CONNECT, err);
                     let lapse = SystemTime::now().duration_since(start).unwrap();
-                    if  lapse < timeout  {
-                        thread::sleep(sleep);
-                        pool = PgPool::builder().max_size(POOL_SIZE).build(ConnectionManager::new(&postgres_url));
-                    } else {
+                    if  lapse > timeout  {
+                        error!("{}: timeout exceeded", ERR_CONNECT);
                         panic!("{}", ERR_CONNECT);
                     }
+
+                    thread::sleep(sleep);
+                    pool = PgPool::builder().max_size(POOL_SIZE).build(ConnectionManager::new(&postgres_url));
                 }
 
+                info!("connection with postgres cluster established");
                 pool.unwrap()
             },
         }
     };
 }
 
-pub fn open_stream() -> &'static PgPool {
+pub fn get_connection() -> &'static PgPool {
     &STREAM.db_connection
-}
-
-pub fn must_connect() {
-    open_stream().get().expect(ERR_CONNECT);
-    //let start = SystemTime::now();
-    //let timeout = Duration::from_secs(constants::CONNECTION_TIMEOUT);
-    //let sleep = Duration::from_secs(constants::CONNECTION_SLEEP);
-    //
-    //while let Err(err) = open_stream().get() {
-    //    println!("{}: {}", ERR_CONNECT, err);
-    //    let lapse = start.duration_since(SystemTime::now()).unwrap();
-    //    if  lapse > timeout  {
-    //        panic!(ERR_CONNECT);
-    //    } else {
-    //        thread::sleep(sleep);
-    //    }
-    //}
 }

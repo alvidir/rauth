@@ -8,7 +8,7 @@ pub fn user_signup<'a>(user_repo: &dyn UserRepository,
                        email: &'a str,
                        password: &'a str) -> Result<(), Box<dyn Error>> {
     
-    println!("got signup request from user {} ", email);
+    info!("got signup request from user {} ", email);
     
     let meta = Metadata::new(meta_repo)?;
     User::new(user_repo, meta, email, password)?;
@@ -19,7 +19,7 @@ pub fn user_delete<'a>(user_repo: Box<dyn UserRepository>,
                        sess_repo: Box<dyn SessionRepository>,
                        email: &'a str) -> Result<(), Box<dyn Error>> {
     
-    println!("got a deletion request from user {} ", email);
+    info!("got a deletion request from user {} ", email);
     
     let user = user_repo.find(email)?;
     

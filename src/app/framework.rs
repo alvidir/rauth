@@ -138,7 +138,7 @@ impl PostgresAppRepository {
 impl AppRepository for &PostgresAppRepository {
     fn find(&self, target: &str) -> Result<App, Box<dyn Error>>  {
         let results = { // block is required because of connection release
-            let connection = open_stream().get()?;
+            let connection = get_connection().get()?;
             apps.filter(url.eq(target))
                  .load::<PostgresApp>(&connection)?
         };
@@ -169,7 +169,7 @@ impl AppRepository for &PostgresAppRepository {
             };
     
             let result = { // block is required because of connection release
-                let connection = open_stream().get()?;
+                let connection = get_connection().get()?;
                 diesel::insert_into(apps::table)
                     .values(&new_app)
                     .get_result::<PostgresApp>(&connection)?
@@ -187,7 +187,7 @@ impl AppRepository for &PostgresAppRepository {
             };
             
             { // block is required because of connection release            
-                let connection = open_stream().get()?;
+                let connection = get_connection().get()?;
                 diesel::update(apps)
                     .set(&pg_app)
                     .execute(&connection)?;
@@ -199,7 +199,7 @@ impl AppRepository for &PostgresAppRepository {
 
     fn delete(&self, app: &App) -> Result<(), Box<dyn Error>> {
         { // block is required because of connection release
-            let connection = open_stream().get()?;
+            let connection = get_connection().get()?;
             let _result = diesel::delete(
                 apps.filter(
                     id.eq(app.id)

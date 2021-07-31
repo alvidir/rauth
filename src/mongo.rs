@@ -1,3 +1,5 @@
+use std::time::{SystemTime, Duration};
+use std::thread;
 use mongodb::{
     bson::doc,
     sync::{Client, Collection, Database},
@@ -17,22 +19,34 @@ struct Stream {
 lazy_static! {
     static ref STREAM: Stream = {
         Stream {
-            db_connection: Client::with_uri_str(&env::var(constants::ENV_MONGO_DSN).expect(ERR_NO_DSN))
-                .expect(ERR_CONNECT)
-                .database(&env::var(constants::ENV_MONGO_DB).expect(ERR_NO_DB_NAME)),
+            db_connection: {
+                let mongo_dsn = env::var(constants::ENV_MONGO_DSN).expect(ERR_NO_DSN);
+                let mongo_db = env::var(constants::ENV_MONGO_DB).expect(ERR_NO_DB_NAME);
+                
+                let start = SystemTime::now();
+                let timeout = Duration::from_secs(constants::CONNECTION_TIMEOUT);
+                let sleep = Duration::from_secs(constants::CONNECTION_SLEEP);
+
+                let client = Client::with_uri_str(&mongo_dsn);
+                while let Err(err) = &client {
+                    warn!("{}: {}", ERR_CONNECT, err);
+                    let lapse = SystemTime::now().duration_since(start).unwrap();
+                    if  lapse > timeout  {
+                        error!("{}: timeout exceeded", ERR_CONNECT);
+                        panic!("{}", ERR_CONNECT);
+                    }
+
+                    thread::sleep(sleep);
+                }
+
+                info!("connection with mongodb cluster established");
+                client.unwrap().database(&mongo_db)
+            },
         }
     };
 }
 
-pub fn open_stream(name: &str) -> Collection {
+pub fn get_connection(name: &str) -> Collection {
     // Get a handle to a database.
     STREAM.db_connection.collection(name)
-}
-
-pub fn must_connect() {
-    Client::with_uri_str(&env::var(constants::ENV_MONGO_DSN).expect(ERR_NO_DSN))
-        .expect(ERR_CONNECT)
-        .database(&env::var(constants::ENV_MONGO_DB).expect(ERR_NO_DB_NAME))
-        .run_command(doc! {"ping": 1}, None)
-        .expect(ERR_CONNECT);
 }

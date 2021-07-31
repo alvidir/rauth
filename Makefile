@@ -28,7 +28,7 @@ undeploy:
 reset: undeploy deploy migration
 
 run:
-	cargo run
+	RUST_LOG=INFO cargo run
 
 checks:
 	curl -v localhost:5050
