@@ -13,7 +13,7 @@ use crate::metadata::domain::MetadataRepository;
 use crate::session::framework::InMemorySessionRepository;
 use crate::smtp;
 use crate::security;
-
+use crate::constants::ERR_NOT_FOUND;
 use super::domain::{User, UserRepository};
 
 // Import the generated rust code into module
@@ -79,22 +79,32 @@ impl UserService for UserServiceImplementation {
     async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<()>, Status> {
         let msg_ref = request.into_inner();
 
-        let user_search = self.user_repo.find(&msg_ref.ident);
-        if let Err(err) = user_search {
-            return Err(Status::not_found(err.to_string()));
-        } 
+        match self.user_repo.find(&msg_ref.ident) {
+            Err(_) => {
+                // in order to give no clue about if the error was about the email or password
+                // both cases must provide the same kind of error
+                return Err(Status::not_found(ERR_NOT_FOUND))
+            },
 
-        let user = user_search.unwrap(); // this line will not panic due the previous check of Err
-        if let Some(secret) = &user.secret {
-            // the provided password must be the same as the TOTP obtained from the secret
-            let key = secret.get_data();
-            if let Err(err) = security::verify_totp_password(key, &msg_ref.pwd) {
-                return Err(Status::unauthenticated(err.to_string()));
+            Ok(user) => {
+                if !user.match_password(&msg_ref.pwd) {
+                    // same error as if the user was not found
+                    return Err(Status::not_found(ERR_NOT_FOUND));
+                }
+
+                // if, and only if, the user has activated the 2fa
+                if let Some(secret) = user.secret {
+                    let data = secret.get_data();
+                    if let Err(err) = security::verify_totp_password(data, &msg_ref.pwd) {
+                        // in order to make the application know a valid TOTP is required
+                        return Err(Status::unauthenticated(err.to_string()));
+                    }
+                }
             }
-        }
+        };
 
-        match super::application::user_delete(Box::new(self.user_repo),
-                                              Box::new(self.sess_repo),
+        match super::application::user_delete(&self.user_repo,
+                                              &self.sess_repo,
                                               &msg_ref.ident) {
 
             Err(err) => Err(Status::aborted(err.to_string())),

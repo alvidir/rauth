@@ -78,7 +78,7 @@ pub fn session_login(sess_repo: &dyn SuperSessionRepository,
     token
 }
 
-pub fn _session_logout(cookie: &str) -> Result<(), Box<dyn Error>> {
-    info!("Got a logout request for cookie {} ", cookie);
+pub fn session_logout(token: &str) -> Result<(), Box<dyn Error>> {
+    info!("Got a logout request for cookie {} ", token);
     Err("Unimplemented".into())
 }

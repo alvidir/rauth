@@ -15,8 +15,8 @@ pub fn user_signup<'a>(user_repo: &dyn UserRepository,
     Ok(())
 }
 
-pub fn user_delete<'a>(user_repo: Box<dyn UserRepository>,
-                       sess_repo: Box<dyn SessionRepository>,
+pub fn user_delete<'a>(user_repo: &dyn UserRepository,
+                       sess_repo: &dyn SessionRepository,
                        email: &'a str) -> Result<(), Box<dyn Error>> {
     
     info!("got a deletion request from user {} ", email);

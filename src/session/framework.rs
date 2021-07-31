@@ -94,8 +94,21 @@ impl SessionService for SessionServiceImplementation {
     }
 
     async fn logout(&self, request: Request<()>) -> Result<Response<()>, Status> {
-        let _msg_ref = request.into_inner();
-        Err(Status::unimplemented(""))
+        let metadata = request.metadata();
+        if let None = metadata.get("token") {
+            return Err(Status::failed_precondition("token required"));
+        };
+
+        let token = match metadata.get("token").unwrap().to_str() { // this line will not fail due to the previous check of None 
+            Err(err) => return Err(Status::aborted(err.to_string())),
+            Ok(token) => token,
+        };
+
+        if let Err(err) = super::application::session_logout(token){               
+            return Err(Status::aborted(err.to_string()));
+        }
+
+        Ok(Response::new(()))
     }
 }
 
@@ -279,8 +292,12 @@ impl SessionRepository for &InMemorySessionRepository {
     }
 
     fn delete(&self, session: &Session) -> Result<(), Box<dyn Error>> {
-        let mut repo = self.get_writable_repo()?;
-        if let Some(sess_arc) = repo.remove(&session.sid) {
+        let repo = { // repo is released at the end of this block
+            let mut repo = self.get_writable_repo()?;
+            repo.remove(&session.sid)
+        };
+
+        if let Some(sess_arc) = repo {
             let mut sess = InMemorySessionRepository::get_writable_session(&sess_arc)?;
             let _ = sess.apps.iter_mut().map(|(url, dir)| {
                 // foreach application the session was logged in
