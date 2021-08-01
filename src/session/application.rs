@@ -58,7 +58,7 @@ pub fn session_login(sess_repo: &dyn SuperSessionRepository,
 
         let mut sess = sess_wr.unwrap(); // this line would panic if the lock was poisoned
         let claim = Token::new(&sess, &app, sess.deadline);
-        token = security::generate_jwt(claim)?;
+        token = security::encode_jwt(claim)?;
 
         if let None = sess.get_directory(&app.url) {
             if let Ok(dir) = dir_repo.find_by_user_and_app(sess.user.id, app.id) {
@@ -78,7 +78,30 @@ pub fn session_login(sess_repo: &dyn SuperSessionRepository,
     token
 }
 
-pub fn session_logout(token: &str) -> Result<(), Box<dyn Error>> {
-    info!("Got a logout request for cookie {} ", token);
-    Err("Unimplemented".into())
+pub fn session_logout(sess_repo: &dyn SuperSessionRepository,
+                      dir_repo: &dyn DirectoryRepository,
+                      token: &str) -> Result<(), Box<dyn Error>> {
+    info!("got a logout request for cookie {} ", token);
+    let claim = security::decode_jwt::<Token>(token)?;
+    
+    let sess_arc = sess_repo.find(&claim.sub)?;
+    let sess_wr = sess_arc.write();
+
+    if let Err(err) = &sess_wr {
+        error!("write locking for session {} has failed: {}", claim.sub, err);
+    }
+
+    let mut sess = sess_wr.unwrap(); // this line would panic if the lock was poisoned
+    let sid = &sess.sid.clone(); // required because of mutability issues in the loop
+
+     // foreach application the session was logged in
+    for (url, dir) in sess.apps.iter_mut() {
+        if let Err(err) = dir_repo.save(dir) {
+            error!("got error while saving directory {} : {}", dir.id, err);
+        } else if let Err(err) = sess_repo.remove(&url, sid) {
+            error!("got error while removing session {} from group {}: {}", sid, &url, err);
+        }
+    };
+
+    sess_repo.delete(&sess)
 }

@@ -1,29 +1,35 @@
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 use std::error::Error;
 use std::env;
 use openssl::sign::{Signer, Verifier};
-use openssl::pkey::PKey;
+use openssl::pkey::{PKey};
 use openssl::ec::{EcKey,EcGroup};
 use openssl::nid::Nid;
-use openssl::symm::Cipher;
 use openssl::hash::MessageDigest;
 use libreauth::oath::{TOTPBuilder};
 use libreauth::hash::HashFunction::Sha256;
-use jsonwebtoken::{Header, EncodingKey};
+use jsonwebtoken::{Header, EncodingKey, DecodingKey, Validation};
 use rand::Rng;
 
 use crate::constants;
 
 lazy_static! {
     static ref PRIVATE_KEY: Vec<u8> = {
-        let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
-        let key = EcKey::generate(&group).unwrap();
-        
-        if let Ok(password) = env::var(constants::ENV_SECRET_PWD) {
-            key.private_key_to_pem_passphrase(Cipher::aes_128_cbc(), password.as_bytes()).unwrap()
-        } else {
-            key.private_key_to_pem().unwrap()
+        if let Ok(pem) = env::var(constants::ENV_SECRET_PEM) {
+            let private = match env::var(constants::ENV_SECRET_PWD) {
+                Ok(password) => EcKey::private_key_from_pem_passphrase(pem.as_bytes(), password.as_bytes()).unwrap(),
+                Err(_) => EcKey::private_key_from_pem(pem.as_bytes()).unwrap(),
+            };
+
+            info!("got a PEM-formatted private EcKey from environment configuration");
+            return private.private_key_to_pem().unwrap();
         }
+
+        warn!("no PEM-formatted private EcKey has been provided, generating one");
+        let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
+        let private = EcKey::generate(&group).unwrap();
+        private.private_key_to_pem().unwrap()
     };
 
     pub static ref PUBLIC_KEY: Vec<u8> = {
@@ -31,8 +37,14 @@ lazy_static! {
         let pkey = EcKey::private_key_from_pem(&PRIVATE_KEY).unwrap();
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         
-        pkey.public_key().to_bytes(&group,
-            openssl::ec::PointConversionForm::COMPRESSED, &mut ctx).unwrap()
+        let public = pkey.public_key()
+            .to_bytes(&group,
+                openssl::ec::PointConversionForm::COMPRESSED,
+                &mut ctx)
+            .unwrap();
+
+        info!("derived public EcKey: {}", base64::encode(&public));
+        public
     };
 }
 
@@ -40,10 +52,17 @@ const SECURE_CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
                                 abcdefghijklmnopqrstuvwxyz\
                                 0123456789";
 
-pub fn generate_jwt(payload: impl Serialize) -> Result<String, Box<dyn Error>> {
+pub fn encode_jwt(payload: impl Serialize) -> Result<String, Box<dyn Error>> {
     let key = EncodingKey::from_ec_pem(&PRIVATE_KEY)?;
     let token = jsonwebtoken::encode(&Header::default(), &payload, &key)?;
     Ok(token)
+}
+
+pub fn decode_jwt<T: DeserializeOwned>(token: &str) -> Result<T, Box<dyn Error>> {
+    let key = DecodingKey::from_ec_pem(&PRIVATE_KEY)?;
+    let validation = Validation::default();
+    let token = jsonwebtoken::decode::<T>(token, &key, &validation)?;
+    Ok(token.claims)
 }
 
 pub fn get_random_string(size: usize) -> String {

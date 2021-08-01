@@ -6,7 +6,6 @@ use crate::user::framework::PostgresUserRepository;
 use crate::user::domain::UserRepository;
 use crate::app::framework::PostgresAppRepository;
 use crate::directory::framework::MongoDirectoryRepository;
-use crate::directory::domain::DirectoryRepository;
 use crate::constants::TOKEN_LEN;
 use crate::security;
 use crate::constants::{ERR_NOT_FOUND, ERR_ALREADY_EXISTS, ERR_POISONED};
@@ -99,12 +98,16 @@ impl SessionService for SessionServiceImplementation {
             return Err(Status::failed_precondition("token required"));
         };
 
-        let token = match metadata.get("token").unwrap().to_str() { // this line will not fail due to the previous check of None 
+        let token = match metadata.get("token")
+            .unwrap() // this line will not fail due to the previous check of None 
+            .to_str() {
             Err(err) => return Err(Status::aborted(err.to_string())),
             Ok(token) => token,
         };
 
-        if let Err(err) = super::application::session_logout(token){               
+        if let Err(err) = super::application::session_logout(&self.sess_repo,
+                                                             &self.dir_repo,
+                                                             token){               
             return Err(Status::aborted(err.to_string()));
         }
 
@@ -116,11 +119,10 @@ impl SessionService for SessionServiceImplementation {
 pub struct InMemorySessionRepository {
     all_instances: RwLock<HashMap<String, Arc<RwLock<Session>>>>,
     group_by_app: RwLock<HashMap<String, Arc<RwLock<HashSet<String>>>>>,
-    dir_repo: &'static MongoDirectoryRepository,
 }
 
 impl InMemorySessionRepository {
-    pub fn new(dir_repo: &'static MongoDirectoryRepository) -> Self {
+    pub fn new() -> Self {
         InMemorySessionRepository {
             all_instances: {
                 let repo = HashMap::new();
@@ -131,8 +133,6 @@ impl InMemorySessionRepository {
                 let repo = HashMap::new();
                 RwLock::new(repo)
             },
-
-            dir_repo: dir_repo,
         }
     }
 
@@ -142,16 +142,6 @@ impl InMemorySessionRepository {
         }
 
         false
-    }
-
-    fn get_writable_session(sess_arc: &Arc<RwLock<Session>>) -> Result<RwLockWriteGuard<Session>, Box<dyn Error>> {
-        let sess_wr = sess_arc.write();
-        if let Err(err) = sess_wr {
-            error!("read-write lock for session got poisoned: {}", err);
-            return Err(ERR_POISONED.into());
-        }
-
-        Ok(sess_wr.unwrap()) // this line will not panic due the previous check of Err
     }
 
     fn get_readable_sids(sids_arc: &Arc<RwLock<HashSet<String>>>) -> Result<RwLockReadGuard<HashSet<String>>, Box<dyn Error>> {
@@ -292,24 +282,12 @@ impl SessionRepository for &InMemorySessionRepository {
     }
 
     fn delete(&self, session: &Session) -> Result<(), Box<dyn Error>> {
-        let repo = { // repo is released at the end of this block
-            let mut repo = self.get_writable_repo()?;
-            repo.remove(&session.sid)
-        };
-
-        if let Some(sess_arc) = repo {
-            let mut sess = InMemorySessionRepository::get_writable_session(&sess_arc)?;
-            let _ = sess.apps.iter_mut().map(|(url, dir)| {
-                // foreach application the session was logged in
-                if let Err(err) = self.dir_repo.save(dir) {
-                    error!("got error while saving directory {} : {}", dir.id, err);
-                } else if let Err(err) = self.remove(url, &session.sid) {
-                    error!("got error while removing session {} from group {}: {}", session.sid, url, err);
-                }
-            });
+        let mut repo = self.get_writable_repo()?;
+        if let None = repo.remove(&session.sid) {
+            return Err(ERR_NOT_FOUND.into());
         }
 
-        Err(ERR_NOT_FOUND.into())
+        Ok(())
     }
 }
 

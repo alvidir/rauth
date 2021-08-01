@@ -44,7 +44,7 @@ lazy_static! {
     static ref APP_REPO: PostgresAppRepository = PostgresAppRepository::new(&SECRET_REPO, &META_REPO);
 
     static ref DIR_REPO: MongoDirectoryRepository = MongoDirectoryRepository{};
-    static ref SESSION_REPO: InMemorySessionRepository = InMemorySessionRepository::new(&DIR_REPO);
+    static ref SESSION_REPO: InMemorySessionRepository = InMemorySessionRepository::new();
 }
 
 pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
@@ -52,7 +52,7 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
     use app::framework::AppServiceServer;
     use session::framework::SessionServiceServer;
 
-    let user_server = user::framework::UserServiceImplementation::new(&USER_REPO, &SESSION_REPO, &META_REPO);
+    let user_server = user::framework::UserServiceImplementation::new(&USER_REPO, &SESSION_REPO, &DIR_REPO, &SECRET_REPO, &META_REPO);
     let app_server = app::framework::AppServiceImplementation::new(&APP_REPO, &SECRET_REPO, &META_REPO);
     let session_server = session::framework::SessionServiceImplementation::new(&SESSION_REPO, &USER_REPO, &APP_REPO, &DIR_REPO);
  

@@ -58,11 +58,11 @@ impl Session {
 
 #[derive(Serialize, Deserialize)]
 pub struct Token {
-    exp: SystemTime,     // expiration time (as UTC timestamp) - required
-    iat: SystemTime,     // issued at: creation time
-    iss: String,         // issuer
-    url: String,         // application url
-    sub: String,         // subject: the user's session
+    pub exp: SystemTime,     // expiration time (as UTC timestamp) - required
+    pub iat: SystemTime,     // issued at: creation time
+    pub iss: String,         // issuer
+    pub url: String,         // application url
+    pub sub: String,         // subject: the user's session
 }
 
 impl Token {

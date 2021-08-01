@@ -11,6 +11,7 @@ use crate::secret::domain::SecretRepository;
 use crate::metadata::framework::PostgresMetadataRepository;
 use crate::metadata::domain::MetadataRepository;
 use crate::session::framework::InMemorySessionRepository;
+use crate::directory::framework::MongoDirectoryRepository;
 use crate::smtp;
 use crate::security;
 use crate::constants::ERR_NOT_FOUND;
@@ -32,15 +33,21 @@ pub struct UserServiceImplementation {
     user_repo: &'static PostgresUserRepository,
     meta_repo: &'static PostgresMetadataRepository,
     sess_repo: &'static InMemorySessionRepository,
+    dir_repo: &'static MongoDirectoryRepository,
+    secret_repo: &'static MongoSecretRepository,
 }
 
 impl UserServiceImplementation {
     pub fn new(user_repo: &'static PostgresUserRepository,
                sess_repo: &'static InMemorySessionRepository,
+               dir_repo: &'static MongoDirectoryRepository,
+               secret_repo: &'static MongoSecretRepository,
                meta_repo: &'static PostgresMetadataRepository) -> Self {
         UserServiceImplementation {
             user_repo: user_repo,
             meta_repo: meta_repo,
+            dir_repo: dir_repo,
+            secret_repo: secret_repo,
             sess_repo: sess_repo,
         }
     }
@@ -105,6 +112,9 @@ impl UserService for UserServiceImplementation {
 
         match super::application::user_delete(&self.user_repo,
                                               &self.sess_repo,
+                                              &self.dir_repo,
+                                              &self.secret_repo,
+                                              &self.meta_repo,
                                               &msg_ref.ident) {
 
             Err(err) => Err(Status::aborted(err.to_string())),
