@@ -10,6 +10,8 @@ use crate::secret::framework::MongoSecretRepository;
 use crate::secret::domain::SecretRepository;
 use crate::metadata::framework::PostgresMetadataRepository;
 use crate::metadata::domain::MetadataRepository;
+use crate::directory::framework::MongoDirectoryRepository;
+use crate::session::framework::InMemorySessionRepository;
 use crate::security;
 
 use super::domain::{App, AppRepository};
@@ -122,15 +124,21 @@ struct NewPostgresApp<'a> {
 
 pub struct PostgresAppRepository {
     secret_repo: &'static MongoSecretRepository,
+    dir_repo: &'static MongoDirectoryRepository,
     meta_repo: &'static PostgresMetadataRepository,
+    sess_repo: &'static InMemorySessionRepository,
 }
 
 impl PostgresAppRepository {
     pub fn new(secret_repo: &'static MongoSecretRepository,
+               sess_repo: &'static InMemorySessionRepository,
+               dir_repo: &'static MongoDirectoryRepository,
                meta_repo: &'static PostgresMetadataRepository) -> Self {
         PostgresAppRepository {
             secret_repo: secret_repo,
+            dir_repo: dir_repo,
             meta_repo: meta_repo,
+            sess_repo: sess_repo,
         }
     }
 }
@@ -198,6 +206,12 @@ impl AppRepository for &PostgresAppRepository {
     }
 
     fn delete(&self, app: &App) -> Result<(), Box<dyn Error>> {
+        // delete all sessions related to the provided app
+        self.sess_repo.delete_all_by_app(&app.url)?;
+
+        // there cannot remain any directory of any user for the provided app
+        self.dir_repo.delete_all_by_app(app.id)?;
+
         { // block is required because of connection release
             let connection = get_connection().get()?;
             let _result = diesel::delete(
@@ -207,6 +221,8 @@ impl AppRepository for &PostgresAppRepository {
             ).execute(&connection)?;
         }
 
-        Ok(())
+        // delete residual data from the app
+        self.secret_repo.delete(&app.secret)?;
+        self.meta_repo.delete(&app.meta)
     }
 }

@@ -233,6 +233,10 @@ impl InMemorySessionRepository {
 
         Ok(())
     }
+
+    pub fn delete_all_by_app(&self, url: &str) -> Result<(), Box<dyn Error>> {
+        Err("unimplemented".into())
+    }
 }
 
 impl SessionRepository for &InMemorySessionRepository {

@@ -112,9 +112,6 @@ impl UserService for UserServiceImplementation {
 
         match super::application::user_delete(&self.user_repo,
                                               &self.sess_repo,
-                                              &self.dir_repo,
-                                              &self.secret_repo,
-                                              &self.meta_repo,
                                               &msg_ref.ident) {
 
             Err(err) => Err(Status::aborted(err.to_string())),
@@ -150,7 +147,7 @@ struct NewPostgresUser<'a> {
 
 pub struct PostgresUserRepository {
     secret_repo: &'static MongoSecretRepository,
-    metadata_repo: &'static PostgresMetadataRepository,
+    meta_repo: &'static PostgresMetadataRepository,
 }
 
 impl PostgresUserRepository {
@@ -158,7 +155,7 @@ impl PostgresUserRepository {
                meta_repo: &'static PostgresMetadataRepository) -> Self {
         PostgresUserRepository {
             secret_repo: secret_repo,
-            metadata_repo: meta_repo,
+            meta_repo: meta_repo,
         }
     }
 }
@@ -183,7 +180,7 @@ impl UserRepository for &PostgresUserRepository {
             secret_opt = Some(secret);
         }
 
-        let meta = self.metadata_repo.find(results[0].meta_id)?;
+        let meta = self.meta_repo.find(results[0].meta_id)?;
 
         Ok(User{
             id: results[0].id,
@@ -246,6 +243,6 @@ impl UserRepository for &PostgresUserRepository {
             ).execute(&connection)?;
         }
 
-        Ok(())
+        self.meta_repo.delete(&user.meta)
     }
 }

@@ -53,6 +53,13 @@ impl MongoDirectoryRepository {
 
         return Ok(dir);
     }
+
+    pub fn delete_all_by_app(&self, app_id: i32) -> Result<(), Box<dyn Error>> {
+        mongo::get_connection(COLLECTION_NAME)
+            .delete_one(doc!{"app": app_id}, None)?;
+
+        Ok(())
+    }
 }
 
 impl DirectoryRepository for &MongoDirectoryRepository {

@@ -38,13 +38,14 @@ use directory::framework::MongoDirectoryRepository;
 use session::framework::InMemorySessionRepository;
 
 lazy_static! {
+    static ref SESSION_REPO: InMemorySessionRepository = InMemorySessionRepository::new();
+
     static ref META_REPO: PostgresMetadataRepository = PostgresMetadataRepository{};
     static ref SECRET_REPO: MongoSecretRepository = MongoSecretRepository{};
-    static ref USER_REPO: PostgresUserRepository = PostgresUserRepository::new(&SECRET_REPO, &META_REPO);
-    static ref APP_REPO: PostgresAppRepository = PostgresAppRepository::new(&SECRET_REPO, &META_REPO);
-
     static ref DIR_REPO: MongoDirectoryRepository = MongoDirectoryRepository{};
-    static ref SESSION_REPO: InMemorySessionRepository = InMemorySessionRepository::new();
+
+    static ref USER_REPO: PostgresUserRepository = PostgresUserRepository::new(&SECRET_REPO, &META_REPO);
+    static ref APP_REPO: PostgresAppRepository = PostgresAppRepository::new(&SECRET_REPO, &SESSION_REPO, &DIR_REPO, &META_REPO);
 }
 
 pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
