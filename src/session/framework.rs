@@ -6,9 +6,8 @@ use crate::user::framework::PostgresUserRepository;
 use crate::user::domain::UserRepository;
 use crate::app::framework::PostgresAppRepository;
 use crate::directory::framework::MongoDirectoryRepository;
-use crate::constants::TOKEN_LEN;
 use crate::security;
-use crate::constants::{ERR_NOT_FOUND, ERR_ALREADY_EXISTS, ERR_POISONED};
+use crate::constants::{TOKEN_LEN, ERR_NOT_FOUND, ERR_ALREADY_EXISTS, ERR_POISONED};
 use super::domain::{Session, SessionRepository};
 use super::application::GroupByAppRepository;
 
@@ -216,26 +215,48 @@ impl InMemorySessionRepository {
         Ok(())
     }
 
-    fn destroy_group(&self, url: &str, force: bool) -> Result<(), Box<dyn Error>> {
+    fn destroy_group(&self, url: &str) -> Result<(), Box<dyn Error>> {
         let mut group = self.get_writable_group()?;
-        let empty = {
+        let size = {
             if let Some(sids_arc) = group.get(url){
                 let sids = InMemorySessionRepository::get_readable_sids(sids_arc)?;
-                sids.len() == 0
+                sids.len()
             } else {
-                false
+                0
             }
         };
 
-        if empty || force {
+        if size > 0 {
+            warn!("cannot remove group {}, got size {} want 0", url, size);
+        } else {
             group.remove(url);
         }
 
         Ok(())
     }
 
-    pub fn delete_all_by_app(&self, url: &str) -> Result<(), Box<dyn Error>> {
-        Err("unimplemented".into())
+    pub fn delete_all_by_app(&self, url: &str) -> Result<(), Box<dyn Error>> {    
+        { // write lock is released at the end of this block
+            let group = self.get_readable_group()?;
+            let sids_search = group.get(url);
+            if let None = sids_search {
+                return Err(ERR_NOT_FOUND.into());
+            }
+
+            let sids_arc = sids_search.unwrap(); // this line will not panic due to the previous check of None
+            let sids = InMemorySessionRepository::get_readable_sids(sids_arc)?;
+            
+            for sid in sids.iter() {
+                let repo = self.get_writable_repo()?;
+                if let Some(sess_arc) = repo.get(sid) {
+                    let mut sess = sess_arc.write().unwrap(); // may rise panic; TODO: must be controlled
+                    sess.delete_directory(url);
+                }
+            }
+        }
+
+        // and empty group cannot exists, so it must be removed
+        self.destroy_group(url)
     }
 }
 
@@ -341,7 +362,7 @@ impl GroupByAppRepository for &InMemorySessionRepository {
         };
 
         if destroy {
-            self.destroy_group(url, false)?;
+            self.destroy_group(url)?;
         }
 
         Ok(())

@@ -206,12 +206,6 @@ impl AppRepository for &PostgresAppRepository {
     }
 
     fn delete(&self, app: &App) -> Result<(), Box<dyn Error>> {
-        // delete all sessions related to the provided app
-        self.sess_repo.delete_all_by_app(&app.url)?;
-
-        // there cannot remain any directory of any user for the provided app
-        self.dir_repo.delete_all_by_app(app.id)?;
-
         { // block is required because of connection release
             let connection = get_connection().get()?;
             let _result = diesel::delete(
@@ -223,6 +217,18 @@ impl AppRepository for &PostgresAppRepository {
 
         // delete residual data from the app
         self.secret_repo.delete(&app.secret)?;
-        self.meta_repo.delete(&app.meta)
+        self.meta_repo.delete(&app.meta)?;
+
+        // in order to avoid new sessions to be created while removing the current
+        // ones it is required to purge sessions once the application itself has 
+        // been removed from the system
+
+        // delete all sessions related to the provided app
+        self.sess_repo.delete_all_by_app(&app.url)?;
+
+        // there cannot remain any directory of any user for the provided app
+        self.dir_repo.delete_all_by_app(app.id)?;
+        
+        Ok(())
     }
 }
