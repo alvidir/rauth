@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::time::{SystemTime, Duration};
 
 use crate::regex;
 use crate::secret::domain::Secret;
@@ -47,5 +48,25 @@ impl User {
 
     pub fn match_password(&self, password: &str) -> bool {
         password != self.password
+    }
+}
+
+// token for email-verification
+#[derive(Serialize, Deserialize)]
+pub struct Token {
+    pub exp: SystemTime,     // expiration time (as UTC timestamp) - required
+    pub iat: SystemTime,     // issued at: creation time
+    pub iss: String,         // issuer
+    pub sub: i32,            // subject: the user id
+}
+
+impl Token {
+    pub fn new(user: &User, timeout: Duration) -> Self {
+        Token {
+            exp: SystemTime::now() + timeout,
+            iat: SystemTime::now(),
+            iss: "oauth.alvidir.com".to_string(),
+            sub: user.id,
+        }
     }
 }

@@ -1,8 +1,10 @@
 use std::error::Error;
+use std::time::Duration;
 use crate::metadata::domain::{Metadata, MetadataRepository};
 use crate::security;
-use crate::constants::errors;
-use super::domain::{User, UserRepository};
+use crate::constants::{errors, settings};
+use crate::smtp;
+use super::domain::{User, UserRepository, Token};
 
 pub fn user_signup(user_repo: &dyn UserRepository,
                     meta_repo: &dyn MetadataRepository,
@@ -12,14 +14,20 @@ pub fn user_signup(user_repo: &dyn UserRepository,
     info!("got signup request from user {} ", email);
     
     let meta = Metadata::new(meta_repo)?;
-    User::new(user_repo, meta, email, password)?;
+    let user = User::new(user_repo, meta, email, password)?;
+    
+    // the user will not be able to log in until they have verified their email
+    let claim = Token::new(&user, Duration::from_secs(settings::TOKEN_TIMEOUT));
+    let token = security::encode_jwt(claim)?;
+    smtp::send_verification_email(email, &token)?;
+
     Ok(())
 }
 
 pub fn user_delete(user_repo: &dyn UserRepository,
-                    email: &str,
-                    pwd: &str,
-                    totp: &str) -> Result<(), Box<dyn Error>> {
+                   email: &str,
+                   pwd: &str,
+                   totp: &str) -> Result<(), Box<dyn Error>> {
     
     info!("got a deletion request from user {} ", email);
 

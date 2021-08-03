@@ -13,7 +13,6 @@ use crate::metadata::domain::MetadataRepository;
 use crate::session::framework::InMemorySessionRepository;
 use crate::session::domain::SessionRepository;
 use crate::directory::framework::MongoDirectoryRepository;
-use crate::smtp;
 use super::domain::{User, UserRepository};
 
 // Import the generated rust code into module
@@ -43,34 +42,19 @@ impl UserServiceImplementation {
     }
 }
 
-impl UserServiceImplementation {
-    fn send_verification_email(to: &str) {
-        const SUBJECT: &str = "Verification email";
-        const HTML: &str = "<h1>Click here in order to verificate your email</h1>";
-        
-        if let Err(err) = smtp::send_email(to, SUBJECT, HTML) {
-            info!("got error {}\nwhile sending verification email to {}", err, to);
-        }
-
-    }
-}
-
 #[tonic::async_trait]
 impl UserService for UserServiceImplementation {
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<()>, Status> {
         let msg_ref = request.into_inner();
 
-        if let Err(err) = super::application::user_signup(&self.user_repo,
+        match super::application::user_signup(&self.user_repo,
                                                           &self.meta_repo,
                                                           &msg_ref.email,
                                                           &msg_ref.pwd) {
 
-            return Err(Status::aborted(err.to_string()));
+            Err(err) => Err(Status::aborted(err.to_string())),
+            Ok(_) => Ok(Response::new(())),
         }
-
-        // the email is required in order to verify the identity of the user
-        UserServiceImplementation::send_verification_email(&msg_ref.email);
-        Ok(Response::new(()))
     }
 
     async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<()>, Status> {

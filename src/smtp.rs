@@ -3,8 +3,17 @@ use std::env;
 use lettre::smtp::authentication::Credentials;
 use lettre::{SmtpClient, SmtpTransport, Transport};
 use lettre_email::EmailBuilder;
+use tera::{Tera, Context};
 
 use crate::constants::environment;
+
+lazy_static! {
+    static ref TERA: Tera = {
+        let project_root = env!("CARGO_MANIFEST_DIR");
+        let templates = format!("{}/*.html", project_root);
+        Tera::new(&templates).unwrap()
+    };
+}
 
 fn get_mailer() -> Result<SmtpTransport, Box<dyn Error>> {
     let smtp_username = env::var(environment::SMTP_USERNAME)?;
@@ -17,6 +26,20 @@ fn get_mailer() -> Result<SmtpTransport, Box<dyn Error>> {
         .transport();
 
     Ok(mailer)
+}
+
+pub fn send_verification_email(to: &str, token: &str) -> Result<(), Box<dyn Error>> {
+    const SUBJECT: &str = "Verification email";
+
+    let mut context = Context::new();
+    context.insert("token", token);
+    
+    let body = TERA.render("email.txt", &context)?;
+    if let Err(err) = send_email(to, SUBJECT, &body) {
+        info!("got error {} while sending verification email to {}", err, to);
+    }
+
+    Ok(())
 }
 
 
