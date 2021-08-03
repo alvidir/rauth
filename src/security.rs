@@ -12,12 +12,12 @@ use libreauth::hash::HashFunction::Sha256;
 use jsonwebtoken::{Header, EncodingKey, DecodingKey, Validation};
 use rand::Rng;
 
-use crate::constants;
+use crate::constants::{environment, errors};
 
 lazy_static! {
     static ref PRIVATE_KEY: Vec<u8> = {
-        if let Ok(pem) = env::var(constants::ENV_SECRET_PEM) {
-            let private = match env::var(constants::ENV_SECRET_PWD) {
+        if let Ok(pem) = env::var(environment::SECRET_PEM) {
+            let private = match env::var(environment::SECRET_PWD) {
                 Ok(password) => EcKey::private_key_from_pem_passphrase(pem.as_bytes(), password.as_bytes()).unwrap(),
                 Err(_) => EcKey::private_key_from_pem(pem.as_bytes()).unwrap(),
             };
@@ -77,22 +77,24 @@ pub fn get_random_string(size: usize) -> String {
     token
 }
 
-pub fn verify_totp_password(secret: &[u8], pwd: &str) -> Result<(), Box<dyn Error>> {
-    let totp = TOTPBuilder::new()
+pub fn verify_totp(secret: &[u8], pwd: &str) -> Result<(), Box<dyn Error>> {
+    let totp_result = TOTPBuilder::new()
         .key(secret)
         //.output_len(6)
         .period(30)
         .hash_function(Sha256)
         .finalize();
 
-    if let Ok(code) = totp {
-        if !code.is_valid(pwd) {
-            return Err("password not match".into());
-        }
-    } else {
-        return Err("failed to generate code".into());
+    if let Err(err) = totp_result {
+        let msg = format!("{:?}", err);
+        return Err(msg.into());
     }
 
+
+    let totp = totp_result.unwrap(); // this line will not fail due to the previous check of err
+    if !totp.is_valid(pwd) {
+        return Err(errors::UNAUTHORIZED.into());
+    }
     Ok(())
 }
 
@@ -106,14 +108,14 @@ pub fn verify_ec_signature(pem: &[u8], signature: &[u8], data: &[&[u8]]) -> Resu
     }
     
     if !verifier.verify(&signature)? {
-        Err("signature verification has failed".into())
+        Err(errors::UNAUTHORIZED.into())
     } else {
         Ok(())
     }
 }
 
 pub fn _apply_server_signature(data: &[&[u8]]) -> Result<Vec<u8>, Box<dyn Error>> {
-    let secret = env::var(constants::ENV_SMTP_USERNAME)?;
+    let secret = env::var(environment::SMTP_USERNAME)?;
     let eckey = EcKey::private_key_from_pem(secret.as_bytes())?;
     let keypair = PKey::from_ec_key(eckey)?;
 

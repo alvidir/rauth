@@ -1,22 +1,33 @@
-pub const SERVER_IP: &str = "127.0.0.1";
+pub mod settings {
+    pub const SERVER_IP: &str = "127.0.0.1";
 
-pub const TOKEN_LEN: usize = 8;
-pub const TOKEN_TIMEOUT: u64 = 86400; // 3600s * 24h
+    pub const TOKEN_LEN: usize = 8;
+    pub const TOKEN_TIMEOUT: u64 = 86400; // 3600s * 24h
 
-pub const CONNECTION_TIMEOUT: u64 = 10; // in seconds
-pub const CONNECTION_SLEEP: u64 = 1; // in seconds
+    pub const CONNECTION_TIMEOUT: u64 = 10; // in seconds
+    pub const CONNECTION_SLEEP: u64 = 1; // in seconds
 
-pub const ENV_SERVICE_PORT: &str = "SERVICE_PORT";
-pub const ENV_POSTGRES_DSN: &str = "DATABASE_URL";
-pub const ENV_MONGO_DSN: &str = "MONGO_DSN";
-pub const ENV_MONGO_DB: &str = "MONGO_DB";
-pub const ENV_SMTP_TRANSPORT: &str = "SMTP_TRANSPORT";
-pub const ENV_SMTP_ORIGIN: &str = "SMTP_ORIGIN";
-pub const ENV_SMTP_USERNAME: &str = "SMTP_USERNAME";
-pub const ENV_SMTP_PASSWORD: &str = "SMTP_PASSWORD";
-pub const ENV_SECRET_PEM: &str = "SECRET_PEM";
-pub const ENV_SECRET_PWD: &str = "SECRET_PWD";
- 
-pub const ERR_NOT_FOUND: &str = "not found";
-pub const ERR_ALREADY_EXISTS: &str = "already exists";
-pub const ERR_POISONED: &str = "the lock or mutex got poisoned due to a thread's panic while holding it";
+    pub const POOL_SIZE: u32 = 1_u32; // by constants: single thread
+}
+
+pub mod environment {
+    pub const SERVICE_PORT: &str = "SERVICE_PORT";
+    pub const POSTGRES_DSN: &str = "DATABASE_URL";
+    pub const MONGO_DSN: &str = "MONGO_DSN";
+    pub const MONGO_DB: &str = "MONGO_DB";
+    pub const SMTP_TRANSPORT: &str = "SMTP_TRANSPORT";
+    pub const SMTP_ORIGIN: &str = "SMTP_ORIGIN";
+    pub const SMTP_USERNAME: &str = "SMTP_USERNAME";
+    pub const SMTP_PASSWORD: &str = "SMTP_PASSWORD";
+    pub const SECRET_PEM: &str = "SECRET_PEM";
+    pub const SECRET_PWD: &str = "SECRET_PWD";
+}
+
+pub mod errors {
+    pub const CANNOT_CONNECT: &str = "cannot connect";
+    pub const NOT_FOUND: &str = "not found";
+    pub const ALREADY_EXISTS: &str = "already exists";
+    pub const POISONED: &str = "poisoned resource";
+    pub const NOT_VERIFIED: &str = "verification required";
+    pub const UNAUTHORIZED: &str = "unauthorized";
+}

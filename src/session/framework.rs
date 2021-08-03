@@ -3,13 +3,12 @@ use std::sync::{Arc, RwLock, RwLockWriteGuard, RwLockReadGuard};
 use std::collections::{HashMap, HashSet};
 use tonic::{Request, Response, Status};
 use crate::user::framework::PostgresUserRepository;
-use crate::user::domain::UserRepository;
 use crate::app::framework::PostgresAppRepository;
 use crate::directory::framework::MongoDirectoryRepository;
 use crate::security;
-use crate::constants::{TOKEN_LEN, ERR_NOT_FOUND, ERR_ALREADY_EXISTS, ERR_POISONED};
+use crate::constants::{settings, errors};
 use super::domain::{Session, SessionRepository};
-use super::application::GroupByAppRepository;
+use super::application::{GroupByAppRepository, get_writable_session};
 
 // Import the generated rust code into module
 mod proto {
@@ -50,36 +49,13 @@ impl SessionService for SessionServiceImplementation {
     async fn login(&self, request: Request<LoginRequest>) -> Result<Response<LoginResponse>, Status> {
         let msg_ref = request.into_inner();
 
-        match self.user_repo.find(&msg_ref.ident) {
-            Err(_) => {
-                // in order to give no clue about if the error was about the email or password
-                // both cases must provide the same kind of error
-                return Err(Status::not_found(ERR_NOT_FOUND))
-            },
-
-            Ok(user) => {
-                if !user.match_password(&msg_ref.pwd) {
-                    // same error as if the user was not found
-                    return Err(Status::not_found(ERR_NOT_FOUND));
-                }
-
-                // if, and only if, the user has activated the 2fa
-                if let Some(secret) = user.secret {
-                    let data = secret.get_data();
-                    if let Err(err) = security::verify_totp_password(data, &msg_ref.pwd) {
-                        // in order to make the application know a valid TOTP is required
-                        return Err(Status::unauthenticated(err.to_string()));
-                    }
-                }
-            }
-        };
-
         match super::application::session_login(&self.sess_repo,
                                                 &self.user_repo,
                                                 &self.app_repo,
                                                 &self.dir_repo,
                                                 &msg_ref.ident,
                                                 &msg_ref.pwd,
+                                                &msg_ref.totp,
                                                 &msg_ref.app) {
                                                     
             Err(err) => Err(Status::aborted(err.to_string())),
@@ -147,7 +123,7 @@ impl InMemorySessionRepository {
         let sids_rd = sids_arc.read();
         if let Err(err) = sids_rd {
             error!("read-only lock for set of sessions IDs got poisoned: {}", err);
-            return Err(ERR_POISONED.into());
+            return Err(errors::POISONED.into());
         }
 
         Ok(sids_rd.unwrap()) // this line will not panic due the previous check of Err
@@ -157,7 +133,7 @@ impl InMemorySessionRepository {
         let sids_wr = sids_arc.write();
         if let Err(err) = sids_wr {
             error!("read-write lock for set of sessions IDs got poisoned: {}", err);
-            return Err(ERR_POISONED.into());
+            return Err(errors::POISONED.into());
         }
 
         Ok(sids_wr.unwrap()) // this line will not panic due the previous check of Err
@@ -167,7 +143,7 @@ impl InMemorySessionRepository {
         let repo_rd = self.all_instances.read();
         if let Err(err) = &repo_rd {
             error!("read-only lock for all_instances from session's repo got poisoned: {}", err);
-            return Err(ERR_POISONED.into());
+            return Err(errors::POISONED.into());
         }
 
         Ok(repo_rd.unwrap()) // this line will not panic due the previous check of Err
@@ -177,7 +153,7 @@ impl InMemorySessionRepository {
         let repo_wr = self.all_instances.write();
         if let Err(err) = &repo_wr {
             error!("read-write lock for all_instances from session's repo got poisoned: {}", err);
-            return Err(ERR_POISONED.into());
+            return Err(errors::POISONED.into());
         }
 
         Ok(repo_wr.unwrap()) // this line will not panic due the previous check of Err
@@ -187,7 +163,7 @@ impl InMemorySessionRepository {
         let group_rd = self.group_by_app.read();
         if let Err(err) = &group_rd {
             error!("read-only lock for group_by_app from session's repo got poisoned: {}", err);
-            return Err(ERR_POISONED.into());
+            return Err(errors::POISONED.into());
         }
 
         Ok(group_rd.unwrap()) // this line will not panic due the previous check of Err
@@ -197,7 +173,7 @@ impl InMemorySessionRepository {
         let group_wr = self.group_by_app.write();
         if let Err(err) = &group_wr {
             error!("read-write lock for group_by_app from session's repo got poisoned: {}", err);
-            return Err(ERR_POISONED.into());
+            return Err(errors::POISONED.into());
         }
 
         Ok(group_wr.unwrap()) // this line will not panic due the previous check of Err
@@ -240,7 +216,7 @@ impl InMemorySessionRepository {
             let group = self.get_readable_group()?;
             let sids_search = group.get(url);
             if let None = sids_search {
-                return Err(ERR_NOT_FOUND.into());
+                return Err(errors::NOT_FOUND.into());
             }
 
             let sids_arc = sids_search.unwrap(); // this line will not panic due to the previous check of None
@@ -249,7 +225,7 @@ impl InMemorySessionRepository {
             for sid in sids.iter() {
                 let repo = self.get_writable_repo()?;
                 if let Some(sess_arc) = repo.get(sid) {
-                    let mut sess = sess_arc.write().unwrap(); // may rise panic; TODO: must be controlled
+                    let mut sess = get_writable_session(sess_arc)?;
                     sess.delete_directory(url);
                 }
             }
@@ -267,7 +243,7 @@ impl SessionRepository for &InMemorySessionRepository {
             return Ok(Arc::clone(sess));
         }
 
-        Err(ERR_NOT_FOUND.into())
+        Err(errors::NOT_FOUND.into())
     }
 
     fn find_by_email(&self, email: &str) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
@@ -276,21 +252,21 @@ impl SessionRepository for &InMemorySessionRepository {
             return Ok(Arc::clone(sess));
         }
 
-        Err(ERR_NOT_FOUND.into())
+        Err(errors::NOT_FOUND.into())
     }
 
     fn save(&self, mut session: Session) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
         let mut repo = self.get_writable_repo()?;
         if let Some(_) = repo.get(&session.sid) {
-            return Err(ERR_ALREADY_EXISTS.into());
+            return Err(errors::ALREADY_EXISTS.into());
         }
 
         if let Some(_) = repo.iter().find(|(_, sess)| InMemorySessionRepository::session_has_email(sess, &session.user.email)) {
-            return Err(ERR_ALREADY_EXISTS.into());
+            return Err(errors::ALREADY_EXISTS.into());
         }
 
         loop { // make sure the token is unique
-            let sid = security::get_random_string(TOKEN_LEN);
+            let sid = security::get_random_string(settings::TOKEN_LEN);
             if repo.get(&sid).is_none() {
                 session.sid = sid;
                 break;
@@ -309,7 +285,7 @@ impl SessionRepository for &InMemorySessionRepository {
     fn delete(&self, session: &Session) -> Result<(), Box<dyn Error>> {
         let mut repo = self.get_writable_repo()?;
         if let None = repo.remove(&session.sid) {
-            return Err(ERR_NOT_FOUND.into());
+            return Err(errors::NOT_FOUND.into());
         }
 
         Ok(())
@@ -323,11 +299,11 @@ impl GroupByAppRepository for &InMemorySessionRepository {
             return Ok(Arc::clone(sids));
         }
         
-        Err(ERR_NOT_FOUND.into())
+        Err(errors::NOT_FOUND.into())
     }
 
     fn store(&self, url: &str, sid: &str) -> Result<(), Box<dyn Error>> {
-        let create = {
+        if {
             let group = self.get_readable_group()?;
             if let Some(sids_arc) = group.get(url){
                 let mut sids = InMemorySessionRepository::get_writable_sids(sids_arc)?;
@@ -337,11 +313,11 @@ impl GroupByAppRepository for &InMemorySessionRepository {
 
                 false
             } else {
+                // if no group for the given url has been found then it must be created,
+                // being sid the first session_id to insert
                 true
             }
-        };
-        
-        if create {
+        } { // if group == None then ...
             self.create_group(url, sid)?;
         }
 
@@ -349,19 +325,17 @@ impl GroupByAppRepository for &InMemorySessionRepository {
     }
 
     fn remove(&self, url: &str, sid: &str) -> Result<(), Box<dyn Error>> {
-        let destroy = { // read lock is released at the end of this block
+        if { // read lock is released at the end of this block
             let group = self.get_readable_group()?;
             if let Some(sids_arc) = group.get(url){
                 let mut sids = InMemorySessionRepository::get_writable_sids(sids_arc)?;
                 sids.remove(sid);
 
-                sids.len() == 0
+                sids.len()
             } else {
-                false
+                0
             }
-        };
-
-        if destroy {
+        } == 0 { // if size == 0 then ...
             self.destroy_group(url)?;
         }
 

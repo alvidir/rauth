@@ -6,7 +6,7 @@ use bson::Bson;
 
 use crate::mongo;
 use crate::metadata::domain::Metadata;
-use crate::constants::ERR_NOT_FOUND;
+use crate::constants::errors;
 use super::domain::{Directory, DirectoryRepository};
 
 const COLLECTION_NAME: &str = "directories";
@@ -36,7 +36,7 @@ impl MongoDirectoryRepository {
         if let Some(dir_id) = mongo_dir.id {
             id = dir_id.to_hex();
         } else {
-            return Err(ERR_NOT_FOUND.into());
+            return Err(errors::NOT_FOUND.into());
         }
 
         let dir = Directory {
@@ -60,6 +60,13 @@ impl MongoDirectoryRepository {
 
         Ok(())
     }
+
+    pub fn delete_all_by_user(&self, user_id: i32) -> Result<(), Box<dyn Error>> {
+        mongo::get_connection(COLLECTION_NAME)
+            .delete_one(doc!{"user": user_id}, None)?;
+
+        Ok(())
+    }
 }
 
 impl DirectoryRepository for &MongoDirectoryRepository {
@@ -71,7 +78,7 @@ impl DirectoryRepository for &MongoDirectoryRepository {
             return MongoDirectoryRepository::builder(loaded_dir);
         }
 
-        Err(ERR_NOT_FOUND.into())
+        Err(errors::NOT_FOUND.into())
     }
 
     fn find_by_user_and_app(&self, user_id: i32, app_id: i32) -> Result<Directory, Box<dyn Error>> {
@@ -82,7 +89,7 @@ impl DirectoryRepository for &MongoDirectoryRepository {
             return MongoDirectoryRepository::builder(loaded_dir);
         }
 
-        Err(ERR_NOT_FOUND.into())
+        Err(errors::NOT_FOUND.into())
     }
 
     fn save(&self, dir: &mut Directory) -> Result<(), Box<dyn Error>> {

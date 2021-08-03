@@ -1,12 +1,12 @@
 use std::error::Error;
 use std::time::Duration;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, RwLock, RwLockWriteGuard, RwLockReadGuard};
 use std::collections::HashSet;
 
 use crate::user::domain::UserRepository;
 use crate::app::domain::AppRepository;
 use crate::directory::domain::{Directory, DirectoryRepository};
-use crate::constants;
+use crate::constants::{errors, settings};
 use crate::security;
 
 use super::domain::{Session, SessionRepository, Token};
@@ -22,41 +22,66 @@ pub trait SuperSessionRepository: GroupByAppRepository + SessionRepository {}
 impl<T> SuperSessionRepository for T
 where T: SessionRepository + GroupByAppRepository {}
 
+pub fn _get_readable_session(sess_arc: &Arc<RwLock<Session>>) -> Result<RwLockReadGuard<Session>, Box<dyn Error>> {
+    let sess_wr = sess_arc.read();
+    if let Err(err) = sess_wr {
+        error!("read-only lock for session got poisoned: {}", err);
+        return Err(errors::POISONED.into());
+    }
+
+    Ok(sess_wr.unwrap()) // this line will not panic due the previous check of Err
+}
+
+pub fn get_writable_session(sess_arc: &Arc<RwLock<Session>>) -> Result<RwLockWriteGuard<Session>, Box<dyn Error>> {
+    let sess_wr = sess_arc.write();
+    if let Err(err) = sess_wr {
+        error!("read-write lock for session got poisoned: {}", err);
+        return Err(errors::POISONED.into());
+    }
+
+    Ok(sess_wr.unwrap()) // this line will not panic due the previous check of Err
+}
+
 pub fn session_login(sess_repo: &dyn SuperSessionRepository,
                      user_repo: &dyn UserRepository,
                      app_repo: &dyn AppRepository,
                      dir_repo: &dyn DirectoryRepository,
                      email: &str,
                      pwd: &str,
+                     totp: &str,
                      app: &str) -> Result<String, Box<dyn Error>> {
     
     info!("got login request from user {} ", email);
 
+    // make sure the user exists and its credentials are alright
+    let user = user_repo.find(email)?;
+    if !user.match_password(pwd) {
+        return Err(errors::NOT_FOUND.into());
+    } else if !user.is_verified() {
+        return Err(errors::NOT_VERIFIED.into());
+    }
+
+    // if, and only if, the user has activated the 2fa
+    if let Some(secret) = &user.secret {
+        let data = secret.get_data();
+        security::verify_totp(data, totp)?;
+    }
+
+    // get the existing session or create a new one
     let sess_arc = match sess_repo.find_by_email(email) {
         Ok(sess_arc) => sess_arc,
         Err(_) => {
-            let user = user_repo.find(email)?;
-            if !user.match_password(pwd) {
-                return Err("wrong password".into());
-            } else if !user.is_verified() {
-                return Err("user not verified".into());
-            }
-
-            let timeout =  Duration::from_secs(constants::TOKEN_TIMEOUT);
+            let timeout =  Duration::from_secs(settings::TOKEN_TIMEOUT);
             Session::new(sess_repo, user, timeout)?
         }
     };
 
+    // generate a token for the gotten session and the given app
     let token = {
         let app = app_repo.find(app)?;
         let token: String;
         
-        let sess_wr = sess_arc.write();
-        if let Err(err) = &sess_wr {
-            error!("write locking for session of {} has failed: {}", email, err);
-        }
-
-        let mut sess = sess_wr.unwrap(); // this line would panic if the lock was poisoned
+        let mut sess = get_writable_session(&sess_arc)?;
         let claim = Token::new(&sess, &app, sess.deadline);
         token = security::encode_jwt(claim)?;
 
@@ -72,10 +97,10 @@ pub fn session_login(sess_repo: &dyn SuperSessionRepository,
             sess_repo.store(&app.url, &sess.sid)?;
         }
 
-        Ok(token)
+        token
     };
 
-    token
+    Ok(token)
 }
 
 pub fn session_logout(sess_repo: &dyn SuperSessionRepository,
@@ -85,13 +110,7 @@ pub fn session_logout(sess_repo: &dyn SuperSessionRepository,
     let claim = security::decode_jwt::<Token>(token)?;
     
     let sess_arc = sess_repo.find(&claim.sub)?;
-    let sess_wr = sess_arc.write();
-
-    if let Err(err) = &sess_wr {
-        error!("write locking for session {} has failed: {}", claim.sub, err);
-    }
-
-    let mut sess = sess_wr.unwrap(); // this line would panic if the lock was poisoned
+    let mut sess = get_writable_session(&sess_arc)?;
     let sid = &sess.sid.clone(); // required because of mutability issues
 
     if let Some(mut dir) = sess.delete_directory(&claim.url) {

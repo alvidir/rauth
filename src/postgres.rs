@@ -7,11 +7,7 @@ use diesel::{
     pg::PgConnection
 };
 
-use crate::constants;
-
-const ERR_NOT_URL: &str = "postgres url must be set";
-const ERR_CONNECT: &str = "error connecting to postgres cluster";
-const POOL_SIZE: u32 = 1_u32; // by constants: single thread
+use crate::constants::{environment, settings, errors};
 
 type PgPool = Pool<ConnectionManager<PgConnection>>;
 
@@ -23,22 +19,22 @@ lazy_static! {
     static ref STREAM: Stream = {
        Stream {
             db_connection: {
-                let postgres_url = env::var(constants::ENV_POSTGRES_DSN).expect(ERR_NOT_URL);
+                let postgres_url = env::var(environment::POSTGRES_DSN).expect("postgres url must be set");
                 let start = SystemTime::now();
-                let timeout = Duration::from_secs(constants::CONNECTION_TIMEOUT);
-                let sleep = Duration::from_secs(constants::CONNECTION_SLEEP);
+                let timeout = Duration::from_secs(settings::CONNECTION_TIMEOUT);
+                let sleep = Duration::from_secs(settings::CONNECTION_SLEEP);
 
-                let mut pool = PgPool::builder().max_size(POOL_SIZE).build(ConnectionManager::new(&postgres_url));
+                let mut pool = PgPool::builder().max_size(settings::POOL_SIZE).build(ConnectionManager::new(&postgres_url));
                 while let Err(err) = &pool {
-                    warn!("{}: {}", ERR_CONNECT, err);
+                    warn!("{}: {}", errors::CANNOT_CONNECT, err);
                     let lapse = SystemTime::now().duration_since(start).unwrap();
                     if  lapse > timeout  {
-                        error!("{}: timeout exceeded", ERR_CONNECT);
-                        panic!("{}", ERR_CONNECT);
+                        error!("{}: timeout exceeded", errors::CANNOT_CONNECT);
+                        panic!("{}", errors::CANNOT_CONNECT);
                     }
 
                     thread::sleep(sleep);
-                    pool = PgPool::builder().max_size(POOL_SIZE).build(ConnectionManager::new(&postgres_url));
+                    pool = PgPool::builder().max_size(settings::POOL_SIZE).build(ConnectionManager::new(&postgres_url));
                 }
 
                 info!("connection with postgres cluster established");

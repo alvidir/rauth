@@ -6,7 +6,7 @@ use bson::Bson;
 
 use crate::mongo;
 use crate::metadata::domain::Metadata;
-use crate::constants::ERR_NOT_FOUND;
+use crate::constants::errors;
 use super::domain::{Secret, SecretRepository};
 
 const COLLECTION_NAME: &str = "secrets";
@@ -39,7 +39,7 @@ impl SecretRepository for &MongoSecretRepository {
             if let Some(secret_id) = mongo_secret.id {
                 id = secret_id.to_hex();
             } else {
-                return Err(ERR_NOT_FOUND.into());
+                return Err(errors::NOT_FOUND.into());
             }
 
             let secret = Secret {
@@ -56,7 +56,7 @@ impl SecretRepository for &MongoSecretRepository {
         }
 
         
-        Err(ERR_NOT_FOUND.into())
+        Err(errors::NOT_FOUND.into())
     }
 
     fn save(&self, secret: &mut Secret) -> Result<(), Box<dyn Error>> {

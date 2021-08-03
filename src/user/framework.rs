@@ -11,10 +11,9 @@ use crate::secret::domain::SecretRepository;
 use crate::metadata::framework::PostgresMetadataRepository;
 use crate::metadata::domain::MetadataRepository;
 use crate::session::framework::InMemorySessionRepository;
+use crate::session::domain::SessionRepository;
 use crate::directory::framework::MongoDirectoryRepository;
 use crate::smtp;
-use crate::security;
-use crate::constants::ERR_NOT_FOUND;
 use super::domain::{User, UserRepository};
 
 // Import the generated rust code into module
@@ -32,23 +31,14 @@ use proto::{SignupRequest, DeleteRequest };
 pub struct UserServiceImplementation {
     user_repo: &'static PostgresUserRepository,
     meta_repo: &'static PostgresMetadataRepository,
-    sess_repo: &'static InMemorySessionRepository,
-    _dir_repo: &'static MongoDirectoryRepository,
-    _secret_repo: &'static MongoSecretRepository,
 }
 
 impl UserServiceImplementation {
     pub fn new(user_repo: &'static PostgresUserRepository,
-               sess_repo: &'static InMemorySessionRepository,
-               dir_repo: &'static MongoDirectoryRepository,
-               secret_repo: &'static MongoSecretRepository,
                meta_repo: &'static PostgresMetadataRepository) -> Self {
         UserServiceImplementation {
             user_repo: user_repo,
             meta_repo: meta_repo,
-            _dir_repo: dir_repo,
-            _secret_repo: secret_repo,
-            sess_repo: sess_repo,
         }
     }
 }
@@ -86,33 +76,10 @@ impl UserService for UserServiceImplementation {
     async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<()>, Status> {
         let msg_ref = request.into_inner();
 
-        match self.user_repo.find(&msg_ref.ident) {
-            Err(_) => {
-                // in order to give no clue about if the error was about the email or password
-                // both cases must provide the same kind of error
-                return Err(Status::not_found(ERR_NOT_FOUND))
-            },
-
-            Ok(user) => {
-                if !user.match_password(&msg_ref.pwd) {
-                    // same error as if the user was not found
-                    return Err(Status::not_found(ERR_NOT_FOUND));
-                }
-
-                // if, and only if, the user has activated the 2fa
-                if let Some(secret) = user.secret {
-                    let data = secret.get_data();
-                    if let Err(err) = security::verify_totp_password(data, &msg_ref.pwd) {
-                        // in order to make the application know a valid TOTP is required
-                        return Err(Status::unauthenticated(err.to_string()));
-                    }
-                }
-            }
-        };
-
         match super::application::user_delete(&self.user_repo,
-                                              &self.sess_repo,
-                                              &msg_ref.ident) {
+                                                &msg_ref.ident,
+                                                &msg_ref.pwd,
+                                                &msg_ref.totp) {
 
             Err(err) => Err(Status::aborted(err.to_string())),
             Ok(()) => Ok(Response::new(())),
@@ -147,15 +114,21 @@ struct NewPostgresUser<'a> {
 
 pub struct PostgresUserRepository {
     secret_repo: &'static MongoSecretRepository,
+    dir_repo: &'static MongoDirectoryRepository,
     meta_repo: &'static PostgresMetadataRepository,
+    sess_repo: &'static InMemorySessionRepository,
 }
 
 impl PostgresUserRepository {
     pub fn new(secret_repo: &'static MongoSecretRepository,
-               meta_repo: &'static PostgresMetadataRepository) -> Self {
+                sess_repo: &'static InMemorySessionRepository,
+                dir_repo: &'static MongoDirectoryRepository,
+                meta_repo: &'static PostgresMetadataRepository) -> Self {
         PostgresUserRepository {
             secret_repo: secret_repo,
             meta_repo: meta_repo,
+            sess_repo: sess_repo,
+            dir_repo: dir_repo,
         }
     }
 }
@@ -243,6 +216,20 @@ impl UserRepository for &PostgresUserRepository {
             ).execute(&connection)?;
         }
 
-        self.meta_repo.delete(&user.meta)
+        // delete residual data from the user
+        self.meta_repo.delete(&user.meta)?;
+        if let Some(secret) = &user.secret {
+            self.secret_repo.delete(secret)?;
+        }
+
+        // if the user have logged in, the session must be removed
+        if let Ok(sess_arc) = self.sess_repo.find_by_email(&user.email) {
+            let sess = sess_arc.read().unwrap(); // may panic if the lock was poisoned
+            self.sess_repo.delete(&sess)?;
+        }
+
+        // there cannot remain any directory of any app for the provided user
+        self.dir_repo.delete_all_by_user(user.id)?;
+        Ok(())
     }
 }

@@ -36,6 +36,7 @@ use user::framework::PostgresUserRepository;
 use app::framework::PostgresAppRepository;
 use directory::framework::MongoDirectoryRepository;
 use session::framework::InMemorySessionRepository;
+use constants::{settings, environment};
 
 lazy_static! {
     static ref SESSION_REPO: InMemorySessionRepository = InMemorySessionRepository::new();
@@ -44,7 +45,7 @@ lazy_static! {
     static ref SECRET_REPO: MongoSecretRepository = MongoSecretRepository{};
     static ref DIR_REPO: MongoDirectoryRepository = MongoDirectoryRepository{};
 
-    static ref USER_REPO: PostgresUserRepository = PostgresUserRepository::new(&SECRET_REPO, &META_REPO);
+    static ref USER_REPO: PostgresUserRepository = PostgresUserRepository::new(&SECRET_REPO, &SESSION_REPO, &DIR_REPO, &META_REPO);
     static ref APP_REPO: PostgresAppRepository = PostgresAppRepository::new(&SECRET_REPO, &SESSION_REPO, &DIR_REPO, &META_REPO);
 }
 
@@ -53,7 +54,7 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
     use app::framework::AppServiceServer;
     use session::framework::SessionServiceServer;
 
-    let user_server = user::framework::UserServiceImplementation::new(&USER_REPO, &SESSION_REPO, &DIR_REPO, &SECRET_REPO, &META_REPO);
+    let user_server = user::framework::UserServiceImplementation::new(&USER_REPO, &META_REPO);
     let app_server = app::framework::AppServiceImplementation::new(&APP_REPO, &SECRET_REPO, &META_REPO);
     let session_server = session::framework::SessionServiceImplementation::new(&SESSION_REPO, &USER_REPO, &APP_REPO, &DIR_REPO);
  
@@ -83,10 +84,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     postgres::get_connection(); // checking postgres connectivity
     mongo::get_connection("secrets"); // checking mongodb connectivity
 
-    let port = env::var(constants::ENV_SERVICE_PORT)
+    let port = env::var(environment::SERVICE_PORT)
         .expect("service port must be set");
 
-    let addr = format!("{}:{}", constants::SERVER_IP, port);
+    let addr = format!("{}:{}", settings::SERVER_IP, port);
     start_server(addr).await?;
     Ok(())
 }

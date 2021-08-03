@@ -12,7 +12,6 @@ use crate::metadata::framework::PostgresMetadataRepository;
 use crate::metadata::domain::MetadataRepository;
 use crate::directory::framework::MongoDirectoryRepository;
 use crate::session::framework::InMemorySessionRepository;
-use crate::security;
 
 use super::domain::{App, AppRepository};
 
@@ -51,21 +50,12 @@ impl AppService for AppServiceImplementation {
     async fn register(&self, request: Request<RegisterRequest>) -> Result<Response<()>, Status> {
         let msg_ref = request.into_inner();
 
-        let mut data: Vec<&[u8]> = Vec::new();
-        data.push(&msg_ref.url.as_bytes());
-        data.push(&msg_ref.public);
-    
-        // the application can only be registered if, and only if, the provided secret matches
-        // the message signature; otherwise there is no way to ensure the secret is the app's one
-        if let Err(err) = security::verify_ec_signature(&msg_ref.public, &msg_ref.firm, &data) {
-            return Err(Status::unauthenticated(err.to_string()))
-        }
-
         match super::application::app_register(&self.app_repo,
                                                &self.secret_repo,
                                                &self.meta_repo,
+                                               &msg_ref.url,
                                                &msg_ref.public,
-                                               &msg_ref.url) {
+                                               &msg_ref.firm) {
 
             Err(err) => Err(Status::aborted(err.to_string())),
             Ok(()) => Ok(Response::new(())),
@@ -74,25 +64,10 @@ impl AppService for AppServiceImplementation {
 
     async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<()>, Status> {
         let msg_ref = request.into_inner();
-
-        let app_search = self.app_repo.find(&msg_ref.url);
-        if let Err(err) = app_search {
-            return Err(Status::not_found(err.to_string()));
-        } 
-
-        let app = app_search.unwrap(); // this line will not panic due the previous check of Err
-        let pem = app.secret.get_data();
         
-        let mut data: Vec<&[u8]> = Vec::new();
-        data.push(&msg_ref.url.as_bytes());
-
-        if let Err(err) = security::verify_ec_signature(pem, &msg_ref.firm, &data) {
-            // the provided signature must be valid for the app's secret 
-            return Err(Status::permission_denied(err.to_string()));
-        }
-
         match super::application::app_delete(Box::new(self.app_repo),
-                                             &msg_ref.url) {
+                                             &msg_ref.url,
+                                             &msg_ref.firm) {
 
             Err(err) => Err(Status::aborted(err.to_string())),
             Ok(()) => Ok(Response::new(())),
