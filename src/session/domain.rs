@@ -54,6 +54,10 @@ impl Session {
     pub fn get_directory(&mut self, url: &str) -> Option<&mut Directory> {
         self.apps.get_mut(url)
     }
+
+    pub fn delete_directory(&mut self, url: &str) -> Option<Directory> {
+        self.apps.remove(url)
+    }
 }
 
 #[derive(Serialize, Deserialize)]

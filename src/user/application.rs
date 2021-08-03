@@ -1,7 +1,5 @@
 use std::error::Error;
 use crate::session::domain::SessionRepository;
-use crate::directory::domain::DirectoryRepository;
-use crate::secret::domain::SecretRepository;
 use crate::metadata::domain::{Metadata, MetadataRepository};
 use super::domain::{User, UserRepository};
 

@@ -92,16 +92,12 @@ pub fn session_logout(sess_repo: &dyn SuperSessionRepository,
     }
 
     let mut sess = sess_wr.unwrap(); // this line would panic if the lock was poisoned
-    let sid = &sess.sid.clone(); // required because of mutability issues in the loop
+    let sid = &sess.sid.clone(); // required because of mutability issues
 
-     // foreach application the session was logged in
-    for (url, dir) in sess.apps.iter_mut() {
-        if let Err(err) = dir_repo.save(dir) {
-            error!("got error while saving directory {} : {}", dir.id, err);
-        } else if let Err(err) = sess_repo.remove(&url, sid) {
-            error!("got error while removing session {} from group {}: {}", sid, &url, err);
-        }
-    };
+    if let Some(mut dir) = sess.delete_directory(&claim.url) {
+        sess_repo.remove(&claim.url, sid)?;
+        dir_repo.save(&mut dir)?;
+    }
 
-    sess_repo.delete(&sess)
+    Ok(())
 }

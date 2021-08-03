@@ -33,8 +33,8 @@ pub struct UserServiceImplementation {
     user_repo: &'static PostgresUserRepository,
     meta_repo: &'static PostgresMetadataRepository,
     sess_repo: &'static InMemorySessionRepository,
-    dir_repo: &'static MongoDirectoryRepository,
-    secret_repo: &'static MongoSecretRepository,
+    _dir_repo: &'static MongoDirectoryRepository,
+    _secret_repo: &'static MongoSecretRepository,
 }
 
 impl UserServiceImplementation {
@@ -46,8 +46,8 @@ impl UserServiceImplementation {
         UserServiceImplementation {
             user_repo: user_repo,
             meta_repo: meta_repo,
-            dir_repo: dir_repo,
-            secret_repo: secret_repo,
+            _dir_repo: dir_repo,
+            _secret_repo: secret_repo,
             sess_repo: sess_repo,
         }
     }
