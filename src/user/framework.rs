@@ -48,9 +48,9 @@ impl UserService for UserServiceImplementation {
         let msg_ref = request.into_inner();
 
         match super::application::user_signup(&self.user_repo,
-                                                          &self.meta_repo,
-                                                          &msg_ref.email,
-                                                          &msg_ref.pwd) {
+                                              &self.meta_repo,
+                                              &msg_ref.email,
+                                              &msg_ref.pwd) {
 
             Err(err) => Err(Status::aborted(err.to_string())),
             Ok(_) => Ok(Response::new(())),
@@ -61,9 +61,9 @@ impl UserService for UserServiceImplementation {
         let msg_ref = request.into_inner();
 
         match super::application::user_delete(&self.user_repo,
-                                                &msg_ref.ident,
-                                                &msg_ref.pwd,
-                                                &msg_ref.totp) {
+                                              &msg_ref.ident,
+                                              &msg_ref.pwd,
+                                              &msg_ref.totp) {
 
             Err(err) => Err(Status::aborted(err.to_string())),
             Ok(()) => Ok(Response::new(())),
