@@ -10,41 +10,41 @@ pub trait AppRepository {
     fn delete(&self, app: &App) -> Result<(), Box<dyn Error>>;
 }
 
-pub struct App<'a> {
+pub struct App {
     pub id: i32,
-    pub url: &'a str,
-    pub secret: Secret<'a>,
-    pub meta: Metadata<'a>,
+    pub url: String,
+    pub secret: Secret,
+    pub meta: Metadata,
 
-    repo: &'a dyn AppRepository
+    //repo: &'static dyn AppRepository
 }
 
-impl<'a> App<'a> {
-    pub fn new(app_repo: &'a dyn AppRepository,
-               secret: Secret<'a>,
-               meta: Metadata<'a>,
-               url: &'a str) -> Result<Self, Box<dyn Error>> {
+impl App {
+    pub fn new(app_repo: &/*'static*/ dyn AppRepository,
+               secret: Secret,
+               meta: Metadata,
+               url: &str) -> Result<Self, Box<dyn Error>> {
         
         regex::match_regex(regex::URL, url)?;
 
         let mut app = App {
             id: 0,
-            url: url,
+            url: url.to_string(),
             secret: secret,
             meta: meta,
 
-            repo: app_repo,
+            //repo: app_repo,
         };
         
         app_repo.save(&mut app)?;
         Ok(app)
     }
 
-    pub fn save(&mut self) -> Result<(), Box<dyn Error>> {
-        self.repo.save(self)
-    }
+    // pub fn save(&mut self) -> Result<(), Box<dyn Error>> {
+    //     self.repo.save(self)
+    // }
 
-    pub fn delete(&self) -> Result<(), Box<dyn Error>> {
-        self.repo.delete(self)
-    }
+    // pub fn delete(&self) -> Result<(), Box<dyn Error>> {
+    //     self.repo.delete(self)
+    // }
 }

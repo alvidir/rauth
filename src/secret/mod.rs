@@ -11,7 +11,7 @@ pub mod tests {
     struct Mock;
 
     impl SecretRepository for Mock {
-        fn find(&self, _id: i32) -> Result<Secret, Box<dyn Error>> {
+        fn find(&self, _id: &str) -> Result<Secret, Box<dyn Error>> {
             Err("unimplemeted".into())
         }
 
@@ -24,14 +24,14 @@ pub mod tests {
         }  
     }
 
-    pub fn new_secret<'a>() -> Secret<'a> {
+    pub fn new_secret() -> Secret {
         let inner_meta = InnerMetadata::new();
 
         Secret {
             id: "testing".to_string(),
-            data: "this is a secret".as_bytes(),
+            data: "this is a secret".as_bytes().to_vec(),
             meta: inner_meta,
-            repo: &Mock,
+            //repo: &Mock,
         }
     }
 }

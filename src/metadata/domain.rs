@@ -8,39 +8,38 @@ pub trait MetadataRepository {
 }
 
 #[derive(Clone)]
-pub struct Metadata<'a> {
+pub struct Metadata {
     pub id: i32,
     pub created_at: SystemTime,
     pub updated_at: SystemTime,
 
-    repo: &'a dyn MetadataRepository,
+    //repo: &'static dyn MetadataRepository,
 }
 
-impl<'a> Metadata<'a> {
-    pub fn new(repo: &'a dyn MetadataRepository) -> Result<Self, Box<dyn Error>> {
+impl Metadata {
+    pub fn new(repo: &/*'static*/ dyn MetadataRepository) -> Result<Self, Box<dyn Error>> {
         let mut meta = Metadata {
             id: 0,
             created_at: SystemTime::now(),
             updated_at: SystemTime::now(),
 
-            repo: repo,
+            //repo: repo,
         };
 
         repo.save(&mut meta)?;
         Ok(meta)
     }
 
-    pub fn save(&mut self) -> Result<(), Box<dyn Error>> {
-        self.repo.save(self)
-    }
+    // pub fn save(&mut self) -> Result<(), Box<dyn Error>> {
+    //     self.repo.save(self)
+    // }
 
-    pub fn delete(&self) -> Result<(), Box<dyn Error>> {
-        self.repo.delete(self)
-    }
+    // pub fn delete(&self) -> Result<(), Box<dyn Error>> {
+    //     self.repo.delete(self)
+    // }
 }
 
 pub struct InnerMetadata {
-    pub id: i32,
     pub created_at: SystemTime,
     pub updated_at: SystemTime,
 }
@@ -48,7 +47,6 @@ pub struct InnerMetadata {
 impl InnerMetadata {
     pub fn new() -> Self {
         InnerMetadata {
-            id: 0,
             created_at: SystemTime::now(),
             updated_at: SystemTime::now(),
         }

@@ -11,35 +11,35 @@ pub trait UserRepository {
     fn delete(&self, user: &User) -> Result<(), Box<dyn Error>>;
 }
 
-pub struct User<'a> {
+pub struct User {
     pub id: i32,
-    pub email: &'a str, // hash of the email
+    pub email: String, // hash of the email
     pub password: String,
     pub verified: bool,
-    pub secret: Option<Secret<'a>>,
-    pub meta: Metadata<'a>,
+    pub secret: Option<Secret>,
+    pub meta: Metadata,
 
-    repo: &'a dyn UserRepository 
+    //repo: &'static dyn UserRepository 
 }
 
-impl<'a> User<'a> {
-    pub fn new(user_repo: &'a dyn UserRepository,
-               meta: Metadata<'a>,
-               email: &'a str,
-               password: &'a str) -> Result<Self, Box<dyn Error>> {
+impl User {
+    pub fn new(user_repo: &/*'static*/ dyn UserRepository,
+               meta: Metadata,
+               email: &str,
+               password: &str) -> Result<Self, Box<dyn Error>> {
         
         regex::match_regex(regex::EMAIL, email)?;
         regex::match_regex(regex::BASE64, password)?;
         
         let mut user = User {
             id: 0,
-            email: email,
+            email: email.to_string(),
             password: password.to_string(),
             verified: false,
             secret: None,
             meta: meta,
 
-            repo: user_repo,
+            //repo: user_repo,
         };
 
         user_repo.save(&mut user)?;
@@ -54,13 +54,13 @@ impl<'a> User<'a> {
         password != self.password
     }
 
-    pub fn save(&mut self) -> Result<(), Box<dyn Error>> {
-        self.repo.save(self)
-    }
+    // pub fn save(&mut self) -> Result<(), Box<dyn Error>> {
+    //     self.repo.save(self)
+    // }
 
-    pub fn delete(&self) -> Result<(), Box<dyn Error>> {
-        self.repo.delete(self)
-    }
+    // pub fn delete(&self) -> Result<(), Box<dyn Error>> {
+    //     self.repo.delete(self)
+    // }
 }
 
 // token for email-verification

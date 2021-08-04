@@ -6,7 +6,7 @@ pub mod domain;
 mod tests {
     use std::error::Error;
     use std::time::SystemTime;
-    use super::domain::{Metadata, MetadataRepository};
+    use super::domain::{InnerMetadata, Metadata, MetadataRepository};
 
     struct Mock;
     
@@ -39,12 +39,11 @@ mod tests {
     }
 
     #[test]
-    fn domain_metadata_now_ok() {        
+    fn domain_inner_metadata_ok() {        
         let before = SystemTime::now();
-        let meta = Metadata::new(&Mock).unwrap();
+        let meta = InnerMetadata::new();
         let after = SystemTime::now();
 
-        assert_eq!(meta.id, 0);
         assert!(meta.created_at >= before && meta.created_at <= after);
         assert!(meta.updated_at >= before && meta.updated_at <= after);
     }

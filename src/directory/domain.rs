@@ -19,11 +19,11 @@ pub struct Directory {
     pub deadline: SystemTime,
     pub meta: InnerMetadata,
 
-    repo: &'static dyn DirectoryRepository,
+    //repo: &'static dyn DirectoryRepository,
 }
 
 impl Directory {
-    pub fn new(dir_repo: &'static dyn DirectoryRepository,
+    pub fn new(dir_repo: &/*'static*/ dyn DirectoryRepository,
                sess: &Session,
                app: &App) -> Result<Self, Box<dyn Error>> {
 
@@ -34,7 +34,7 @@ impl Directory {
             deadline: sess.deadline,
             meta: InnerMetadata::new(),
 
-            repo: dir_repo,
+            //repo: dir_repo,
         };
 
         dir_repo.save(&mut directory)?;
@@ -45,11 +45,11 @@ impl Directory {
         self.deadline = deadline;
     }
 
-    pub fn save(&mut self) -> Result<(), Box<dyn Error>> {
-        self.repo.save(self)
-    }
+    // pub fn save(&mut self) -> Result<(), Box<dyn Error>> {
+    //     self.repo.save(self)
+    // }
 
-    pub fn delete(&self) -> Result<(), Box<dyn Error>> {
-        self.repo.delete(self)
-    }
+    // pub fn delete(&self) -> Result<(), Box<dyn Error>> {
+    //     self.repo.delete(self)
+    // }
 }

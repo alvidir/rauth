@@ -105,11 +105,11 @@ impl AppRepository for PostgresAppRepository {
         
         Ok(App{
             id: results[0].id,
-            url: &results[0].url,
+            url: results[0].url.clone(),
             secret: secret,
             meta: meta,
 
-            repo: &*APP_REPO,
+            //repo: &*APP_REPO,
         })
     }
 

@@ -22,7 +22,7 @@ pub trait SuperSessionRepository: GroupByAppRepository + SessionRepository {}
 impl<T> SuperSessionRepository for T
 where T: SessionRepository + GroupByAppRepository {}
 
-pub fn get_writable_session<'a, 'b>(sess_arc: &'static Arc<RwLock<Session<'static>>>) -> Result<RwLockWriteGuard<Session<'static>>, Box<dyn Error>> {
+pub fn get_writable_session<'a, 'b>(sess_arc: &Arc<RwLock<Session>>) -> Result<RwLockWriteGuard<Session>, Box<dyn Error>> {
     let sess_wr = sess_arc.write();
     if let Err(err) = sess_wr {
         error!("read-write lock for session got poisoned: {}", err);

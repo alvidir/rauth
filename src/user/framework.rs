@@ -115,13 +115,13 @@ impl UserRepository for PostgresUserRepository {
 
         Ok(User{
             id: results[0].id,
-            email: &results[0].email,
+            email: results[0].email.clone(),
             password: results[0].password.clone(),
             verified: results[0].verified,
             secret: secret_opt,
             meta: meta,
 
-            repo: &*USER_REPO,
+            //repo: &*USER_REPO,
         })
     }
 

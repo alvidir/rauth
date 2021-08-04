@@ -48,14 +48,13 @@ impl SecretRepository for MongoSecretRepository {
 
             let secret = Secret {
                 id: id,
-                data: &mongo_secret.data,
+                data: mongo_secret.data,
                 meta: InnerMetadata {
-                    id: 0,
                     created_at: mongo_secret.meta.created_at,
                     updated_at: mongo_secret.meta.updated_at,
                 },
 
-                repo: &*SECRET_REPO,
+                //repo: &*SECRET_REPO,
             };
 
             return Ok(secret);

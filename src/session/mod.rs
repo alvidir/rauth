@@ -15,7 +15,7 @@ mod tests {
     const PWD: &str = "ABCD1234";
 
     lazy_static! {
-        pub static ref TESTING_SESSIONS: RwLock<HashMap<String, Arc<RwLock<Session<'static>>>>> = {
+        pub static ref TESTING_SESSIONS: RwLock<HashMap<String, Arc<RwLock<Session>>>> = {
             let repo = HashMap::new();
             RwLock::new(repo)
         };    
@@ -47,7 +47,7 @@ mod tests {
             Err("unimplemeted".into())
         }
 
-        fn save(&self, mut session: Session<'static>) -> Result<Arc<RwLock<Session<'static>>>, Box<dyn Error>> {
+        fn save(&self, mut session: Session) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
             session.sid = "testing".to_string();
 
             let mut repo = TESTING_SESSIONS.write()?;
@@ -56,7 +56,7 @@ mod tests {
             let arc = Arc::new(mu);
             
             repo.insert(email.to_string(), arc);
-            let sess = repo.get(email).unwrap();
+            let sess = repo.get(&email).unwrap();
             Ok(Arc::clone(sess))
         }
 

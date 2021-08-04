@@ -51,7 +51,7 @@ impl MetadataRepository for PostgresMetadataRepository {
             created_at: results[0].created_at,
             updated_at: results[0].updated_at,
 
-            repo: &*META_REPO,
+            //repo: &*META_REPO,
         })
     }
 

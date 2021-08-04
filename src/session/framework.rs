@@ -123,7 +123,7 @@ impl InMemorySessionRepository {
         Ok(sids_wr.unwrap()) // this line will not panic due the previous check of Err
     }
 
-    fn get_readable_repo(&self) -> Result<RwLockReadGuard<HashMap<String, Arc<RwLock<Session<'static>>>>>, Box<dyn Error>> {
+    fn get_readable_repo(&self) -> Result<RwLockReadGuard<HashMap<String, Arc<RwLock<Session>>>>, Box<dyn Error>> {
         let repo_rd = self.all_instances.read();
         if let Err(err) = &repo_rd {
             error!("read-only lock for all_instances from session's repo got poisoned: {}", err);
@@ -133,7 +133,7 @@ impl InMemorySessionRepository {
         Ok(repo_rd.unwrap()) // this line will not panic due the previous check of Err
     }
 
-    fn get_writable_repo(&self) -> Result<RwLockWriteGuard<HashMap<String, Arc<RwLock<Session<'static>>>>>, Box<dyn Error>> {
+    fn get_writable_repo(&self) -> Result<RwLockWriteGuard<HashMap<String, Arc<RwLock<Session>>>>, Box<dyn Error>> {
         let repo_wr = self.all_instances.write();
         if let Err(err) = &repo_wr {
             error!("read-write lock for all_instances from session's repo got poisoned: {}", err);
@@ -207,7 +207,7 @@ impl InMemorySessionRepository {
             let sids = InMemorySessionRepository::get_readable_sids(sids_arc)?;
             
             for sid in sids.iter() {
-                let repo = *self.get_writable_repo()?;
+                let repo = self.get_writable_repo()?;
                 if let Some(sess_arc) = repo.get(sid) {
                     let mut sess = get_writable_session(sess_arc)?;
                     sess.delete_directory(url);
@@ -221,7 +221,7 @@ impl InMemorySessionRepository {
 }
 
 impl SessionRepository for InMemorySessionRepository {
-    fn find(&self, token: &str) -> Result<Arc<RwLock<Session<'static>>>, Box<dyn Error>> {
+    fn find(&self, token: &str) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
         let repo = self.get_readable_repo()?;
         if let Some(sess) = repo.get(token) {
             return Ok(Arc::clone(sess));
@@ -230,7 +230,7 @@ impl SessionRepository for InMemorySessionRepository {
         Err(errors::NOT_FOUND.into())
     }
 
-    fn find_by_email(&self, email: &str) -> Result<Arc<RwLock<Session<'static>>>, Box<dyn Error>> {
+    fn find_by_email(&self, email: &str) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
         let repo = self.get_readable_repo()?;
         if let Some((_, sess)) = repo.iter().find(|(_, sess)| InMemorySessionRepository::session_has_email(sess, email)) {
             return Ok(Arc::clone(sess));
@@ -239,7 +239,7 @@ impl SessionRepository for InMemorySessionRepository {
         Err(errors::NOT_FOUND.into())
     }
 
-    fn save(&self, mut session: Session<'static>) -> Result<Arc<RwLock<Session<'static>>>, Box<dyn Error>> {
+    fn save(&self, mut session: Session) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
         let mut repo = self.get_writable_repo()?;
         if let Some(_) = repo.get(&session.sid) {
             return Err(errors::ALREADY_EXISTS.into());

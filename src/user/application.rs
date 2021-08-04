@@ -6,8 +6,8 @@ use crate::constants::{errors, settings};
 use crate::smtp;
 use super::domain::{User, UserRepository, Token};
 
-pub fn user_signup(user_repo: &dyn UserRepository,
-                   meta_repo: &dyn MetadataRepository,
+pub fn user_signup(user_repo: &'static dyn UserRepository,
+                   meta_repo: &'static dyn MetadataRepository,
                    email: &str,
                    password: &str) -> Result<(), Box<dyn Error>> {
     

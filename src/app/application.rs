@@ -4,9 +4,9 @@ use crate::secret::domain::{Secret, SecretRepository};
 use crate::security;
 use super::domain::{App, AppRepository};
 
-pub fn app_register(app_repo: &dyn AppRepository,
-                    secret_repo: &dyn SecretRepository,
-                    meta_repo: &dyn MetadataRepository,
+pub fn app_register(app_repo: &'static dyn AppRepository,
+                    secret_repo: &'static dyn SecretRepository,
+                    meta_repo: &'static dyn MetadataRepository,
                     url: &str,
                     pem: &[u8],
                     firm: &[u8]) -> Result<(), Box<dyn Error>> {

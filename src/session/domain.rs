@@ -15,20 +15,20 @@ pub trait SessionRepository {
     fn delete(&self, session: &Session) -> Result<(), Box<dyn Error>>;
 }
 
-pub struct Session<'a> {
+pub struct Session {
     pub sid: String,
     pub deadline: SystemTime,
-    pub user: User<'a>,
+    pub user: User,
     pub apps: HashMap<String, Directory>,
     // the updated_at field from metadata works as a touch_at field, being updated for each
     // read/write action done by the user (owner) over the sessions data
     pub meta: InnerMetadata,
 }
 
-impl<'a> Session<'a> {
-    pub fn new<T: SessionRepository + ?Sized>(sess_repo: &'a T,
+impl Session {
+    pub fn new<T: SessionRepository + ?Sized>(sess_repo: &T,
                user: User,
-               timeout: Duration) -> Result<Arc<RwLock<Session<'a>>>, Box<dyn Error>> {
+               timeout: Duration) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
 
         let sess = Session{
             sid: "".to_string(), // will be set by the repository controller down below

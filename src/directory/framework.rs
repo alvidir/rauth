@@ -49,12 +49,11 @@ impl MongoDirectoryRepository {
             app: mongo_dir.app,
             deadline: SystemTime::UNIX_EPOCH,
             meta: InnerMetadata {
-                id: 0,
                 created_at: mongo_dir.meta.created_at,
                 updated_at: mongo_dir.meta.updated_at,
             },
 
-            repo: &*DIR_REPO,
+            //repo: &*DIR_REPO,
         };
 
         return Ok(dir);

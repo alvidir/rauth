@@ -5,7 +5,7 @@ pub mod domain;
 #[cfg(test)]
 mod tests {
     use std::error::Error;
-    use crate::metadata::domain::{InnerMetadata, Metadata, MetadataRepository};
+    use crate::metadata::domain::{Metadata, MetadataRepository};
     use crate::secret::tests as SecretTests;
     use super::domain::{App, AppRepository};
 
@@ -46,7 +46,6 @@ mod tests {
         const URL: &str = "http://testing.com";
         let mock_impl = Mock{};
 
-        let inner_meta = InnerMetadata::new();
         let secret = SecretTests::new_secret();
 
         let meta = Metadata::new(&mock_impl).unwrap();
@@ -64,7 +63,6 @@ mod tests {
         const URL: &str = "not_an_url";
         let mock_impl = Mock{};
 
-        let inner_meta = InnerMetadata::new();
         let secret = SecretTests::new_secret();
         
         let meta = Metadata::new(&mock_impl).unwrap();
