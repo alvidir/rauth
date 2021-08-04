@@ -1,5 +1,5 @@
 use std::error::Error;
-use crate::metadata::domain::Metadata;
+use crate::metadata::domain::InnerMetadata;
 
 
 pub trait SecretRepository {
@@ -8,22 +8,26 @@ pub trait SecretRepository {
     fn delete(&self, secret: &Secret) -> Result<(), Box<dyn Error>>;
 }
 
-pub struct Secret {
+pub struct Secret<'a> {
     pub id: String,
-    pub data: Vec<u8>, // pkey as a pem file
+    pub data: &'a [u8], // pkey as a pem file
     // the updated_at field from metadata works as a touch_at field, being updated for each
     // usage of the secret
-    pub meta: Metadata,
+    pub meta: InnerMetadata,
+
+    pub(super) repo: &'a dyn SecretRepository, 
 }
 
-impl Secret {
-    pub fn new(secret_repo: &dyn SecretRepository,
-               data: &[u8]) -> Result<Self, Box<dyn Error>> {
+impl<'a> Secret<'a> {
+    pub fn new(secret_repo: &'a dyn SecretRepository,
+               data: &'a [u8]) -> Result<Self, Box<dyn Error>> {
 
         let mut secret = Secret {
             id: "".to_string(),
-            data: data.to_vec(),
-            meta: Metadata::now(),
+            data: data,
+            meta: InnerMetadata::new(),
+
+            repo: secret_repo,
         };
 
         secret_repo.save(&mut secret)?;
@@ -32,5 +36,13 @@ impl Secret {
 
     pub fn get_data(&self) -> &[u8] {
         &self.data
+    }
+
+    pub fn save(&mut self) -> Result<(), Box<dyn Error>> {
+        self.repo.save(self)
+    }
+
+    pub fn delete(&self) -> Result<(), Box<dyn Error>> {
+        self.repo.delete(self)
     }
 }

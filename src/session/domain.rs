@@ -4,7 +4,7 @@ use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime};
 use std::collections::HashMap;
 
-use crate::metadata::domain::Metadata;
+use crate::metadata::domain::InnerMetadata;
 use crate::user::domain::User;
 use crate::directory::domain::Directory;
 
@@ -15,27 +15,27 @@ pub trait SessionRepository {
     fn delete(&self, session: &Session) -> Result<(), Box<dyn Error>>;
 }
 
-pub struct Session {
+pub struct Session<'a> {
     pub sid: String,
     pub deadline: SystemTime,
-    pub user: User,
+    pub user: User<'a>,
     pub apps: HashMap<String, Directory>,
     // the updated_at field from metadata works as a touch_at field, being updated for each
     // read/write action done by the user (owner) over the sessions data
-    pub meta: Metadata,
+    pub meta: InnerMetadata,
 }
 
-impl Session {
-    pub fn new<T: SessionRepository + ?Sized>(sess_repo: &T,
+impl<'a> Session<'a> {
+    pub fn new<T: SessionRepository + ?Sized>(sess_repo: &'a T,
                user: User,
-               timeout: Duration) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
+               timeout: Duration) -> Result<Arc<RwLock<Session<'a>>>, Box<dyn Error>> {
 
         let sess = Session{
             sid: "".to_string(), // will be set by the repository controller down below
             deadline: SystemTime::now() + timeout,
             user: user,
             apps: HashMap::new(),
-            meta: Metadata::now(),
+            meta: InnerMetadata::new(),
         };
 
         let sess = sess_repo.save(sess)?;
@@ -75,7 +75,7 @@ impl Token {
             exp: deadline,
             iat: SystemTime::now(),
             iss: "oauth.alvidir.com".to_string(),
-            url: app.url.clone(),
+            url: app.url.to_string(),
             sub: sess.sid.clone(),
         }
     }

@@ -30,33 +30,16 @@ mod secret;
 mod security;
 mod directory;
 
-use secret::framework::MongoSecretRepository;
-use metadata::framework::PostgresMetadataRepository;
-use user::framework::PostgresUserRepository;
-use app::framework::PostgresAppRepository;
-use directory::framework::MongoDirectoryRepository;
-use session::framework::InMemorySessionRepository;
 use constants::{settings, environment};
-
-lazy_static! {
-    static ref SESSION_REPO: InMemorySessionRepository = InMemorySessionRepository::new();
-
-    static ref META_REPO: PostgresMetadataRepository = PostgresMetadataRepository{};
-    static ref SECRET_REPO: MongoSecretRepository = MongoSecretRepository{};
-    static ref DIR_REPO: MongoDirectoryRepository = MongoDirectoryRepository{};
-
-    static ref USER_REPO: PostgresUserRepository = PostgresUserRepository::new(&SECRET_REPO, &SESSION_REPO, &DIR_REPO, &META_REPO);
-    static ref APP_REPO: PostgresAppRepository = PostgresAppRepository::new(&SECRET_REPO, &SESSION_REPO, &DIR_REPO, &META_REPO);
-}
 
 pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
     use user::framework::UserServiceServer;
     use app::framework::AppServiceServer;
     use session::framework::SessionServiceServer;
 
-    let user_server = user::framework::UserServiceImplementation::new(&USER_REPO, &META_REPO);
-    let app_server = app::framework::AppServiceImplementation::new(&APP_REPO, &SECRET_REPO, &META_REPO);
-    let session_server = session::framework::SessionServiceImplementation::new(&SESSION_REPO, &USER_REPO, &APP_REPO, &DIR_REPO);
+    let user_server = user::framework::UserServiceImplementation{};
+    let app_server = app::framework::AppServiceImplementation{};
+    let session_server = session::framework::SessionServiceImplementation{};
  
     let addr = address.parse().unwrap();
     info!("server listening on {}", addr);

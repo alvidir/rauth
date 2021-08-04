@@ -1,6 +1,6 @@
 use std::error::Error;
 use std::time::Duration;
-use std::sync::{Arc, RwLock, RwLockWriteGuard, RwLockReadGuard};
+use std::sync::{Arc, RwLock, RwLockWriteGuard};
 use std::collections::HashSet;
 
 use crate::user::domain::UserRepository;
@@ -22,17 +22,7 @@ pub trait SuperSessionRepository: GroupByAppRepository + SessionRepository {}
 impl<T> SuperSessionRepository for T
 where T: SessionRepository + GroupByAppRepository {}
 
-pub fn _get_readable_session(sess_arc: &Arc<RwLock<Session>>) -> Result<RwLockReadGuard<Session>, Box<dyn Error>> {
-    let sess_wr = sess_arc.read();
-    if let Err(err) = sess_wr {
-        error!("read-only lock for session got poisoned: {}", err);
-        return Err(errors::POISONED.into());
-    }
-
-    Ok(sess_wr.unwrap()) // this line will not panic due the previous check of Err
-}
-
-pub fn get_writable_session(sess_arc: &Arc<RwLock<Session>>) -> Result<RwLockWriteGuard<Session>, Box<dyn Error>> {
+pub fn get_writable_session<'a, 'b>(sess_arc: &'static Arc<RwLock<Session<'static>>>) -> Result<RwLockWriteGuard<Session<'static>>, Box<dyn Error>> {
     let sess_wr = sess_arc.write();
     if let Err(err) = sess_wr {
         error!("read-write lock for session got poisoned: {}", err);
@@ -42,10 +32,10 @@ pub fn get_writable_session(sess_arc: &Arc<RwLock<Session>>) -> Result<RwLockWri
     Ok(sess_wr.unwrap()) // this line will not panic due the previous check of Err
 }
 
-pub fn session_login(sess_repo: &dyn SuperSessionRepository,
-                     user_repo: &dyn UserRepository,
-                     app_repo: &dyn AppRepository,
-                     dir_repo: &dyn DirectoryRepository,
+pub fn session_login(sess_repo: &'static dyn SuperSessionRepository,
+                     user_repo: &'static dyn UserRepository,
+                     app_repo: &'static dyn AppRepository,
+                     dir_repo: &'static dyn DirectoryRepository,
                      email: &str,
                      pwd: &str,
                      totp: &str,
@@ -103,8 +93,8 @@ pub fn session_login(sess_repo: &dyn SuperSessionRepository,
     Ok(token)
 }
 
-pub fn session_logout(sess_repo: &dyn SuperSessionRepository,
-                      dir_repo: &dyn DirectoryRepository,
+pub fn session_logout(sess_repo: &'static dyn SuperSessionRepository,
+                      dir_repo: &'static dyn DirectoryRepository,
                       token: &str) -> Result<(), Box<dyn Error>> {
     info!("got a logout request for cookie {} ", token);
     let claim = security::decode_jwt::<Token>(token)?;

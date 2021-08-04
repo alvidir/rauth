@@ -7,6 +7,10 @@ use crate::schema::metadata::dsl::*;
 use crate::schema::metadata;
 use crate::postgres::*;
 
+lazy_static! {
+    pub static ref META_REPO: PostgresMetadataRepository = PostgresMetadataRepository;
+}
+
 use super::domain::{Metadata, MetadataRepository};
 
 #[derive(Queryable, Insertable, Associations)]
@@ -28,9 +32,9 @@ struct NewPostgresMetadata {
     pub updated_at: SystemTime,
 }
 
-pub struct PostgresMetadataRepository {}
+pub struct PostgresMetadataRepository;
 
-impl MetadataRepository for &PostgresMetadataRepository {
+impl MetadataRepository for PostgresMetadataRepository {
     fn find(&self, target: i32) -> Result<Metadata, Box<dyn Error>>  {       
         let results = { // block is required because of connection release
             let connection = get_connection().get()?;
@@ -46,6 +50,8 @@ impl MetadataRepository for &PostgresMetadataRepository {
             id: results[0].id,
             created_at: results[0].created_at,
             updated_at: results[0].updated_at,
+
+            repo: &*META_REPO,
         })
     }
 

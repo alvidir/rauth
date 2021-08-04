@@ -6,12 +6,17 @@ use crate::diesel::prelude::*;
 use crate::schema::apps::dsl::*;
 use crate::postgres::*;
 use crate::schema::apps;
-use crate::secret::framework::MongoSecretRepository;
-use crate::secret::domain::SecretRepository;
-use crate::metadata::framework::PostgresMetadataRepository;
+
+use crate::metadata::framework::META_REPO;
 use crate::metadata::domain::MetadataRepository;
-use crate::directory::framework::MongoDirectoryRepository;
-use crate::session::framework::InMemorySessionRepository;
+use crate::session::framework::SESS_REPO;
+use crate::directory::framework::DIR_REPO;
+use crate::secret::framework::SECRET_REPO;
+use crate::secret::domain::SecretRepository;
+
+lazy_static! {
+    pub static ref APP_REPO: PostgresAppRepository = PostgresAppRepository;
+}
 
 use super::domain::{App, AppRepository};
 
@@ -27,32 +32,16 @@ pub use proto::app_service_server::AppServiceServer;
 // Proto message structs
 use proto::{RegisterRequest, DeleteRequest};
 
-pub struct AppServiceImplementation {
-    app_repo: &'static PostgresAppRepository,
-    secret_repo: &'static MongoSecretRepository,
-    meta_repo: &'static PostgresMetadataRepository,
-}
-
-impl AppServiceImplementation {
-    pub fn new(app_repo: &'static PostgresAppRepository,
-               secret_repo: &'static MongoSecretRepository,
-               meta_repo: &'static PostgresMetadataRepository) -> Self {
-        AppServiceImplementation {
-            app_repo: app_repo,
-            secret_repo: secret_repo,
-            meta_repo: meta_repo
-        }
-    }
-}
+pub struct AppServiceImplementation;
 
 #[tonic::async_trait]
 impl AppService for AppServiceImplementation {
     async fn register(&self, request: Request<RegisterRequest>) -> Result<Response<()>, Status> {
         let msg_ref = request.into_inner();
 
-        match super::application::app_register(&self.app_repo,
-                                               &self.secret_repo,
-                                               &self.meta_repo,
+        match super::application::app_register(&*APP_REPO,
+                                               &*SECRET_REPO,
+                                               &*META_REPO,
                                                &msg_ref.url,
                                                &msg_ref.public,
                                                &msg_ref.firm) {
@@ -65,7 +54,7 @@ impl AppService for AppServiceImplementation {
     async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<()>, Status> {
         let msg_ref = request.into_inner();
         
-        match super::application::app_delete(Box::new(self.app_repo),
+        match super::application::app_delete(&*APP_REPO,
                                              &msg_ref.url,
                                              &msg_ref.firm) {
 
@@ -97,28 +86,9 @@ struct NewPostgresApp<'a> {
 }
 
 
-pub struct PostgresAppRepository {
-    secret_repo: &'static MongoSecretRepository,
-    dir_repo: &'static MongoDirectoryRepository,
-    meta_repo: &'static PostgresMetadataRepository,
-    sess_repo: &'static InMemorySessionRepository,
-}
+pub struct PostgresAppRepository;
 
-impl PostgresAppRepository {
-    pub fn new(secret_repo: &'static MongoSecretRepository,
-               sess_repo: &'static InMemorySessionRepository,
-               dir_repo: &'static MongoDirectoryRepository,
-               meta_repo: &'static PostgresMetadataRepository) -> Self {
-        PostgresAppRepository {
-            secret_repo: secret_repo,
-            dir_repo: dir_repo,
-            meta_repo: meta_repo,
-            sess_repo: sess_repo,
-        }
-    }
-}
-
-impl AppRepository for &PostgresAppRepository {
+impl AppRepository for PostgresAppRepository {
     fn find(&self, target: &str) -> Result<App, Box<dyn Error>>  {
         let results = { // block is required because of connection release
             let connection = get_connection().get()?;
@@ -130,19 +100,21 @@ impl AppRepository for &PostgresAppRepository {
             return Err(Box::new(NotFound));
         }
 
-        let secret = self.secret_repo.find(&results[0].secret_id)?;
-        let meta = self.meta_repo.find(results[0].meta_id)?;
+        let secret = SECRET_REPO.find(&results[0].secret_id)?;
+        let meta = META_REPO.find(results[0].meta_id)?;
         
         Ok(App{
             id: results[0].id,
-            url: results[0].url.clone(),
+            url: &results[0].url,
             secret: secret,
             meta: meta,
+
+            repo: &*APP_REPO,
         })
     }
 
     fn save(&self, app: &mut App) -> Result<(), Box<dyn Error>> {
-        self.meta_repo.save(&mut app.meta)?;
+        META_REPO.save(&mut app.meta)?;
 
         if app.id == 0 { // create user
             let new_app = NewPostgresApp {
@@ -164,7 +136,7 @@ impl AppRepository for &PostgresAppRepository {
         } else { // update user
             let pg_app = PostgresApp {
                 id: app.id,
-                url: app.url.clone(),
+                url: app.url.to_string(),
                 secret_id: "".to_string(),
                 meta_id: app.meta.id,
             };
@@ -191,18 +163,18 @@ impl AppRepository for &PostgresAppRepository {
         }
 
         // delete residual data from the app
-        self.secret_repo.delete(&app.secret)?;
-        self.meta_repo.delete(&app.meta)?;
+        SECRET_REPO.delete(&app.secret)?;
+        META_REPO.delete(&app.meta)?;
 
         // in order to avoid new sessions to be created while removing the current
         // ones it is required to purge sessions once the application itself has 
         // been removed from the system
 
         // delete all sessions related to the provided app
-        self.sess_repo.delete_all_by_app(&app.url)?;
+        SESS_REPO.delete_all_by_app(&app.url)?;
 
         // there cannot remain any directory of any user for the provided app
-        self.dir_repo.delete_all_by_app(app.id)?;
+        DIR_REPO.delete_all_by_app(app.id)?;
         
         Ok(())
     }

@@ -27,7 +27,7 @@ pub fn app_register(app_repo: &dyn AppRepository,
     Ok(())
 }
 
-pub fn app_delete(app_repo: Box<dyn AppRepository>,
+pub fn app_delete(app_repo: &dyn AppRepository,
                   url: &str,
                   firm: &[u8]) -> Result<(), Box<dyn Error>> {
     

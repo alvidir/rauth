@@ -5,9 +5,13 @@ use bson::oid::ObjectId;
 use bson::Bson;
 
 use crate::mongo;
-use crate::metadata::domain::Metadata;
+use crate::metadata::domain::InnerMetadata;
 use crate::constants::errors;
 use super::domain::{Directory, DirectoryRepository};
+
+lazy_static! {
+    pub static ref DIR_REPO: MongoDirectoryRepository = MongoDirectoryRepository{};
+}
 
 const COLLECTION_NAME: &str = "directories";
 
@@ -44,11 +48,13 @@ impl MongoDirectoryRepository {
             user: mongo_dir.user,
             app: mongo_dir.app,
             deadline: SystemTime::UNIX_EPOCH,
-            meta: Metadata {
+            meta: InnerMetadata {
                 id: 0,
                 created_at: mongo_dir.meta.created_at,
                 updated_at: mongo_dir.meta.updated_at,
             },
+
+            repo: &*DIR_REPO,
         };
 
         return Ok(dir);
@@ -69,7 +75,7 @@ impl MongoDirectoryRepository {
     }
 }
 
-impl DirectoryRepository for &MongoDirectoryRepository {
+impl DirectoryRepository for MongoDirectoryRepository {
     fn find(&self, target: &str) -> Result<Directory, Box<dyn Error>>  {
         let loaded_dir_opt = mongo::get_connection(COLLECTION_NAME)
             .find_one(Some(doc! { "_id":  target }), None)?;

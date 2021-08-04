@@ -6,14 +6,20 @@ use crate::diesel::prelude::*;
 use crate::postgres::*;
 use crate::schema::users;
 use crate::schema::users::dsl::*;
-use crate::secret::framework::MongoSecretRepository;
-use crate::secret::domain::SecretRepository;
-use crate::metadata::framework::PostgresMetadataRepository;
+use crate::metadata::framework::META_REPO;
 use crate::metadata::domain::MetadataRepository;
-use crate::session::framework::InMemorySessionRepository;
+use crate::session::framework::SESS_REPO;
 use crate::session::domain::SessionRepository;
-use crate::directory::framework::MongoDirectoryRepository;
+use crate::directory::framework::DIR_REPO;
+use crate::secret::framework::SECRET_REPO;
+use crate::secret::domain::SecretRepository;
 use super::domain::{User, UserRepository};
+
+
+lazy_static! {
+    pub static ref USER_REPO: PostgresUserRepository = PostgresUserRepository;
+}
+
 
 // Import the generated rust code into module
 mod proto {
@@ -27,28 +33,15 @@ pub use proto::user_service_server::UserServiceServer;
 // Proto message structs
 use proto::{SignupRequest, DeleteRequest };
 
-pub struct UserServiceImplementation {
-    user_repo: &'static PostgresUserRepository,
-    meta_repo: &'static PostgresMetadataRepository,
-}
-
-impl UserServiceImplementation {
-    pub fn new(user_repo: &'static PostgresUserRepository,
-               meta_repo: &'static PostgresMetadataRepository) -> Self {
-        UserServiceImplementation {
-            user_repo: user_repo,
-            meta_repo: meta_repo,
-        }
-    }
-}
+pub struct UserServiceImplementation;
 
 #[tonic::async_trait]
 impl UserService for UserServiceImplementation {
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<()>, Status> {
         let msg_ref = request.into_inner();
 
-        match super::application::user_signup(&self.user_repo,
-                                              &self.meta_repo,
+        match super::application::user_signup(&*USER_REPO,
+                                              &*META_REPO,
                                               &msg_ref.email,
                                               &msg_ref.pwd) {
 
@@ -60,7 +53,7 @@ impl UserService for UserServiceImplementation {
     async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<()>, Status> {
         let msg_ref = request.into_inner();
 
-        match super::application::user_delete(&self.user_repo,
+        match super::application::user_delete(&*USER_REPO,
                                               &msg_ref.ident,
                                               &msg_ref.pwd,
                                               &msg_ref.totp) {
@@ -96,28 +89,9 @@ struct NewPostgresUser<'a> {
     pub meta_id: i32,
 }
 
-pub struct PostgresUserRepository {
-    secret_repo: &'static MongoSecretRepository,
-    dir_repo: &'static MongoDirectoryRepository,
-    meta_repo: &'static PostgresMetadataRepository,
-    sess_repo: &'static InMemorySessionRepository,
-}
+pub struct PostgresUserRepository;
 
-impl PostgresUserRepository {
-    pub fn new(secret_repo: &'static MongoSecretRepository,
-                sess_repo: &'static InMemorySessionRepository,
-                dir_repo: &'static MongoDirectoryRepository,
-                meta_repo: &'static PostgresMetadataRepository) -> Self {
-        PostgresUserRepository {
-            secret_repo: secret_repo,
-            meta_repo: meta_repo,
-            sess_repo: sess_repo,
-            dir_repo: dir_repo,
-        }
-    }
-}
-
-impl UserRepository for &PostgresUserRepository {
+impl UserRepository for PostgresUserRepository {
     fn find(&self, target: &str) -> Result<User, Box<dyn Error>>  {
         use crate::schema::users::dsl::*;
         
@@ -133,19 +107,21 @@ impl UserRepository for &PostgresUserRepository {
 
         let mut secret_opt = None;
         if let Some(secr_id) = &results[0].secret_id {
-            let secret = self.secret_repo.find(secr_id)?;
+            let secret = SECRET_REPO.find(secr_id)?;
             secret_opt = Some(secret);
         }
 
-        let meta = self.meta_repo.find(results[0].meta_id)?;
+        let meta = META_REPO.find(results[0].meta_id)?;
 
         Ok(User{
             id: results[0].id,
-            email: results[0].email.clone(),
+            email: &results[0].email,
             password: results[0].password.clone(),
             verified: results[0].verified,
             secret: secret_opt,
             meta: meta,
+
+            repo: &*USER_REPO,
         })
     }
 
@@ -172,7 +148,7 @@ impl UserRepository for &PostgresUserRepository {
         } else { // update user
             let pg_user = PostgresUser {
                 id: user.id,
-                email: user.email.clone(),
+                email: user.email.to_string(),
                 password: user.password.clone(),
                 verified: user.verified,
                 secret_id: if let Some(secret) = &user.secret {Some(secret.id.clone())} else {None},
@@ -201,19 +177,19 @@ impl UserRepository for &PostgresUserRepository {
         }
 
         // delete residual data from the user
-        self.meta_repo.delete(&user.meta)?;
+        META_REPO.delete(&user.meta)?;
         if let Some(secret) = &user.secret {
-            self.secret_repo.delete(secret)?;
+            SECRET_REPO.delete(secret)?;
         }
 
         // if the user have logged in, the session must be removed
-        if let Ok(sess_arc) = self.sess_repo.find_by_email(&user.email) {
+        if let Ok(sess_arc) = SESS_REPO.find_by_email(&user.email) {
             let sess = sess_arc.read().unwrap(); // may panic if the lock was poisoned
-            self.sess_repo.delete(&sess)?;
+            SESS_REPO.delete(&sess)?;
         }
 
         // there cannot remain any directory of any app for the provided user
-        self.dir_repo.delete_all_by_user(user.id)?;
+        DIR_REPO.delete_all_by_user(user.id)?;
         Ok(())
     }
 }

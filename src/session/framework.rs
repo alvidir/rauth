@@ -2,13 +2,17 @@ use std::error::Error;
 use std::sync::{Arc, RwLock, RwLockWriteGuard, RwLockReadGuard};
 use std::collections::{HashMap, HashSet};
 use tonic::{Request, Response, Status};
-use crate::user::framework::PostgresUserRepository;
-use crate::app::framework::PostgresAppRepository;
-use crate::directory::framework::MongoDirectoryRepository;
 use crate::security;
 use crate::constants::{settings, errors};
+use crate::user::framework::USER_REPO;
+use crate::directory::framework::DIR_REPO;
+use crate::app::framework::APP_REPO;
 use super::domain::{Session, SessionRepository};
 use super::application::{GroupByAppRepository, get_writable_session};
+
+lazy_static! {
+    pub static ref SESS_REPO: InMemorySessionRepository = InMemorySessionRepository::new();
+}
 
 // Import the generated rust code into module
 mod proto {
@@ -22,37 +26,17 @@ pub use proto::session_service_server::SessionServiceServer;
 // Proto message structs
 use proto::{LoginRequest, LoginResponse};
 
-pub struct SessionServiceImplementation {
-    sess_repo: &'static InMemorySessionRepository,
-    user_repo: &'static PostgresUserRepository,
-    app_repo: &'static PostgresAppRepository,
-    dir_repo: &'static MongoDirectoryRepository
-}
-
-impl SessionServiceImplementation {
-    pub fn new(sess_repo: &'static InMemorySessionRepository,
-               user_repo: &'static PostgresUserRepository,
-               app_repo: &'static PostgresAppRepository,
-               dir_repo: &'static MongoDirectoryRepository) -> Self {
-        
-        SessionServiceImplementation {
-            sess_repo: sess_repo,
-            user_repo: user_repo,
-            app_repo: app_repo,
-            dir_repo: dir_repo,
-        }
-    }
-}
+pub struct SessionServiceImplementation;
 
 #[tonic::async_trait]
 impl SessionService for SessionServiceImplementation {
     async fn login(&self, request: Request<LoginRequest>) -> Result<Response<LoginResponse>, Status> {
         let msg_ref = request.into_inner();
 
-        match super::application::session_login(&self.sess_repo,
-                                                &self.user_repo,
-                                                &self.app_repo,
-                                                &self.dir_repo,
+        match super::application::session_login(&*SESS_REPO,
+                                                &*USER_REPO,
+                                                &*APP_REPO,
+                                                &*DIR_REPO,
                                                 &msg_ref.ident,
                                                 &msg_ref.pwd,
                                                 &msg_ref.totp,
@@ -80,8 +64,8 @@ impl SessionService for SessionServiceImplementation {
             Ok(token) => token,
         };
 
-        if let Err(err) = super::application::session_logout(&self.sess_repo,
-                                                             &self.dir_repo,
+        if let Err(err) = super::application::session_logout(&*SESS_REPO,
+                                                             &*DIR_REPO,
                                                              token){               
             return Err(Status::aborted(err.to_string()));
         }
@@ -139,7 +123,7 @@ impl InMemorySessionRepository {
         Ok(sids_wr.unwrap()) // this line will not panic due the previous check of Err
     }
 
-    fn get_readable_repo(&self) -> Result<RwLockReadGuard<HashMap<String, Arc<RwLock<Session>>>>, Box<dyn Error>> {
+    fn get_readable_repo(&self) -> Result<RwLockReadGuard<HashMap<String, Arc<RwLock<Session<'static>>>>>, Box<dyn Error>> {
         let repo_rd = self.all_instances.read();
         if let Err(err) = &repo_rd {
             error!("read-only lock for all_instances from session's repo got poisoned: {}", err);
@@ -149,7 +133,7 @@ impl InMemorySessionRepository {
         Ok(repo_rd.unwrap()) // this line will not panic due the previous check of Err
     }
 
-    fn get_writable_repo(&self) -> Result<RwLockWriteGuard<HashMap<String, Arc<RwLock<Session>>>>, Box<dyn Error>> {
+    fn get_writable_repo(&self) -> Result<RwLockWriteGuard<HashMap<String, Arc<RwLock<Session<'static>>>>>, Box<dyn Error>> {
         let repo_wr = self.all_instances.write();
         if let Err(err) = &repo_wr {
             error!("read-write lock for all_instances from session's repo got poisoned: {}", err);
@@ -223,7 +207,7 @@ impl InMemorySessionRepository {
             let sids = InMemorySessionRepository::get_readable_sids(sids_arc)?;
             
             for sid in sids.iter() {
-                let repo = self.get_writable_repo()?;
+                let repo = *self.get_writable_repo()?;
                 if let Some(sess_arc) = repo.get(sid) {
                     let mut sess = get_writable_session(sess_arc)?;
                     sess.delete_directory(url);
@@ -236,8 +220,8 @@ impl InMemorySessionRepository {
     }
 }
 
-impl SessionRepository for &InMemorySessionRepository {
-    fn find(&self, token: &str) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
+impl SessionRepository for InMemorySessionRepository {
+    fn find(&self, token: &str) -> Result<Arc<RwLock<Session<'static>>>, Box<dyn Error>> {
         let repo = self.get_readable_repo()?;
         if let Some(sess) = repo.get(token) {
             return Ok(Arc::clone(sess));
@@ -246,7 +230,7 @@ impl SessionRepository for &InMemorySessionRepository {
         Err(errors::NOT_FOUND.into())
     }
 
-    fn find_by_email(&self, email: &str) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
+    fn find_by_email(&self, email: &str) -> Result<Arc<RwLock<Session<'static>>>, Box<dyn Error>> {
         let repo = self.get_readable_repo()?;
         if let Some((_, sess)) = repo.iter().find(|(_, sess)| InMemorySessionRepository::session_has_email(sess, email)) {
             return Ok(Arc::clone(sess));
@@ -255,7 +239,7 @@ impl SessionRepository for &InMemorySessionRepository {
         Err(errors::NOT_FOUND.into())
     }
 
-    fn save(&self, mut session: Session) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
+    fn save(&self, mut session: Session<'static>) -> Result<Arc<RwLock<Session<'static>>>, Box<dyn Error>> {
         let mut repo = self.get_writable_repo()?;
         if let Some(_) = repo.get(&session.sid) {
             return Err(errors::ALREADY_EXISTS.into());
@@ -292,7 +276,7 @@ impl SessionRepository for &InMemorySessionRepository {
     }
 }
 
-impl GroupByAppRepository for &InMemorySessionRepository {
+impl GroupByAppRepository for InMemorySessionRepository {
     fn get(&self, url: &str) -> Result<Arc<RwLock<HashSet<String>>>, Box<dyn Error>> {
         let group = self.get_readable_group()?;
         if let Some(sids) = group.get(url){

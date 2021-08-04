@@ -7,9 +7,9 @@ use crate::smtp;
 use super::domain::{User, UserRepository, Token};
 
 pub fn user_signup(user_repo: &dyn UserRepository,
-                    meta_repo: &dyn MetadataRepository,
-                    email: &str,
-                    password: &str) -> Result<(), Box<dyn Error>> {
+                   meta_repo: &dyn MetadataRepository,
+                   email: &str,
+                   password: &str) -> Result<(), Box<dyn Error>> {
     
     info!("got signup request from user {} ", email);
     

@@ -2,7 +2,7 @@ use std::error::Error;
 use std::time::SystemTime;
 use crate::session::domain::Session;
 use crate::app::domain::App;
-use crate::metadata::domain::Metadata;
+use crate::metadata::domain::InnerMetadata;
 
 
 pub trait DirectoryRepository {
@@ -17,11 +17,13 @@ pub struct Directory {
     pub user: i32,
     pub app: i32,
     pub deadline: SystemTime,
-    pub meta: Metadata,
+    pub meta: InnerMetadata,
+
+    repo: &'static dyn DirectoryRepository,
 }
 
 impl Directory {
-    pub fn new(dir_repo: &dyn DirectoryRepository,
+    pub fn new(dir_repo: &'static dyn DirectoryRepository,
                sess: &Session,
                app: &App) -> Result<Self, Box<dyn Error>> {
 
@@ -30,7 +32,9 @@ impl Directory {
             user: sess.user.id,
             app: app.id,
             deadline: sess.deadline,
-            meta: Metadata::now(),
+            meta: InnerMetadata::new(),
+
+            repo: dir_repo,
         };
 
         dir_repo.save(&mut directory)?;
@@ -39,5 +43,13 @@ impl Directory {
 
     pub fn _set_deadline(&mut self, deadline: SystemTime) {
         self.deadline = deadline;
+    }
+
+    pub fn save(&mut self) -> Result<(), Box<dyn Error>> {
+        self.repo.save(self)
+    }
+
+    pub fn delete(&self) -> Result<(), Box<dyn Error>> {
+        self.repo.delete(self)
     }
 }

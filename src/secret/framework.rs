@@ -5,9 +5,13 @@ use bson::oid::ObjectId;
 use bson::Bson;
 
 use crate::mongo;
-use crate::metadata::domain::Metadata;
+use crate::metadata::domain::InnerMetadata;
 use crate::constants::errors;
 use super::domain::{Secret, SecretRepository};
+
+lazy_static! {
+    pub static ref SECRET_REPO: MongoSecretRepository = MongoSecretRepository;
+}
 
 const COLLECTION_NAME: &str = "secrets";
 
@@ -25,9 +29,9 @@ struct MongoSecret {
     pub meta: MongoSecretMetadata,
 }
 
-pub struct MongoSecretRepository {}
+pub struct MongoSecretRepository;
 
-impl SecretRepository for &MongoSecretRepository {
+impl SecretRepository for MongoSecretRepository {
     fn find(&self, target: &str) -> Result<Secret, Box<dyn Error>>  {
         let loaded_secret_opt = mongo::get_connection(COLLECTION_NAME)
             .find_one(Some(doc! { "_id":  target }), None)?;
@@ -44,12 +48,14 @@ impl SecretRepository for &MongoSecretRepository {
 
             let secret = Secret {
                 id: id,
-                data: mongo_secret.data,
-                meta: Metadata {
+                data: &mongo_secret.data,
+                meta: InnerMetadata {
                     id: 0,
                     created_at: mongo_secret.meta.created_at,
                     updated_at: mongo_secret.meta.updated_at,
                 },
+
+                repo: &*SECRET_REPO,
             };
 
             return Ok(secret);
@@ -73,7 +79,7 @@ impl SecretRepository for &MongoSecretRepository {
 
         let mongo_secret = MongoSecret {
             id: id_opt,
-            data: secret.data.clone(),
+            data: secret.data.to_vec(),
             meta: mongo_meta,
         };
 

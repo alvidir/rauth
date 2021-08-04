@@ -15,7 +15,7 @@ mod tests {
     const PWD: &str = "ABCD1234";
 
     lazy_static! {
-        pub static ref TESTING_SESSIONS: RwLock<HashMap<String, Arc<RwLock<Session>>>> = {
+        pub static ref TESTING_SESSIONS: RwLock<HashMap<String, Arc<RwLock<Session<'static>>>>> = {
             let repo = HashMap::new();
             RwLock::new(repo)
         };    
@@ -47,7 +47,7 @@ mod tests {
             Err("unimplemeted".into())
         }
 
-        fn save(&self, mut session: Session) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
+        fn save(&self, mut session: Session<'static>) -> Result<Arc<RwLock<Session<'static>>>, Box<dyn Error>> {
             session.sid = "testing".to_string();
 
             let mut repo = TESTING_SESSIONS.write()?;
@@ -55,8 +55,8 @@ mod tests {
             let mu = RwLock::new(session);
             let arc = Arc::new(mu);
             
-            repo.insert(email.clone(), arc);
-            let sess = repo.get(&email).unwrap();
+            repo.insert(email.to_string(), arc);
+            let sess = repo.get(email).unwrap();
             Ok(Arc::clone(sess))
         }
 
@@ -65,7 +65,7 @@ mod tests {
         }
     }
     
-    impl MetadataRepository for &Mock {
+    impl MetadataRepository for Mock {
         fn find(&self, _id: i32) -> Result<Metadata, Box<dyn Error>> {
             Err("unimplemeted".into())
         }
@@ -86,16 +86,16 @@ mod tests {
         const TIMEOUT: Duration = Duration::from_secs(10);
         let mock_impl = &Mock{};
 
-        let meta = Metadata::now();
+        let meta = Metadata::new(mock_impl).unwrap();
         let user = User::new(&mock_impl,
-                             meta.clone(),
+                             meta,
                              EMAIL,
                              PWD).unwrap();
 
         let before = SystemTime::now();
         let sess_arc = Session::new(&mock_impl,
-                                 user,
-                                 TIMEOUT).unwrap();
+                                    user,
+                                    TIMEOUT).unwrap();
 
         let after = SystemTime::now();
         let sess = sess_arc.read().unwrap();

@@ -8,7 +8,7 @@ mod tests {
     use std::time::SystemTime;
     use super::domain::{Metadata, MetadataRepository};
 
-    struct Mock {}
+    struct Mock;
     
     impl MetadataRepository for Mock {
         fn find(&self, _id: i32) -> Result<Metadata, Box<dyn Error>> {
@@ -39,9 +39,9 @@ mod tests {
     }
 
     #[test]
-    fn domain_metadata_now_ok() {
+    fn domain_metadata_now_ok() {        
         let before = SystemTime::now();
-        let meta = Metadata::now();
+        let meta = Metadata::new(&Mock).unwrap();
         let after = SystemTime::now();
 
         assert_eq!(meta.id, 0);
