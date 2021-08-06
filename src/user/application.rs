@@ -24,7 +24,7 @@ pub fn user_signup(user_repo: &'static dyn UserRepository,
     Ok(())
 }
 
-pub fn user_delete(user_repo: &dyn UserRepository,
+pub fn user_delete(user_repo: &'static dyn UserRepository,
                    email: &str,
                    pwd: &str,
                    totp: &str) -> Result<(), Box<dyn Error>> {
