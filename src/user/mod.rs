@@ -9,11 +9,11 @@ lazy_static! {
 }   
 
 pub fn get_repository() -> Box<&'static dyn domain::UserRepository> {
-    #[cfg(test)]
-    return Box::new(&*tests::REPO_TEST);
-
     #[cfg(not(test))]
     return Box::new(&*REPO_PROVIDER);
+    
+    #[cfg(test)]
+    return Box::new(&*tests::REPO_TEST);
 }
 
 #[cfg(test)]
