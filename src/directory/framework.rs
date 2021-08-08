@@ -119,7 +119,7 @@ impl DirectoryRepository for MongoDirectoryRepository {
             dir.id = dir_id.to_hex();
             Ok(())
         } else {
-            return Err("retrieved id is not of the type ObjectId".into());
+            return Err(errors::PARSE_FAILED.into());
         }
     }
 

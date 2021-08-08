@@ -9,8 +9,7 @@ use crate::constants::environment;
 
 lazy_static! {
     static ref TERA: Tera = {
-        let project_root = env!("CARGO_MANIFEST_DIR");
-        let templates = format!("{}/templates/*.html", project_root);
+        let templates = env::var(environment::TEMPLATES).unwrap();
         Tera::new(&templates).unwrap()
     };
 }
@@ -30,13 +29,10 @@ fn get_mailer() -> Result<SmtpTransport, Box<dyn Error>> {
 
 pub fn send_verification_email(to: &str, token: &str) -> Result<(), Box<dyn Error>> {
     let mut verify_url = env::var(environment::VERIFY_URL)?;
-    verify_url = format!("{}/{}", verify_url, token);
-    
-    let support_email = env::var(environment::SUPPORT_EMAIL)?;
+    verify_url = format!("{}?t={}", verify_url, token);
 
     let mut context = Context::new();
     context.insert("verify_url", &verify_url);
-    context.insert("support_email", &support_email);
     
     const SUBJECT: &str = "Alvidir | Verification email";
     let body = TERA.render("verification_email.html", &context)?;

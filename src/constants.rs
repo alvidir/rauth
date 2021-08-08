@@ -17,7 +17,7 @@ pub mod environment {
     pub const SECRET_PEM: &str = "SECRET_PEM";
     pub const SECRET_PWD: &str = "SECRET_PWD";
     pub const VERIFY_URL: &str = "VERIFY_URL";
-    pub const SUPPORT_EMAIL: &str = "SUPPORT_EMAIL";
+    pub const TEMPLATES: &str = "TEMPLATES";
 }
 
 pub mod errors {
