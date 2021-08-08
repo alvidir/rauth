@@ -4,15 +4,9 @@ use std::collections::{HashMap, HashSet};
 use tonic::{Request, Response, Status};
 use crate::security;
 use crate::constants::{settings, errors};
-use crate::user::framework::USER_REPO;
-use crate::directory::framework::DIR_REPO;
-use crate::app::framework::APP_REPO;
+use crate::app::domain::App;
 use super::domain::{Session, SessionRepository};
-use super::application::{GroupByAppRepository, get_writable_session};
-
-lazy_static! {
-    pub static ref SESS_REPO: InMemorySessionRepository = InMemorySessionRepository::new();
-}
+use super::application::get_writable_session;
 
 // Import the generated rust code into module
 mod proto {
@@ -33,11 +27,7 @@ impl SessionService for SessionServiceImplementation {
     async fn login(&self, request: Request<LoginRequest>) -> Result<Response<LoginResponse>, Status> {
         let msg_ref = request.into_inner();
 
-        match super::application::session_login(&*SESS_REPO,
-                                                &*USER_REPO,
-                                                &*APP_REPO,
-                                                &*DIR_REPO,
-                                                &msg_ref.ident,
+        match super::application::session_login(&msg_ref.ident,
                                                 &msg_ref.pwd,
                                                 &msg_ref.totp,
                                                 &msg_ref.app) {
@@ -64,9 +54,7 @@ impl SessionService for SessionServiceImplementation {
             Ok(token) => token,
         };
 
-        if let Err(err) = super::application::session_logout(&*SESS_REPO,
-                                                             &*DIR_REPO,
-                                                             token){               
+        if let Err(err) = super::application::session_logout(token){               
             return Err(Status::aborted(err.to_string()));
         }
 
@@ -194,30 +182,6 @@ impl InMemorySessionRepository {
 
         Ok(())
     }
-
-    pub fn delete_all_by_app(&self, url: &str) -> Result<(), Box<dyn Error>> {    
-        { // write lock is released at the end of this block
-            let group = self.get_readable_group()?;
-            let sids_search = group.get(url);
-            if let None = sids_search {
-                return Err(errors::NOT_FOUND.into());
-            }
-
-            let sids_arc = sids_search.unwrap(); // this line will not panic due to the previous check of None
-            let sids = InMemorySessionRepository::get_readable_sids(sids_arc)?;
-            
-            for sid in sids.iter() {
-                let repo = self.get_writable_repo()?;
-                if let Some(sess_arc) = repo.get(sid) {
-                    let mut sess = get_writable_session(sess_arc)?;
-                    sess.delete_directory(url);
-                }
-            }
-        }
-
-        // and empty group cannot exists, so it must be removed
-        self.destroy_group(url)
-    }
 }
 
 impl SessionRepository for InMemorySessionRepository {
@@ -274,25 +238,64 @@ impl SessionRepository for InMemorySessionRepository {
 
         Ok(())
     }
-}
 
-impl GroupByAppRepository for InMemorySessionRepository {
-    fn get(&self, url: &str) -> Result<Arc<RwLock<HashSet<String>>>, Box<dyn Error>> {
-        let group = self.get_readable_group()?;
-        if let Some(sids) = group.get(url){
-            return Ok(Arc::clone(sids));
+    fn delete_all_by_app(&self, app: &App) -> Result<(), Box<dyn Error>> {    
+        { // write lock is released at the end of this block
+            let group = self.get_readable_group()?;
+            let sids_search = group.get(app.get_url());
+            if let None = sids_search {
+                return Err(errors::NOT_FOUND.into());
+            }
+
+            let sids_arc = sids_search.unwrap(); // this line will not panic due to the previous check of None
+            let sids = InMemorySessionRepository::get_readable_sids(sids_arc)?;
+            
+            for sid in sids.iter() {
+                let repo = self.get_writable_repo()?;
+                if let Some(sess_arc) = repo.get(sid) {
+                    let mut sess = get_writable_session(sess_arc)?;
+                    sess.delete_directory(app);
+                }
+            }
         }
-        
-        Err(errors::NOT_FOUND.into())
+
+        // and empty group cannot exists, so it must be removed
+        self.destroy_group(app.get_url())
     }
 
-    fn store(&self, url: &str, sid: &str) -> Result<(), Box<dyn Error>> {
-        if {
+    fn find_all_by_app(&self, app: &App) -> Result<Vec<Arc<RwLock<Session>>>, Box<dyn Error>> {
+        let sids_arc = {
             let group = self.get_readable_group()?;
-            if let Some(sids_arc) = group.get(url){
+            match group.get(app.get_url()){
+                Some(sids) => Arc::clone(sids),
+                None => {
+                    return Err(errors::NOT_FOUND.into());
+                }
+            }
+        };
+
+        let sids = InMemorySessionRepository::get_readable_sids(&sids_arc)?;
+        
+        let mut all_sess = Vec::new();
+        for sid in sids.iter() {
+            let repo = self.get_readable_repo()?;
+            if let Some(sess_arc) = repo.get(sid) {
+                all_sess.push(Arc::clone(sess_arc));
+            } else {
+                error!("sid {} exists in group by {} but not found in repository", sid, app.get_url());
+            }
+        }
+
+        Ok(all_sess)
+    }
+
+    fn add_to_app_group(&self, app: &App, sess: &Session) -> Result<(), Box<dyn Error>> {
+        let create = {
+            let group = self.get_readable_group()?;
+            if let Some(sids_arc) = group.get(app.get_url()){
                 let mut sids = InMemorySessionRepository::get_writable_sids(sids_arc)?;
-                if let None = sids.iter().position(|item| item == sid) {
-                    sids.insert(sid.to_string());
+                if let None = sids.iter().position(|item| *item == sess.sid) {
+                    sids.insert(sess.sid.to_string());
                 }
 
                 false
@@ -301,26 +304,30 @@ impl GroupByAppRepository for InMemorySessionRepository {
                 // being sid the first session_id to insert
                 true
             }
-        } { // if group == None then ...
-            self.create_group(url, sid)?;
+        };
+        
+        if create { // if group == None then ...
+            self.create_group(app.get_url(), &sess.sid)?;
         }
 
         Ok(())
     }
 
-    fn remove(&self, url: &str, sid: &str) -> Result<(), Box<dyn Error>> {
-        if { // read lock is released at the end of this block
+    fn delete_from_app_group(&self, app: &App, sess: &Session) -> Result<(), Box<dyn Error>> {
+        let size = { // read lock is released at the end of this block
             let group = self.get_readable_group()?;
-            if let Some(sids_arc) = group.get(url){
+            if let Some(sids_arc) = group.get(app.get_url()){
                 let mut sids = InMemorySessionRepository::get_writable_sids(sids_arc)?;
-                sids.remove(sid);
+                sids.remove(&sess.sid);
 
                 sids.len()
             } else {
                 0
             }
-        } == 0 { // if size == 0 then ...
-            self.destroy_group(url)?;
+        };
+        
+        if size == 0 {
+            self.destroy_group(app.get_url())?;
         }
 
         Ok(())

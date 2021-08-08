@@ -18,13 +18,10 @@ pub struct User {
     pub verified: bool,
     pub secret: Option<Secret>,
     pub meta: Metadata,
-
-    //repo: &'static dyn UserRepository 
 }
 
 impl User {
-    pub fn new(user_repo: &/*'static*/ dyn UserRepository,
-               meta: Metadata,
+    pub fn new(meta: Metadata,
                email: &str,
                password: &str) -> Result<Self, Box<dyn Error>> {
         
@@ -38,12 +35,14 @@ impl User {
             verified: false,
             secret: None,
             meta: meta,
-
-            //repo: user_repo,
         };
 
-        user_repo.save(&mut user)?;
+        super::get_repository().save(&mut user)?;
         Ok(user)
+    }
+
+    pub fn get_id(&self) -> i32 {
+        self.id
     }
 
     pub fn is_verified(&self) -> bool {
@@ -54,13 +53,21 @@ impl User {
         password != self.password
     }
 
-    // pub fn save(&mut self) -> Result<(), Box<dyn Error>> {
-    //     self.repo.save(self)
-    // }
+    pub fn _save(&mut self) -> Result<(), Box<dyn Error>> {
+        super::get_repository().save(self)?;
+        self.meta.save()?;
+        Ok(())
+    }
 
-    // pub fn delete(&self) -> Result<(), Box<dyn Error>> {
-    //     self.repo.delete(self)
-    // }
+    pub fn delete(&self) -> Result<(), Box<dyn Error>> {
+        if let Some(secret) = &self.secret {
+            secret.delete()?;
+        }
+
+        super::get_repository().delete(self)?;
+        self.meta.delete()?;
+        Ok(())
+    }
 }
 
 // token for email-verification

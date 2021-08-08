@@ -2,13 +2,30 @@ pub mod framework;
 pub mod application;
 pub mod domain;
 
+lazy_static! {
+    static ref REPO_PROVIDER: framework::MongoSecretRepository = {
+        framework::MongoSecretRepository
+    }; 
+}   
+
+pub fn get_repository() -> Box<&'static dyn domain::SecretRepository> {
+    #[cfg(not(test))]
+    return Box::new(&*REPO_PROVIDER);
+    
+    #[cfg(test)]
+    return Box::new(&*tests::REPO_TEST);
+}
+
 #[cfg(test)]
 pub mod tests {
     use std::error::Error;
     use crate::metadata::domain::InnerMetadata;
     use super::domain::{Secret, SecretRepository};
 
-    struct Mock;
+    pub struct Mock;
+    lazy_static! {
+        pub static ref REPO_TEST: Mock = Mock;
+    } 
 
     impl SecretRepository for Mock {
         fn find(&self, _id: &str) -> Result<Secret, Box<dyn Error>> {

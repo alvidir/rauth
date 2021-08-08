@@ -6,20 +6,9 @@ use crate::diesel::prelude::*;
 use crate::postgres::*;
 use crate::schema::users;
 use crate::schema::users::dsl::*;
-use crate::metadata::framework::META_REPO;
-use crate::metadata::domain::MetadataRepository;
-use crate::session::framework::SESS_REPO;
-use crate::session::domain::SessionRepository;
-use crate::directory::framework::DIR_REPO;
-use crate::secret::framework::SECRET_REPO;
-use crate::secret::domain::SecretRepository;
+use crate::metadata::get_repository as get_meta_repository;
+use crate::secret::get_repository as get_secret_repository;
 use super::domain::{User, UserRepository};
-
-
-lazy_static! {
-    pub static ref USER_REPO: PostgresUserRepository = PostgresUserRepository;
-}
-
 
 // Import the generated rust code into module
 mod proto {
@@ -40,9 +29,7 @@ impl UserService for UserServiceImplementation {
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<()>, Status> {
         let msg_ref = request.into_inner();
 
-        match super::application::user_signup(&*USER_REPO,
-                                              &*META_REPO,
-                                              &msg_ref.email,
+        match super::application::user_signup(&msg_ref.email,
                                               &msg_ref.pwd) {
 
             Err(err) => Err(Status::aborted(err.to_string())),
@@ -53,8 +40,7 @@ impl UserService for UserServiceImplementation {
     async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<()>, Status> {
         let msg_ref = request.into_inner();
 
-        match super::application::user_delete(&*USER_REPO,
-                                              &msg_ref.ident,
+        match super::application::user_delete(&msg_ref.ident,
                                               &msg_ref.pwd,
                                               &msg_ref.totp) {
 
@@ -107,11 +93,11 @@ impl UserRepository for PostgresUserRepository {
 
         let mut secret_opt = None;
         if let Some(secr_id) = &results[0].secret_id {
-            let secret = SECRET_REPO.find(secr_id)?;
+            let secret = get_secret_repository().find(secr_id)?;
             secret_opt = Some(secret);
         }
 
-        let meta = META_REPO.find(results[0].meta_id)?;
+        let meta = get_meta_repository().find(results[0].meta_id)?;
 
         Ok(User{
             id: results[0].id,
@@ -120,8 +106,6 @@ impl UserRepository for PostgresUserRepository {
             verified: results[0].verified,
             secret: secret_opt,
             meta: meta,
-
-            //repo: &*USER_REPO,
         })
     }
 
@@ -131,8 +115,8 @@ impl UserRepository for PostgresUserRepository {
                 email: &user.email,
                 password: &user.password,
                 verified: user.verified,
-                secret_id: if let Some(secret) = &user.secret {Some(&secret.id)} else {None},
-                meta_id: user.meta.id,
+                secret_id: if let Some(secret) = &user.secret {Some(secret.get_id())} else {None},
+                meta_id: user.meta.get_id(),
             };
     
             let result = { // block is required because of connection release
@@ -151,8 +135,8 @@ impl UserRepository for PostgresUserRepository {
                 email: user.email.to_string(),
                 password: user.password.clone(),
                 verified: user.verified,
-                secret_id: if let Some(secret) = &user.secret {Some(secret.id.clone())} else {None},
-                meta_id: user.meta.id,
+                secret_id: if let Some(secret) = &user.secret {Some(secret.get_id().to_string())} else {None},
+                meta_id: user.meta.get_id(),
             };
             
             { // block is required because of connection release            
@@ -176,20 +160,6 @@ impl UserRepository for PostgresUserRepository {
             ).execute(&connection)?;
         }
 
-        // delete residual data from the user
-        META_REPO.delete(&user.meta)?;
-        if let Some(secret) = &user.secret {
-            SECRET_REPO.delete(secret)?;
-        }
-
-        // if the user have logged in, the session must be removed
-        if let Ok(sess_arc) = SESS_REPO.find_by_email(&user.email) {
-            let sess = sess_arc.read().unwrap(); // may panic if the lock was poisoned
-            SESS_REPO.delete(&sess)?;
-        }
-
-        // there cannot remain any directory of any app for the provided user
-        DIR_REPO.delete_all_by_user(user.id)?;
         Ok(())
     }
 }

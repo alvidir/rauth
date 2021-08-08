@@ -2,13 +2,30 @@ pub mod framework;
 pub mod application;
 pub mod domain;
 
+lazy_static! {
+    static ref REPO_PROVIDER: framework::PostgresMetadataRepository = {
+        framework::PostgresMetadataRepository
+    }; 
+}   
+
+pub fn get_repository() -> Box<&'static dyn domain::MetadataRepository> {
+    #[cfg(not(test))]
+    return Box::new(&*REPO_PROVIDER);
+    
+    #[cfg(test)]
+    return Box::new(&*tests::REPO_TEST);
+}
+
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use std::error::Error;
     use std::time::SystemTime;
     use super::domain::{InnerMetadata, Metadata, MetadataRepository};
 
-    struct Mock;
+    pub struct Mock;
+    lazy_static! {
+        pub static ref REPO_TEST: Mock = Mock;
+    } 
     
     impl MetadataRepository for Mock {
         fn find(&self, _id: i32) -> Result<Metadata, Box<dyn Error>> {
@@ -25,12 +42,14 @@ mod tests {
         }  
     }
 
+    pub fn new_metadata() -> Metadata {
+        Metadata::new().unwrap()
+    }
+
     #[test]
     fn domain_metadata_new_ok() {
-        let mock_impl = Mock{};
-
         let before = SystemTime::now();
-        let meta = Metadata::new(&mock_impl).unwrap();
+        let meta = Metadata::new().unwrap();
         let after = SystemTime::now();
 
         assert_eq!(meta.id, 999);

@@ -1,13 +1,12 @@
 use std::error::Error;
-use crate::metadata::domain::{Metadata, MetadataRepository};
-use crate::secret::domain::{Secret, SecretRepository};
+use crate::metadata::domain::Metadata;
+use crate::secret::domain::Secret;
 use crate::security;
-use super::domain::{App, AppRepository};
+use crate::directory::get_repository as get_dir_repository;
+use crate::session::get_repository as get_sess_repository;
+use super::domain::App;
 
-pub fn app_register(app_repo: &'static dyn AppRepository,
-                    secret_repo: &'static dyn SecretRepository,
-                    meta_repo: &'static dyn MetadataRepository,
-                    url: &str,
+pub fn app_register(url: &str,
                     pem: &[u8],
                     firm: &[u8]) -> Result<(), Box<dyn Error>> {
 
@@ -21,19 +20,18 @@ pub fn app_register(app_repo: &'static dyn AppRepository,
     // the message signature; otherwise there is no way to ensure the secret is the app's one
     security::verify_ec_signature(pem, firm, &data)?;
     
-    let meta = Metadata::new(meta_repo)?;
-    let secret = Secret::new(secret_repo, pem)?;
-    App::new(app_repo, secret, meta, url)?;
+    let meta = Metadata::new()?;
+    let secret = Secret::new(pem)?;
+    App::new(secret, meta, url)?;
     Ok(())
 }
 
-pub fn app_delete(app_repo: &dyn AppRepository,
-                  url: &str,
+pub fn app_delete(url: &str,
                   firm: &[u8]) -> Result<(), Box<dyn Error>> {
     
     info!("got a deletion request from application {} ", url);
 
-    let app = app_repo.find(url)?;
+    let app = super::get_repository().find(url)?;
     let pem = app.secret.get_data();
     
     let mut data: Vec<&[u8]> = Vec::new();
@@ -43,6 +41,8 @@ pub fn app_delete(app_repo: &dyn AppRepository,
     // must be checked
     security::verify_ec_signature(pem, firm, &data)?;
     
-    app_repo.delete(&app)?;
+    get_sess_repository().delete_all_by_app(&app)?;
+    get_dir_repository().delete_all_by_app(&app)?;
+    app.delete()?;
     Ok(())
 }

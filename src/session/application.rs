@@ -1,26 +1,18 @@
 use std::error::Error;
 use std::time::Duration;
 use std::sync::{Arc, RwLock, RwLockWriteGuard};
-use std::collections::HashSet;
 
-use crate::user::domain::UserRepository;
-use crate::app::domain::AppRepository;
-use crate::directory::domain::{Directory, DirectoryRepository};
+use crate::user::get_repository as get_user_repository;
+use crate::app::get_repository as get_app_repository;
+use crate::directory::{
+    get_repository as get_dir_repository,
+    domain::Directory,
+};
+
 use crate::constants::{errors, settings};
 use crate::security;
 
-use super::domain::{Session, SessionRepository, Token};
-
-pub trait GroupByAppRepository {
-    fn get(&self, url: &str) -> Result<Arc<RwLock<HashSet<String>>>, Box<dyn Error>>;
-    fn store(&self, url: &str, sid: &str) -> Result<(), Box<dyn Error>>;
-    fn remove(&self, url: &str, sid: &str) -> Result<(), Box<dyn Error>>;
-}
-
-pub trait SuperSessionRepository: GroupByAppRepository + SessionRepository {}
-
-impl<T> SuperSessionRepository for T
-where T: SessionRepository + GroupByAppRepository {}
+use super::domain::{Session, Token};
 
 pub fn get_writable_session<'a, 'b>(sess_arc: &Arc<RwLock<Session>>) -> Result<RwLockWriteGuard<Session>, Box<dyn Error>> {
     let sess_wr = sess_arc.write();
@@ -32,11 +24,7 @@ pub fn get_writable_session<'a, 'b>(sess_arc: &Arc<RwLock<Session>>) -> Result<R
     Ok(sess_wr.unwrap()) // this line will not panic due the previous check of Err
 }
 
-pub fn session_login(sess_repo: &'static dyn SuperSessionRepository,
-                     user_repo: &'static dyn UserRepository,
-                     app_repo: &'static dyn AppRepository,
-                     dir_repo: &'static dyn DirectoryRepository,
-                     email: &str,
+pub fn session_login(email: &str,
                      pwd: &str,
                      totp: &str,
                      app: &str) -> Result<String, Box<dyn Error>> {
@@ -44,7 +32,7 @@ pub fn session_login(sess_repo: &'static dyn SuperSessionRepository,
     info!("got login request from user {} ", email);
 
     // make sure the user exists and its credentials are alright
-    let user = user_repo.find(email)?;
+    let user = get_user_repository().find(email)?;
     if !user.match_password(pwd) {
         return Err(errors::NOT_FOUND.into());
     } else if !user.is_verified() {
@@ -58,33 +46,33 @@ pub fn session_login(sess_repo: &'static dyn SuperSessionRepository,
     }
 
     // get the existing session or create a new one
-    let sess_arc = match sess_repo.find_by_email(email) {
+    let sess_arc = match super::get_repository().find_by_email(email) {
         Ok(sess_arc) => sess_arc,
         Err(_) => {
             let timeout =  Duration::from_secs(settings::TOKEN_TIMEOUT);
-            Session::new(sess_repo, user, timeout)?
+            Session::new(user, timeout)?
         }
     };
 
     // generate a token for the gotten session and the given app
     let token = {
-        let app = app_repo.find(app)?;
+        let app = get_app_repository().find(app)?;
         let token: String;
         
         let mut sess = get_writable_session(&sess_arc)?;
         let claim = Token::new(&sess, &app, sess.deadline);
         token = security::encode_jwt(claim)?;
 
-        if let None = sess.get_directory(&app.url) {
-            if let Ok(dir) = dir_repo.find_by_user_and_app(sess.user.id, app.id) {
-                sess.set_directory(&app.url, dir)?;
+        if let None = sess.get_directory(&app) {
+            if let Ok(dir) = get_dir_repository().find_by_user_and_app(sess.user.id, app.get_id()) {
+                sess.set_directory(&app, dir)?;
             } else {
-                let dir = Directory::new(dir_repo, &sess, &app)?;
-                sess.set_directory(&app.url, dir)?;
+                let dir = Directory::new(&sess, &app)?;
+                sess.set_directory(&app, dir)?;
             }
 
-            // register the session's sid into the app's url group 
-            sess_repo.store(&app.url, &sess.sid)?;
+            // subscribe the session's sid into the app's group 
+            super::get_repository().add_to_app_group(&app, &sess)?;
         }
 
         token
@@ -93,19 +81,18 @@ pub fn session_login(sess_repo: &'static dyn SuperSessionRepository,
     Ok(token)
 }
 
-pub fn session_logout(sess_repo: &'static dyn SuperSessionRepository,
-                      dir_repo: &'static dyn DirectoryRepository,
-                      token: &str) -> Result<(), Box<dyn Error>> {
+pub fn session_logout(token: &str) -> Result<(), Box<dyn Error>> {
     info!("got a logout request for cookie {} ", token);
     let claim = security::decode_jwt::<Token>(token)?;
     
-    let sess_arc = sess_repo.find(&claim.sub)?;
+    let sess_arc = super::get_repository().find(&claim.sub)?;
     let mut sess = get_writable_session(&sess_arc)?;
-    let sid = &sess.sid.clone(); // required because of mutability issues
 
-    if let Some(mut dir) = sess.delete_directory(&claim.url) {
-        sess_repo.remove(&claim.url, sid)?;
-        dir_repo.save(&mut dir)?;
+    let app = get_app_repository().find(&claim.url)?;
+    if let Some(mut dir) = sess.delete_directory(&app) {
+        // unsubscribe the session's sid into the app's group 
+        super::get_repository().delete_from_app_group(&app, &sess)?;
+        get_dir_repository().save(&mut dir)?;
     }
 
     Ok(())

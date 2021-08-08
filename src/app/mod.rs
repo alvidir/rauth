@@ -2,14 +2,31 @@ pub mod framework;
 pub mod application;
 pub mod domain;
 
+lazy_static! {
+    static ref REPO_PROVIDER: framework::PostgresAppRepository = {
+        framework::PostgresAppRepository
+    }; 
+}   
+
+pub fn get_repository() -> Box<&'static dyn domain::AppRepository> {
+    #[cfg(not(test))]
+    return Box::new(&*REPO_PROVIDER);
+    
+    #[cfg(test)]
+    return Box::new(&*tests::REPO_TEST);
+}
+
 #[cfg(test)]
 mod tests {
     use std::error::Error;
-    use crate::metadata::domain::{Metadata, MetadataRepository};
+    use crate::metadata::tests::new_metadata;
     use crate::secret::tests as SecretTests;
     use super::domain::{App, AppRepository};
 
-    struct Mock {}
+    pub struct Mock;
+    lazy_static! {
+        pub static ref REPO_TEST: Mock = Mock;
+    } 
     
     impl AppRepository for Mock {
         fn find(&self, _url: &str) -> Result<App, Box<dyn Error>> {
@@ -26,31 +43,13 @@ mod tests {
         }
     }
 
-    impl MetadataRepository for Mock {
-        fn find(&self, _id: i32) -> Result<Metadata, Box<dyn Error>> {
-            Err("unimplemeted".into())
-        }
-
-        fn save(&self, meta: &mut Metadata) -> Result<(), Box<dyn Error>> {
-            meta.id = 999;
-            Ok(())
-        }
-
-        fn delete(&self, _meta: &Metadata) -> Result<(), Box<dyn Error>> {
-            Err("unimplemeted".into())
-        }  
-    }
-
     #[test]
     fn domain_app_new_ok() {
         const URL: &str = "http://testing.com";
-        let mock_impl = Mock{};
-
         let secret = SecretTests::new_secret();
 
-        let meta = Metadata::new(&mock_impl).unwrap();
-        let app = App::new(&mock_impl,
-                           secret,
+        let meta = new_metadata();
+        let app = App::new(secret,
                            meta,
                            URL).unwrap();
 
@@ -61,13 +60,10 @@ mod tests {
     #[test]
     fn domain_user_new_ko() {
         const URL: &str = "not_an_url";
-        let mock_impl = Mock{};
-
         let secret = SecretTests::new_secret();
         
-        let meta = Metadata::new(&mock_impl).unwrap();
-        let app = App::new(&mock_impl,
-                           secret,
+        let meta = new_metadata();
+        let app = App::new(secret,
                            meta,
                            URL);
     

@@ -9,28 +9,23 @@ pub trait SecretRepository {
 }
 
 pub struct Secret {
-    pub id: String,
-    pub data: Vec<u8>, // pkey as a pem file
+    pub(super) id: String,
+    pub(super) data: Vec<u8>, // pkey as a pem file
     // the updated_at field from metadata works as a touch_at field, being updated for each
     // usage of the secret
-    pub meta: InnerMetadata,
-
-    //pub(super) repo: &'static dyn SecretRepository, 
+    pub(super) meta: InnerMetadata,
 }
 
 impl Secret {
-    pub fn new(secret_repo: &/*'static*/ dyn SecretRepository,
-               data: &[u8]) -> Result<Self, Box<dyn Error>> {
+    pub fn new(data: &[u8]) -> Result<Self, Box<dyn Error>> {
 
         let mut secret = Secret {
             id: "".to_string(),
             data: data.to_vec(),
             meta: InnerMetadata::new(),
-
-            //repo: secret_repo,
         };
 
-        secret_repo.save(&mut secret)?;
+        secret.save()?;
         Ok(secret)
     }
 
@@ -38,11 +33,15 @@ impl Secret {
         &self.data
     }
 
-    // pub fn save(&mut self) -> Result<(), Box<dyn Error>> {
-    //     self.repo.save(self)
-    // }
+    pub fn get_id(&self) -> &str {
+        &self.id
+    }
 
-    // pub fn delete(&self) -> Result<(), Box<dyn Error>> {
-    //     self.repo.delete(self)
-    // }
+    pub fn save(&mut self) -> Result<(), Box<dyn Error>> {
+        super::get_repository().save(self)
+    }
+
+    pub fn delete(&self) -> Result<(), Box<dyn Error>> {
+        super::get_repository().delete(self)
+    }
 }

@@ -7,10 +7,6 @@ use crate::schema::metadata::dsl::*;
 use crate::schema::metadata;
 use crate::postgres::*;
 
-lazy_static! {
-    pub static ref META_REPO: PostgresMetadataRepository = PostgresMetadataRepository;
-}
-
 use super::domain::{Metadata, MetadataRepository};
 
 #[derive(Queryable, Insertable, Associations)]
@@ -50,8 +46,6 @@ impl MetadataRepository for PostgresMetadataRepository {
             id: results[0].id,
             created_at: results[0].created_at,
             updated_at: results[0].updated_at,
-
-            //repo: &*META_REPO,
         })
     }
 

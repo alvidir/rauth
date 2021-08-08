@@ -9,10 +9,6 @@ use crate::metadata::domain::InnerMetadata;
 use crate::constants::errors;
 use super::domain::{Secret, SecretRepository};
 
-lazy_static! {
-    pub static ref SECRET_REPO: MongoSecretRepository = MongoSecretRepository;
-}
-
 const COLLECTION_NAME: &str = "secrets";
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -53,8 +49,6 @@ impl SecretRepository for MongoSecretRepository {
                     created_at: mongo_secret.meta.created_at,
                     updated_at: mongo_secret.meta.updated_at,
                 },
-
-                //repo: &*SECRET_REPO,
             };
 
             return Ok(secret);

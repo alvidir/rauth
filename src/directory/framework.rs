@@ -7,11 +7,9 @@ use bson::Bson;
 use crate::mongo;
 use crate::metadata::domain::InnerMetadata;
 use crate::constants::errors;
+use crate::app::domain::App;
+use crate::user::domain::User;
 use super::domain::{Directory, DirectoryRepository};
-
-lazy_static! {
-    pub static ref DIR_REPO: MongoDirectoryRepository = MongoDirectoryRepository{};
-}
 
 const COLLECTION_NAME: &str = "directories";
 
@@ -30,7 +28,7 @@ struct MongoDirectory {
     pub meta: MongoDirectoryMetadata,
 }
 
-pub struct MongoDirectoryRepository {}
+pub(super) struct MongoDirectoryRepository;
 
 impl MongoDirectoryRepository {
     fn builder(loaded_dir: bson::Document) -> Result<Directory, Box<dyn Error>> {
@@ -52,25 +50,9 @@ impl MongoDirectoryRepository {
                 created_at: mongo_dir.meta.created_at,
                 updated_at: mongo_dir.meta.updated_at,
             },
-
-            //repo: &*DIR_REPO,
         };
 
         return Ok(dir);
-    }
-
-    pub fn delete_all_by_app(&self, app_id: i32) -> Result<(), Box<dyn Error>> {
-        mongo::get_connection(COLLECTION_NAME)
-            .delete_one(doc!{"app": app_id}, None)?;
-
-        Ok(())
-    }
-
-    pub fn delete_all_by_user(&self, user_id: i32) -> Result<(), Box<dyn Error>> {
-        mongo::get_connection(COLLECTION_NAME)
-            .delete_one(doc!{"user": user_id}, None)?;
-
-        Ok(())
     }
 }
 
@@ -150,6 +132,20 @@ impl DirectoryRepository for MongoDirectoryRepository {
         let bson_id = ObjectId::with_string(&dir.id)?;
         mongo::get_connection(COLLECTION_NAME)
             .delete_one(doc!{"_id": bson_id}, None)?;
+
+        Ok(())
+    }
+
+    fn delete_all_by_app(&self, app: &App) -> Result<(), Box<dyn Error>> {
+        mongo::get_connection(COLLECTION_NAME)
+            .delete_one(doc!{"app": app.get_id()}, None)?;
+
+        Ok(())
+    }
+
+    fn delete_all_by_user(&self, user: &User) -> Result<(), Box<dyn Error>> {
+        mongo::get_connection(COLLECTION_NAME)
+            .delete_one(doc!{"user": user.get_id()}, None)?;
 
         Ok(())
     }

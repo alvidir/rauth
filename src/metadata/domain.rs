@@ -9,34 +9,38 @@ pub trait MetadataRepository {
 
 #[derive(Clone)]
 pub struct Metadata {
-    pub id: i32,
-    pub created_at: SystemTime,
-    pub updated_at: SystemTime,
-
-    //repo: &'static dyn MetadataRepository,
+    pub(super) id: i32,
+    pub(super) created_at: SystemTime,
+    pub(super) updated_at: SystemTime,
 }
 
 impl Metadata {
-    pub fn new(repo: &/*'static*/ dyn MetadataRepository) -> Result<Self, Box<dyn Error>> {
+    pub fn new() -> Result<Self, Box<dyn Error>> {
         let mut meta = Metadata {
             id: 0,
             created_at: SystemTime::now(),
             updated_at: SystemTime::now(),
-
-            //repo: repo,
         };
 
-        repo.save(&mut meta)?;
+        meta.save()?;
         Ok(meta)
     }
 
-    // pub fn save(&mut self) -> Result<(), Box<dyn Error>> {
-    //     self.repo.save(self)
-    // }
+    pub fn get_id(&self) -> i32 {
+        self.id
+    }
 
-    // pub fn delete(&self) -> Result<(), Box<dyn Error>> {
-    //     self.repo.delete(self)
-    // }
+    pub fn _touch(&mut self) {
+        self.updated_at = SystemTime::now();
+    }
+
+    pub fn save(&mut self) -> Result<(), Box<dyn Error>> {
+        super::get_repository().save(self)
+    }
+
+    pub fn delete(&self) -> Result<(), Box<dyn Error>> {
+        super::get_repository().delete(self)
+    }
 }
 
 pub struct InnerMetadata {

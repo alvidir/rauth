@@ -11,17 +11,14 @@ pub trait AppRepository {
 }
 
 pub struct App {
-    pub id: i32,
-    pub url: String,
-    pub secret: Secret,
-    pub meta: Metadata,
-
-    //repo: &'static dyn AppRepository
+    pub(super) id: i32,
+    pub(super) url: String,
+    pub(super) secret: Secret,
+    pub(super) meta: Metadata,
 }
 
 impl App {
-    pub fn new(app_repo: &/*'static*/ dyn AppRepository,
-               secret: Secret,
+    pub fn new(secret: Secret,
                meta: Metadata,
                url: &str) -> Result<Self, Box<dyn Error>> {
         
@@ -32,19 +29,30 @@ impl App {
             url: url.to_string(),
             secret: secret,
             meta: meta,
-
-            //repo: app_repo,
         };
         
-        app_repo.save(&mut app)?;
+        app.save()?;
         Ok(app)
     }
 
-    // pub fn save(&mut self) -> Result<(), Box<dyn Error>> {
-    //     self.repo.save(self)
-    // }
+    pub fn get_id(&self) -> i32 {
+        self.id
+    }
 
-    // pub fn delete(&self) -> Result<(), Box<dyn Error>> {
-    //     self.repo.delete(self)
-    // }
+    pub fn get_url(&self) -> &str {
+        &self.url
+    }
+
+    pub fn save(&mut self) -> Result<(), Box<dyn Error>> {
+        super::get_repository().save(self)?;
+        self.meta.save()?;
+        Ok(())
+    }
+
+    pub fn delete(&self) -> Result<(), Box<dyn Error>> {
+        self.secret.delete()?;
+        super::get_repository().delete(self)?;
+        self.meta.delete()?;
+        Ok(())
+    }
 }
