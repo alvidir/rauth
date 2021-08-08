@@ -73,7 +73,6 @@ struct NewPostgresApp<'a> {
     pub meta_id: i32,
 }
 
-
 pub struct PostgresAppRepository;
 
 impl AppRepository for PostgresAppRepository {
@@ -99,43 +98,41 @@ impl AppRepository for PostgresAppRepository {
         })
     }
 
-    fn save(&self, app: &mut App) -> Result<(), Box<dyn Error>> {
-        get_meta_repository().save(&mut app.meta)?;
+    fn create(&self, app: &mut App) -> Result<(), Box<dyn Error>> {
+        let new_app = NewPostgresApp {
+            url: &app.url,
+            secret_id: "",
+            meta_id: app.meta.get_id(),
+        };
 
-        if app.id == 0 { // create user
-            let new_app = NewPostgresApp {
-                url: &app.url,
-                secret_id: "",
-                meta_id: app.meta.get_id(),
-            };
-    
-            let result = { // block is required because of connection release
-                let connection = get_connection().get()?;
-                diesel::insert_into(apps::table)
-                    .values(&new_app)
-                    .get_result::<PostgresApp>(&connection)?
-            };
-    
-            app.id = result.id;
-            Ok(())
+        let result = { // block is required because of connection release
+            let connection = get_connection().get()?;
+            diesel::insert_into(apps::table)
+                .values(&new_app)
+                .get_result::<PostgresApp>(&connection)?
+        };
 
-        } else { // update user
-            let pg_app = PostgresApp {
-                id: app.id,
-                url: app.url.to_string(),
-                secret_id: "".to_string(),
-                meta_id: app.meta.get_id(),
-            };
-            
-            { // block is required because of connection release            
-                let connection = get_connection().get()?;
-                diesel::update(apps)
-                    .set(&pg_app)
-                    .execute(&connection)?;
-            }
-    
-            Ok(())
+        app.id = result.id;
+        Ok(())
+    }
+
+    fn save(&self, app: &App) -> Result<(), Box<dyn Error>> {
+        get_meta_repository().save(&app.meta)?;
+        let pg_app = PostgresApp {
+            id: app.id,
+            url: app.url.to_string(),
+            secret_id: "".to_string(),
+            meta_id: app.meta.get_id(),
+        };
+        
+        { // block is required because of connection release            
+            let connection = get_connection().get()?;
+            diesel::update(apps)
+                .set(&pg_app)
+                .execute(&connection)?;
         }
+
+        Ok(())
     }
 
     fn delete(&self, app: &App) -> Result<(), Box<dyn Error>> {

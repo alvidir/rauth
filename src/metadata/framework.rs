@@ -49,39 +49,38 @@ impl MetadataRepository for PostgresMetadataRepository {
         })
     }
 
-    fn save(&self, meta: &mut Metadata) -> Result<(), Box<dyn Error>> {
-        if meta.id == 0 { // create metadata
-            let new_meta = NewPostgresMetadata {
-                created_at: meta.created_at,
-                updated_at: meta.updated_at,
-            };
-    
-            let result = { // block is required because of connection release
-                let connection = get_connection().get()?;
-                diesel::insert_into(metadata::table)
-                    .values(&new_meta)
-                    .get_result::<PostgresMetadata>(&connection)?
-            };
-    
-            meta.id = result.id;
-            Ok(())
+    fn create(&self, meta: &mut Metadata) -> Result<(), Box<dyn Error>> {
+        let new_meta = NewPostgresMetadata {
+            created_at: meta.created_at,
+            updated_at: meta.updated_at,
+        };
 
-        } else { // update metadata
-            let pg_meta = PostgresMetadata {
-                id: meta.id,
-                created_at: meta.created_at,
-                updated_at: meta.updated_at,
-            };
-            
-            { // block is required because of connection release            
-                let connection = get_connection().get()?;
-                diesel::update(metadata)
-                    .set(&pg_meta)
-                    .execute(&connection)?;
-            }
-    
-            Ok(())
+        let result = { // block is required because of connection release
+            let connection = get_connection().get()?;
+            diesel::insert_into(metadata::table)
+                .values(&new_meta)
+                .get_result::<PostgresMetadata>(&connection)?
+        };
+
+        meta.id = result.id;
+        Ok(())
+    }
+
+    fn save(&self, meta: &Metadata) -> Result<(), Box<dyn Error>> {
+        let pg_meta = PostgresMetadata {
+            id: meta.id,
+            created_at: meta.created_at,
+            updated_at: meta.updated_at,
+        };
+        
+        { // block is required because of connection release            
+            let connection = get_connection().get()?;
+            diesel::update(metadata)
+                .set(&pg_meta)
+                .execute(&connection)?;
         }
+
+        Ok(())
     }
 
     fn delete(&self, meta: &Metadata) -> Result<(), Box<dyn Error>> {

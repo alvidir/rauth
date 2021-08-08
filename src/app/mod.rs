@@ -31,9 +31,13 @@ mod tests {
             Err("unimplemeted".into())
         }
 
-        fn save(&self, app: &mut App) -> Result<(), Box<dyn Error>> {
+        fn create(&self, app: &mut App) -> Result<(), Box<dyn Error>> {
             app.id = 999;
             Ok(())
+        }
+
+        fn save(&self, _app: &App) -> Result<(), Box<dyn Error>> {
+            Err("unimplemeted".into())
         }
 
         fn delete(&self, _app: &App) -> Result<(), Box<dyn Error>> {

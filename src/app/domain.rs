@@ -6,7 +6,8 @@ use crate::metadata::domain::Metadata;
 
 pub trait AppRepository {
     fn find(&self, url: &str) -> Result<App, Box<dyn Error>>;
-    fn save(&self, app: &mut App) -> Result<(), Box<dyn Error>>;
+    fn create(&self, app: &mut App) -> Result<(), Box<dyn Error>>;
+    fn save(&self, app: &App) -> Result<(), Box<dyn Error>>;
     fn delete(&self, app: &App) -> Result<(), Box<dyn Error>>;
 }
 
@@ -31,7 +32,7 @@ impl App {
             meta: meta,
         };
         
-        app.save()?;
+        super::get_repository().create(&mut app)?;
         Ok(app)
     }
 
@@ -43,9 +44,9 @@ impl App {
         &self.url
     }
 
-    pub fn save(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn _save(&self) -> Result<(), Box<dyn Error>> {
         super::get_repository().save(self)?;
-        self.meta.save()?;
+        self.meta._save()?;
         Ok(())
     }
 

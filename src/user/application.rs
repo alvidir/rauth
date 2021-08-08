@@ -44,7 +44,7 @@ pub fn user_delete(email: &str,
         security::verify_totp(data, totp)?;
     }
 
-    // if the user was logged in the session must be removed
+    // if the user was logged in, the session must be removed
     if let Ok(sess_arc) = get_sess_repository().find_by_email(&user.email) {
         let mut sess = get_writable_session(&sess_arc)?;
         sess.delete(false)?; // do not save directories

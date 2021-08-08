@@ -3,7 +3,8 @@ use std::time::{SystemTime};
 
 pub trait MetadataRepository {
     fn find(&self, id: i32) -> Result<Metadata, Box<dyn Error>>;
-    fn save(&self, meta: &mut Metadata) -> Result<(), Box<dyn Error>>;
+    fn create(&self, meta: &mut Metadata) -> Result<(), Box<dyn Error>>;
+    fn save(&self, meta: &Metadata) -> Result<(), Box<dyn Error>>;
     fn delete(&self, meta: &Metadata) -> Result<(), Box<dyn Error>>;
 }
 
@@ -22,7 +23,7 @@ impl Metadata {
             updated_at: SystemTime::now(),
         };
 
-        meta.save()?;
+        super::get_repository().create(&mut meta)?;
         Ok(meta)
     }
 
@@ -34,7 +35,7 @@ impl Metadata {
         self.updated_at = SystemTime::now();
     }
 
-    pub fn save(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn _save(&self) -> Result<(), Box<dyn Error>> {
         super::get_repository().save(self)
     }
 

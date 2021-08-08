@@ -25,7 +25,7 @@ mod tests {
     use std::time::{SystemTime, Duration};
     use std::collections::HashMap;
     use crate::metadata::tests::new_metadata;
-    use crate::user::domain::{User, UserRepository};
+    use crate::user::domain::User;
     use crate::app::domain::App;
     use super::domain::{Session, SessionRepository};
 
@@ -39,21 +39,6 @@ mod tests {
     }
 
     pub struct Mock;
-    impl UserRepository for Mock {
-        fn find(&self, _email: &str) -> Result<User, Box<dyn Error>> {
-            Err("unimplemeted".into())
-        }
-
-        fn save(&self, user: &mut User) -> Result<(), Box<dyn Error>> {
-            user.id = 999;
-            Ok(())
-        }
-
-        fn delete(&self, _user: &User) -> Result<(), Box<dyn Error>> {
-            Err("unimplemeted".into())
-        }
-    }
-    
     impl SessionRepository for Mock {
         fn find(&self, _cookie: &str) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
             Err("unimplemeted".into())
@@ -63,7 +48,7 @@ mod tests {
             Err("unimplemeted".into())
         }
 
-        fn save(&self, mut session: Session) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
+        fn insert(&self, mut session: Session) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
             session.sid = "testing".to_string();
 
             let mut repo = TESTING_SESSIONS.write()?;

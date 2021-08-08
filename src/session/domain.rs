@@ -11,7 +11,7 @@ use crate::directory::domain::Directory;
 pub trait SessionRepository {
     fn find(&self, cookie: &str) -> Result<Arc<RwLock<Session>>, Box<dyn Error>>;
     fn find_by_email(&self, email: &str) -> Result<Arc<RwLock<Session>>, Box<dyn Error>>;
-    fn save(&self, session: Session) -> Result<Arc<RwLock<Session>>, Box<dyn Error>>;
+    fn insert(&self, session: Session) -> Result<Arc<RwLock<Session>>, Box<dyn Error>>;
     fn delete(&self, session: &Session) -> Result<(), Box<dyn Error>>;
     fn delete_all_by_app(&self, app: &App) -> Result<(), Box<dyn Error>>;
 
@@ -43,7 +43,7 @@ impl Session {
             meta: InnerMetadata::new(),
         };
 
-        super::get_repository().save(sess)
+        super::get_repository().insert(sess)
     }
 
     pub fn set_directory(&mut self, app: &App, dir: Directory) -> Result<(), Box<dyn Error>> {

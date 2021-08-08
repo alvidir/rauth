@@ -30,10 +30,14 @@ pub mod tests {
             Err("unimplemeted".into())
         }
 
-        fn save(&self, meta: &mut Metadata) -> Result<(), Box<dyn Error>> {
+        fn create(&self, meta: &mut Metadata) -> Result<(), Box<dyn Error>> {
             meta.id = 999;
             Ok(())
         }
+
+        fn save(&self, _meta: &Metadata) -> Result<(), Box<dyn Error>> {
+            Err("unimplemeted".into())
+        }  
 
         fn delete(&self, _meta: &Metadata) -> Result<(), Box<dyn Error>> {
             Err("unimplemeted".into())

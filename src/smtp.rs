@@ -10,7 +10,7 @@ use crate::constants::environment;
 lazy_static! {
     static ref TERA: Tera = {
         let project_root = env!("CARGO_MANIFEST_DIR");
-        let templates = format!("{}/*.html", project_root);
+        let templates = format!("{}/templates/*.html", project_root);
         Tera::new(&templates).unwrap()
     };
 }
@@ -34,7 +34,7 @@ pub fn send_verification_email(to: &str, token: &str) -> Result<(), Box<dyn Erro
     let mut context = Context::new();
     context.insert("token", token);
     
-    let body = TERA.render("email.txt", &context)?;
+    let body = TERA.render("verification_email.txt", &context)?;
     if let Err(err) = send_email(to, SUBJECT, &body) {
         info!("got error {} while sending verification email to {}", err, to);
     }

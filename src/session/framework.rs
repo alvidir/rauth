@@ -203,7 +203,7 @@ impl SessionRepository for InMemorySessionRepository {
         Err(errors::NOT_FOUND.into())
     }
 
-    fn save(&self, mut session: Session) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
+    fn insert(&self, mut session: Session) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
         let mut repo = self.get_writable_repo()?;
         if let Some(_) = repo.get(&session.sid) {
             return Err(errors::ALREADY_EXISTS.into());

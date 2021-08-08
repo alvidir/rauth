@@ -4,7 +4,8 @@ use crate::metadata::domain::InnerMetadata;
 
 pub trait SecretRepository {
     fn find(&self, id: &str) -> Result<Secret, Box<dyn Error>>;
-    fn save(&self, secret: &mut Secret) -> Result<(), Box<dyn Error>>;
+    fn create(&self, secret: &mut Secret) -> Result<(), Box<dyn Error>>;
+    fn save(&self, secret: &Secret) -> Result<(), Box<dyn Error>>;
     fn delete(&self, secret: &Secret) -> Result<(), Box<dyn Error>>;
 }
 
@@ -25,7 +26,7 @@ impl Secret {
             meta: InnerMetadata::new(),
         };
 
-        secret.save()?;
+        super::get_repository().create(&mut secret)?;
         Ok(secret)
     }
 
@@ -37,7 +38,7 @@ impl Secret {
         &self.id
     }
 
-    pub fn save(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn _save(&self) -> Result<(), Box<dyn Error>> {
         super::get_repository().save(self)
     }
 

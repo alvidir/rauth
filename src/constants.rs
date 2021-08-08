@@ -25,4 +25,5 @@ pub mod errors {
     pub const POISONED: &str = "poisoned resource";
     pub const NOT_VERIFIED: &str = "verification required";
     pub const UNAUTHORIZED: &str = "unauthorized";
+    pub const PARSE_FAILED: &str = "could not parse";
 }

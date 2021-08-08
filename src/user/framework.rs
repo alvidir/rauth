@@ -109,45 +109,44 @@ impl UserRepository for PostgresUserRepository {
         })
     }
 
-    fn save(&self, user: &mut User) -> Result<(), Box<dyn Error>> {
-        if user.id == 0 { // create user
-            let new_user = NewPostgresUser {
-                email: &user.email,
-                password: &user.password,
-                verified: user.verified,
-                secret_id: if let Some(secret) = &user.secret {Some(secret.get_id())} else {None},
-                meta_id: user.meta.get_id(),
-            };
-    
-            let result = { // block is required because of connection release
-                let connection = get_connection().get()?;
-                diesel::insert_into(users::table)
-                    .values(&new_user)
-                    .get_result::<PostgresUser>(&connection)?
-            };
-    
-            user.id = result.id;
-            Ok(())
+    fn create(&self, user: &mut User) -> Result<(), Box<dyn Error>> {
+        let new_user = NewPostgresUser {
+            email: &user.email,
+            password: &user.password,
+            verified: user.verified,
+            secret_id: if let Some(secret) = &user.secret {Some(secret.get_id())} else {None},
+            meta_id: user.meta.get_id(),
+        };
 
-        } else { // update user
-            let pg_user = PostgresUser {
-                id: user.id,
-                email: user.email.to_string(),
-                password: user.password.clone(),
-                verified: user.verified,
-                secret_id: if let Some(secret) = &user.secret {Some(secret.get_id().to_string())} else {None},
-                meta_id: user.meta.get_id(),
-            };
-            
-            { // block is required because of connection release            
-                let connection = get_connection().get()?;
-                diesel::update(users)
-                    .set(&pg_user)
-                    .execute(&connection)?;
-            }
-    
-            Ok(())
+        let result = { // block is required because of connection release
+            let connection = get_connection().get()?;
+            diesel::insert_into(users::table)
+                .values(&new_user)
+                .get_result::<PostgresUser>(&connection)?
+        };
+
+        user.id = result.id;
+        Ok(())
+    }
+
+    fn save(&self, user: &User) -> Result<(), Box<dyn Error>> {
+        let pg_user = PostgresUser {
+            id: user.id,
+            email: user.email.to_string(),
+            password: user.password.clone(),
+            verified: user.verified,
+            secret_id: if let Some(secret) = &user.secret {Some(secret.get_id().to_string())} else {None},
+            meta_id: user.meta.get_id(),
+        };
+        
+        { // block is required because of connection release            
+            let connection = get_connection().get()?;
+            diesel::update(users)
+                .set(&pg_user)
+                .execute(&connection)?;
         }
+
+        Ok(())
     }
 
     fn delete(&self, user: &User) -> Result<(), Box<dyn Error>> {

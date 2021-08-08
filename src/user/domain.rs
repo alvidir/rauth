@@ -7,7 +7,8 @@ use crate::metadata::domain::Metadata;
 
 pub trait UserRepository {
     fn find(&self, email: &str) -> Result<User, Box<dyn Error>>;
-    fn save(&self, user: &mut User) -> Result<(), Box<dyn Error>>;
+    fn create(&self, user: &mut User) -> Result<(), Box<dyn Error>>;
+    fn save(&self, user: &User) -> Result<(), Box<dyn Error>>;
     fn delete(&self, user: &User) -> Result<(), Box<dyn Error>>;
 }
 
@@ -37,7 +38,7 @@ impl User {
             meta: meta,
         };
 
-        super::get_repository().save(&mut user)?;
+        super::get_repository().create(&mut user)?;
         Ok(user)
     }
 
@@ -53,9 +54,9 @@ impl User {
         password != self.password
     }
 
-    pub fn _save(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn _save(&self) -> Result<(), Box<dyn Error>> {
+        self.meta._save()?;
         super::get_repository().save(self)?;
-        self.meta.save()?;
         Ok(())
     }
 

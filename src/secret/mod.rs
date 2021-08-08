@@ -30,8 +30,12 @@ pub mod tests {
             Err("unimplemeted".into())
         }
 
-        fn save(&self, _secret: &mut Secret) -> Result<(), Box<dyn Error>> {
+        fn create(&self, _secret: &mut Secret) -> Result<(), Box<dyn Error>> {
             Ok(())
+        }
+
+        fn save(&self, _secret: &Secret) -> Result<(), Box<dyn Error>> {
+            Err("unimplemeted".into())
         }
 
         fn delete(&self, _secret: &Secret) -> Result<(), Box<dyn Error>> {

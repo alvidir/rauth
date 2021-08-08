@@ -2,7 +2,7 @@ use std::error::Error;
 use std::time::SystemTime;
 use serde::{Serialize, Deserialize};
 use bson::oid::ObjectId;
-use bson::Bson;
+use bson::{Bson, Document};
 
 use crate::mongo;
 use crate::metadata::domain::InnerMetadata;
@@ -31,7 +31,7 @@ struct MongoDirectory {
 pub(super) struct MongoDirectoryRepository;
 
 impl MongoDirectoryRepository {
-    fn builder(loaded_dir: bson::Document) -> Result<Directory, Box<dyn Error>> {
+    fn builder(loaded_dir: Document) -> Result<Directory, Box<dyn Error>> {
         let mongo_dir: MongoDirectory = bson::from_bson(Bson::Document(loaded_dir))?;
         
         let id: String;
@@ -53,6 +53,33 @@ impl MongoDirectoryRepository {
         };
 
         return Ok(dir);
+    }
+
+    fn parse_directory(dir: &Directory) -> Result<Document, Box<dyn Error>> {
+        let mongo_meta = MongoDirectoryMetadata {
+            created_at: dir.meta.created_at,
+            updated_at: dir.meta.updated_at,
+        };
+
+        let mut id_opt = None;
+        if dir.id.len() > 0 {
+            let bson_id = ObjectId::with_string(&dir.id)?;
+            id_opt = Some(bson_id);
+        }
+
+        let mongo_dir = MongoDirectory {
+            id: id_opt,
+            user: dir.user,
+            app: dir.app,
+            meta: mongo_meta,
+        };
+
+        let serialized = bson::to_bson(&mongo_dir)?;
+        if let Some(doc) = serialized.as_document() {
+            Ok(doc.clone())
+        } else {
+            Err(errors::PARSE_FAILED.into())
+        }
     }
 }
 
@@ -79,51 +106,27 @@ impl DirectoryRepository for MongoDirectoryRepository {
         Err(errors::NOT_FOUND.into())
     }
 
-    fn save(&self, dir: &mut Directory) -> Result<(), Box<dyn Error>> {
-        let mongo_meta = MongoDirectoryMetadata {
-            created_at: dir.meta.created_at,
-            updated_at: dir.meta.updated_at,
-        };
+    fn create(&self, dir: &mut Directory) -> Result<(), Box<dyn Error>> {
+        let document = MongoDirectoryRepository::parse_directory(dir)?;       
+        let result = mongo::get_connection(COLLECTION_NAME)
+            .insert_one(document.to_owned(), None)?;
 
-        let mut id_opt = None;
-        if dir.id.len() > 0 {
-            let bson_id = ObjectId::with_string(&dir.id)?;
-            id_opt = Some(bson_id);
-        }
+        let dir_id_opt = result
+            .inserted_id
+            .as_object_id();
 
-        let mongo_dir = MongoDirectory {
-            id: id_opt,
-            user: dir.user,
-            app: dir.app,
-            meta: mongo_meta,
-        };
-
-        let serialized = bson::to_bson(&mongo_dir)?;
-        let document: &bson::Document;
-        if let Some(doc) = serialized.as_document() {
-            document = doc;
+        if let Some(dir_id) = dir_id_opt {
+            dir.id = dir_id.to_hex();
+            Ok(())
         } else {
-            return Err("could not parse document".into());
+            return Err("retrieved id is not of the type ObjectId".into());
         }
+    }
 
-        if let Some(target) = mongo_dir.id {         
-            mongo::get_connection(COLLECTION_NAME)
-                .update_one(doc!{"_id": target.clone()}, document.to_owned(), None)?;
-            
-        } else {
-            let result = mongo::get_connection(COLLECTION_NAME)
-                .insert_one(document.to_owned(), None)?;
-
-            let dir_id_opt = result
-                .inserted_id
-                .as_object_id();
-
-            if let Some(dir_id) = dir_id_opt {
-                dir.id = dir_id.to_hex();
-            } else {
-                return Err("retrieved id is not of the type ObjectId".into());
-            }
-        }
+    fn save(&self, dir: &Directory) -> Result<(), Box<dyn Error>> {
+        let document = MongoDirectoryRepository::parse_directory(dir)?;       
+        mongo::get_connection(COLLECTION_NAME)
+            .update_one(doc!{"_id": dir.get_id()}, document.to_owned(), None)?;
 
         Ok(())
     }
