@@ -38,3 +38,4 @@ setup:
 
 test:
 	cargo test -- --nocapture
+	cargo test -- --nocapture --ignored

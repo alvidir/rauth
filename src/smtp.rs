@@ -28,13 +28,10 @@ fn get_mailer() -> Result<SmtpTransport, Box<dyn Error>> {
 }
 
 pub fn send_verification_email(to: &str, token: &str) -> Result<(), Box<dyn Error>> {
-    let mut verify_url = env::var(environment::VERIFY_URL)?;
-    verify_url = format!("{}?t={}", verify_url, token);
-
     let mut context = Context::new();
-    context.insert("verify_url", &verify_url);
+    context.insert("token", token);
     
-    const SUBJECT: &str = "Alvidir | Verification email";
+    const SUBJECT: &str = "[Alvidir] Verification email";
     let body = TERA.render("verification_email.html", &context)?;
     if let Err(err) = send_email(to, SUBJECT, &body) {
         info!("got error {} while sending verification email to {}", err, to);
@@ -66,7 +63,8 @@ mod tests {
     use super::send_verification_email;
 
     #[test]
-    fn send_verification_email_ok() {
+    #[ignore]
+    fn send_email_ok() {
         // seting up environment variables
         if let Err(_) = dotenv::dotenv() {
             warn!("no dotenv file has been found");
