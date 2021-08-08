@@ -8,12 +8,14 @@ lazy_static! {
     }; 
 }   
 
+#[cfg(not(test))]
 pub fn get_repository() -> Box<&'static dyn domain::MetadataRepository> {
-    #[cfg(not(test))]
-    return Box::new(&*REPO_PROVIDER);
-    
-    #[cfg(test)]
-    return Box::new(&*tests::REPO_TEST);
+    Box::new(&*REPO_PROVIDER)
+}
+
+#[cfg(test)]
+pub fn get_repository() -> Box<dyn domain::MetadataRepository> {
+    Box::new(tests::Mock)
 }
 
 #[cfg(test)]
@@ -22,11 +24,7 @@ pub mod tests {
     use std::time::SystemTime;
     use super::domain::{InnerMetadata, Metadata, MetadataRepository};
 
-    pub struct Mock;
-    lazy_static! {
-        pub static ref REPO_TEST: Mock = Mock;
-    } 
-    
+    pub struct Mock;    
     impl MetadataRepository for Mock {
         fn find(&self, _id: i32) -> Result<Metadata, Box<dyn Error>> {
             Err("unimplemeted".into())

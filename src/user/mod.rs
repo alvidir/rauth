@@ -8,12 +8,14 @@ lazy_static! {
     }; 
 }   
 
+#[cfg(not(test))]
 pub fn get_repository() -> Box<&'static dyn domain::UserRepository> {
-    #[cfg(not(test))]
     return Box::new(&*REPO_PROVIDER);
-    
-    #[cfg(test)]
-    return Box::new(&*tests::REPO_TEST);
+}
+
+#[cfg(test)]
+pub fn get_repository() -> Box<dyn domain::UserRepository> {
+    Box::new(tests::Mock)
 }
 
 #[cfg(test)]
@@ -24,11 +26,7 @@ mod tests {
 
     const PWD: &str = "ABCD1234";
 
-    pub struct Mock;
-    lazy_static! {
-        pub static ref REPO_TEST: Mock = Mock;
-    } 
-    
+    pub struct Mock;    
     impl UserRepository for Mock {
         fn find(&self, _email: &str) -> Result<User, Box<dyn Error>> {
             Err("unimplemeted".into())
