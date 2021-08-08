@@ -29,12 +29,17 @@ fn get_mailer() -> Result<SmtpTransport, Box<dyn Error>> {
 }
 
 pub fn send_verification_email(to: &str, token: &str) -> Result<(), Box<dyn Error>> {
-    const SUBJECT: &str = "Verification email";
+    let mut verify_url = env::var(environment::VERIFY_URL)?;
+    verify_url = format!("{}/{}", verify_url, token);
+    
+    let support_email = env::var(environment::SUPORT_EMAIL)?;
 
     let mut context = Context::new();
-    context.insert("token", token);
+    context.insert("verify_url", &verify_url);
+    context.insert("support_email", &support_email);
     
-    let body = TERA.render("verification_email.txt", &context)?;
+    const SUBJECT: &str = "Verification email";
+    let body = TERA.render("verification_email.html", &context)?;
     if let Err(err) = send_email(to, SUBJECT, &body) {
         info!("got error {} while sending verification email to {}", err, to);
     }

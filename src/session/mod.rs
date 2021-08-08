@@ -83,7 +83,7 @@ mod tests {
     }
 
     #[test]
-    fn domain_session_new_ok() {
+    fn session_new_ok() {
         const EMAIL: &str = "dummy@example.com";
         const TIMEOUT: Duration = Duration::from_secs(10);
 

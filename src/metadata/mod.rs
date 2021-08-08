@@ -49,7 +49,7 @@ pub mod tests {
     }
 
     #[test]
-    fn domain_metadata_new_ok() {
+    fn metadata_new_ok() {
         let before = SystemTime::now();
         let meta = Metadata::new().unwrap();
         let after = SystemTime::now();
@@ -60,7 +60,7 @@ pub mod tests {
     }
 
     #[test]
-    fn domain_inner_metadata_ok() {        
+    fn inner_metadata_ok() {        
         let before = SystemTime::now();
         let meta = InnerMetadata::new();
         let after = SystemTime::now();

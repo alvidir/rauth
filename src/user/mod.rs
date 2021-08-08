@@ -47,7 +47,7 @@ mod tests {
     }
 
     #[test]
-    fn domain_user_new_ok() {
+    fn user_new_ok() {
         const EMAIL: &str = "dummy@example.com";
 
         let meta = new_metadata();
@@ -61,7 +61,7 @@ mod tests {
     }
 
     #[test]
-    fn domain_user_new_ko() {
+    fn user_new_ko() {
         const EMAIL: &str = "not_an_email";
 
         let meta = new_metadata();

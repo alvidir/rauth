@@ -46,7 +46,7 @@ mod tests {
     }
 
     #[test]
-    fn domain_app_new_ok() {
+    fn app_new_ok() {
         const URL: &str = "http://testing.com";
         let secret = SecretTests::new_secret();
 
@@ -60,7 +60,7 @@ mod tests {
     }
 
     #[test]
-    fn domain_user_new_ko() {
+    fn user_new_ko() {
         const URL: &str = "not_an_url";
         let secret = SecretTests::new_secret();
         
