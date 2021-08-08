@@ -37,5 +37,4 @@ setup:
 	python3 scripts/build_db_setup_script.py
 
 test:
-	RUST_BACKTRACE=1
 	cargo test -- --nocapture
