@@ -24,11 +24,15 @@ mod tests {
     use crate::metadata::tests::new_metadata;
     use super::domain::{User, UserRepository};
 
-    const PWD: &str = "ABCD1234";
+    const PWD: &str = "ABCDEF1234567890";
 
     pub struct Mock;    
     impl UserRepository for Mock {
-        fn find(&self, _email: &str) -> Result<User, Box<dyn Error>> {
+        fn find(&self, _id: i32) -> Result<User, Box<dyn Error>> {
+            Err("unimplemeted".into())
+        }
+
+        fn find_by_email(&self, _email: &str) -> Result<User, Box<dyn Error>> {
             Err("unimplemeted".into())
         }
 

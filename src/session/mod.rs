@@ -52,7 +52,7 @@ mod tests {
             session.sid = "testing".to_string();
 
             let mut repo = TESTING_SESSIONS.write()?;
-            let email = session.user.email.clone();
+            let email = session.user.get_email().to_string();
             let mu = RwLock::new(session);
             let arc = Arc::new(mu);
             

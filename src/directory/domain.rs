@@ -16,11 +16,11 @@ pub trait DirectoryRepository {
 }
 
 pub struct Directory {
-    pub id: String,
-    pub user: i32,
-    pub app: i32,
-    pub deadline: SystemTime,
-    pub meta: InnerMetadata,
+    pub(super) id: String,
+    pub(super) user: i32,
+    pub(super) app: i32,
+    pub(super) _deadline: SystemTime,
+    pub(super) meta: InnerMetadata,
 }
 
 impl Directory {
@@ -29,9 +29,9 @@ impl Directory {
 
         let mut directory = Directory {
             id: "".to_string(),
-            user: sess.user.id,
+            user: sess.get_user().get_id(),
             app: app.get_id(),
-            deadline: sess.deadline,
+            _deadline: sess.get_deadline(),
             meta: InnerMetadata::new(),
         };
 
@@ -44,7 +44,7 @@ impl Directory {
     }
 
     pub fn _set_deadline(&mut self, deadline: SystemTime) {
-        self.deadline = deadline;
+        self._deadline = deadline;
     }
 
     pub fn save(&self) -> Result<(), Box<dyn Error>> {

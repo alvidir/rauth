@@ -1,6 +1,6 @@
 # oauth
 
-[![Rust version](https://img.shields.io/badge/Cargo-v1.54.0-orange.svg)](https://www.rust-lang.org/) [![tests](https://github.com/alvidir/oauth/actions/workflows/test.yaml/badge.svg?branch=master)](https://github.com/alvidir/oauth/actions/workflows/test.yaml)
+[![Rust version](https://img.shields.io/badge/Rust-v1.54.0-orange.svg)](https://www.rust-lang.org/) [![tests](https://github.com/alvidir/oauth/actions/workflows/test.yaml/badge.svg?branch=master)](https://github.com/alvidir/oauth/actions/workflows/test.yaml)
 
 Third-party authenticator
 

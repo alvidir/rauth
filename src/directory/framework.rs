@@ -31,7 +31,7 @@ struct MongoDirectory {
 pub(super) struct MongoDirectoryRepository;
 
 impl MongoDirectoryRepository {
-    fn builder(loaded_dir: Document) -> Result<Directory, Box<dyn Error>> {
+    fn build(loaded_dir: Document) -> Result<Directory, Box<dyn Error>> {
         let mongo_dir: MongoDirectory = bson::from_bson(Bson::Document(loaded_dir))?;
         
         let id: String;
@@ -45,7 +45,7 @@ impl MongoDirectoryRepository {
             id: id,
             user: mongo_dir.user,
             app: mongo_dir.app,
-            deadline: SystemTime::UNIX_EPOCH,
+            _deadline: SystemTime::UNIX_EPOCH,
             meta: InnerMetadata {
                 created_at: mongo_dir.meta.created_at,
                 updated_at: mongo_dir.meta.updated_at,
@@ -89,7 +89,7 @@ impl DirectoryRepository for MongoDirectoryRepository {
             .find_one(Some(doc! { "_id":  target }), None)?;
 
         if let Some(loaded_dir) = loaded_dir_opt {
-            return MongoDirectoryRepository::builder(loaded_dir);
+            return MongoDirectoryRepository::build(loaded_dir);
         }
 
         Err(errors::NOT_FOUND.into())
@@ -100,7 +100,7 @@ impl DirectoryRepository for MongoDirectoryRepository {
             .find_one(Some(doc! { "user":  user_id, "app": app_id }), None)?;
 
         if let Some(loaded_dir) = loaded_dir_opt {
-            return MongoDirectoryRepository::builder(loaded_dir);
+            return MongoDirectoryRepository::build(loaded_dir);
         }
 
         Err(errors::NOT_FOUND.into())

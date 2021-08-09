@@ -31,11 +31,11 @@ impl Metadata {
         self.id
     }
 
-    pub fn _touch(&mut self) {
+    pub fn touch(&mut self) {
         self.updated_at = SystemTime::now();
     }
 
-    pub fn _save(&self) -> Result<(), Box<dyn Error>> {
+    pub fn save(&self) -> Result<(), Box<dyn Error>> {
         super::get_repository().save(self)
     }
 

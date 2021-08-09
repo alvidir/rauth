@@ -6,19 +6,20 @@ use crate::secret::domain::Secret;
 use crate::metadata::domain::Metadata;
 
 pub trait UserRepository {
-    fn find(&self, email: &str) -> Result<User, Box<dyn Error>>;
+    fn find(&self, id: i32) -> Result<User, Box<dyn Error>>;
+    fn find_by_email(&self, email: &str) -> Result<User, Box<dyn Error>>;
     fn create(&self, user: &mut User) -> Result<(), Box<dyn Error>>;
     fn save(&self, user: &User) -> Result<(), Box<dyn Error>>;
     fn delete(&self, user: &User) -> Result<(), Box<dyn Error>>;
 }
 
 pub struct User {
-    pub id: i32,
-    pub email: String, // hash of the email
-    pub password: String,
-    pub verified: bool,
-    pub secret: Option<Secret>,
-    pub meta: Metadata,
+    pub(super) id: i32,
+    pub(super) email: String, // hash of the email
+    pub(super) password: String,
+    pub(super) verified_at: Option<SystemTime>,
+    pub(super) secret: Option<Secret>,
+    pub(super) meta: Metadata,
 }
 
 impl User {
@@ -33,7 +34,7 @@ impl User {
             id: 0,
             email: email.to_string(),
             password: password.to_string(),
-            verified: false,
+            verified_at: None,
             secret: None,
             meta: meta,
         };
@@ -42,20 +43,38 @@ impl User {
         Ok(user)
     }
 
+    pub(super) fn verify(&mut self) -> Result<(), Box<dyn Error>> {
+        if self.verified_at.is_some() {
+            return Err("already verified".into());
+        }
+
+        self.verified_at = Some(SystemTime::now());
+        self.meta.touch();
+        Ok(())
+    }
+
     pub fn get_id(&self) -> i32 {
         self.id
     }
 
+    pub fn get_email(&self) -> &str {
+        &self.email
+    }
+
+    pub fn get_secret(&self) -> &Option<Secret> {
+        &self.secret
+    }
+
     pub fn is_verified(&self) -> bool {
-        self.verified
+        self.verified_at.is_some()
     }
 
     pub fn match_password(&self, password: &str) -> bool {
         password != self.password
     }
 
-    pub fn _save(&self) -> Result<(), Box<dyn Error>> {
-        self.meta._save()?;
+    pub fn save(&self) -> Result<(), Box<dyn Error>> {
+        self.meta.save()?;
         super::get_repository().save(self)?;
         Ok(())
     }
@@ -74,10 +93,10 @@ impl User {
 // token for email-verification
 #[derive(Serialize, Deserialize)]
 pub struct Token {
-    pub exp: SystemTime,     // expiration time (as UTC timestamp) - required
-    pub iat: SystemTime,     // issued at: creation time
-    pub iss: String,         // issuer
-    pub sub: i32,            // subject: the user id
+    pub(super) exp: SystemTime,     // expiration time (as UTC timestamp) - required
+    pub(super) iat: SystemTime,     // issued at: creation time
+    pub(super) iss: String,         // issuer
+    pub(super) sub: i32,            // subject: the user id
 }
 
 impl Token {

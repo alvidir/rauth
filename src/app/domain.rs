@@ -46,7 +46,7 @@ impl App {
 
     pub fn _save(&self) -> Result<(), Box<dyn Error>> {
         super::get_repository().save(self)?;
-        self.meta._save()?;
+        self.meta.save()?;
         Ok(())
     }
 

@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::time::SystemTime;
 use tonic::{Request, Response, Status};
 use diesel::NotFound;
 
@@ -37,6 +38,26 @@ impl UserService for UserServiceImplementation {
         }
     }
 
+    async fn verify(&self, request: Request<()>) -> Result<Response<()>, Status> {
+        let metadata = request.metadata();
+        if let None = metadata.get("token") {
+            return Err(Status::failed_precondition("token required"));
+        };
+
+        let token = match metadata.get("token")
+            .unwrap() // this line will not fail due to the previous check of None 
+            .to_str() {
+            Err(err) => return Err(Status::aborted(err.to_string())),
+            Ok(token) => token,
+        };
+
+        if let Err(err) = super::application::user_verify(token){               
+            return Err(Status::aborted(err.to_string()));
+        }
+
+        Ok(Response::new(()))
+    }
+
     async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<()>, Status> {
         let msg_ref = request.into_inner();
 
@@ -59,7 +80,7 @@ struct PostgresUser {
     pub id: i32,
     pub email: String,
     pub password: String,
-    pub verified: bool,
+    pub verified_at: Option<SystemTime>,
     pub secret_id: Option<String>,
     pub meta_id: i32,
 }
@@ -70,23 +91,15 @@ struct PostgresUser {
 struct NewPostgresUser<'a> {
     pub email: &'a str,
     pub password: &'a str,
-    pub verified: bool,
+    pub verified_at: Option<SystemTime>,
     pub secret_id: Option<&'a str>,
     pub meta_id: i32,
 }
 
 pub struct PostgresUserRepository;
 
-impl UserRepository for PostgresUserRepository {
-    fn find(&self, target: &str) -> Result<User, Box<dyn Error>>  {
-        use crate::schema::users::dsl::*;
-        
-        let results = { // block is required because of connection release
-            let connection = get_connection().get()?;
-            users.filter(email.eq(target))
-                 .load::<PostgresUser>(&connection)?
-        };
-    
+impl PostgresUserRepository {
+    fn build_first(results: &[PostgresUser]) -> Result<User, Box<dyn Error>> {
         if results.len() == 0 {
             return Err(Box::new(NotFound));
         }
@@ -103,17 +116,43 @@ impl UserRepository for PostgresUserRepository {
             id: results[0].id,
             email: results[0].email.clone(),
             password: results[0].password.clone(),
-            verified: results[0].verified,
+            verified_at: results[0].verified_at,
             secret: secret_opt,
             meta: meta,
         })
+    }
+}
+
+impl UserRepository for PostgresUserRepository {
+    fn find(&self, target: i32) -> Result<User, Box<dyn Error>>  {
+        use crate::schema::users::dsl::*;
+        
+        let results = { // block is required because of connection release
+            let connection = get_connection().get()?;
+            users.filter(id.eq(target))
+                 .load::<PostgresUser>(&connection)?
+        };
+    
+        PostgresUserRepository::build_first(&results)
+    }
+    
+    fn find_by_email(&self, target: &str) -> Result<User, Box<dyn Error>>  {
+        use crate::schema::users::dsl::*;
+        
+        let results = { // block is required because of connection release
+            let connection = get_connection().get()?;
+            users.filter(email.eq(target))
+                 .load::<PostgresUser>(&connection)?
+        };
+    
+        PostgresUserRepository::build_first(&results)
     }
 
     fn create(&self, user: &mut User) -> Result<(), Box<dyn Error>> {
         let new_user = NewPostgresUser {
             email: &user.email,
             password: &user.password,
-            verified: user.verified,
+            verified_at: user.verified_at,
             secret_id: if let Some(secret) = &user.secret {Some(secret.get_id())} else {None},
             meta_id: user.meta.get_id(),
         };
@@ -134,7 +173,7 @@ impl UserRepository for PostgresUserRepository {
             id: user.id,
             email: user.email.to_string(),
             password: user.password.clone(),
-            verified: user.verified,
+            verified_at: user.verified_at,
             secret_id: if let Some(secret) = &user.secret {Some(secret.get_id().to_string())} else {None},
             meta_id: user.meta.get_id(),
         };

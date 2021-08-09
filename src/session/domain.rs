@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use crate::metadata::domain::InnerMetadata;
 use crate::user::domain::User;
 use crate::directory::domain::Directory;
+use crate::constants::errors::ALREADY_EXISTS;
 
 pub trait SessionRepository {
     fn find(&self, cookie: &str) -> Result<Arc<RwLock<Session>>, Box<dyn Error>>;
@@ -22,13 +23,13 @@ pub trait SessionRepository {
 }
 
 pub struct Session {
-    pub sid: String,
-    pub deadline: SystemTime,
-    pub user: User,
-    pub apps: HashMap<String, Directory>,
+    pub(super) sid: String,
+    pub(super) deadline: SystemTime,
+    pub(super) user: User,
+    pub(super) apps: HashMap<String, Directory>,
     // the updated_at field from metadata works as a touch_at field, being updated for each
     // read/write action done by the user (owner) over the sessions data
-    pub meta: InnerMetadata,
+    pub(super) _meta: InnerMetadata,
 }
 
 impl Session {
@@ -40,15 +41,23 @@ impl Session {
             deadline: SystemTime::now() + timeout,
             user: user,
             apps: HashMap::new(),
-            meta: InnerMetadata::new(),
+            _meta: InnerMetadata::new(),
         };
 
         super::get_repository().insert(sess)
     }
 
+    pub fn get_user(&self) -> &User {
+        &self.user
+    }
+
+    pub fn get_deadline(&self) -> SystemTime {
+        self.deadline
+    }
+
     pub fn set_directory(&mut self, app: &App, dir: Directory) -> Result<(), Box<dyn Error>> {
         if self.apps.get(app.get_url()).is_some() {
-            return Err("already exists".into());
+            return Err(ALREADY_EXISTS.into());
         }
 
         self.apps.insert(app.get_url().into(), dir);
@@ -63,21 +72,7 @@ impl Session {
         self.apps.remove(app.get_url())
     }
 
-    pub fn save(&mut self) -> Result<(), Box<dyn Error>> {
-        for (_, dir) in self.apps.iter_mut() {
-            dir.save()?;
-        }
-
-        Ok(())
-    }
-
-    pub fn delete(&mut self, save: bool) -> Result<(), Box<dyn Error>> {
-        if save {
-            // deleting the session does not always means removing directories from the db. Instead,
-            // all directories must be saved for future sessions
-            self.save()?;
-        }
-
+    pub fn delete(&mut self) -> Result<(), Box<dyn Error>> {
         super::get_repository().delete(self)?;
         Ok(())
     }
@@ -85,11 +80,11 @@ impl Session {
 
 #[derive(Serialize, Deserialize)]
 pub struct Token {
-    pub exp: SystemTime,     // expiration time (as UTC timestamp) - required
-    pub iat: SystemTime,     // issued at: creation time
-    pub iss: String,         // issuer
-    pub url: String,         // application url
-    pub sub: String,         // subject: the user's session
+    pub(super) exp: SystemTime,     // expiration time (as UTC timestamp) - required
+    pub(super) iat: SystemTime,     // issued at: creation time
+    pub(super) iss: String,         // issuer
+    pub(super) url: String,         // application url
+    pub(super) sub: String,         // subject: the user's session
 }
 
 impl Token {

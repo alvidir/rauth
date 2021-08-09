@@ -20,7 +20,7 @@ table! {
         id -> Int4,
         email -> Varchar,
         password -> Varchar,
-        verified -> Bool,
+        verified_at -> Nullable<Timestamp>,
         secret_id -> Nullable<Varchar>,
         meta_id -> Int4,
     }

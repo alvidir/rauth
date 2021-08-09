@@ -85,7 +85,7 @@ impl InMemorySessionRepository {
 
     fn session_has_email(sess: &Arc<RwLock<Session>>, email: &str) -> bool {
         if let Ok(session) = sess.read() {
-            return session.user.email == email;
+            return session.user.get_email() == email;
         }
 
         false
@@ -209,7 +209,7 @@ impl SessionRepository for InMemorySessionRepository {
             return Err(errors::ALREADY_EXISTS.into());
         }
 
-        if let Some(_) = repo.iter().find(|(_, sess)| InMemorySessionRepository::session_has_email(sess, &session.user.email)) {
+        if let Some(_) = repo.iter().find(|(_, sess)| InMemorySessionRepository::session_has_email(sess, session.user.get_email())) {
             return Err(errors::ALREADY_EXISTS.into());
         }
 

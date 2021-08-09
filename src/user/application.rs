@@ -14,7 +14,7 @@ use super::domain::{User, Token};
 pub fn user_signup(email: &str,
                    password: &str) -> Result<(), Box<dyn Error>> {
     
-    info!("got signup request from user {} ", email);
+    info!("got a signup request from user {} ", email);
     
     let meta = Metadata::new()?;
     let user = User::new(meta, email, password)?;
@@ -27,13 +27,25 @@ pub fn user_signup(email: &str,
     Ok(())
 }
 
+pub fn user_verify(token: &str) -> Result<(), Box<dyn Error>> {
+
+    info!("got a verification request for token {} ", token);
+
+    let claim = security::decode_jwt::<Token>(token)?;
+    let mut user = super::get_repository().find(claim.sub)?;
+    user.verify()?;
+    user.save()?;
+
+    Ok(())
+}
+
 pub fn user_delete(email: &str,
                    pwd: &str,
                    totp: &str) -> Result<(), Box<dyn Error>> {
     
     info!("got a deletion request from user {} ", email);
 
-    let user = super::get_repository().find(email)?;
+    let user = super::get_repository().find_by_email(email)?;
     if !user.match_password(pwd) {
         return Err(errors::NOT_FOUND.into());
     }
@@ -47,7 +59,7 @@ pub fn user_delete(email: &str,
     // if the user was logged in, the session must be removed
     if let Ok(sess_arc) = get_sess_repository().find_by_email(&user.email) {
         let mut sess = get_writable_session(&sess_arc)?;
-        sess.delete(false)?; // do not save directories
+        sess.delete()?; // do not save directories
     }
 
     // delete all directories

@@ -14,7 +14,7 @@ use crate::security;
 
 use super::domain::{Session, Token};
 
-pub fn get_writable_session<'a, 'b>(sess_arc: &Arc<RwLock<Session>>) -> Result<RwLockWriteGuard<Session>, Box<dyn Error>> {
+pub fn get_writable_session(sess_arc: &Arc<RwLock<Session>>) -> Result<RwLockWriteGuard<Session>, Box<dyn Error>> {
     let sess_wr = sess_arc.write();
     if let Err(err) = sess_wr {
         error!("read-write lock for session got poisoned: {}", err);
@@ -29,10 +29,10 @@ pub fn session_login(email: &str,
                      totp: &str,
                      app: &str) -> Result<String, Box<dyn Error>> {
     
-    info!("got login request from user {} ", email);
+    info!("got a login request from user {} ", email);
 
     // make sure the user exists and its credentials are alright
-    let user = get_user_repository().find(email)?;
+    let user = get_user_repository().find_by_email(email)?;
     if !user.match_password(pwd) {
         return Err(errors::NOT_FOUND.into());
     } else if !user.is_verified() {
@@ -40,7 +40,7 @@ pub fn session_login(email: &str,
     }
 
     // if, and only if, the user has activated the 2fa
-    if let Some(secret) = &user.secret {
+    if let Some(secret) = &user.get_secret() {
         let data = secret.get_data();
         security::verify_totp(data, totp)?;
     }
@@ -64,7 +64,7 @@ pub fn session_login(email: &str,
         token = security::encode_jwt(claim)?;
 
         if let None = sess.get_directory(&app) {
-            if let Ok(dir) = get_dir_repository().find_by_user_and_app(sess.user.id, app.get_id()) {
+            if let Ok(dir) = get_dir_repository().find_by_user_and_app(sess.user.get_id(), app.get_id()) {
                 sess.set_directory(&app, dir)?;
             } else {
                 let dir = Directory::new(&sess, &app)?;
@@ -89,10 +89,10 @@ pub fn session_logout(token: &str) -> Result<(), Box<dyn Error>> {
     let mut sess = get_writable_session(&sess_arc)?;
 
     let app = get_app_repository().find(&claim.url)?;
-    if let Some(mut dir) = sess.delete_directory(&app) {
-        // unsubscribe the session's sid into the app's group 
+    if let Some(dir) = sess.delete_directory(&app) {
+        // unsubscribe the session's from the app's group 
         super::get_repository().delete_from_app_group(&app, &sess)?;
-        get_dir_repository().save(&mut dir)?;
+        dir.save()?;
     }
 
     Ok(())
