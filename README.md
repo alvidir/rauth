@@ -42,9 +42,9 @@ Use cases are usually translated as atomic methods the service's API exposes to 
 |:-:|:-:|:-|
 | Register | App | Register an `App` into the system, as well as its public key|
 | Delete | App | Close and delete all `Directories` related to the `App`, removes the `App`'s `Secret` and finally unsubscribe the `App` from the system|
-| Sign up | User | Register an ephemeral `User` into the system and send a verification email to the provided email. Once the email got confirmed, the `User` becomes persistent and its `Secret` gets generated and registered |
-| Verify | User | Sets the `User` as a verified one and enables it for login|
-| Delete | User | Close and delete all `Directories` related to the `User`, removes the `User`'s `Secret` (if any) and finally unsubscribe the `User` from the system|
+| Sign up | User | Register a `User` into the system and send a verification email to the provided email with an ephimeral `Token` for the verification process. |
+| Verify | User | If, and only if, the provided `Token` is valid, the `User` gets verified and therefore granted for _Log In_ |
+| Delete | User | Remove the `Session` and delete all `Directories` related to the `User`, removes the `User`'s `Secret` (if any) and finally unsubscribe the `User` from the system|
 | Log in | Session | If the `User` has no `Session` in the system it gets generated as well as the cookie related to it. If the `User`'s `Session` has no open `Directory` for the requested `App` it gets loaded or created. A new `Token` for the `Directory` is generated and provided as response for the current request |
 | Log out | Session | Close and save all `Directories` related to the `Session` and finally unsubscribe the `Session` from the system |
 
