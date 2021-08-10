@@ -12,8 +12,6 @@ pub trait SecretRepository {
 pub struct Secret {
     pub(super) id: String,
     pub(super) data: Vec<u8>, // pkey as a pem file
-    // the updated_at field from metadata works as a touch_at field, being updated for each
-    // usage of the secret
     pub(super) meta: InnerMetadata,
 }
 

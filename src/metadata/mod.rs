@@ -66,6 +66,6 @@ pub mod tests {
         let after = SystemTime::now();
 
         assert!(meta.created_at >= before && meta.created_at <= after);
-        assert!(meta.updated_at >= before && meta.updated_at <= after);
+        assert!(meta.touch_at >= before && meta.touch_at <= after);
     }
 }

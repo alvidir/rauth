@@ -16,7 +16,7 @@ const COLLECTION_NAME: &str = "directories";
 #[derive(Serialize, Deserialize, Debug)]
 struct MongoDirectoryMetadata {
     pub created_at: SystemTime,
-    pub updated_at: SystemTime,
+    pub touch_at: SystemTime,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -48,7 +48,7 @@ impl MongoDirectoryRepository {
             _deadline: SystemTime::UNIX_EPOCH,
             meta: InnerMetadata {
                 created_at: mongo_dir.meta.created_at,
-                updated_at: mongo_dir.meta.updated_at,
+                touch_at: mongo_dir.meta.touch_at,
             },
         };
 
@@ -58,7 +58,7 @@ impl MongoDirectoryRepository {
     fn parse_directory(dir: &Directory) -> Result<Document, Box<dyn Error>> {
         let mongo_meta = MongoDirectoryMetadata {
             created_at: dir.meta.created_at,
-            updated_at: dir.meta.updated_at,
+            touch_at: dir.meta.touch_at,
         };
 
         let mut id_opt = None;

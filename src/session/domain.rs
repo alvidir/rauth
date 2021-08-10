@@ -1,11 +1,12 @@
-use crate::app::domain::App;
 use std::error::Error;
+use std::any::Any;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime};
 use std::collections::HashMap;
 
 use crate::metadata::domain::InnerMetadata;
 use crate::user::domain::User;
+use crate::app::domain::App;
 use crate::directory::domain::Directory;
 use crate::constants::errors::ALREADY_EXISTS;
 
@@ -27,9 +28,10 @@ pub struct Session {
     pub(super) deadline: SystemTime,
     pub(super) user: User,
     pub(super) apps: HashMap<String, Directory>,
-    // the updated_at field from metadata works as a touch_at field, being updated for each
-    // read/write action done by the user (owner) over the sessions data
-    pub(super) _meta: InnerMetadata,
+    pub(super) meta: InnerMetadata,
+    // sandbox is used for storing temporal data that must not be persisted nor
+    // accessed by any other party than the Session itself
+    pub(super) sandbox: HashMap<String, Box<dyn Any>>,
 }
 
 impl Session {
@@ -41,7 +43,8 @@ impl Session {
             deadline: SystemTime::now() + timeout,
             user: user,
             apps: HashMap::new(),
-            _meta: InnerMetadata::new(),
+            meta: InnerMetadata::new(),
+            sandbox: HashMap::new(),
         };
 
         super::get_repository().insert(sess)

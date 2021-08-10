@@ -46,14 +46,14 @@ impl Metadata {
 
 pub struct InnerMetadata {
     pub created_at: SystemTime,
-    pub updated_at: SystemTime,
+    pub touch_at: SystemTime,
 }
 
 impl InnerMetadata {
     pub fn new() -> Self {
         InnerMetadata {
             created_at: SystemTime::now(),
-            updated_at: SystemTime::now(),
+            touch_at: SystemTime::now(),
         }
     }
 }

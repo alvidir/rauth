@@ -14,7 +14,7 @@ const COLLECTION_NAME: &str = "secrets";
 #[derive(Serialize, Deserialize, Debug)]
 struct MongoSecretMetadata {
     pub created_at: SystemTime,
-    pub updated_at: SystemTime,
+    pub touch_at: SystemTime,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -31,7 +31,7 @@ impl MongoSecretRepository {
     fn parse_secret(secret: &Secret) -> Result<Document, Box<dyn Error>> {
         let mongo_meta = MongoSecretMetadata {
             created_at: secret.meta.created_at,
-            updated_at: secret.meta.updated_at,
+            touch_at: secret.meta.touch_at,
         };
 
         let mut id_opt = None;
@@ -75,7 +75,7 @@ impl SecretRepository for MongoSecretRepository {
                 data: mongo_secret.data,
                 meta: InnerMetadata {
                     created_at: mongo_secret.meta.created_at,
-                    updated_at: mongo_secret.meta.updated_at,
+                    touch_at: mongo_secret.meta.touch_at,
                 },
             };
 
