@@ -30,7 +30,7 @@ pub mod tests {
     use crate::directory::tests::new_directory;
     use crate::app::tests::new_app;
     use crate::security;
-    use crate::time;
+    use crate::time::unix_timestamp;
     use super::domain::{Session, SessionRepository, Token};
 
     lazy_static! {
@@ -154,7 +154,7 @@ pub mod tests {
         let after = SystemTime::now();
 
         assert!(claim.iat >= before && claim.iat <= after);        
-        assert_eq!(claim.exp, time::unix_timestamp(deadline));
+        assert_eq!(claim.exp, unix_timestamp(deadline));
         assert_eq!("oauth.alvidir.com", claim.iss);
         assert_eq!(sess.sid, claim.sub);
         assert_eq!(app.get_id(), claim.app);
@@ -177,7 +177,7 @@ pub mod tests {
         let claim = security::decode_jwt::<Token>(&token).unwrap();
 
         assert!(claim.iat >= before && claim.iat <= after);        
-        assert_eq!(claim.exp, time::unix_timestamp(deadline));
+        assert_eq!(claim.exp, unix_timestamp(deadline));
         assert_eq!("oauth.alvidir.com", claim.iss);
         assert_eq!(sess.sid, claim.sub);
         assert_eq!(app.get_id(), claim.app);

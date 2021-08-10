@@ -8,7 +8,7 @@ use crate::user::domain::User;
 use crate::app::domain::App;
 use crate::directory::domain::Directory;
 use crate::constants::errors::ALREADY_EXISTS;
-use crate::time;
+use crate::time::unix_timestamp;
 
 pub trait SessionRepository {
     fn find(&self, cookie: &str) -> Result<Arc<RwLock<Session>>, Box<dyn Error>>;
@@ -94,7 +94,7 @@ pub struct Token {
 impl Token {
     pub fn new(sess: &Session, app: &App, deadline: SystemTime) -> Self {
         Token {
-            exp: time::unix_timestamp(deadline),
+            exp: unix_timestamp(deadline),
             iat: SystemTime::now(),
             iss: "oauth.alvidir.com".to_string(),
             sub: sess.sid.clone(),
