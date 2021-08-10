@@ -2,7 +2,7 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::error::Error;
 use std::env;
-use openssl::sign::{Signer, Verifier};
+use openssl::sign::Verifier;
 use openssl::pkey::{PKey};
 use openssl::ec::{EcKey,EcGroup};
 use openssl::nid::Nid;
@@ -59,7 +59,7 @@ pub fn encode_jwt(payload: impl Serialize) -> Result<String, Box<dyn Error>> {
 }
 
 pub fn decode_jwt<T: DeserializeOwned>(token: &str) -> Result<T, Box<dyn Error>> {
-    let key = DecodingKey::from_ec_pem(&PRIVATE_KEY)?;
+    let key = DecodingKey::from_ec_pem(&PUBLIC_KEY)?;
     let validation = Validation::default();
     let token = jsonwebtoken::decode::<T>(token, &key, &validation)?;
     Ok(token.claims)
@@ -112,18 +112,4 @@ pub fn verify_ec_signature(pem: &[u8], signature: &[u8], data: &[&[u8]]) -> Resu
     } else {
         Ok(())
     }
-}
-
-pub fn _apply_server_signature(data: &[&[u8]]) -> Result<Vec<u8>, Box<dyn Error>> {
-    let secret = env::var(environment::SMTP_USERNAME)?;
-    let eckey = EcKey::private_key_from_pem(secret.as_bytes())?;
-    let keypair = PKey::from_ec_key(eckey)?;
-
-    let mut signer = Signer::new(MessageDigest::sha256(), &keypair).unwrap();
-    for item in data {
-        signer.update(item)?;
-    }
-
-    let signature = signer.sign_to_vec()?;
-    Ok(signature)
 }

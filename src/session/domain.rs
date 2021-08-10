@@ -86,8 +86,8 @@ pub struct Token {
     pub(super) exp: SystemTime,     // expiration time (as UTC timestamp) - required
     pub(super) iat: SystemTime,     // issued at: creation time
     pub(super) iss: String,         // issuer
-    pub(super) url: String,         // application url
     pub(super) sub: String,         // subject: the user's session
+    pub(super) app: i32,            // application id
 }
 
 impl Token {
@@ -96,8 +96,8 @@ impl Token {
             exp: deadline,
             iat: SystemTime::now(),
             iss: "oauth.alvidir.com".to_string(),
-            url: app.get_url().to_string(),
             sub: sess.sid.clone(),
+            app: app.get_id(),
         }
     }
 }

@@ -56,7 +56,7 @@ pub fn session_login(email: &str,
 
     // generate a token for the gotten session and the given app
     let token = {
-        let app = get_app_repository().find(app)?;
+        let app = get_app_repository().find_by_url(app)?;
         let token: String;
         
         let mut sess = get_writable_session(&sess_arc)?;
@@ -88,7 +88,7 @@ pub fn session_logout(token: &str) -> Result<(), Box<dyn Error>> {
     let sess_arc = super::get_repository().find(&claim.sub)?;
     let mut sess = get_writable_session(&sess_arc)?;
 
-    let app = get_app_repository().find(&claim.url)?;
+    let app = get_app_repository().find(claim.app)?;
     if let Some(dir) = sess.delete_directory(&app) {
         // unsubscribe the session's from the app's group 
         super::get_repository().delete_from_app_group(&app, &sess)?;

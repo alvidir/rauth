@@ -29,7 +29,8 @@ pub mod tests {
     use crate::metadata::domain::InnerMetadata;
     use crate::directory::tests::new_directory;
     use crate::app::tests::new_app;
-    use super::domain::{Session, SessionRepository};
+    use crate::security;
+    use super::domain::{Session, SessionRepository, Token};
 
     lazy_static! {
         pub static ref TESTING_SESSIONS: RwLock<HashMap<String, Arc<RwLock<Session>>>> = {
@@ -126,6 +127,66 @@ pub mod tests {
 
         assert_eq!(1, sess.apps.len());
         assert!(sess.apps.get(&app.get_id()).is_some());
-        assert!(sess.meta.touch_at >= before && sess.meta.touch_at <= after);        
+        assert!(sess.meta.touch_at >= before && sess.meta.touch_at <= after);
     }
+
+    #[test]
+    fn session_set_directory_ko() {
+        let dir = new_directory();
+        let app = new_app();
+
+        let mut sess = new_session();
+        sess.set_directory(&app, dir).unwrap();
+
+        let dir = new_directory();
+        assert!(sess.set_directory(&app, dir).is_err());
+    }
+
+    #[test]
+    fn session_token_ok() {
+        let app = new_app();
+        let sess = new_session();
+        let deadline = SystemTime::now() + Duration::from_secs(60);
+
+        let before = SystemTime::now();
+        let claim = Token::new(&sess, &app, deadline);
+        let after = SystemTime::now();
+
+        assert!(claim.iat >= before && claim.iat <= after);        
+        assert_eq!(claim.exp, deadline);
+        assert_eq!("oauth.alvidir.com", claim.iss);
+        assert_eq!(sess.sid, claim.sub);
+        assert_eq!(app.get_id(), claim.app);
+    }
+
+    // #[test]
+    // fn session_token_encode() {
+    //     let app = new_app();
+    //     let sess = new_session();
+    //     let deadline = SystemTime::now() + Duration::from_secs(60);
+
+    //     let before = SystemTime::now();
+    //     let claim = Token::new(&sess, &app, deadline);
+    //     let after = SystemTime::now();
+        
+    //     let token = security::encode_jwt(claim).unwrap();
+    //     let claim = security::decode_jwt::<Token>(&token).unwrap();
+
+    //     assert!(claim.iat >= before && claim.iat <= after);        
+    //     assert_eq!(claim.exp, deadline);
+    //     assert_eq!("oauth.alvidir.com", claim.iss);
+    //     assert_eq!(sess.sid, claim.sub);
+    //     assert_eq!(app.get_id(), claim.app);
+    // }
+
+    // #[test]
+    // fn session_token_ko() {
+    //     let app = new_app();
+    //     let sess = new_session();
+    //     let deadline = SystemTime::now();
+
+    //     let claim = Token::new(&sess, &app, deadline);
+    //     let token = security::encode_jwt(claim).unwrap();
+    //     assert!(security::decode_jwt::<Token>(&token).is_err());
+    // }
 }

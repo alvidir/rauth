@@ -29,3 +29,6 @@ Cargo.lock
 
 # html templates for rendering
 templates/
+
+# keys and secrets
+.ssh/

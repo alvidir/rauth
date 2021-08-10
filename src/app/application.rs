@@ -31,7 +31,7 @@ pub fn app_delete(url: &str,
     
     info!("got a deletion request from application {} ", url);
 
-    let app = super::get_repository().find(url)?;
+    let app = super::get_repository().find_by_url(url)?;
     let pem = app.secret.get_data();
     
     let mut data: Vec<&[u8]> = Vec::new();

@@ -27,7 +27,11 @@ pub mod tests {
 
     pub struct Mock;
     impl AppRepository for Mock {
-        fn find(&self, _url: &str) -> Result<App, Box<dyn Error>> {
+        fn find(&self, _id: i32) -> Result<App, Box<dyn Error>> {
+            Err("unimplemeted".into())
+        }
+
+        fn find_by_url(&self, _url: &str) -> Result<App, Box<dyn Error>> {
             Err("unimplemeted".into())
         }
 

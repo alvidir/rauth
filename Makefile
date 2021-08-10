@@ -39,3 +39,6 @@ setup:
 test:
 	cargo test -- --nocapture
 	cargo test -- --nocapture --ignored
+
+secret:
+	ssh-keygen -b 256 -t ecdsa -f ./secret -q -N ""

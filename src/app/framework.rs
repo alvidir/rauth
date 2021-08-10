@@ -76,7 +76,29 @@ struct NewPostgresApp<'a> {
 pub struct PostgresAppRepository;
 
 impl AppRepository for PostgresAppRepository {
-    fn find(&self, target: &str) -> Result<App, Box<dyn Error>>  {
+    fn find(&self, target: i32) -> Result<App, Box<dyn Error>>  {
+        let results = { // block is required because of connection release
+            let connection = get_connection().get()?;
+            apps.filter(id.eq(target))
+                 .load::<PostgresApp>(&connection)?
+        };
+    
+        if results.len() == 0 {
+            return Err(Box::new(NotFound));
+        }
+
+        let secret = get_secret_repository().find(&results[0].secret_id)?;
+        let meta = get_meta_repository().find(results[0].meta_id)?;
+        
+        Ok(App{
+            id: results[0].id,
+            url: results[0].url.clone(),
+            secret: secret,
+            meta: meta,
+        })
+    }
+
+    fn find_by_url(&self, target: &str) -> Result<App, Box<dyn Error>>  {
         let results = { // block is required because of connection release
             let connection = get_connection().get()?;
             apps.filter(url.eq(target))
