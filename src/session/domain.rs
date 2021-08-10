@@ -1,5 +1,4 @@
 use std::error::Error;
-use std::any::Any;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime};
 use std::collections::HashMap;
@@ -27,11 +26,11 @@ pub struct Session {
     pub(super) sid: String,
     pub(super) deadline: SystemTime,
     pub(super) user: User,
-    pub(super) apps: HashMap<String, Directory>,
+    pub(super) apps: HashMap<i32, Directory>,
     pub(super) meta: InnerMetadata,
     // sandbox is used for storing temporal data that must not be persisted nor
     // accessed by any other party than the Session itself
-    pub(super) sandbox: HashMap<String, Box<dyn Any>>,
+    pub(super) _sandbox: HashMap<String, Vec<u8>>,
 }
 
 impl Session {
@@ -44,7 +43,7 @@ impl Session {
             user: user,
             apps: HashMap::new(),
             meta: InnerMetadata::new(),
-            sandbox: HashMap::new(),
+            _sandbox: HashMap::new(),
         };
 
         super::get_repository().insert(sess)
@@ -59,20 +58,21 @@ impl Session {
     }
 
     pub fn set_directory(&mut self, app: &App, dir: Directory) -> Result<(), Box<dyn Error>> {
-        if self.apps.get(app.get_url()).is_some() {
+        if self.apps.get(&app.get_id()).is_some() {
             return Err(ALREADY_EXISTS.into());
         }
 
-        self.apps.insert(app.get_url().into(), dir);
+        self.apps.insert(app.get_id(), dir);
+        self.meta.touch();
         Ok(())
     }
 
     pub fn get_directory(&mut self, app: &App) -> Option<&mut Directory> {
-        self.apps.get_mut(app.get_url())
+        self.apps.get_mut(&app.get_id())
     }
 
     pub fn delete_directory(&mut self, app: &App) -> Option<Directory> {
-        self.apps.remove(app.get_url())
+        self.apps.remove(&app.get_id())
     }
 
     pub fn delete(&mut self) -> Result<(), Box<dyn Error>> {

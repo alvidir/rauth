@@ -21,8 +21,12 @@ pub fn get_repository() -> Box<dyn domain::DirectoryRepository> {
 #[cfg(test)]
 pub mod tests {
     use std::error::Error;
+    use std::time::SystemTime;
     use crate::app::domain::App;
     use crate::user::domain::User;
+    use crate::metadata::domain::InnerMetadata;
+    use crate::app::tests::new_app;
+    use crate::session::tests::new_session;
     use super::domain::{Directory, DirectoryRepository};
 
     pub struct Mock;    
@@ -36,7 +40,7 @@ pub mod tests {
         }
 
         fn create(&self, secret: &mut Directory) -> Result<(), Box<dyn Error>> {
-            secret.id = "999".to_string();
+            secret.id = "testing".to_string();
             Ok(())
         }
 
@@ -55,6 +59,27 @@ pub mod tests {
         fn delete_all_by_user(&self, _user: &User) -> Result<(), Box<dyn Error>> {
             Err("unimplemeted".into())
         }
+    }
 
+    pub fn new_directory() -> Directory {
+        Directory{
+            id: "testing".to_string(),
+            user: 0,
+            app: 0,
+            _deadline: SystemTime::now(),
+            meta: InnerMetadata::new(),
+        }
+    }
+
+    #[test]
+    fn directory_new() {
+        let app = new_app();
+        let sess = new_session();
+
+        let dir = Directory::new(&sess, &app).unwrap();
+        
+        assert_eq!("testing", dir.id);
+        assert_eq!(dir.app, app.get_id());
+        assert_eq!(dir.user, sess.get_user().get_id());
     }
 }

@@ -30,7 +30,8 @@ pub mod tests {
             Err("unimplemeted".into())
         }
 
-        fn create(&self, _secret: &mut Secret) -> Result<(), Box<dyn Error>> {
+        fn create(&self, secret: &mut Secret) -> Result<(), Box<dyn Error>> {
+            secret.id = "testing".to_string();
             Ok(())
         }
 
@@ -50,7 +51,15 @@ pub mod tests {
             id: "testing".to_string(),
             data: "this is a secret".as_bytes().to_vec(),
             meta: inner_meta,
-            //repo: &Mock,
         }
+    }
+
+    #[test]
+    fn secret_new() {
+        let data = "testing".as_bytes();
+        let secret = Secret::new(data).unwrap();
+
+        assert_eq!("testing", secret.id); 
+        assert_eq!("testing".as_bytes(), secret.data);
     }
 }

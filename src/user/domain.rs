@@ -70,7 +70,7 @@ impl User {
     }
 
     pub fn match_password(&self, password: &str) -> bool {
-        password != self.password
+        password == self.password
     }
 
     pub fn save(&self) -> Result<(), Box<dyn Error>> {

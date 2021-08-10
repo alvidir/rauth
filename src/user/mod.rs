@@ -19,12 +19,11 @@ pub fn get_repository() -> Box<dyn domain::UserRepository> {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use std::error::Error;
+    use std::time::SystemTime;
     use crate::metadata::tests::new_metadata;
     use super::domain::{User, UserRepository};
-
-    const PWD: &str = "ABCDEF1234567890";
 
     pub struct Mock;    
     impl UserRepository for Mock {
@@ -49,10 +48,22 @@ mod tests {
             Err("unimplemeted".into())
         }
     }
+        
+    pub fn new_user() -> User {
+        User{
+            id: 999,
+            email: "dummy@test.com".to_string(),
+            password: "ABCDEF1234567890".to_string(),
+            verified_at: None,
+            secret: None,
+            meta: new_metadata(),
+        }
+    }
 
     #[test]
     fn user_new_ok() {
-        const EMAIL: &str = "dummy@example.com";
+        const PWD: &str = "ABCDEF1234567890";
+        const EMAIL: &str = "dummy@test.com";
 
         let meta = new_metadata();
         let user = User::new(meta,
@@ -65,7 +76,8 @@ mod tests {
     }
 
     #[test]
-    fn user_new_ko() {
+    fn user_email_ko() {
+        const PWD: &str = "ABCDEF1234567890";
         const EMAIL: &str = "not_an_email";
 
         let meta = new_metadata();
@@ -74,5 +86,54 @@ mod tests {
                              PWD);
     
         assert!(user.is_err());
+    }
+
+    #[test]
+    fn user_password_ko() {
+        const PWD: &str = "ABCDEFG1234567890";
+        const EMAIL: &str = "dummy@test.com";
+
+        let meta = new_metadata();
+        let user = User::new(meta,
+                             EMAIL,
+                             PWD);
+    
+        assert!(user.is_err());
+    }
+
+    #[test]
+    fn user_verify_ok() {
+        let mut user = new_user();
+        assert!(!user.is_verified());
+
+        let before = SystemTime::now();
+        assert!(user.verify().is_ok());
+        let after = SystemTime::now();
+
+        assert!(user.verified_at.is_some());
+        let time = user.verified_at.unwrap();
+        assert!(time >= before && time <= after);
+
+        assert!(user.is_verified());
+    }
+
+    #[test]
+    fn user_verify_ko() {
+        let mut user = new_user();
+        user.verified_at = Some(SystemTime::now());
+
+        assert!(user.verify().is_err());
+    }
+
+    #[test]
+    fn user_match_password_ok() {
+        let user = new_user();
+        assert!(user.match_password("ABCDEF1234567890"));
+    }
+
+    #[test]
+    fn user_match_password_ko() {
+        let user = new_user();
+        assert!(!user.match_password("ABCDEFG1234567890"));
     }
 }

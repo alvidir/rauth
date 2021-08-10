@@ -56,4 +56,8 @@ impl InnerMetadata {
             touch_at: SystemTime::now(),
         }
     }
+
+    pub fn touch(&mut self) {
+        self.touch_at = SystemTime::now();
+    }
 }

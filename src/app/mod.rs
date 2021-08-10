@@ -19,10 +19,10 @@ pub fn get_repository() -> Box<dyn domain::AppRepository> {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use std::error::Error;
     use crate::metadata::tests::new_metadata;
-    use crate::secret::tests as SecretTests;
+    use crate::secret::tests::new_secret;
     use super::domain::{App, AppRepository};
 
     pub struct Mock;
@@ -45,10 +45,19 @@ mod tests {
         }
     }
 
+    pub fn new_app() -> App {
+        App{
+            id: 999,
+            url: "http://testing.com".to_string(),
+            secret: new_secret(),
+            meta: new_metadata(),
+        }
+    }
+
     #[test]
     fn app_new_ok() {
         const URL: &str = "http://testing.com";
-        let secret = SecretTests::new_secret();
+        let secret = new_secret();
 
         let meta = new_metadata();
         let app = App::new(secret,
@@ -60,9 +69,9 @@ mod tests {
     }
 
     #[test]
-    fn user_new_ko() {
+    fn app_new_ko() {
         const URL: &str = "not_an_url";
-        let secret = SecretTests::new_secret();
+        let secret = new_secret();
         
         let meta = new_metadata();
         let app = App::new(secret,

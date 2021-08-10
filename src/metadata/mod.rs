@@ -45,11 +45,15 @@ pub mod tests {
     }
 
     pub fn new_metadata() -> Metadata {
-        Metadata::new().unwrap()
+        Metadata{
+            id: 999,
+            created_at: SystemTime::now(),
+            updated_at: SystemTime::now(),
+        }
     }
 
     #[test]
-    fn metadata_new_ok() {
+    fn metadata_new() {
         let before = SystemTime::now();
         let meta = Metadata::new().unwrap();
         let after = SystemTime::now();
@@ -60,7 +64,7 @@ pub mod tests {
     }
 
     #[test]
-    fn inner_metadata_ok() {        
+    fn inner_metadata_new() {        
         let before = SystemTime::now();
         let meta = InnerMetadata::new();
         let after = SystemTime::now();
