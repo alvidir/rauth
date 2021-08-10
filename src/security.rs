@@ -4,47 +4,24 @@ use std::error::Error;
 use std::env;
 use openssl::sign::Verifier;
 use openssl::pkey::{PKey};
-use openssl::ec::{EcKey,EcGroup};
-use openssl::nid::Nid;
+use openssl::ec::EcKey;
 use openssl::hash::MessageDigest;
 use libreauth::oath::{TOTPBuilder};
 use libreauth::hash::HashFunction::Sha256;
-use jsonwebtoken::{Header, EncodingKey, DecodingKey, Validation};
+use jsonwebtoken::{Header, EncodingKey, DecodingKey, Validation, Algorithm};
 use rand::Rng;
 
 use crate::constants::{environment, errors};
 
 lazy_static! {
-    static ref PRIVATE_KEY: Vec<u8> = {
-        if let Ok(pem) = env::var(environment::SECRET_PEM) {
-            let private = match env::var(environment::SECRET_PWD) {
-                Ok(password) => EcKey::private_key_from_pem_passphrase(pem.as_bytes(), password.as_bytes()).unwrap(),
-                Err(_) => EcKey::private_key_from_pem(pem.as_bytes()).unwrap(),
-            };
-
-            info!("got a PEM-formatted private EcKey from environment configuration");
-            return private.private_key_to_pem().unwrap();
-        }
-
-        warn!("no PEM-formatted private EcKey has been provided, generating one");
-        let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
-        let private = EcKey::generate(&group).unwrap();
-        private.private_key_to_pem().unwrap()
+    static ref JWT_SECRET: EncodingKey = {
+        let pem = env::var(environment::SECRET_PEM).unwrap();
+        EncodingKey::from_ec_pem(pem.as_bytes()).unwrap()
     };
 
-    pub static ref PUBLIC_KEY: Vec<u8> = {
-        let mut ctx = openssl::bn::BigNumContext::new().unwrap();
-        let pkey = EcKey::private_key_from_pem(&PRIVATE_KEY).unwrap();
-        let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
-        
-        let public = pkey.public_key()
-            .to_bytes(&group,
-                openssl::ec::PointConversionForm::COMPRESSED,
-                &mut ctx)
-            .unwrap();
-
-        info!("derived public EcKey: {}", base64::encode(&public));
-        public
+    static ref PUBLIC_KEY: Vec<u8> = {
+        let pem = env::var(environment::PUBLIC_PEM).unwrap();
+        pem.as_bytes().to_vec()
     };
 }
 
@@ -53,14 +30,14 @@ const SECURE_CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
                                 0123456789";
 
 pub fn encode_jwt(payload: impl Serialize) -> Result<String, Box<dyn Error>> {
-    let key = EncodingKey::from_ec_pem(&PRIVATE_KEY)?;
-    let token = jsonwebtoken::encode(&Header::default(), &payload, &key)?;
+    let header = Header::new(Algorithm::ES256);
+    let token = jsonwebtoken::encode(&header, &payload, &JWT_SECRET)?;
     Ok(token)
 }
 
 pub fn decode_jwt<T: DeserializeOwned>(token: &str) -> Result<T, Box<dyn Error>> {
     let key = DecodingKey::from_ec_pem(&PUBLIC_KEY)?;
-    let validation = Validation::default();
+    let validation = Validation::new(Algorithm::ES256);
     let token = jsonwebtoken::decode::<T>(token, &key, &validation)?;
     Ok(token.claims)
 }

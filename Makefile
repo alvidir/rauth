@@ -40,5 +40,8 @@ test:
 	cargo test -- --nocapture
 	cargo test -- --nocapture --ignored
 
-secret:
-	ssh-keygen -b 256 -t ecdsa -f ./secret -q -N ""
+secrets:
+	mkdir -p .ssh/
+	openssl ecparam -name prime256v1 -genkey -noout -out .ssh/ec_key.pem
+	openssl ec -in .ssh/ec_key.pem -pubout -out .ssh/ec_pubkey.pem
+	openssl pkcs8 -topk8 -nocrypt -in .ssh/ec_key.pem -out .ssh/pkcs8_key.pem
