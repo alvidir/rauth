@@ -37,5 +37,5 @@ service UserService {
   rpc Signup(user.SignupRequest) returns (google.protobuf.Empty);
   rpc Verify(google.protobuf.Empty) returns (google.protobuf.Empty);
   rpc Delete(user.DeleteRequest) returns (google.protobuf.Empty);
-  rpc TFA(TFARequest) returns (TFAResponse);
+  rpc TFA(user.TFARequest) returns (user.TFAResponse);
 }
