@@ -8,17 +8,22 @@ install:
 	sudo apt install pkg-config libssl-dev
 	cargo install diesel_cli --no-default-features --features postgres
 
+all: build setup deploy
+
 build:
 	podman build -t ${REPO}/${PROJECT}:${VERSION}-envoy -f ./docker/envoy/dockerfile .
 	podman build -t ${REPO}/${PROJECT}:${VERSION}-server -f ./docker/oauth/dockerfile .
 	
 setup:
-	# setting up required secrets
 	mkdir -p .ssh/
+	# setting up required secrets
 	openssl ecparam -name prime256v1 -genkey -noout -out .ssh/ec_key.pem
 	openssl ec -in .ssh/ec_key.pem -pubout -out .ssh/ec_pubkey.pem
 	openssl pkcs8 -topk8 -nocrypt -in .ssh/ec_key.pem -out .ssh/pkcs8_key.pem
-	# setting up db scripts 
+	# base64 encoding for JWT's required public and private keys
+	cat .ssh/ec_pubkey.pem | base64 > .ssh/ec_pubkey.base64
+	cat .ssh/pkcs8_key.pem | base64 > .ssh/pkcs8_key.base64
+	# setting up db scripts
 	python3 scripts/build_db_setup_script.py
 
 deploy:
