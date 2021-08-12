@@ -2,7 +2,7 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::error::Error;
 use std::env;
-use openssl::sign::Verifier;
+use openssl::sign::{Verifier, Signer};
 use openssl::pkey::{PKey};
 use openssl::ec::EcKey;
 use openssl::hash::MessageDigest;
@@ -10,18 +10,20 @@ use libreauth::oath::{TOTPBuilder};
 use libreauth::hash::HashFunction::Sha256;
 use jsonwebtoken::{Header, EncodingKey, DecodingKey, Validation, Algorithm};
 use rand::Rng;
+use base64;
 
 use crate::constants::{environment, errors};
 
 lazy_static! {
     static ref JWT_SECRET: EncodingKey = {
-        let pem = env::var(environment::SECRET_PEM).unwrap();
-        EncodingKey::from_ec_pem(pem.as_bytes()).unwrap()
+        let pem_b64 = env::var(environment::JWT_SECRET).unwrap();
+        let pem = base64::decode(pem_b64).unwrap();
+        EncodingKey::from_ec_pem(&pem).unwrap()
     };
 
-    static ref PUBLIC_KEY: Vec<u8> = {
-        let pem = env::var(environment::PUBLIC_PEM).unwrap();
-        pem.as_bytes().to_vec()
+    static ref JWT_PUBLIC: Vec<u8> = {
+        let pem_b64 = env::var(environment::JWT_PUBLIC).unwrap();
+        base64::decode(pem_b64).unwrap()
     };
 }
 
@@ -36,7 +38,7 @@ pub fn encode_jwt(payload: impl Serialize) -> Result<String, Box<dyn Error>> {
 }
 
 pub fn decode_jwt<T: DeserializeOwned>(token: &str) -> Result<T, Box<dyn Error>> {
-    let key = DecodingKey::from_ec_pem(&PUBLIC_KEY)?;
+    let key = DecodingKey::from_ec_pem(&JWT_PUBLIC)?;
     let validation = Validation::new(Algorithm::ES256);
     let token = jsonwebtoken::decode::<T>(token, &key, &validation)?;
     Ok(token.claims)
@@ -88,5 +90,50 @@ pub fn verify_ec_signature(pem: &[u8], signature: &[u8], data: &[&[u8]]) -> Resu
         Err(errors::UNAUTHORIZED.into())
     } else {
         Ok(())
+    }
+}
+
+pub fn _get_ec_signature(pem: &[u8], data: &[&[u8]]) -> Result<Vec<u8>, Box<dyn Error>> {
+    let eckey = EcKey::private_key_from_pem(pem)?;
+    let keypair = PKey::from_ec_key(eckey)?;
+
+    let mut signer = Signer::new(MessageDigest::sha256(), &keypair).unwrap();
+    for item in data {
+        signer.update(item)?;
+    }
+
+    let signature = signer.sign_to_vec()?;
+    Ok(signature)
+}
+
+#[cfg(test)]
+pub mod tests {
+    use base64;
+    use super::{_get_ec_signature, verify_ec_signature};
+
+    const EC_SECRET: &str = "LS0tLS1CRUdJTiBFQyBQUklWQVRFIEtFWS0tLS0tCk1IY0NBUUVFSUlPejlFem04Ri9oSnluNTBrM3BVcW5Dc08wRVdGSjAxbmJjWFE1MFpyV0pvQW9HQ0NxR1NNNDkKQXdFSG9VUURRZ0FFNmlIZUZrSHRBajd1TENZOUlTdGk1TUZoaTkvaDYrbkVLbzFUOWdlcHd0UFR3MnpYNTRabgpkZTZ0NnJlM3VxUjAvcWhXcGF5TVhxb25HSEltTmsyZ3dRPT0KLS0tLS1FTkQgRUMgUFJJVkFURSBLRVktLS0tLQo";
+    const EC_PUBLIC: &str = "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFNmlIZUZrSHRBajd1TENZOUlTdGk1TUZoaTkvaAo2K25FS28xVDlnZXB3dFBUdzJ6WDU0Wm5kZTZ0NnJlM3VxUjAvcWhXcGF5TVhxb25HSEltTmsyZ3dRPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg";
+
+    #[test]
+    fn ec_signature_ok() {
+        let mut data: Vec<&[u8]> = Vec::new();
+        data.push("hello world".as_bytes());
+
+        let secret_pem = base64::decode(EC_SECRET).unwrap();
+        let sign = _get_ec_signature(&secret_pem, &data).unwrap();
+
+        let public_pem = base64::decode(EC_PUBLIC).unwrap();
+        verify_ec_signature(&public_pem, &sign, &data).unwrap();
+    }
+
+    #[test]
+    fn ec_signature_ko() {
+        let mut data: Vec<&[u8]> = Vec::new();
+        data.push("hello world".as_bytes());
+
+        let pem = base64::decode(EC_SECRET).unwrap();
+        let fake_sign = "ABCDEF1234567890".as_bytes();
+
+        assert!(verify_ec_signature(&pem, &fake_sign, &data).is_err());
     }
 }

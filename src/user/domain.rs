@@ -4,6 +4,7 @@ use std::time::{SystemTime, Duration};
 use crate::regex;
 use crate::secret::domain::Secret;
 use crate::metadata::domain::Metadata;
+use crate::time::unix_timestamp;
 
 pub trait UserRepository {
     fn find(&self, id: i32) -> Result<User, Box<dyn Error>>;
@@ -93,7 +94,7 @@ impl User {
 // token for email-verification
 #[derive(Serialize, Deserialize)]
 pub struct Token {
-    pub(super) exp: SystemTime,     // expiration time (as UTC timestamp) - required
+    pub(super) exp: usize,          // expiration time (as UTC timestamp) - required
     pub(super) iat: SystemTime,     // issued at: creation time
     pub(super) iss: String,         // issuer
     pub(super) sub: i32,            // subject: the user id
@@ -102,7 +103,7 @@ pub struct Token {
 impl Token {
     pub fn new(user: &User, timeout: Duration) -> Self {
         Token {
-            exp: SystemTime::now() + timeout,
+            exp: unix_timestamp(SystemTime::now() + timeout),
             iat: SystemTime::now(),
             iss: "oauth.alvidir.com".to_string(),
             sub: user.id,

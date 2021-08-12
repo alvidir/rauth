@@ -21,7 +21,7 @@ use proto::user_service_server::UserService;
 pub use proto::user_service_server::UserServiceServer;
 
 // Proto message structs
-use proto::{SignupRequest, DeleteRequest };
+use proto::{SignupRequest, DeleteRequest, TfaRequest, TfaResponse };
 
 pub struct UserServiceImplementation;
 
@@ -67,6 +67,29 @@ impl UserService for UserServiceImplementation {
 
             Err(err) => Err(Status::aborted(err.to_string())),
             Ok(()) => Ok(Response::new(())),
+        }
+    }
+
+    async fn tfa(&self, request: Request<TfaRequest>) -> Result<Response<TfaResponse>, Status> {
+        if let None = request.metadata().get("token") {
+            return Err(Status::failed_precondition("token required"));
+        };
+
+        let token = match request.metadata().get("token")
+            .unwrap() // this line will not fail due to the previous check of None 
+            .to_str() {
+            Err(err) => return Err(Status::aborted(err.to_string())),
+            Ok(token) => token.to_string(),
+        };
+
+        let msg_ref = request.into_inner();
+        match super::application::user_two_factor_authenticator(&token, &msg_ref.pwd, &msg_ref.totp) {
+            Err(err) => Err(Status::aborted(err.to_string())),
+            Ok(secret) => Ok(Response::new(
+                TfaResponse{
+                    secret: secret,
+                }
+            )),
         }
     }
 }

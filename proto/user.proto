@@ -12,12 +12,30 @@ message SignupRequest {
 // DeleteRequest description
 message DeleteRequest {
   string ident = 1; // the user's email
-  string pwd = 2; // hash of the password
-  string totp = 3; // optional time-based one time password 
+  string pwd = 2;   // hash of the password
+  string totp = 3;  // optional time-based one time password 
+}
+
+// TFARequest description
+message TFARequest {
+  enum actions {
+    ENABLE = 0;
+    DISABLE = 1;
+  };
+
+  actions action = 1;
+  string pwd = 2;     // hash of the password
+  string totp = 3;    // optional time-based one time password 
+}
+
+// TFAResponse description
+message TFAResponse {
+  bytes secret = 1;   // present if, and only if, the secret was just generated and waiting for confirmation
 }
 
 service UserService {
   rpc Signup(user.SignupRequest) returns (google.protobuf.Empty);
   rpc Verify(google.protobuf.Empty) returns (google.protobuf.Empty);
   rpc Delete(user.DeleteRequest) returns (google.protobuf.Empty);
+  rpc TFA(TFARequest) returns (TFAResponse);
 }

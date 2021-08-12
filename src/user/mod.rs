@@ -21,9 +21,12 @@ pub fn get_repository() -> Box<dyn domain::UserRepository> {
 #[cfg(test)]
 pub mod tests {
     use std::error::Error;
-    use std::time::SystemTime;
+    use std::time::{SystemTime, Duration};
+    use std::thread::sleep;
     use crate::metadata::tests::new_metadata;
-    use super::domain::{User, UserRepository};
+    use crate::time::unix_timestamp;
+    use crate::security;
+    use super::domain::{User, UserRepository, Token};
 
     pub struct Mock;    
     impl UserRepository for Mock {
@@ -135,5 +138,58 @@ pub mod tests {
     fn user_match_password_ko() {
         let user = new_user();
         assert!(!user.match_password("ABCDEFG1234567890"));
+    }
+
+    #[test]
+    fn user_token_ok() {
+        let user = new_user();
+        let timeout = Duration::from_secs(60);
+
+        let before = SystemTime::now();
+        let claim = Token::new(&user, timeout);
+        let after = SystemTime::now();
+
+        assert!(claim.iat >= before && claim.iat <= after);     
+        assert!(claim.exp >= unix_timestamp(before + timeout));
+        assert!(claim.exp <= unix_timestamp(after + timeout));       
+        assert_eq!("oauth.alvidir.com", claim.iss);
+        assert_eq!(user.id, claim.sub);
+    }
+
+    #[test]
+    #[ignore]
+    fn user_token_encode() {
+        dotenv::dotenv().unwrap();
+
+        let user = new_user();
+        let timeout = Duration::from_secs(60);
+
+        let before = SystemTime::now();
+        let claim = Token::new(&user, timeout);
+        let after = SystemTime::now();
+        
+        let token = security::encode_jwt(claim).unwrap();
+        let claim = security::decode_jwt::<Token>(&token).unwrap();
+
+        assert!(claim.iat >= before && claim.iat <= after);     
+        assert!(claim.exp >= unix_timestamp(before + timeout));
+        assert!(claim.exp <= unix_timestamp(after + timeout));       
+        assert_eq!("oauth.alvidir.com", claim.iss);
+        assert_eq!(user.id, claim.sub);
+    }
+
+    #[test]
+    #[ignore]
+    fn user_token_ko() {
+        dotenv::dotenv().unwrap();
+
+        let user = new_user();
+        let timeout = Duration::from_secs(0);
+
+        let claim = Token::new(&user, timeout);
+        let token = security::encode_jwt(claim).unwrap();
+        
+        sleep(Duration::from_secs(1));
+        assert!(security::decode_jwt::<Token>(&token).is_err());
     }
 }

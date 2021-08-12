@@ -21,8 +21,9 @@ setup:
 	openssl ec -in .ssh/ec_key.pem -pubout -out .ssh/ec_pubkey.pem
 	openssl pkcs8 -topk8 -nocrypt -in .ssh/ec_key.pem -out .ssh/pkcs8_key.pem
 	# base64 encoding for JWT's required public and private keys
-	cat .ssh/ec_pubkey.pem | base64 > .ssh/ec_pubkey.base64
-	cat .ssh/pkcs8_key.pem | base64 > .ssh/pkcs8_key.base64
+	cat .ssh/ec_key.pem | base64 | tr -d '\n' > .ssh/ec_key.base64
+	cat .ssh/ec_pubkey.pem | base64 | tr -d '\n' > .ssh/ec_pubkey.base64
+	cat .ssh/pkcs8_key.pem | base64 | tr -d '\n' > .ssh/pkcs8_key.base64
 	# setting up db scripts
 	python3 scripts/build_db_setup_script.py
 
@@ -42,5 +43,5 @@ check:
 	curl -v localhost:5050
 
 test:
-	cargo test -- --nocapture
-	cargo test -- --nocapture --ignored
+	RUST_BACKTRACE=1 cargo test -- --nocapture
+	RUST_BACKTRACE=1 cargo test -- --nocapture --ignored

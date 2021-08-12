@@ -68,3 +68,11 @@ pub fn user_delete(email: &str,
     user.delete()?;
     Ok(())
 }
+
+pub fn user_two_factor_authenticator(token: &str,
+                                     _pwd: &str,
+                                     _totp: &str) -> Result<Vec<u8>, Box<dyn Error>> {
+
+    info!("got an authentication method update for cookie {} ", token);
+    Err("unimplemented".into())
+}
