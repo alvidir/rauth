@@ -1,36 +1,22 @@
 #[macro_use]
-extern crate diesel;
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate serde;
-#[macro_use(/*bson,*/ doc)]
-extern crate bson;
-#[macro_use]
 extern crate log;
+
+use oauth::{
+    user,
+    app,
+    session,
+    constants::{
+        environment,
+        settings
+    },
+    postgres,
+    mongo
+};
 
 use dotenv;
 use std::env;
 use std::error::Error;
-
 use tonic::transport::Server;
-
-mod schema;
-mod regex;
-mod postgres;
-mod mongo;
-mod smtp;
-mod time;
-mod constants;
-mod metadata;
-mod user;
-mod session;
-mod app;
-mod secret;
-mod security;
-mod directory;
-
-use constants::{settings, environment};
 
 pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
     use user::framework::UserServiceServer;

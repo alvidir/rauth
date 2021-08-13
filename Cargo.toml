@@ -34,3 +34,11 @@ features = ["sync"]
 
 [build-dependencies]
 tonic-build = "0.5.1"
+
+[[bin]]
+name = "oauth"
+path = "src/main.rs"
+
+[lib]
+name = "oauth"
+path = "src/lib.rs"
