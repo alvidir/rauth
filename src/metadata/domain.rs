@@ -35,10 +35,12 @@ impl Metadata {
         self.updated_at = SystemTime::now();
     }
 
+    /// updates the metadata into the repository
     pub fn save(&self) -> Result<(), Box<dyn Error>> {
         super::get_repository().save(self)
     }
 
+    /// deletes the metadata from the repository
     pub fn delete(&self) -> Result<(), Box<dyn Error>> {
         super::get_repository().delete(self)
     }

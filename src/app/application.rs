@@ -6,6 +6,8 @@ use crate::directory::get_repository as get_dir_repository;
 use crate::session::get_repository as get_sess_repository;
 use super::domain::App;
 
+/// If, and only if, there is no application with the same url, a new app with these url and secret gets created into
+/// the system
 pub fn app_register(url: &str,
                     pem: &[u8],
                     firm: &[u8]) -> Result<(), Box<dyn Error>> {
@@ -26,6 +28,8 @@ pub fn app_register(url: &str,
     Ok(())
 }
 
+/// If, and only if, the provided signature matches with the application secret, the app and all its data gets removed
+/// from the system and repositories
 pub fn app_delete(url: &str,
                   firm: &[u8]) -> Result<(), Box<dyn Error>> {
     

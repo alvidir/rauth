@@ -44,6 +44,7 @@ impl User {
         Ok(user)
     }
 
+    /// if the user was not verified before, sets the current time as its verification time
     pub(super) fn verify(&mut self) -> Result<(), Box<dyn Error>> {
         if self.verified_at.is_some() {
             return Err("already verified".into());
@@ -66,6 +67,8 @@ impl User {
         &self.secret
     }
 
+    /// if the user already has a secret these one gets deleted and the provided option becomes the new value
+    /// for the user's secret
     pub(super) fn update_secret(&mut self, secret: Option<Secret>) -> Result<(), Box<dyn Error>> {
         if let Some(old_secret) = &self.secret {
             old_secret.delete()?;
@@ -75,20 +78,24 @@ impl User {
         Ok(())
     }
 
+    /// if true, the user its verified, else is not
     pub fn is_verified(&self) -> bool {
         self.verified_at.is_some()
     }
 
+    // check the provided password matches the user's one
     pub fn match_password(&self, password: &str) -> bool {
         password == self.password
     }
 
+    // update the user into the repository
     pub fn save(&self) -> Result<(), Box<dyn Error>> {
         self.meta.save()?;
         super::get_repository().save(self)?;
         Ok(())
     }
 
+    /// delete the user and all its data from the repositories
     pub fn delete(&self) -> Result<(), Box<dyn Error>> {
         if let Some(secret) = &self.secret {
             secret.delete()?;

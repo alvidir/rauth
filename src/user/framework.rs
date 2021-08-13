@@ -97,7 +97,7 @@ impl UserService for UserServiceImplementation {
             Err(err) => Err(Status::aborted(err.to_string())),
             Ok(secret) => Ok(Response::new(
                 TfaResponse{
-                    secret: secret,
+                    secret: secret.as_bytes().to_vec(),
                 }
             )),
         }

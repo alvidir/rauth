@@ -91,7 +91,7 @@ pub mod tests {
             user: new_user(),
             apps: HashMap::new(),
             meta: InnerMetadata::new(),
-            _sandbox: HashMap::new(),
+            sandbox: HashMap::new(),
         }
     }
 
@@ -113,34 +113,33 @@ pub mod tests {
 
         assert_eq!(sess.user.get_id(), user_id);
         assert_eq!(0, sess.apps.len());
-        assert_eq!(0, sess._sandbox.len());
+        assert_eq!(0, sess.sandbox.len());
     }
 
     #[test]
     fn session_set_directory_ok() {
         let dir = new_directory();
-        let app = new_app();
+        let app_id = dir.get_app();
 
         let mut sess = new_session();
         let before = SystemTime::now();
-        sess.set_directory(&app, dir).unwrap();
+        sess.set_directory(dir).unwrap();
         let after = SystemTime::now();
 
         assert_eq!(1, sess.apps.len());
-        assert!(sess.apps.get(&app.get_id()).is_some());
+        assert!(sess.apps.get(&app_id).is_some());
         assert!(sess.meta.touch_at >= before && sess.meta.touch_at <= after);
     }
 
     #[test]
     fn session_set_directory_ko() {
         let dir = new_directory();
-        let app = new_app();
 
         let mut sess = new_session();
-        sess.set_directory(&app, dir).unwrap();
+        sess.set_directory(dir).unwrap();
 
         let dir = new_directory();
-        assert!(sess.set_directory(&app, dir).is_err());
+        assert!(sess.set_directory(dir).is_err());
     }
 
     #[test]

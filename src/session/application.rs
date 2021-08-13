@@ -24,6 +24,8 @@ pub fn get_writable_session(sess_arc: &Arc<RwLock<Session>>) -> Result<RwLockWri
     Ok(sess_wr.unwrap()) // this line will not panic due the previous check of Err
 }
 
+/// If, and only if, the provided credentials matches with the user's ones, a new directory is crated for the given
+/// app (if not already exists) and a new token is generated
 pub fn session_login(email: &str,
                      pwd: &str,
                      totp: &str,
@@ -65,10 +67,10 @@ pub fn session_login(email: &str,
 
         if let None = sess.get_directory(&app) {
             if let Ok(dir) = get_dir_repository().find_by_user_and_app(sess.user.get_id(), app.get_id()) {
-                sess.set_directory(&app, dir)?;
+                sess.set_directory(dir)?;
             } else {
                 let dir = Directory::new(&sess, &app)?;
-                sess.set_directory(&app, dir)?;
+                sess.set_directory(dir)?;
             }
 
             // subscribe the session's sid into the app's group 
@@ -81,6 +83,8 @@ pub fn session_login(email: &str,
     Ok(token)
 }
 
+/// If, and only if, the provided token is valid, the directory linked to it gets closed. If these was the latest
+/// directory in the user's session, the whole session gets removed from the system
 pub fn session_logout(token: &str) -> Result<(), Box<dyn Error>> {
     info!("got a logout request for cookie {} ", token);
     let claim = security::decode_jwt::<Token>(token)?;

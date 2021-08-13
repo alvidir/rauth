@@ -31,7 +31,7 @@ pub struct Session {
     pub(super) meta: InnerMetadata,
     // sandbox is used for storing temporal data that must not be persisted nor
     // accessed by any other party than the Session itself
-    pub(super) _sandbox: HashMap<String, Vec<u8>>,
+    pub(super) sandbox: HashMap<String, String>,
 }
 
 impl Session {
@@ -44,7 +44,7 @@ impl Session {
             user: user,
             apps: HashMap::new(),
             meta: InnerMetadata::new(),
-            _sandbox: HashMap::new(),
+            sandbox: HashMap::new(),
         };
 
         super::get_repository().insert(sess)
@@ -62,27 +62,52 @@ impl Session {
         self.deadline
     }
 
-    pub fn set_directory(&mut self, app: &App, dir: Directory) -> Result<(), Box<dyn Error>> {
-        if self.apps.get(&app.get_id()).is_some() {
+    /// if, and only if, the session does not have any directory for the directory's app then it gets inserted
+    /// into the session's directories
+    pub fn set_directory(&mut self, dir: Directory) -> Result<(), Box<dyn Error>> {
+        if self.apps.get(&dir.get_app()).is_some() {
             return Err(ALREADY_EXISTS.into());
         }
 
-        self.apps.insert(app.get_id(), dir);
+        self.apps.insert(dir.get_app(), dir);
         self.meta.touch();
         Ok(())
     }
 
+    /// returns the directory of the provided application, if any
     pub fn get_directory(&mut self, app: &App) -> Option<&mut Directory> {
         self.apps.get_mut(&app.get_id())
     }
 
+    /// deletes the directory for the given application, if any
     pub fn delete_directory(&mut self, app: &App) -> Option<Directory> {
         self.apps.remove(&app.get_id())
     }
 
+    /// deletes the session from the repository
     pub fn delete(&mut self) -> Result<(), Box<dyn Error>> {
         super::get_repository().delete(self)?;
         Ok(())
+    }
+
+    /// stores a new value for an entry into the session's sandbox. If there it was any older value, it is returned, else
+    /// return is None 
+    pub fn store(&mut self, key: &str, value: &str) -> Option<String> {
+        self.sandbox.insert(key.to_string(), value.to_string())
+    }   
+
+    /// removes an entry from the session's sandbox
+    pub fn remove(&mut self, key: &str) -> Option<String> {
+        self.sandbox.remove(key)
+    }
+
+    /// returns an entry from the session's sandbox
+    pub fn get(&mut self, key: &str) -> Option<String> {
+        if let Some(value) = self.sandbox.get(key) {
+            return Some(value.clone());
+        }
+
+        None
     }
 }
 

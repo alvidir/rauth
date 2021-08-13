@@ -36,10 +36,12 @@ impl Secret {
         &self.id
     }
 
+    /// updates the secret into the repository
     pub fn _save(&self) -> Result<(), Box<dyn Error>> {
         super::get_repository().save(self)
     }
 
+    /// deletes the secret from the repository
     pub fn delete(&self) -> Result<(), Box<dyn Error>> {
         super::get_repository().delete(self)
     }

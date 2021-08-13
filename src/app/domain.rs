@@ -45,12 +45,14 @@ impl App {
         &self.url
     }
 
+    /// updates the app into the repository
     pub fn _save(&self) -> Result<(), Box<dyn Error>> {
         super::get_repository().save(self)?;
         self.meta.save()?;
         Ok(())
     }
 
+    /// deletes the application and all its data from the repositories
     pub fn delete(&self) -> Result<(), Box<dyn Error>> {
         self.secret.delete()?;
         super::get_repository().delete(self)?;

@@ -43,14 +43,20 @@ impl Directory {
         &self.id
     }
 
+    pub fn get_app(&self) -> i32 {
+        self.app
+    }
+
     pub fn _set_deadline(&mut self, deadline: SystemTime) {
         self._deadline = deadline;
     }
 
+    /// updates the directory into the repository
     pub fn save(&self) -> Result<(), Box<dyn Error>> {
         super::get_repository().save(self)
     }
 
+    /// deletes the directory from the repository
     pub fn _delete(&self) -> Result<(), Box<dyn Error>> {
         super::get_repository().delete(self)
     }
