@@ -1,6 +1,6 @@
 use std::error::Error;
 use crate::metadata::domain::InnerMetadata;
-
+use crate::constants::errors::ALREADY_EXISTS;
 
 pub trait SecretRepository {
     fn find(&self, id: &str) -> Result<Secret, Box<dyn Error>>;
@@ -16,16 +16,12 @@ pub struct Secret {
 }
 
 impl Secret {
-    pub fn new(data: &[u8]) -> Result<Self, Box<dyn Error>> {
-
-        let mut secret = Secret {
+    pub fn new(data: &[u8]) -> Self {
+        Secret {
             id: "".to_string(),
             data: data.to_vec(),
             meta: InnerMetadata::new(),
-        };
-
-        super::get_repository().create(&mut secret)?;
-        Ok(secret)
+        }
     }
 
     pub fn get_data(&self) -> &[u8] {
@@ -34,6 +30,16 @@ impl Secret {
 
     pub fn get_id(&self) -> &str {
         &self.id
+    }
+
+    /// inserts the secret into the repository
+    pub fn insert(&mut self) -> Result<(), Box<dyn Error>> {
+        if self.id.len() != 0 {
+            return Err(ALREADY_EXISTS.into());
+        }
+
+        super::get_repository().create(self)?;
+        Ok(())
     }
 
     /// updates the secret into the repository

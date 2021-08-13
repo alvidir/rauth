@@ -3,6 +3,7 @@ use std::error::Error;
 use crate::regex;
 use crate::secret::domain::Secret;
 use crate::metadata::domain::Metadata;
+use crate::constants::errors::ALREADY_EXISTS;
 
 pub trait AppRepository {
     fn find(&self, id: i32) -> Result<App, Box<dyn Error>>;
@@ -26,14 +27,13 @@ impl App {
         
         regex::match_regex(regex::URL, url)?;
 
-        let mut app = App {
+        let app = App {
             id: 0,
             url: url.to_string(),
             secret: secret,
             meta: meta,
         };
         
-        super::get_repository().create(&mut app)?;
         Ok(app)
     }
 
@@ -45,6 +45,18 @@ impl App {
         &self.url
     }
 
+    /// inserts the app and all its data into the repositories
+    pub fn insert(&mut self) -> Result<(), Box<dyn Error>> {
+        if self.id != 0 {
+            return Err(ALREADY_EXISTS.into());
+        }
+
+        self.secret.insert()?;
+        self.meta.insert()?;
+        super::get_repository().create(self)?;
+        Ok(())
+    }
+
     /// updates the app into the repository
     pub fn _save(&self) -> Result<(), Box<dyn Error>> {
         super::get_repository().save(self)?;
@@ -54,9 +66,9 @@ impl App {
 
     /// deletes the application and all its data from the repositories
     pub fn delete(&self) -> Result<(), Box<dyn Error>> {
-        self.secret.delete()?;
         super::get_repository().delete(self)?;
         self.meta.delete()?;
+        self.secret.delete()?;
         Ok(())
     }
 }

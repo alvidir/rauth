@@ -8,41 +8,14 @@ lazy_static! {
     }; 
 }   
 
-#[cfg(not(test))]
 pub fn get_repository() -> Box<&'static dyn domain::MetadataRepository> {
     Box::new(&*REPO_PROVIDER)
 }
 
 #[cfg(test)]
-pub fn get_repository() -> Box<dyn domain::MetadataRepository> {
-    Box::new(tests::Mock)
-}
-
-#[cfg(test)]
 pub mod tests {
-    use std::error::Error;
     use std::time::SystemTime;
-    use super::domain::{InnerMetadata, Metadata, MetadataRepository};
-
-    pub struct Mock;    
-    impl MetadataRepository for Mock {
-        fn find(&self, _id: i32) -> Result<Metadata, Box<dyn Error>> {
-            Err("unimplemeted".into())
-        }
-
-        fn create(&self, meta: &mut Metadata) -> Result<(), Box<dyn Error>> {
-            meta.id = 999;
-            Ok(())
-        }
-
-        fn save(&self, _meta: &Metadata) -> Result<(), Box<dyn Error>> {
-            Err("unimplemeted".into())
-        }  
-
-        fn delete(&self, _meta: &Metadata) -> Result<(), Box<dyn Error>> {
-            Err("unimplemeted".into())
-        }  
-    }
+    use super::domain::{InnerMetadata, Metadata};
 
     pub fn new_metadata() -> Metadata {
         Metadata{
@@ -55,10 +28,10 @@ pub mod tests {
     #[test]
     fn metadata_new() {
         let before = SystemTime::now();
-        let meta = Metadata::new().unwrap();
+        let meta = Metadata::new();
         let after = SystemTime::now();
 
-        assert_eq!(meta.id, 999);
+        assert_eq!(meta.id, 0);
         assert!(meta.created_at >= before && meta.created_at <= after);
         assert!(meta.updated_at >= before && meta.updated_at <= after);
     }

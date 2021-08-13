@@ -69,7 +69,9 @@ pub fn session_login(email: &str,
             if let Ok(dir) = get_dir_repository().find_by_user_and_app(sess.user.get_id(), app.get_id()) {
                 sess.set_directory(dir)?;
             } else {
-                let dir = Directory::new(&sess, &app)?;
+                let mut dir = Directory::new(&sess, &app);
+                dir.insert()?;
+                
                 sess.set_directory(dir)?;
             }
 

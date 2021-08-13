@@ -22,9 +22,12 @@ pub fn app_register(url: &str,
     // the message signature; otherwise there is no way to ensure the secret is the app's one
     security::verify_ec_signature(pem, firm, &data)?;
     
-    let meta = Metadata::new()?;
-    let secret = Secret::new(pem)?;
-    App::new(secret, meta, url)?;
+    let meta = Metadata::new();
+    let secret = Secret::new(pem);
+
+    App::new(secret, meta, url)?
+        .insert()?;
+
     Ok(())
 }
 

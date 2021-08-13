@@ -8,49 +8,18 @@ lazy_static! {
     }; 
 }   
 
-#[cfg(not(test))]
 pub fn get_repository() -> Box<&'static dyn domain::UserRepository> {
     return Box::new(&*REPO_PROVIDER);
 }
 
 #[cfg(test)]
-pub fn get_repository() -> Box<dyn domain::UserRepository> {
-    Box::new(tests::Mock)
-}
-
-#[cfg(test)]
 pub mod tests {
-    use std::error::Error;
     use std::time::{SystemTime, Duration};
     use std::thread::sleep;
     use crate::metadata::tests::new_metadata;
     use crate::time::unix_timestamp;
     use crate::security;
-    use super::domain::{User, UserRepository, Token};
-
-    pub struct Mock;    
-    impl UserRepository for Mock {
-        fn find(&self, _id: i32) -> Result<User, Box<dyn Error>> {
-            Err("unimplemeted".into())
-        }
-
-        fn find_by_email(&self, _email: &str) -> Result<User, Box<dyn Error>> {
-            Err("unimplemeted".into())
-        }
-
-        fn create(&self, user: &mut User) -> Result<(), Box<dyn Error>> {
-            user.id = 999;
-            Ok(())
-        }
-
-        fn save(&self, _user: &User) -> Result<(), Box<dyn Error>> {
-            Err("unimplemeted".into())
-        }
-
-        fn delete(&self, _user: &User) -> Result<(), Box<dyn Error>> {
-            Err("unimplemeted".into())
-        }
-    }
+    use super::domain::{User, Token};
         
     pub fn new_user() -> User {
         User{
@@ -73,7 +42,7 @@ pub mod tests {
                              EMAIL,
                              PWD).unwrap();
 
-        assert_eq!(user.id, 999); 
+        assert_eq!(user.id, 0); 
         assert_eq!(user.email, EMAIL);
         assert!(user.secret.is_none());
     }

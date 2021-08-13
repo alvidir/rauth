@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::time::{SystemTime};
+use crate::constants::errors::ALREADY_EXISTS;
 
 pub trait MetadataRepository {
     fn find(&self, id: i32) -> Result<Metadata, Box<dyn Error>>;
@@ -16,15 +17,12 @@ pub struct Metadata {
 }
 
 impl Metadata {
-    pub fn new() -> Result<Self, Box<dyn Error>> {
-        let mut meta = Metadata {
+    pub fn new() -> Self {
+        Metadata {
             id: 0,
             created_at: SystemTime::now(),
             updated_at: SystemTime::now(),
-        };
-
-        super::get_repository().create(&mut meta)?;
-        Ok(meta)
+        }
     }
 
     pub fn get_id(&self) -> i32 {
@@ -33,6 +31,16 @@ impl Metadata {
 
     pub fn touch(&mut self) {
         self.updated_at = SystemTime::now();
+    }
+
+    /// inserts the metadata into the repository
+    pub fn insert(&mut self) -> Result<(), Box<dyn Error>> {
+        if self.id != 0 {
+            return Err(ALREADY_EXISTS.into());
+        }
+
+        super::get_repository().create(self)?;
+        Ok(())
     }
 
     /// updates the metadata into the repository

@@ -8,81 +8,22 @@ lazy_static! {
     }; 
 }   
 
-#[cfg(not(test))]
 pub fn get_repository() -> Box<&'static dyn domain::SessionRepository> {
     Box::new(&*REPO_PROVIDER)
 }
 
 #[cfg(test)]
-pub fn get_repository() -> Box<dyn domain::SessionRepository> {
-    Box::new(tests::Mock)
-}
-
-#[cfg(test)]
 pub mod tests {
-    use std::error::Error;
-    use std::sync::{Arc, RwLock};
     use std::time::{SystemTime, Duration};
     use std::collections::HashMap;
-    use crate::app::domain::App;
     use crate::user::tests::new_user;
     use crate::metadata::domain::InnerMetadata;
     use crate::directory::tests::new_directory;
     use crate::app::tests::new_app;
     use crate::security;
     use crate::time::unix_timestamp;
-    use super::domain::{Session, SessionRepository, Token};
-
-    lazy_static! {
-        pub static ref TESTING_SESSIONS: RwLock<HashMap<String, Arc<RwLock<Session>>>> = {
-            let repo = HashMap::new();
-            RwLock::new(repo)
-        };    
-    }
-
-    pub struct Mock;
-    impl SessionRepository for Mock {
-        fn find(&self, _cookie: &str) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
-            Err("unimplemeted".into())
-        }
-
-        fn find_by_email(&self, _email: &str) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
-            Err("unimplemeted".into())
-        }
-
-        fn insert(&self, mut session: Session) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
-            session.sid = "testing".to_string();
-
-            let mut repo = TESTING_SESSIONS.write()?;
-            let email = session.user.get_email().to_string();
-            let mu = RwLock::new(session);
-            let arc = Arc::new(mu);
-            
-            repo.insert(email.to_string(), arc);
-            let sess = repo.get(&email).unwrap();
-            Ok(Arc::clone(sess))
-        }
-
-        fn delete(&self, _session: &Session) -> Result<(), Box<dyn Error>> {
-            Err("unimplemeted".into())
-        }
-
-        fn delete_all_by_app(&self, _app: &App) -> Result<(), Box<dyn Error>> {
-            Err("unimplemeted".into())
-        }
-
-        fn find_all_by_app(&self, _app: &App) -> Result<Vec<Arc<RwLock<Session>>>, Box<dyn Error>> {
-            Err("unimplemeted".into())
-        }
-
-        fn add_to_app_group(&self, _app: &App, _sess: &Session) -> Result<(), Box<dyn Error>> {
-            Err("unimplemeted".into())
-        }
-
-        fn delete_from_app_group(&self, _app: &App, _sess: &Session) -> Result<(), Box<dyn Error>> {
-            Err("unimplemeted".into())
-        }
-    }
+    use crate::constants::settings;
+    use super::domain::{Session, Token};
 
     pub fn new_session() -> Session {
         Session{
@@ -107,7 +48,7 @@ pub mod tests {
         let after = SystemTime::now();
         let sess = sess_arc.read().unwrap();
         
-        assert_eq!("testing", sess.sid);
+        assert_eq!(settings::TOKEN_LEN, sess.sid.len());
         assert!(sess.deadline < after + TIMEOUT);
         assert!(sess.deadline > before + TIMEOUT);
 

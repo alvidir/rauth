@@ -14,20 +14,21 @@ use crate::directory::get_repository as get_dir_repository;
 use crate::secret::domain::Secret;
 use super::domain::{User, Token};
 
-/// If there is no user with the same email, a new user with these email and password is created into the system
+/// If, and only if, there is no user with the same email, a new user with these email and password is created into the system
 pub fn user_signup(email: &str,
                    password: &str) -> Result<(), Box<dyn Error>> {
     
     info!("got a signup request from user {} ", email);
     
-    let meta = Metadata::new()?;
-    let user = User::new(meta, email, password)?;
+    let meta = Metadata::new();
+    let mut user = User::new(meta, email, password)?;
     
     // the user will not be able to log in until they have verified their email
     let claim = Token::new(&user, Duration::from_secs(settings::TOKEN_TIMEOUT));
     let token = security::encode_jwt(claim)?;
     smtp::send_verification_email(email, &token)?;
 
+    user.insert()?;
     Ok(())
 }
 
@@ -98,8 +99,11 @@ fn user_enable_two_factor_authenticator(sess: &mut Session, totp: &str) -> Resul
             sess.remove(TOTP_SECRET_PROPOSAL_KEY);
 
             if security::verify_totp(key, totp).is_ok() {
-                let secret = Secret::new(key)?;
+                let mut secret = Secret::new(key);
+                secret.insert()?;
+
                 sess.get_user_mut().update_secret(Some(secret))?;
+                sess.get_user().save()?;
                 Ok("".into())
             } else {
                 Err(errors::UNAUTHORIZED.into())

@@ -5,6 +5,7 @@ use crate::regex;
 use crate::secret::domain::Secret;
 use crate::metadata::domain::Metadata;
 use crate::time::unix_timestamp;
+use crate::constants::errors::ALREADY_EXISTS;
 
 pub trait UserRepository {
     fn find(&self, id: i32) -> Result<User, Box<dyn Error>>;
@@ -31,7 +32,7 @@ impl User {
         regex::match_regex(regex::EMAIL, email)?;
         regex::match_regex(regex::BASE64, password)?;
         
-        let mut user = User {
+        let user = User {
             id: 0,
             email: email.to_string(),
             password: password.to_string(),
@@ -40,7 +41,6 @@ impl User {
             meta: meta,
         };
 
-        super::get_repository().create(&mut user)?;
         Ok(user)
     }
 
@@ -83,19 +83,30 @@ impl User {
         self.verified_at.is_some()
     }
 
-    // check the provided password matches the user's one
+    // checks the provided password matches the user's one
     pub fn match_password(&self, password: &str) -> bool {
         password == self.password
     }
 
-    // update the user into the repository
+    /// inserts the user and all its data into the repositories
+    pub fn insert(&mut self) -> Result<(), Box<dyn Error>> {
+        if self.id != 0 {
+            return Err(ALREADY_EXISTS.into());
+        }
+
+        self.meta.insert()?;
+        super::get_repository().create(self)?;
+        Ok(())
+    }
+
+    // updates the user into the repository
     pub fn save(&self) -> Result<(), Box<dyn Error>> {
         self.meta.save()?;
         super::get_repository().save(self)?;
         Ok(())
     }
 
-    /// delete the user and all its data from the repositories
+    /// deletes the user and all its data from the repositories
     pub fn delete(&self) -> Result<(), Box<dyn Error>> {
         if let Some(secret) = &self.secret {
             secret.delete()?;

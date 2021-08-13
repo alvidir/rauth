@@ -8,46 +8,15 @@ lazy_static! {
     }; 
 }   
 
-#[cfg(not(test))]
 pub fn get_repository() -> Box<&'static dyn domain::AppRepository> {
     Box::new(&*REPO_PROVIDER)
 }
 
 #[cfg(test)]
-pub fn get_repository() -> Box<dyn domain::AppRepository> {
-    Box::new(tests::Mock)
-}
-
-#[cfg(test)]
 pub mod tests {
-    use std::error::Error;
     use crate::metadata::tests::new_metadata;
     use crate::secret::tests::new_secret;
-    use super::domain::{App, AppRepository};
-
-    pub struct Mock;
-    impl AppRepository for Mock {
-        fn find(&self, _id: i32) -> Result<App, Box<dyn Error>> {
-            Err("unimplemeted".into())
-        }
-
-        fn find_by_url(&self, _url: &str) -> Result<App, Box<dyn Error>> {
-            Err("unimplemeted".into())
-        }
-
-        fn create(&self, app: &mut App) -> Result<(), Box<dyn Error>> {
-            app.id = 999;
-            Ok(())
-        }
-
-        fn save(&self, _app: &App) -> Result<(), Box<dyn Error>> {
-            Err("unimplemeted".into())
-        }
-
-        fn delete(&self, _app: &App) -> Result<(), Box<dyn Error>> {
-            Err("unimplemeted".into())
-        }
-    }
+    use super::domain::App;
 
     pub fn new_app() -> App {
         App{
@@ -68,7 +37,7 @@ pub mod tests {
                            meta,
                            URL).unwrap();
 
-        assert_eq!(app.id, 999); 
+        assert_eq!(app.id, 0); 
         assert_eq!(app.url, URL);
     }
 
