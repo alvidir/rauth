@@ -7,8 +7,11 @@ use crate::smtp;
 use crate::session::{
     get_repository as get_sess_repository,
     application::get_writable_session,
+    domain::Token as SessionToken,
 };
+
 use crate::directory::get_repository as get_dir_repository;
+use crate::constants::errors::HAS_FAILED;
 use super::domain::{User, Token};
 
 pub fn user_signup(email: &str,
@@ -69,10 +72,55 @@ pub fn user_delete(email: &str,
     Ok(())
 }
 
+/// All available actions to apply over the 2FA method of a user
+pub enum TfaActions {
+    ENABLE,
+    DISABLE
+}
+
 pub fn user_two_factor_authenticator(token: &str,
-                                     _pwd: &str,
-                                     _totp: &str) -> Result<Vec<u8>, Box<dyn Error>> {
+                                     pwd: &str,
+                                     totp: &str,
+                                     action: TfaActions) -> Result<Vec<u8>, Box<dyn Error>> {
 
     info!("got an authentication method update for cookie {} ", token);
+    let claim = security::decode_jwt::<SessionToken>(token)?;
+    
+    // session is required in order to have an ephimeral place where to find the metadata for the action
+    let sess_arc = get_sess_repository().find(&claim.sub)?;
+    let mut sess = get_writable_session(&sess_arc)?;
+
+    let user = sess.get_user_mut();
+    if !user.match_password(pwd) {
+        return Err(errors::NOT_FOUND.into());
+    } else if !user.is_verified() {
+        return Err(errors::NOT_VERIFIED.into());
+    }
+
+    match action {
+        TfaActions::ENABLE => {
+            if user.secret.is_some() {
+                // if the 2FA is already enabled the actions must fail
+                return Err(HAS_FAILED.into());
+            }
+
+            
+        },
+
+        TfaActions::DISABLE => {
+            if let Some(secret) = &user.secret {
+                // if the 2FA is enabled it must be confirmed before deletion
+                let data = secret.get_data();
+                security::verify_totp(data, totp)?;
+            } else {
+                // if the 2FA is already disabled the actions must fail
+                return Err(HAS_FAILED.into());
+            }
+
+            // in order to disable the 2FA method its secret must be removed from everywhere
+            user.update_secret(None)?;
+        },
+    };
+
     Err("unimplemented".into())
 }

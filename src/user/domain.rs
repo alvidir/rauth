@@ -66,6 +66,15 @@ impl User {
         &self.secret
     }
 
+    pub(super) fn update_secret(&mut self, secret: Option<Secret>) -> Result<(), Box<dyn Error>> {
+        if let Some(old_secret) = &self.secret {
+            old_secret.delete()?;
+        }
+
+        self.secret = secret;
+        Ok(())
+    }
+
     pub fn is_verified(&self) -> bool {
         self.verified_at.is_some()
     }

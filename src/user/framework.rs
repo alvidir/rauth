@@ -10,6 +10,7 @@ use crate::schema::users::dsl::*;
 use crate::metadata::get_repository as get_meta_repository;
 use crate::secret::get_repository as get_secret_repository;
 use super::domain::{User, UserRepository};
+use super::application::TfaActions;
 
 // Import the generated rust code into module
 mod proto {
@@ -21,7 +22,7 @@ use proto::user_service_server::UserService;
 pub use proto::user_service_server::UserServiceServer;
 
 // Proto message structs
-use proto::{SignupRequest, DeleteRequest, TfaRequest, TfaResponse };
+use proto::{SignupRequest, DeleteRequest, TfaRequest, TfaResponse};
 
 pub struct UserServiceImplementation;
 
@@ -83,7 +84,16 @@ impl UserService for UserServiceImplementation {
         };
 
         let msg_ref = request.into_inner();
-        match super::application::user_two_factor_authenticator(&token, &msg_ref.pwd, &msg_ref.totp) {
+        let action = match msg_ref.action {
+            0 => TfaActions::ENABLE,
+            1 => TfaActions::DISABLE,
+            _ => return Err(Status::invalid_argument("wrong action")),
+        };
+
+        match super::application::user_two_factor_authenticator(&token,
+                                                                &msg_ref.pwd,
+                                                                &msg_ref.totp,
+                                                                action) {
             Err(err) => Err(Status::aborted(err.to_string())),
             Ok(secret) => Ok(Response::new(
                 TfaResponse{

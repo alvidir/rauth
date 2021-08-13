@@ -54,6 +54,10 @@ impl Session {
         &self.user
     }
 
+    pub fn get_user_mut(&mut self) -> &mut User {
+        &mut self.user
+    }
+
     pub fn get_deadline(&self) -> SystemTime {
         self.deadline
     }
@@ -84,11 +88,11 @@ impl Session {
 
 #[derive(Serialize, Deserialize)]
 pub struct Token {
-    pub(super) exp: usize,     // expiration time (as UTC timestamp) - required
-    pub(super) iat: SystemTime,     // issued at: creation time
-    pub(super) iss: String,         // issuer
-    pub(super) sub: String,         // subject: the user's session
-    pub(super) app: i32,            // application id
+    pub exp: usize,     // expiration time (as UTC timestamp) - required
+    pub iat: SystemTime,     // issued at: creation time
+    pub iss: String,         // issuer
+    pub sub: String,         // subject: the user's session
+    pub app: i32,            // application id
 }
 
 impl Token {

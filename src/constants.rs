@@ -27,4 +27,5 @@ pub mod errors {
     pub const NOT_VERIFIED: &str = "verification required";
     pub const UNAUTHORIZED: &str = "unauthorized";
     pub const PARSE_FAILED: &str = "could not parse";
+    pub const HAS_FAILED: &str = "action has failed";
 }

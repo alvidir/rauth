@@ -6,7 +6,7 @@ use openssl::sign::{Verifier, Signer};
 use openssl::pkey::{PKey};
 use openssl::ec::EcKey;
 use openssl::hash::MessageDigest;
-use libreauth::oath::{TOTPBuilder};
+use libreauth::oath::TOTPBuilder;
 use libreauth::hash::HashFunction::Sha256;
 use jsonwebtoken::{Header, EncodingKey, DecodingKey, Validation, Algorithm};
 use rand::Rng;
@@ -109,7 +109,9 @@ pub fn _get_ec_signature(pem: &[u8], data: &[&[u8]]) -> Result<Vec<u8>, Box<dyn 
 #[cfg(test)]
 pub mod tests {
     use base64;
-    use super::{_get_ec_signature, verify_ec_signature};
+    use libreauth::oath::TOTPBuilder;
+    use libreauth::hash::HashFunction::Sha256;
+    use super::{_get_ec_signature, verify_ec_signature, verify_totp};
 
     const EC_SECRET: &str = "LS0tLS1CRUdJTiBFQyBQUklWQVRFIEtFWS0tLS0tCk1IY0NBUUVFSUlPejlFem04Ri9oSnluNTBrM3BVcW5Dc08wRVdGSjAxbmJjWFE1MFpyV0pvQW9HQ0NxR1NNNDkKQXdFSG9VUURRZ0FFNmlIZUZrSHRBajd1TENZOUlTdGk1TUZoaTkvaDYrbkVLbzFUOWdlcHd0UFR3MnpYNTRabgpkZTZ0NnJlM3VxUjAvcWhXcGF5TVhxb25HSEltTmsyZ3dRPT0KLS0tLS1FTkQgRUMgUFJJVkFURSBLRVktLS0tLQo";
     const EC_PUBLIC: &str = "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFNmlIZUZrSHRBajd1TENZOUlTdGk1TUZoaTkvaAo2K25FS28xVDlnZXB3dFBUdzJ6WDU0Wm5kZTZ0NnJlM3VxUjAvcWhXcGF5TVhxb25HSEltTmsyZ3dRPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg";
@@ -135,5 +137,27 @@ pub mod tests {
         let fake_sign = "ABCDEF1234567890".as_bytes();
 
         assert!(verify_ec_signature(&pem, &fake_sign, &data).is_err());
+    }
+
+    #[test]
+    fn verify_totp_ok() {
+        const SECRET: &[u8] = "hello world".as_bytes();
+
+        let code = TOTPBuilder::new()
+            .key(SECRET)
+            .period(30)
+            .hash_function(Sha256)
+            .finalize()
+            .unwrap()
+            .generate();
+
+        assert_eq!(code.len(), 6);
+        assert!(verify_totp(&SECRET, &code).is_ok());
+    }
+
+    #[test]
+    fn verify_totp_ko() {
+        const SECRET: &[u8] = "hello world".as_bytes();
+        assert!(verify_totp(&SECRET, "tester").is_err());
     }
 }

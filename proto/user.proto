@@ -30,7 +30,7 @@ message TFARequest {
 
 // TFAResponse description
 message TFAResponse {
-  bytes secret = 1;   // present if, and only if, the secret was just generated and waiting for confirmation
+  bytes secret = 1;   // present if, and only if, the secret was just generated and the server is waiting for confirmation
 }
 
 service UserService {
