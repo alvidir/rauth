@@ -26,9 +26,9 @@ pub fn user_signup(email: &str,
     // the user will not be able to log in until they have verified their email
     let claim = Token::new(&user, Duration::from_secs(settings::TOKEN_TIMEOUT));
     let token = security::encode_jwt(claim)?;
-    smtp::send_verification_email(email, &token)?;
-
     user.insert()?;
+    
+    smtp::send_verification_email(email, &token)?;
     Ok(())
 }
 
