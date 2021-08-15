@@ -10,12 +10,12 @@ extern crate bson;
 extern crate log;
 
 pub mod constants;
-pub mod postgres;
-pub mod mongo;
 pub mod user;
 pub mod session;
 pub mod app;
 
+mod postgres;
+mod mongo;
 mod smtp;
 mod time;
 mod metadata;

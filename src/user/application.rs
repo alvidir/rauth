@@ -83,7 +83,7 @@ pub enum TfaActions {
     DISABLE
 }
 
-const TOTP_SECRET_PROPOSAL_KEY: &str = "user::totp::secret_proposal";
+const TOTP_SECRET_PROPOSAL_KEY: &str = "user::totp_secret";
 
 fn user_enable_two_factor_authenticator(sess: &mut Session, totp: &str) -> Result<String, Box<dyn Error>> {
     if sess.get_user().secret.is_some() {

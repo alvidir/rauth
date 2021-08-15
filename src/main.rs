@@ -9,8 +9,6 @@ use oauth::{
         environment,
         settings
     },
-    postgres,
-    mongo
 };
 
 use dotenv;
@@ -49,9 +47,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     if let Err(_) = dotenv::dotenv() {
         warn!("no dotenv file has been found");
     }
-
-    postgres::get_connection(); // checking postgres connectivity
-    mongo::get_connection("secrets"); // checking mongodb connectivity
 
     let port = env::var(environment::SERVICE_PORT)
         .expect("service port must be set");
