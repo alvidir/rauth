@@ -63,12 +63,9 @@ mod tests {
     use super::send_verification_email;
 
     #[test]
-    #[ignore]
+    #[cfg_attr(not(feature = "integration_tests"), ignore)]
     fn send_email_ok() {
-        // seting up environment variables
-        if let Err(_) = dotenv::dotenv() {
-            warn!("no dotenv file has been found");
-        }
+        dotenv::dotenv().unwrap();
 
         const TOKEN: &str = "dummytoken";
         let mailto = env::var(environment::SMTP_USERNAME).unwrap();

@@ -17,6 +17,7 @@ rand = "0.8.4"
 chrono = "0.4.19"
 rand_core = { version = "0.6.3", features = ["getrandom"] }
 base64 = "0.13.0"
+sha256 = "1.0.2"
 openssl = "0.10.35"
 lazy_static = "1.4.0"
 serde = "1.0.126"
@@ -42,3 +43,6 @@ path = "src/main.rs"
 [lib]
 name = "oauth"
 path = "src/lib.rs"
+
+[features]
+integration-tests = []

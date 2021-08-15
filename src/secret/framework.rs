@@ -119,3 +119,9 @@ impl SecretRepository for MongoSecretRepository {
         Ok(())
     }
 }
+
+#[cfg(test)]
+#[cfg(feature = "integration-tests")]
+mod tests {
+
+}

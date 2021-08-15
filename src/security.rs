@@ -11,6 +11,7 @@ use libreauth::hash::HashFunction::Sha256;
 use jsonwebtoken::{Header, EncodingKey, DecodingKey, Validation, Algorithm};
 use rand::Rng;
 use base64;
+use sha256;
 
 use crate::constants::{environment, errors};
 
@@ -78,7 +79,8 @@ pub fn verify_totp(secret: &[u8], pwd: &str) -> Result<(), Box<dyn Error>> {
 }
 
 pub fn verify_ec_signature(pem: &[u8], signature: &[u8], data: &[&[u8]]) -> Result<(), Box<dyn Error>> {
-    let eckey = EcKey::public_key_from_pem(pem)?;
+    let public = base64::decode(pem)?;
+    let eckey = EcKey::public_key_from_pem(&public)?;
     let keypair = PKey::from_ec_key(eckey)?;
 
     let mut verifier = Verifier::new(MessageDigest::sha256(), &keypair)?;
@@ -94,7 +96,8 @@ pub fn verify_ec_signature(pem: &[u8], signature: &[u8], data: &[&[u8]]) -> Resu
 }
 
 pub fn _get_ec_signature(pem: &[u8], data: &[&[u8]]) -> Result<Vec<u8>, Box<dyn Error>> {
-    let eckey = EcKey::private_key_from_pem(pem)?;
+    let private = base64::decode(pem)?;
+    let eckey = EcKey::private_key_from_pem(&private)?;
     let keypair = PKey::from_ec_key(eckey)?;
 
     let mut signer = Signer::new(MessageDigest::sha256(), &keypair).unwrap();
@@ -106,26 +109,32 @@ pub fn _get_ec_signature(pem: &[u8], data: &[&[u8]]) -> Result<Vec<u8>, Box<dyn 
     Ok(signature)
 }
 
+pub fn format_password(password: &str) -> String {
+    if let Ok(prefix) = env::var(environment::PWD_SUFIX) {
+        let format_pwd = format!("{}{}", password, prefix);
+        return sha256::digest_bytes(format_pwd.as_bytes());
+    }
+    
+    warn!("password sufix should be set");
+    password.to_string()
+}
+
 #[cfg(test)]
 pub mod tests {
-    use base64;
     use libreauth::oath::TOTPBuilder;
     use libreauth::hash::HashFunction::Sha256;
     use super::{_get_ec_signature, verify_ec_signature, verify_totp};
 
-    const EC_SECRET: &str = "LS0tLS1CRUdJTiBFQyBQUklWQVRFIEtFWS0tLS0tCk1IY0NBUUVFSUlPejlFem04Ri9oSnluNTBrM3BVcW5Dc08wRVdGSjAxbmJjWFE1MFpyV0pvQW9HQ0NxR1NNNDkKQXdFSG9VUURRZ0FFNmlIZUZrSHRBajd1TENZOUlTdGk1TUZoaTkvaDYrbkVLbzFUOWdlcHd0UFR3MnpYNTRabgpkZTZ0NnJlM3VxUjAvcWhXcGF5TVhxb25HSEltTmsyZ3dRPT0KLS0tLS1FTkQgRUMgUFJJVkFURSBLRVktLS0tLQo";
-    const EC_PUBLIC: &str = "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFNmlIZUZrSHRBajd1TENZOUlTdGk1TUZoaTkvaAo2K25FS28xVDlnZXB3dFBUdzJ6WDU0Wm5kZTZ0NnJlM3VxUjAvcWhXcGF5TVhxb25HSEltTmsyZ3dRPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg";
+    const EC_SECRET: &[u8] = b"LS0tLS1CRUdJTiBFQyBQUklWQVRFIEtFWS0tLS0tCk1IY0NBUUVFSUlPejlFem04Ri9oSnluNTBrM3BVcW5Dc08wRVdGSjAxbmJjWFE1MFpyV0pvQW9HQ0NxR1NNNDkKQXdFSG9VUURRZ0FFNmlIZUZrSHRBajd1TENZOUlTdGk1TUZoaTkvaDYrbkVLbzFUOWdlcHd0UFR3MnpYNTRabgpkZTZ0NnJlM3VxUjAvcWhXcGF5TVhxb25HSEltTmsyZ3dRPT0KLS0tLS1FTkQgRUMgUFJJVkFURSBLRVktLS0tLQo";
+    const EC_PUBLIC: &[u8] = b"LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFNmlIZUZrSHRBajd1TENZOUlTdGk1TUZoaTkvaAo2K25FS28xVDlnZXB3dFBUdzJ6WDU0Wm5kZTZ0NnJlM3VxUjAvcWhXcGF5TVhxb25HSEltTmsyZ3dRPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg";
 
     #[test]
     fn ec_signature_ok() {
         let mut data: Vec<&[u8]> = Vec::new();
         data.push("hello world".as_bytes());
 
-        let secret_pem = base64::decode(EC_SECRET).unwrap();
-        let sign = _get_ec_signature(&secret_pem, &data).unwrap();
-
-        let public_pem = base64::decode(EC_PUBLIC).unwrap();
-        verify_ec_signature(&public_pem, &sign, &data).unwrap();
+        let sign = _get_ec_signature(EC_SECRET, &data).unwrap();
+        verify_ec_signature(EC_PUBLIC, &sign, &data).unwrap();
     }
 
     #[test]
@@ -133,10 +142,8 @@ pub mod tests {
         let mut data: Vec<&[u8]> = Vec::new();
         data.push("hello world".as_bytes());
 
-        let pem = base64::decode(EC_SECRET).unwrap();
         let fake_sign = "ABCDEF1234567890".as_bytes();
-
-        assert!(verify_ec_signature(&pem, &fake_sign, &data).is_err());
+        assert!(verify_ec_signature(EC_SECRET, &fake_sign, &data).is_err());
     }
 
     #[test]

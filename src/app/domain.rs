@@ -72,3 +72,47 @@ impl App {
         Ok(())
     }
 }
+
+
+#[cfg(test)]
+pub mod tests {
+    use crate::metadata::domain::tests::new_metadata;
+    use crate::secret::domain::tests::new_secret;
+    use super::App;
+
+    pub fn new_app() -> App {
+        App{
+            id: 999,
+            url: "http://testing.com".to_string(),
+            secret: new_secret(),
+            meta: new_metadata(),
+        }
+    }
+
+    #[test]
+    fn app_new_ok() {
+        const URL: &str = "http://testing.com";
+        let secret = new_secret();
+
+        let meta = new_metadata();
+        let app = App::new(secret,
+                           meta,
+                           URL).unwrap();
+
+        assert_eq!(app.id, 0); 
+        assert_eq!(app.url, URL);
+    }
+
+    #[test]
+    fn app_new_ko() {
+        const URL: &str = "not_an_url";
+        let secret = new_secret();
+        
+        let meta = new_metadata();
+        let app = App::new(secret,
+                           meta,
+                           URL);
+    
+        assert!(app.is_err());
+    }
+}

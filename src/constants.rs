@@ -17,6 +17,7 @@ pub mod environment {
     pub const JWT_PUBLIC: &str = "JWT_PUBLIC";
     pub const JWT_SECRET: &str = "JWT_SECRET";
     pub const TEMPLATES: &str = "TEMPLATES";
+    pub const PWD_SUFIX: &str = "PWD_SUFIX";
 }
 
 pub mod errors {

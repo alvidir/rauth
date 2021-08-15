@@ -69,3 +69,35 @@ impl Directory {
         super::get_repository().delete(self)
     }
 }
+
+
+#[cfg(test)]
+pub mod tests {
+    use std::time::SystemTime;
+    use crate::metadata::domain::InnerMetadata;
+    use crate::app::domain::tests::new_app;
+    use crate::session::domain::tests::new_session;
+    use super::Directory;
+
+    pub fn new_directory() -> Directory {
+        Directory{
+            id: "testing".to_string(),
+            user: 0,
+            app: 0,
+            _deadline: SystemTime::now(),
+            meta: InnerMetadata::new(),
+        }
+    }
+
+    #[test]
+    fn directory_new() {
+        let app = new_app();
+        let sess = new_session();
+
+        let dir = Directory::new(&sess, &app);
+        
+        assert_eq!("", dir.id);
+        assert_eq!(dir.app, app.get_id());
+        assert_eq!(dir.user, sess.get_user().get_id());
+    }
+}

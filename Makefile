@@ -42,6 +42,7 @@ run:
 check:
 	curl -v localhost:5050
 
-test:
+tests:
 	RUST_BACKTRACE=1 cargo test -- --nocapture
 	RUST_BACKTRACE=1 cargo test -- --nocapture --ignored
+	RUST_BACKTRACE=1 cargo test --features integration-tests -- --nocapture
