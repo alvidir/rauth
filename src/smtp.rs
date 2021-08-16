@@ -31,9 +31,14 @@ pub fn send_verification_email(to: &str, token: &str) -> Result<(), Box<dyn Erro
     let mut context = Context::new();
     context.insert("token", token);
     
-    const SUBJECT: &str = "[Alvidir] Verification email";
+    let prefix = match env::var(environment::APP_NAME) {
+        Ok(app_name) => app_name,
+        Err(_) => "OAuth".to_string(),
+    };
+
+    let subject = format!("[{}] Verification email", prefix);
     let body = TERA.render("verification_email.html", &context)?;
-    if let Err(err) = send_email(to, SUBJECT, &body) {
+    if let Err(err) = send_email(to, &subject, &body) {
         info!("got error {} while sending verification email to {}", err, to);
         return Err(err);
     }
