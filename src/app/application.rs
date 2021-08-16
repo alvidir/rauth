@@ -58,6 +58,7 @@ pub fn app_delete(url: &str,
 #[cfg(feature = "integration-tests")]
 mod tests {
     use super::app_register;
+    use super::super::get_repository;
 
     use openssl::sign::Signer;
     use openssl::pkey::{PKey};
@@ -83,6 +84,9 @@ mod tests {
         let signature = signer.sign_to_vec().unwrap();
 
         app_register(URL, EC_PUBLIC, &signature).unwrap();
+
+        let app = get_repository().find_by_url(URL).unwrap();
+        app.delete().unwrap();
     }
     
 }

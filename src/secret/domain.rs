@@ -38,18 +38,22 @@ impl Secret {
             return Err(ALREADY_EXISTS.into());
         }
 
+        self.meta.insert()?;
         super::get_repository().create(self)?;
         Ok(())
     }
 
     /// updates the secret into the repository
     pub fn _save(&self) -> Result<(), Box<dyn Error>> {
+        self.meta.save()?;
         super::get_repository().save(self)
     }
 
     /// deletes the secret from the repository
     pub fn delete(&self) -> Result<(), Box<dyn Error>> {
-        super::get_repository().delete(self)
+        super::get_repository().delete(self)?;
+        self.meta.delete()?;
+        Ok(())
     }
 }
 
@@ -76,5 +80,13 @@ pub mod tests {
 
         assert_eq!(0, secret.id); 
         assert_eq!("testing".as_bytes(), secret.data);
+    }
+
+    #[test]
+    #[cfg(feature = "integration-tests")]
+    fn secret_create_ok() {
+        let mut secret = Secret::new("secret".as_bytes());
+        secret.insert().unwrap();
+        secret.delete().unwrap();
     }
 }

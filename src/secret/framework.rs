@@ -104,18 +104,3 @@ impl SecretRepository for PostgresSecretRepository {
         Ok(())
     }
 }
-
-#[cfg(test)]
-#[cfg(feature = "integration-tests")]
-mod tests {
-    use super::super::domain::{Secret, SecretRepository};
-
-    #[test]
-    fn secret_create_ok() {
-        let repo = super::PostgresSecretRepository;
-        let mut secret = Secret::new("secret".as_bytes());
-        
-        repo.create(&mut secret).unwrap();
-        repo.delete(&secret).unwrap();
-    }
-}
