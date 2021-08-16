@@ -1,26 +1,26 @@
 use std::error::Error;
-use crate::metadata::domain::InnerMetadata;
+use crate::metadata::domain::Metadata;
 use crate::constants::errors::ALREADY_EXISTS;
 
 pub trait SecretRepository {
-    fn find(&self, id: &str) -> Result<Secret, Box<dyn Error>>;
+    fn find(&self, id: i32) -> Result<Secret, Box<dyn Error>>;
     fn create(&self, secret: &mut Secret) -> Result<(), Box<dyn Error>>;
     fn save(&self, secret: &Secret) -> Result<(), Box<dyn Error>>;
     fn delete(&self, secret: &Secret) -> Result<(), Box<dyn Error>>;
 }
 
 pub struct Secret {
-    pub(super) id: String,
+    pub(super) id: i32,
     pub(super) data: Vec<u8>, // pkey as a pem file
-    pub(super) meta: InnerMetadata,
+    pub(super) meta: Metadata,
 }
 
 impl Secret {
     pub fn new(data: &[u8]) -> Self {
         Secret {
-            id: "".to_string(),
+            id: 0,
             data: data.to_vec(),
-            meta: InnerMetadata::new(),
+            meta: Metadata::new(),
         }
     }
 
@@ -28,13 +28,13 @@ impl Secret {
         &self.data
     }
 
-    pub fn get_id(&self) -> &str {
-        &self.id
+    pub fn get_id(&self) -> i32 {
+        self.id
     }
 
     /// inserts the secret into the repository
     pub fn insert(&mut self) -> Result<(), Box<dyn Error>> {
-        if self.id.len() != 0 {
+        if self.id != 0 {
             return Err(ALREADY_EXISTS.into());
         }
 
@@ -56,14 +56,14 @@ impl Secret {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::metadata::domain::InnerMetadata;
+    use crate::metadata::domain::Metadata;
     use super::Secret;
 
     pub fn new_secret() -> Secret {
-        let inner_meta = InnerMetadata::new();
+        let inner_meta = Metadata::new();
 
         Secret {
-            id: "".to_string(),
+            id: 999,
             data: "this is a secret".as_bytes().to_vec(),
             meta: inner_meta,
         }
@@ -74,7 +74,7 @@ pub mod tests {
         let data = "testing".as_bytes();
         let secret = Secret::new(data);
 
-        assert_eq!("", secret.id); 
+        assert_eq!(0, secret.id); 
         assert_eq!("testing".as_bytes(), secret.data);
     }
 }

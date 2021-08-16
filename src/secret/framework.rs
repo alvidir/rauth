@@ -1,126 +1,105 @@
 use std::error::Error;
-use std::time::{Duration, UNIX_EPOCH};
-use serde::{Serialize, Deserialize};
-use bson::oid::ObjectId;
-use bson::{Bson, Document};
-
-use crate::mongo;
-use crate::metadata::domain::InnerMetadata;
-use crate::constants::errors;
+use diesel::NotFound;
+use crate::diesel::prelude::*;
+use crate::postgres::*;
+use crate::schema::secrets;
+use crate::schema::secrets::dsl::*;
+use crate::metadata::get_repository as get_meta_repository;
 use super::domain::{Secret, SecretRepository};
 
-const COLLECTION_NAME: &str = "secrets";
-
-#[derive(Serialize, Deserialize, Debug)]
-struct MongoSecretMetadata {
-    pub created_at: f64,
-    pub touch_at: f64,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct MongoSecret {
-    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
-    pub id: Option<ObjectId>,
+#[derive(Queryable, Insertable, Associations)]
+#[derive(Identifiable)]
+#[derive(AsChangeset)]
+#[derive(Clone)]
+#[table_name = "secrets"]
+struct PostgresSecret {
+    pub id: i32,
     pub data: String,
-    pub meta: MongoSecretMetadata,
+    pub meta_id: i32,
 }
 
-pub struct MongoSecretRepository;
+#[derive(Insertable)]
+#[derive(Clone)]
+#[table_name = "secrets"]
+struct NewPostgresSecret<'a> {
+    pub data: &'a str,
+    pub meta_id: i32,
+}
 
-impl MongoSecretRepository {
-    fn parse_secret(secret: &Secret) -> Result<Document, Box<dyn Error>> {
-        let mongo_meta = MongoSecretMetadata {
-            created_at: secret.meta.created_at.duration_since(UNIX_EPOCH)?.as_secs_f64(),
-            touch_at: secret.meta.touch_at.duration_since(UNIX_EPOCH)?.as_secs_f64(),
-        };
+pub struct PostgresSecretRepository;
 
-        let mut id_opt = None;
-        if secret.id.len() > 0 {
-            let bson_id = ObjectId::with_string(&secret.id)?;
-            id_opt = Some(bson_id);
+impl PostgresSecretRepository {
+    fn build_first(results: &[PostgresSecret]) -> Result<Secret, Box<dyn Error>> {
+        if results.len() == 0 {
+            return Err(Box::new(NotFound));
         }
 
-        // BSON does not support unsigned type
-        let data = match String::from_utf8(secret.data.clone()) {
-            Ok(v) => v,
-            Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
-        };
+        let meta = get_meta_repository().find(results[0].meta_id)?;
 
-        let mongo_secret = MongoSecret {
-            id: id_opt,
-            data: data,
-            meta: mongo_meta,
-        };
-
-        let serialized = bson::to_bson(&mongo_secret)?;
-        if let Some(doc) = serialized.as_document() {
-            return Ok(doc.clone());
-        }
-        
-        Err(errors::PARSE_FAILED.into())
+        Ok(Secret{
+            id: results[0].id,
+            data: results[0].data.as_bytes().to_vec(),
+            meta: meta,
+        })
     }
 }
 
-impl SecretRepository for MongoSecretRepository {
-    fn find(&self, target: &str) -> Result<Secret, Box<dyn Error>>  {
-        let loaded_secret_opt = mongo::get_connection(COLLECTION_NAME)
-            .find_one(Some(doc! { "_id":  target }), None)?;
-
-        if let Some(loaded_secret) = loaded_secret_opt {
-            let mongo_secret: MongoSecret = bson::from_bson(Bson::Document(loaded_secret))?;
-            
-            let id: String;
-            if let Some(secret_id) = mongo_secret.id {
-                id = secret_id.to_hex();
-            } else {
-                return Err(errors::NOT_FOUND.into());
-            }
-
-            let secret = Secret {
-                id: id,
-                data: mongo_secret.data.as_bytes().to_vec(),
-                meta: InnerMetadata {
-                    created_at: UNIX_EPOCH + Duration::from_secs_f64(mongo_secret.meta.created_at),
-                    touch_at: UNIX_EPOCH + Duration::from_secs_f64(mongo_secret.meta.touch_at),
-                },
-            };
-
-            return Ok(secret);
-        }
-
+impl SecretRepository for PostgresSecretRepository {
+    fn find(&self, target: i32) -> Result<Secret, Box<dyn Error>>  {
+        use crate::schema::secrets::dsl::*;
         
-        Err(errors::NOT_FOUND.into())
+        let results = { // block is required because of connection release
+            let connection = get_connection().get()?;
+            secrets.filter(id.eq(target))
+                 .load::<PostgresSecret>(&connection)?
+        };
+    
+        PostgresSecretRepository::build_first(&results)
     }
 
     fn create(&self, secret: &mut Secret) -> Result<(), Box<dyn Error>> {
-        let document = MongoSecretRepository::parse_secret(secret)?;
-        let result = mongo::get_connection(COLLECTION_NAME)
-            .insert_one(document.to_owned(), None)?;
+        let new_secret = NewPostgresSecret {
+            data: &String::from_utf8(secret.data.clone())?,
+            meta_id: secret.meta.get_id(),
+        };
 
-        let secret_id_opt = result
-            .inserted_id
-            .as_object_id();
+        let result = { // block is required because of connection release
+            let connection = get_connection().get()?;
+            diesel::insert_into(secrets::table)
+                .values(&new_secret)
+                .get_result::<PostgresSecret>(&connection)?
+        };
 
-        if let Some(secret_id) = secret_id_opt {
-            secret.id = secret_id.to_hex();
-            Ok(())
-        } else {
-            Err(errors::PARSE_FAILED.into())
-        }
+        secret.id = result.id;
+        Ok(())
     }
 
     fn save(&self, secret: &Secret) -> Result<(), Box<dyn Error>> {
-        let document = MongoSecretRepository::parse_secret(secret)?;       
-        mongo::get_connection(COLLECTION_NAME)
-            .update_one(doc!{"_id": secret.get_id()}, document.to_owned(), None)?;
+        let pg_secret = PostgresSecret {
+            id: secret.id,
+            data: String::from_utf8(secret.data.clone())?,
+            meta_id: secret.meta.get_id(),
+        };
+        
+        { // block is required because of connection release            
+            let connection = get_connection().get()?;
+            diesel::update(secrets)
+                .set(&pg_secret)
+                .execute(&connection)?;
+        }
 
         Ok(())
     }
 
     fn delete(&self, secret: &Secret) -> Result<(), Box<dyn Error>> {
-        let bson_id = ObjectId::with_string(&secret.id)?;
-        mongo::get_connection(COLLECTION_NAME)
-            .delete_one(doc!{"_id": bson_id}, None)?;
+        { // block is required because of connection release
+            let connection = get_connection().get()?;
+            let _result = diesel::delete(
+                secrets.filter(
+                    id.eq(secret.id)
+                )
+            ).execute(&connection)?;
+        }
 
         Ok(())
     }
@@ -133,7 +112,7 @@ mod tests {
 
     #[test]
     fn secret_create_ok() {
-        let repo = super::MongoSecretRepository;
+        let repo = super::PostgresSecretRepository;
         let mut secret = Secret::new("secret".as_bytes());
         
         repo.create(&mut secret).unwrap();

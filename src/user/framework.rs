@@ -114,7 +114,7 @@ struct PostgresUser {
     pub email: String,
     pub password: String,
     pub verified_at: Option<SystemTime>,
-    pub secret_id: Option<String>,
+    pub secret_id: Option<i32>,
     pub meta_id: i32,
 }
 
@@ -125,7 +125,7 @@ struct NewPostgresUser<'a> {
     pub email: &'a str,
     pub password: &'a str,
     pub verified_at: Option<SystemTime>,
-    pub secret_id: Option<&'a str>,
+    pub secret_id: Option<i32>,
     pub meta_id: i32,
 }
 
@@ -138,7 +138,7 @@ impl PostgresUserRepository {
         }
 
         let mut secret_opt = None;
-        if let Some(secr_id) = &results[0].secret_id {
+        if let Some(secr_id) = results[0].secret_id {
             let secret = get_secret_repository().find(secr_id)?;
             secret_opt = Some(secret);
         }
@@ -207,7 +207,7 @@ impl UserRepository for PostgresUserRepository {
             email: user.email.to_string(),
             password: user.password.clone(),
             verified_at: user.verified_at,
-            secret_id: if let Some(secret) = &user.secret {Some(secret.get_id().to_string())} else {None},
+            secret_id: if let Some(secret) = &user.secret {Some(secret.get_id())} else {None},
             meta_id: user.meta.get_id(),
         };
         

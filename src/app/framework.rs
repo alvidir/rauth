@@ -60,7 +60,7 @@ impl AppService for AppServiceImplementation {
 struct PostgresApp {
     pub id: i32,
     pub url: String,
-    pub secret_id: String,
+    pub secret_id: i32,
     pub meta_id: i32,
 }
 
@@ -69,7 +69,7 @@ struct PostgresApp {
 #[table_name = "apps"]
 struct NewPostgresApp<'a> {
     pub url: &'a str,
-    pub secret_id: &'a str,
+    pub secret_id: i32,
     pub meta_id: i32,
 }
 
@@ -87,7 +87,7 @@ impl AppRepository for PostgresAppRepository {
             return Err(Box::new(NotFound));
         }
 
-        let secret = get_secret_repository().find(&results[0].secret_id)?;
+        let secret = get_secret_repository().find(results[0].secret_id)?;
         let meta = get_meta_repository().find(results[0].meta_id)?;
         
         Ok(App{
@@ -109,7 +109,7 @@ impl AppRepository for PostgresAppRepository {
             return Err(Box::new(NotFound));
         }
 
-        let secret = get_secret_repository().find(&results[0].secret_id)?;
+        let secret = get_secret_repository().find(results[0].secret_id)?;
         let meta = get_meta_repository().find(results[0].meta_id)?;
         
         Ok(App{
@@ -123,7 +123,7 @@ impl AppRepository for PostgresAppRepository {
     fn create(&self, app: &mut App) -> Result<(), Box<dyn Error>> {
         let new_app = NewPostgresApp {
             url: &app.url,
-            secret_id: "",
+            secret_id: app.secret.get_id(),
             meta_id: app.meta.get_id(),
         };
 
@@ -143,7 +143,7 @@ impl AppRepository for PostgresAppRepository {
         let pg_app = PostgresApp {
             id: app.id,
             url: app.url.to_string(),
-            secret_id: "".to_string(),
+            secret_id: app.secret.get_id(),
             meta_id: app.meta.get_id(),
         };
         

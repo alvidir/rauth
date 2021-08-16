@@ -3,8 +3,8 @@ pub mod application;
 pub mod domain;
 
 lazy_static! {
-    static ref REPO_PROVIDER: framework::MongoSecretRepository = {
-        framework::MongoSecretRepository
+    static ref REPO_PROVIDER: framework::PostgresSecretRepository = {
+        framework::PostgresSecretRepository
     }; 
 }   
 

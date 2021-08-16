@@ -15,17 +15,21 @@ if not os.path.exists(dir):
 regex = re.compile(REGEX)
 target = open(os.path.join(dir, TARGET_FILE), "w")
 
+scripts = []
 for root, dirs, files in os.walk(WORKING_PATH):
     for file in files:
         if regex.match(file):
             path = os.path.join(root, file)
-            print("Reading content from {}".format(path))
+            scripts.append(path)
 
-            fo = open(path, "r")
-            content = fo.read()
-            fo.close()
+for path in sorted(scripts):
+    print("Reading content from {}".format(path))
 
-            target.write(content)
-            target.write("\n")
+    fo = open(path, "r")
+    content = fo.read()
+    fo.close()
+
+    target.write(content)
+    target.write("\n")
 
 target.close()
