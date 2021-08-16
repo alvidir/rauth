@@ -57,13 +57,13 @@ pub fn send_email(to: &str, subject: &str, body: &str) -> Result<(), Box<dyn Err
 
 
 #[cfg(test)]
+#[cfg(feature = "integration-tests")]
 mod tests {
     use std::env;
     use crate::constants::environment;
     use super::send_verification_email;
 
     #[test]
-    #[cfg_attr(not(feature = "integration_tests"), ignore)]
     fn send_email_ok() {
         dotenv::dotenv().unwrap();
 

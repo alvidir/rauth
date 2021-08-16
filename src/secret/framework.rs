@@ -1,5 +1,5 @@
 use std::error::Error;
-use std::time::SystemTime;
+use std::time::{Duration, UNIX_EPOCH};
 use serde::{Serialize, Deserialize};
 use bson::oid::ObjectId;
 use bson::{Bson, Document};
@@ -13,15 +13,15 @@ const COLLECTION_NAME: &str = "secrets";
 
 #[derive(Serialize, Deserialize, Debug)]
 struct MongoSecretMetadata {
-    pub created_at: SystemTime,
-    pub touch_at: SystemTime,
+    pub created_at: f64,
+    pub touch_at: f64,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 struct MongoSecret {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     pub id: Option<ObjectId>,
-    pub data: Vec<u8>,
+    pub data: String,
     pub meta: MongoSecretMetadata,
 }
 
@@ -30,8 +30,8 @@ pub struct MongoSecretRepository;
 impl MongoSecretRepository {
     fn parse_secret(secret: &Secret) -> Result<Document, Box<dyn Error>> {
         let mongo_meta = MongoSecretMetadata {
-            created_at: secret.meta.created_at,
-            touch_at: secret.meta.touch_at,
+            created_at: secret.meta.created_at.duration_since(UNIX_EPOCH)?.as_secs_f64(),
+            touch_at: secret.meta.touch_at.duration_since(UNIX_EPOCH)?.as_secs_f64(),
         };
 
         let mut id_opt = None;
@@ -40,9 +40,15 @@ impl MongoSecretRepository {
             id_opt = Some(bson_id);
         }
 
+        // BSON does not support unsigned type
+        let data = match String::from_utf8(secret.data.clone()) {
+            Ok(v) => v,
+            Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
+        };
+
         let mongo_secret = MongoSecret {
             id: id_opt,
-            data: secret.data.to_vec(),
+            data: data,
             meta: mongo_meta,
         };
 
@@ -72,10 +78,10 @@ impl SecretRepository for MongoSecretRepository {
 
             let secret = Secret {
                 id: id,
-                data: mongo_secret.data,
+                data: mongo_secret.data.as_bytes().to_vec(),
                 meta: InnerMetadata {
-                    created_at: mongo_secret.meta.created_at,
-                    touch_at: mongo_secret.meta.touch_at,
+                    created_at: UNIX_EPOCH + Duration::from_secs_f64(mongo_secret.meta.created_at),
+                    touch_at: UNIX_EPOCH + Duration::from_secs_f64(mongo_secret.meta.touch_at),
                 },
             };
 
@@ -123,5 +129,14 @@ impl SecretRepository for MongoSecretRepository {
 #[cfg(test)]
 #[cfg(feature = "integration-tests")]
 mod tests {
+    use super::super::domain::{Secret, SecretRepository};
 
+    #[test]
+    fn secret_create_ok() {
+        let repo = super::MongoSecretRepository;
+        let mut secret = Secret::new("secret".as_bytes());
+        
+        repo.create(&mut secret).unwrap();
+        repo.delete(&secret).unwrap();
+    }
 }

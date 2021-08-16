@@ -82,12 +82,7 @@ mod tests {
         signer.update(EC_PUBLIC).unwrap();
         let signature = signer.sign_to_vec().unwrap();
 
-        let result = app_register(URL, EC_PUBLIC, &signature);
-        if let Err(err) = &result {
-            println!("Got error while registering app: {}", err);
-        }
-
-        assert!(result.is_ok());
+        app_register(URL, EC_PUBLIC, &signature).unwrap();
     }
     
 }

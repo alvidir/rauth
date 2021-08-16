@@ -45,4 +45,6 @@ check:
 tests:
 	RUST_BACKTRACE=1 cargo test -- --nocapture
 	RUST_BACKTRACE=1 cargo test -- --nocapture --ignored
+
+integration-tests:
 	RUST_BACKTRACE=1 cargo test --features integration-tests -- --nocapture
