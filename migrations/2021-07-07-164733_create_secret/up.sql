@@ -7,3 +7,21 @@ CREATE TABLE Secrets (
     FOREIGN KEY (meta_id)
         REFERENCES Metadata(id)
 );
+
+CREATE OR REPLACE FUNCTION fn_prevent_update_secrets_data()
+  RETURNS trigger AS
+$BODY$
+    BEGIN
+        RAISE EXCEPTION 'cannot update field \'data\' from secret';
+    END;
+$BODY$
+  LANGUAGE plpgsql VOLATILE
+  COST 100;
+
+
+
+CREATE TRIGGER trg_prevent_update_secrets_data
+  BEFORE UPDATE OF data
+  ON Secrets
+  FOR EACH ROW
+  EXECUTE PROCEDURE fn_prevent_update_secrets_data();
