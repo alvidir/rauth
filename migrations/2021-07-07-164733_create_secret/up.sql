@@ -12,7 +12,7 @@ CREATE OR REPLACE FUNCTION fn_prevent_update_secrets_data()
     RETURNS trigger AS
 $BODY$
     BEGIN
-        RAISE EXCEPTION 'cannot update field \'data\' from secret';
+        RAISE EXCEPTION 'cannot update immutable field: data';
     END;
 $BODY$
     LANGUAGE plpgsql VOLATILE

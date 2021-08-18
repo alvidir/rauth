@@ -85,8 +85,10 @@ pub mod tests {
     #[test]
     #[cfg(feature = "integration-tests")]
     fn secret_create_ok() {
-        let mut secret = Secret::new("secret".as_bytes());
+        let mut secret = Secret::new("testing".as_bytes());
         secret.insert().unwrap();
+
+        assert_eq!("testing".as_bytes(), secret.data);
         secret.delete().unwrap();
     }
 }

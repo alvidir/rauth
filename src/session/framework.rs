@@ -244,7 +244,8 @@ impl SessionRepository for InMemorySessionRepository {
             let group = self.get_readable_group()?;
             let sids_search = group.get(app.get_url());
             if let None = sids_search {
-                return Err(errors::NOT_FOUND.into());
+                //return Err(errors::NOT_FOUND.into());
+                return Ok(()); // there is nothing to delete
             }
 
             let sids_arc = sids_search.unwrap(); // this line will not panic due to the previous check of None

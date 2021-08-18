@@ -57,13 +57,16 @@ pub fn app_delete(url: &str,
 #[cfg(test)]
 #[cfg(feature = "integration-tests")]
 mod tests {
-    use super::app_register;
-    use super::super::get_repository;
-
     use openssl::sign::Signer;
     use openssl::pkey::{PKey};
     use openssl::ec::EcKey;
     use openssl::hash::MessageDigest;
+
+    use crate::secret::get_repository as get_secret_repo;
+    use crate::metadata::get_repository as get_meta_repo;
+
+    use super::{app_register, app_delete};
+    use super::super::get_repository;
 
     const EC_SECRET: &[u8] = b"LS0tLS1CRUdJTiBFQyBQUklWQVRFIEtFWS0tLS0tCk1IY0NBUUVFSUlPejlFem04Ri9oSnluNTBrM3BVcW5Dc08wRVdGSjAxbmJjWFE1MFpyV0pvQW9HQ0NxR1NNNDkKQXdFSG9VUURRZ0FFNmlIZUZrSHRBajd1TENZOUlTdGk1TUZoaTkvaDYrbkVLbzFUOWdlcHd0UFR3MnpYNTRabgpkZTZ0NnJlM3VxUjAvcWhXcGF5TVhxb25HSEltTmsyZ3dRPT0KLS0tLS1FTkQgRUMgUFJJVkFURSBLRVktLS0tLQo";
     const EC_PUBLIC: &[u8] = b"LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFNmlIZUZrSHRBajd1TENZOUlTdGk1TUZoaTkvaAo2K25FS28xVDlnZXB3dFBUdzJ6WDU0Wm5kZTZ0NnJlM3VxUjAvcWhXcGF5TVhxb25HSEltTmsyZ3dRPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg";
@@ -84,9 +87,44 @@ mod tests {
         let signature = signer.sign_to_vec().unwrap();
 
         app_register(URL, EC_PUBLIC, &signature).unwrap();
-
+        
         let app = get_repository().find_by_url(URL).unwrap();
+        assert_eq!(URL, app.url);
+        
+        let secret = get_secret_repo().find(app.secret.get_id()).unwrap();
+        assert_eq!(EC_PUBLIC, secret.get_data());
+
+        get_meta_repo().find(app.meta.get_id()).unwrap();
+
         app.delete().unwrap();
+    }
+
+    #[test]
+    fn app_delete_ok() {
+        dotenv::dotenv().unwrap();
+
+        const URL: &str = "http://tests.app.delete.ok";
+
+        let private = base64::decode(EC_SECRET).unwrap();
+        let eckey = EcKey::private_key_from_pem(&private).unwrap();
+        let keypair = PKey::from_ec_key(eckey).unwrap();
+
+        let mut signer = Signer::new(MessageDigest::sha256(), &keypair).unwrap();
+        signer.update(URL.as_bytes()).unwrap();
+        signer.update(EC_PUBLIC).unwrap();
+        let signature = signer.sign_to_vec().unwrap();
+
+        app_register(URL, EC_PUBLIC, &signature).unwrap();
+        let app = get_repository().find_by_url(URL).unwrap();
+        
+        let mut signer = Signer::new(MessageDigest::sha256(), &keypair).unwrap();
+        signer.update(URL.as_bytes()).unwrap();
+        let signature = signer.sign_to_vec().unwrap();
+
+        app_delete(URL, &signature).unwrap();
+        assert!(get_repository().find(app.id).is_err());
+        assert!(get_secret_repo().find(app.secret.get_id()).is_err());
+        assert!(get_meta_repo().find(app.meta.get_id()).is_err());
     }
     
 }
