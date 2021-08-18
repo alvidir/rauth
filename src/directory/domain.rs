@@ -90,7 +90,7 @@ pub mod tests {
     }
 
     #[test]
-    fn directory_new() {
+    fn directory_new_should_success() {
         let app = new_app();
         let sess = new_session();
 

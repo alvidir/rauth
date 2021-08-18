@@ -87,7 +87,7 @@ pub mod tests {
     }
 
     #[test]
-    fn metadata_new() {
+    fn metadata_new_should_success() {
         let before = SystemTime::now();
         let meta = Metadata::new();
         let after = SystemTime::now();
@@ -98,7 +98,7 @@ pub mod tests {
     }
 
     #[test]
-    fn inner_metadata_new() {        
+    fn inner_metadata_new_should_success() {        
         let before = SystemTime::now();
         let meta = InnerMetadata::new();
         let after = SystemTime::now();

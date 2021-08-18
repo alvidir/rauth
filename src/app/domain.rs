@@ -90,7 +90,7 @@ pub mod tests {
     }
 
     #[test]
-    fn app_new_ok() {
+    fn app_new_should_success() {
         const URL: &str = "http://testing.com";
         let secret = new_secret();
 
@@ -104,7 +104,7 @@ pub mod tests {
     }
 
     #[test]
-    fn app_new_ko() {
+    fn app_new_with_wrong_url_should_fail() {
         const URL: &str = "not_an_url";
         let secret = new_secret();
         

@@ -44,7 +44,7 @@ impl Secret {
     }
 
     /// updates the secret into the repository
-    pub fn _save(&self) -> Result<(), Box<dyn Error>> {
+    pub fn save(&self) -> Result<(), Box<dyn Error>> {
         self.meta.save()?;
         super::get_repository().save(self)
     }
@@ -74,7 +74,7 @@ pub mod tests {
     }
 
     #[test]
-    fn secret_new() {
+    fn secret_new_should_success() {
         let data = "testing".as_bytes();
         let secret = Secret::new(data);
 
@@ -84,11 +84,21 @@ pub mod tests {
 
     #[test]
     #[cfg(feature = "integration-tests")]
-    fn secret_create_ok() {
+    fn secret_insert_should_success() {
         let mut secret = Secret::new("testing".as_bytes());
         secret.insert().unwrap();
 
         assert_eq!("testing".as_bytes(), secret.data);
         secret.delete().unwrap();
+    }
+
+    #[test]
+    #[cfg(feature = "integration-tests")]
+    fn secret_save_data_should_fail() {
+        let mut secret = Secret::new("testing".as_bytes());
+        secret.insert().unwrap();
+
+        secret.data = "updated".as_bytes().to_vec();
+        assert!(secret.save().is_err());
     }
 }

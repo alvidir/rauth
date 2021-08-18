@@ -161,7 +161,7 @@ pub mod tests {
     }
 
     #[test]
-    fn user_new_ok() {
+    fn user_new_should_success() {
         const PWD: &str = "ABCDEF1234567890";
         const EMAIL: &str = "dummy@test.com";
 
@@ -176,7 +176,7 @@ pub mod tests {
     }
 
     #[test]
-    fn user_email_ko() {
+    fn user_new_wrong_email_should_fail() {
         const PWD: &str = "ABCDEF1234567890";
         const EMAIL: &str = "not_an_email";
 
@@ -189,7 +189,7 @@ pub mod tests {
     }
 
     #[test]
-    fn user_password_ko() {
+    fn user_new_wrong_password_should_fail() {
         const PWD: &str = "ABCDEFG1234567890";
         const EMAIL: &str = "dummy@test.com";
 
@@ -202,7 +202,7 @@ pub mod tests {
     }
 
     #[test]
-    fn user_verify_ok() {
+    fn user_verify_success() {
         let mut user = new_user();
         assert!(!user.is_verified());
 
@@ -218,7 +218,7 @@ pub mod tests {
     }
 
     #[test]
-    fn user_verify_ko() {
+    fn user_verify_should_fail() {
         let mut user = new_user();
         user.verified_at = Some(SystemTime::now());
 
@@ -226,19 +226,19 @@ pub mod tests {
     }
 
     #[test]
-    fn user_match_password_ok() {
+    fn user_match_password_success() {
         let user = new_user();
         assert!(user.match_password("ABCDEF1234567890"));
     }
 
     #[test]
-    fn user_match_password_ko() {
+    fn user_match_password_should_fail() {
         let user = new_user();
         assert!(!user.match_password("TESTER"));
     }
 
     #[test]
-    fn user_token_ok() {
+    fn user_token_success() {
         let user = new_user();
         let timeout = Duration::from_secs(60);
 
@@ -255,7 +255,7 @@ pub mod tests {
 
     #[test]
     #[ignore]
-    fn user_token_encode() {
+    fn user_token_encode_success() {
         dotenv::dotenv().unwrap();
 
         let user = new_user();
@@ -277,7 +277,7 @@ pub mod tests {
 
     #[test]
     #[ignore]
-    fn user_token_ko() {
+    fn user_token_expired_should_fail() {
         dotenv::dotenv().unwrap();
 
         let user = new_user();

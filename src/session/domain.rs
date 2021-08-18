@@ -158,7 +158,7 @@ pub mod tests {
     }
 
     #[test]
-    fn session_new() {
+    fn session_new_should_success() {
         const TIMEOUT: Duration = Duration::from_secs(10);
 
         let user = new_user();
@@ -179,7 +179,7 @@ pub mod tests {
     }
 
     #[test]
-    fn session_set_directory_ok() {
+    fn session_set_directory_should_success() {
         let dir = new_directory();
         let app_id = dir.get_app();
 
@@ -194,7 +194,7 @@ pub mod tests {
     }
 
     #[test]
-    fn session_set_directory_ko() {
+    fn session_set_directory_repeated_should_fail() {
         let dir = new_directory();
 
         let mut sess = new_session();
@@ -205,7 +205,7 @@ pub mod tests {
     }
 
     #[test]
-    fn session_token_ok() {
+    fn session_token_should_success() {
         let app = new_app();
         let sess = new_session();
         let deadline = SystemTime::now() + Duration::from_secs(60);
@@ -223,7 +223,7 @@ pub mod tests {
 
     #[test]
     #[ignore]
-    fn session_token_encode() {
+    fn session_token_encode_shoudl_success() {
         dotenv::dotenv().unwrap();
 
         let app = new_app();
@@ -246,7 +246,7 @@ pub mod tests {
 
     #[test]
     #[ignore]
-    fn session_token_ko() {
+    fn session_token_expired_should_fail() {
         dotenv::dotenv().unwrap();
 
         let app = new_app();

@@ -72,7 +72,7 @@ mod tests {
     const EC_PUBLIC: &[u8] = b"LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFNmlIZUZrSHRBajd1TENZOUlTdGk1TUZoaTkvaAo2K25FS28xVDlnZXB3dFBUdzJ6WDU0Wm5kZTZ0NnJlM3VxUjAvcWhXcGF5TVhxb25HSEltTmsyZ3dRPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg";
 
     #[test]
-    fn app_register_ok() {
+    fn app_register_success() {
         dotenv::dotenv().unwrap();
 
         const URL: &str = "http://tests.app.register.ok";
@@ -100,7 +100,7 @@ mod tests {
     }
 
     #[test]
-    fn app_delete_ok() {
+    fn app_delete_success() {
         dotenv::dotenv().unwrap();
 
         const URL: &str = "http://tests.app.delete.ok";
