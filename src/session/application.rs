@@ -70,7 +70,7 @@ pub fn session_login(email: &str,
                 sess.set_directory(dir)?;
             } else {
                 let mut dir = Directory::new(&sess, &app);
-                dir.insert()?;
+                get_dir_repository().create(&mut dir)?;
                 
                 sess.set_directory(dir)?;
             }
@@ -98,7 +98,7 @@ pub fn session_logout(token: &str) -> Result<(), Box<dyn Error>> {
     if let Some(dir) = sess.delete_directory(&app) {
         // unsubscribe the session's from the app's group 
         super::get_repository().delete_from_app_group(&app, &sess)?;
-        dir.save()?;
+        get_dir_repository().save(&dir)?;
     }
 
     Ok(())

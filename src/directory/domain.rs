@@ -4,7 +4,6 @@ use crate::session::domain::Session;
 use crate::app::domain::App;
 use crate::user::domain::User;
 use crate::metadata::domain::InnerMetadata;
-use crate::constants::errors::ALREADY_EXISTS;
 
 pub trait DirectoryRepository {
     fn find(&self, id: &str) -> Result<Directory, Box<dyn Error>>;
@@ -48,26 +47,6 @@ impl Directory {
     pub fn _set_deadline(&mut self, deadline: SystemTime) {
         self._deadline = deadline;
     }
-
-    /// inserts the directory and all its data into the repositories
-    pub fn insert(&mut self) -> Result<(), Box<dyn Error>> {
-        if self.id.len() != 0 {
-            return Err(ALREADY_EXISTS.into());
-        }
-
-        super::get_repository().create(self)?;
-        Ok(())
-    }
-
-    /// updates the directory into the repository
-    pub fn save(&self) -> Result<(), Box<dyn Error>> {
-        super::get_repository().save(self)
-    }
-
-    /// deletes the directory from the repository
-    pub fn _delete(&self) -> Result<(), Box<dyn Error>> {
-        super::get_repository().delete(self)
-    }
 }
 
 
@@ -90,7 +69,7 @@ pub mod tests {
     }
 
     #[test]
-    fn directory_new_should_success() {
+    fn directory_new_should_not_fail() {
         let app = new_app();
         let sess = new_session();
 

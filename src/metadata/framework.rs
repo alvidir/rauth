@@ -1,6 +1,7 @@
 use std::error::Error;
 use std::time::SystemTime;
 use diesel::NotFound;
+use diesel::result::Error as PgError;
 
 use crate::diesel::prelude::*;
 use crate::schema::metadata::dsl::*;
@@ -30,6 +31,30 @@ struct NewPostgresMetadata {
 
 pub struct PostgresMetadataRepository;
 
+impl PostgresMetadataRepository {
+    pub fn create_on_conn(conn: &PgConnection, meta: &mut Metadata) -> Result<(), PgError>  {
+        let new_meta = NewPostgresMetadata {
+            created_at: meta.created_at,
+            updated_at: meta.updated_at,
+        };
+        
+        let result = diesel::insert_into(metadata::table)
+            .values(new_meta)
+            .get_result::<PostgresMetadata>(conn)?;
+
+        meta.id = result.id;
+        Ok(())
+    }
+
+    pub fn delete_on_conn(conn: &PgConnection, meta: &Metadata) -> Result<(), PgError>  {
+        diesel::delete(
+            metadata.filter(id.eq(meta.id))
+        ).execute(conn)?;
+
+        Ok(())
+    }
+}
+
 impl MetadataRepository for PostgresMetadataRepository {
     fn find(&self, target: i32) -> Result<Metadata, Box<dyn Error>>  {       
         let results = { // block is required because of connection release
@@ -50,19 +75,8 @@ impl MetadataRepository for PostgresMetadataRepository {
     }
 
     fn create(&self, meta: &mut Metadata) -> Result<(), Box<dyn Error>> {
-        let new_meta = NewPostgresMetadata {
-            created_at: meta.created_at,
-            updated_at: meta.updated_at,
-        };
-
-        let result = { // block is required because of connection release
-            let connection = get_connection().get()?;
-            diesel::insert_into(metadata::table)
-                .values(&new_meta)
-                .get_result::<PostgresMetadata>(&connection)?
-        };
-
-        meta.id = result.id;
+        let conn = get_connection().get()?;
+        PostgresMetadataRepository::create_on_conn(&conn, meta)?;
         Ok(())
     }
 
@@ -84,15 +98,8 @@ impl MetadataRepository for PostgresMetadataRepository {
     }
 
     fn delete(&self, meta: &Metadata) -> Result<(), Box<dyn Error>> {
-        { // block is required because of connection release
-            let connection = get_connection().get()?;
-            let _result = diesel::delete(
-                metadata.filter(
-                    id.eq(meta.id)
-                )
-            ).execute(&connection)?;
-        }
-
+        let conn = get_connection().get()?;
+        PostgresMetadataRepository::delete_on_conn(&conn, meta)?;
         Ok(())
     }
 

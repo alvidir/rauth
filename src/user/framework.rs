@@ -2,13 +2,21 @@ use std::error::Error;
 use std::time::SystemTime;
 use tonic::{Request, Response, Status};
 use diesel::NotFound;
+use diesel::result::Error as PgError;
 
 use crate::diesel::prelude::*;
 use crate::postgres::*;
 use crate::schema::users;
 use crate::schema::users::dsl::*;
-use crate::metadata::get_repository as get_meta_repository;
-use crate::secret::get_repository as get_secret_repository;
+use crate::metadata::{
+    get_repository as get_meta_repository,
+    framework::PostgresMetadataRepository,
+};
+use crate::secret::{
+    get_repository as get_secret_repository,
+    framework::PostgresSecretRepository,
+};
+
 use super::domain::{User, UserRepository};
 use super::application::TfaActions;
 
@@ -132,6 +140,40 @@ struct NewPostgresUser<'a> {
 pub struct PostgresUserRepository;
 
 impl PostgresUserRepository {
+    fn create_on_conn(conn: &PgConnection, user: &mut User) -> Result<(), PgError>  {
+         // in order to create a user it must exists the metadata for this user
+         PostgresMetadataRepository::create_on_conn(conn, &mut user.meta)?;
+
+        let new_user = NewPostgresUser {
+            email: &user.email,
+            password: &user.password,
+            verified_at: user.verified_at,
+            secret_id: if let Some(secret) = &user.secret {Some(secret.get_id())} else {None},
+            meta_id: user.meta.get_id(),
+        };
+
+        let result = diesel::insert_into(users::table)
+            .values(&new_user)
+            .get_result::<PostgresUser>(conn)?;
+
+        user.id = result.id;
+        Ok(())
+    }
+
+    fn delete_on_conn(conn: &PgConnection, user: &User) -> Result<(), PgError>  {
+        let _result = diesel::delete(
+            users.filter(id.eq(user.id))
+        ).execute(conn)?;
+
+        PostgresMetadataRepository::delete_on_conn(conn, &user.meta)?;
+
+        if let Some(secret) = &user.secret {
+            PostgresSecretRepository::delete_on_conn(conn, secret)?;
+        }
+
+        Ok(())
+   }
+
     fn build_first(results: &[PostgresUser]) -> Result<User, Box<dyn Error>> {
         if results.len() == 0 {
             return Err(Box::new(NotFound));
@@ -182,22 +224,8 @@ impl UserRepository for PostgresUserRepository {
     }
 
     fn create(&self, user: &mut User) -> Result<(), Box<dyn Error>> {
-        let new_user = NewPostgresUser {
-            email: &user.email,
-            password: &user.password,
-            verified_at: user.verified_at,
-            secret_id: if let Some(secret) = &user.secret {Some(secret.get_id())} else {None},
-            meta_id: user.meta.get_id(),
-        };
-
-        let result = { // block is required because of connection release
-            let connection = get_connection().get()?;
-            diesel::insert_into(users::table)
-                .values(&new_user)
-                .get_result::<PostgresUser>(&connection)?
-        };
-
-        user.id = result.id;
+        let conn = get_connection().get()?;
+        conn.transaction::<_, PgError, _>(|| PostgresUserRepository::create_on_conn(&conn, user))?;
         Ok(())
     }
 
@@ -210,27 +238,19 @@ impl UserRepository for PostgresUserRepository {
             secret_id: if let Some(secret) = &user.secret {Some(secret.get_id())} else {None},
             meta_id: user.meta.get_id(),
         };
-        
-        { // block is required because of connection release            
-            let connection = get_connection().get()?;
-            diesel::update(users)
-                .set(&pg_user)
-                .execute(&connection)?;
-        }
+                 
+        let connection = get_connection().get()?;
+        diesel::update(users)
+            .filter(id.eq(user.id))
+            .set(&pg_user)
+            .execute(&connection)?;
 
         Ok(())
     }
 
     fn delete(&self, user: &User) -> Result<(), Box<dyn Error>> {
-        { // block is required because of connection release
-            let connection = get_connection().get()?;
-            let _result = diesel::delete(
-                users.filter(
-                    id.eq(user.id)
-                )
-            ).execute(&connection)?;
-        }
-
+        let conn = get_connection().get()?;
+        conn.transaction::<_, PgError, _>(|| PostgresUserRepository::delete_on_conn(&conn, user))?;
         Ok(())
     }
 }

@@ -5,7 +5,6 @@ use crate::regex;
 use crate::secret::domain::Secret;
 use crate::metadata::domain::Metadata;
 use crate::time::unix_timestamp;
-use crate::constants::errors::ALREADY_EXISTS;
 use crate::security;
 
 pub trait UserRepository {
@@ -56,6 +55,14 @@ impl User {
         Ok(())
     }
 
+    /// sets the secret and return the old one if any
+    pub(super) fn set_secret(&mut self, secret: Option<Secret>) -> Option<Secret> {
+        let old_secret = self.secret.clone();
+        self.secret = secret;
+        
+        old_secret
+    }
+
     pub fn get_id(&self) -> i32 {
         self.id
     }
@@ -68,17 +75,6 @@ impl User {
         &self.secret
     }
 
-    /// if the user already has a secret these one gets deleted and the provided option becomes the new value
-    /// for the user's secret
-    pub(super) fn update_secret(&mut self, secret: Option<Secret>) -> Result<(), Box<dyn Error>> {
-        if let Some(old_secret) = &self.secret {
-            old_secret.delete()?;
-        }
-
-        self.secret = secret;
-        Ok(())
-    }
-
     /// if true, the user its verified, else is not
     pub fn is_verified(&self) -> bool {
         self.verified_at.is_some()
@@ -86,36 +82,7 @@ impl User {
 
     // checks the provided password matches the user's one
     pub fn match_password(&self, password: &str) -> bool {
-        password == self.password
-    }
-
-    /// inserts the user and all its data into the repositories
-    pub fn insert(&mut self) -> Result<(), Box<dyn Error>> {
-        if self.id != 0 {
-            return Err(ALREADY_EXISTS.into());
-        }
-
-        self.meta.insert()?;
-        super::get_repository().create(self)?;
-        Ok(())
-    }
-
-    // updates the user into the repository
-    pub fn save(&self) -> Result<(), Box<dyn Error>> {
-        self.meta.save()?;
-        super::get_repository().save(self)?;
-        Ok(())
-    }
-
-    /// deletes the user and all its data from the repositories
-    pub fn delete(&self) -> Result<(), Box<dyn Error>> {
-        if let Some(secret) = &self.secret {
-            secret.delete()?;
-        }
-
-        super::get_repository().delete(self)?;
-        self.meta.delete()?;
-        Ok(())
+        security::format_password(password) == self.password
     }
 }
 
@@ -161,7 +128,7 @@ pub mod tests {
     }
 
     #[test]
-    fn user_new_should_success() {
+    fn user_new_should_not_fail() {
         const PWD: &str = "ABCDEF1234567890";
         const EMAIL: &str = "dummy@test.com";
 
@@ -202,7 +169,7 @@ pub mod tests {
     }
 
     #[test]
-    fn user_verify_success() {
+    fn user_verify_should_not_fail() {
         let mut user = new_user();
         assert!(!user.is_verified());
 
@@ -226,19 +193,13 @@ pub mod tests {
     }
 
     #[test]
-    fn user_match_password_success() {
-        let user = new_user();
-        assert!(user.match_password("ABCDEF1234567890"));
-    }
-
-    #[test]
     fn user_match_password_should_fail() {
         let user = new_user();
         assert!(!user.match_password("TESTER"));
     }
 
     #[test]
-    fn user_token_success() {
+    fn user_token_should_not_fail() {
         let user = new_user();
         let timeout = Duration::from_secs(60);
 
@@ -255,7 +216,7 @@ pub mod tests {
 
     #[test]
     #[ignore]
-    fn user_token_encode_success() {
+    fn user_token_encode_should_not_fail() {
         dotenv::dotenv().unwrap();
 
         let user = new_user();

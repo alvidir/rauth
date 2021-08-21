@@ -1,14 +1,22 @@
 use std::error::Error;
 use tonic::{Request, Response, Status};
 use diesel::NotFound;
+use diesel::result::Error as PgError;
 
 use crate::diesel::prelude::*;
+use crate::diesel::Connection;
 use crate::schema::apps::dsl::*;
 use crate::postgres::*;
 use crate::schema::apps;
 
-use crate::metadata::get_repository as get_meta_repository;
-use crate::secret::get_repository as get_secret_repository;
+use crate::metadata::{
+    get_repository as get_meta_repository,
+    framework::PostgresMetadataRepository,
+};
+use crate::secret::{
+    get_repository as get_secret_repository,
+    framework::PostgresSecretRepository,
+};
 
 use super::domain::{App, AppRepository};
 
@@ -75,6 +83,39 @@ struct NewPostgresApp<'a> {
 
 pub struct PostgresAppRepository;
 
+impl PostgresAppRepository {
+    fn create_on_conn(conn: &PgConnection, app: &mut App) -> Result<(), PgError>  {
+        // in order to create an app it must exists a secret for this app
+        PostgresSecretRepository::create_on_conn(conn, &mut app.secret)?;
+
+         // in order to create an app it must exists the metadata for this app
+         PostgresMetadataRepository::create_on_conn(conn, &mut app.meta)?;
+
+        let new_app = NewPostgresApp {
+            url: &app.url,
+            secret_id: app.secret.get_id(),
+            meta_id: app.meta.get_id(),
+        };
+
+        let result = diesel::insert_into(apps::table)
+            .values(&new_app)
+            .get_result::<PostgresApp>(conn)?;
+
+        app.id = result.id;
+        Ok(())
+    }
+
+    fn delete_on_conn(conn: &PgConnection, app: &App) -> Result<(), PgError>  {
+        let _result = diesel::delete(
+            apps.filter(id.eq(app.id))
+        ).execute(conn)?;
+
+        PostgresMetadataRepository::delete_on_conn(conn, &app.meta)?;
+        PostgresSecretRepository::delete_on_conn(conn, &app.secret)?;
+        Ok(())
+    }
+}
+
 impl AppRepository for PostgresAppRepository {
     fn find(&self, target: i32) -> Result<App, Box<dyn Error>>  {
         let results = { // block is required because of connection release
@@ -121,20 +162,8 @@ impl AppRepository for PostgresAppRepository {
     }
 
     fn create(&self, app: &mut App) -> Result<(), Box<dyn Error>> {
-        let new_app = NewPostgresApp {
-            url: &app.url,
-            secret_id: app.secret.get_id(),
-            meta_id: app.meta.get_id(),
-        };
-
-        let result = { // block is required because of connection release
-            let connection = get_connection().get()?;
-            diesel::insert_into(apps::table)
-                .values(&new_app)
-                .get_result::<PostgresApp>(&connection)?
-        };
-
-        app.id = result.id;
+        let conn = get_connection().get()?;
+        conn.transaction::<_, PgError, _>(|| PostgresAppRepository::create_on_conn(&conn, app))?;
         Ok(())
     }
 
@@ -158,15 +187,8 @@ impl AppRepository for PostgresAppRepository {
     }
 
     fn delete(&self, app: &App) -> Result<(), Box<dyn Error>> {
-        { // block is required because of connection release
-            let connection = get_connection().get()?;
-            let _result = diesel::delete(
-                apps.filter(
-                    id.eq(app.id)
-                )
-            ).execute(&connection)?;
-        }
-        
+        let conn = get_connection().get()?;
+        conn.transaction::<_, PgError, _>(|| PostgresAppRepository::delete_on_conn(&conn, app))?;
         Ok(())
     }
 }

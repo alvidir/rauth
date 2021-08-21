@@ -84,12 +84,6 @@ impl Session {
         self.apps.remove(&app.get_id())
     }
 
-    /// deletes the session from the repository
-    pub fn delete(&mut self) -> Result<(), Box<dyn Error>> {
-        super::get_repository().delete(self)?;
-        Ok(())
-    }
-
     /// stores a new value for an entry into the session's sandbox. If there it was any older value, it is returned, else
     /// return is None 
     pub fn store(&mut self, key: &str, value: &str) -> Option<String> {
@@ -158,7 +152,7 @@ pub mod tests {
     }
 
     #[test]
-    fn session_new_should_success() {
+    fn session_new_should_not_fail() {
         const TIMEOUT: Duration = Duration::from_secs(10);
 
         let user = new_user();
@@ -179,7 +173,7 @@ pub mod tests {
     }
 
     #[test]
-    fn session_set_directory_should_success() {
+    fn session_set_directory_should_not_fail() {
         let dir = new_directory();
         let app_id = dir.get_app();
 
@@ -205,7 +199,7 @@ pub mod tests {
     }
 
     #[test]
-    fn session_token_should_success() {
+    fn session_token_should_not_fail() {
         let app = new_app();
         let sess = new_session();
         let deadline = SystemTime::now() + Duration::from_secs(60);
