@@ -96,7 +96,7 @@ impl Session {
     }
 
     /// returns an entry from the session's sandbox
-    pub fn get(&mut self, key: &str) -> Option<String> {
+    pub fn get(&self, key: &str) -> Option<String> {
         if let Some(value) = self.sandbox.get(key) {
             return Some(value.clone());
         }
@@ -135,7 +135,6 @@ pub mod tests {
     use crate::metadata::domain::InnerMetadata;
     use crate::directory::domain::tests::new_directory;
     use crate::app::domain::tests::new_app;
-    use crate::security;
     use crate::time::unix_timestamp;
     use crate::constants::settings;
     use super::{Session, Token};
@@ -216,8 +215,10 @@ pub mod tests {
     }
 
     #[test]
-    #[ignore]
+    #[cfg(feature = "integration-tests")]
     fn session_token_encode_shoudl_success() {
+        use crate::security;
+        
         dotenv::dotenv().unwrap();
 
         let app = new_app();
@@ -239,8 +240,10 @@ pub mod tests {
     }
 
     #[test]
-    #[ignore]
+    #[cfg(feature = "integration-tests")]
     fn session_token_expired_should_fail() {
+        use crate::security;
+        
         dotenv::dotenv().unwrap();
 
         let app = new_app();

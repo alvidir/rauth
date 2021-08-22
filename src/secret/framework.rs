@@ -105,13 +105,12 @@ impl SecretRepository for PostgresSecretRepository {
             data: String::from_utf8(secret.data.clone())?,
             meta_id: secret.meta.get_id(),
         };
-        
-        { // block is required because of connection release            
-            let connection = get_connection().get()?;
-            diesel::update(secrets)
-                .set(&pg_secret)
-                .execute(&connection)?;
-        }
+                 
+        let connection = get_connection().get()?;
+        diesel::update(secrets)
+            .filter(id.eq(secret.id))
+            .set(&pg_secret)
+            .execute(&connection)?;
 
         Ok(())
     }

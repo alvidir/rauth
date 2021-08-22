@@ -2,7 +2,8 @@ pub mod settings {
     pub const SERVER_IP: &str = "127.0.0.1";
     pub const TOKEN_LEN: usize = 8;
     pub const TOKEN_TIMEOUT: u64 = 86400; // 3600s * 24h
-    pub const POOL_SIZE: u32 = 1_u32; // by constants: single thread
+    pub const POOL_SIZE: u32 = 1; // by default: single thread
+    pub const TOTP_PERIOD: u32 = 30; // time in seconds
 }
 
 pub mod environment {

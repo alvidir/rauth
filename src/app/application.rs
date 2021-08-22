@@ -122,7 +122,7 @@ mod tests {
     }
 
     #[test]
-    fn app_register_wrong_signature_should_fail() {
+    fn app_register_with_wrong_signature_should_fail() {
         dotenv::dotenv().unwrap();
 
         const URL: &str = "http://app.register.wrong.signature.should.fail";
@@ -160,7 +160,7 @@ mod tests {
     }
 
     #[test]
-    fn app_delete_wrong_signature_should_fail() {
+    fn app_delete_with_wrong_signature_should_fail() {
         dotenv::dotenv().unwrap();
 
         const URL: &str = "http://app.delete.wrong.signature.should.fail";

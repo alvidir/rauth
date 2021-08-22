@@ -48,3 +48,6 @@ tests:
 
 integration-tests:
 	RUST_BACKTRACE=1 cargo test --features integration-tests -- --nocapture
+
+coverage:
+	RUST_BACKTRACE=1 cargo tarpaulin -v --all-features

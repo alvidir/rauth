@@ -1,5 +1,5 @@
 use std::error::Error;
-use std::time::SystemTime;
+use std::time::{SystemTime, Duration, UNIX_EPOCH};
 use serde::{Serialize, Deserialize};
 use bson::oid::ObjectId;
 use bson::{Bson, Document};
@@ -15,8 +15,8 @@ const COLLECTION_NAME: &str = "directories";
 
 #[derive(Serialize, Deserialize, Debug)]
 struct MongoDirectoryMetadata {
-    pub created_at: SystemTime,
-    pub touch_at: SystemTime,
+    pub created_at: f64,
+    pub touch_at: f64,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -47,8 +47,8 @@ impl MongoDirectoryRepository {
             app: mongo_dir.app,
             _deadline: SystemTime::UNIX_EPOCH,
             meta: InnerMetadata {
-                created_at: mongo_dir.meta.created_at,
-                touch_at: mongo_dir.meta.touch_at,
+                created_at: UNIX_EPOCH + Duration::from_secs_f64(mongo_dir.meta.created_at),
+                touch_at: UNIX_EPOCH + Duration::from_secs_f64(mongo_dir.meta.touch_at),
             },
         };
 
@@ -57,8 +57,8 @@ impl MongoDirectoryRepository {
 
     fn parse_directory(dir: &Directory) -> Result<Document, Box<dyn Error>> {
         let mongo_meta = MongoDirectoryMetadata {
-            created_at: dir.meta.created_at,
-            touch_at: dir.meta.touch_at,
+            created_at: dir.meta.created_at.duration_since(UNIX_EPOCH)?.as_secs_f64(),
+            touch_at: dir.meta.touch_at.duration_since(UNIX_EPOCH)?.as_secs_f64(),
         };
 
         let mut id_opt = None;

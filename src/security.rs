@@ -6,14 +6,14 @@ use openssl::sign::{Verifier, Signer};
 use openssl::pkey::{PKey};
 use openssl::ec::EcKey;
 use openssl::hash::MessageDigest;
-use libreauth::oath::TOTPBuilder;
+use libreauth::oath::{TOTPBuilder, TOTP};
 use libreauth::hash::HashFunction::Sha256;
 use jsonwebtoken::{Header, EncodingKey, DecodingKey, Validation, Algorithm};
 use rand::Rng;
 use base64;
 use sha256;
 
-use crate::constants::{environment, errors};
+use crate::constants::{environment, errors, settings};
 
 lazy_static! {
     static ref JWT_SECRET: EncodingKey = {
@@ -57,21 +57,32 @@ pub fn get_random_string(size: usize) -> String {
     token
 }
 
-pub fn verify_totp(secret: &[u8], pwd: &str) -> Result<(), Box<dyn Error>> {
+pub fn generate_totp(secret: &[u8]) -> Result<TOTP, Box<dyn Error>> {
     let totp_result = TOTPBuilder::new()
         .key(secret)
-        //.output_len(6)
-        .period(30)
+        .period(settings::TOTP_PERIOD)
         .hash_function(Sha256)
         .finalize();
 
-    if let Err(err) = totp_result {
-        let msg = format!("{:?}", err);
-        return Err(msg.into());
+    match totp_result {
+        Ok(totp) => Ok(totp),
+        Err(err) => {
+            let msg = format!("{:?}", err);
+            Err(msg.into())
+        },
     }
+}
 
+pub fn _get_uri_format(secret: &[u8], issuer: &str, account: &str) -> Result<String, Box<dyn Error>> {
+    let totp = generate_totp(secret)?;
+    let uri = totp.key_uri_format(issuer, account)
+        .finalize();
 
-    let totp = totp_result.unwrap(); // this line will not fail due to the previous check of err
+    Ok(uri)
+}
+
+pub fn verify_totp(secret: &[u8], pwd: &str) -> Result<(), Box<dyn Error>> {
+    let totp = generate_totp(secret)?;
     if !totp.is_valid(pwd) {
         return Err(errors::UNAUTHORIZED.into());
     }
@@ -121,9 +132,7 @@ pub fn format_password(password: &str) -> String {
 
 #[cfg(test)]
 pub mod tests {
-    use libreauth::oath::TOTPBuilder;
-    use libreauth::hash::HashFunction::Sha256;
-    use super::{_get_ec_signature, verify_ec_signature, verify_totp};
+    use super::{_get_ec_signature, verify_ec_signature, verify_totp, generate_totp};
 
     const EC_SECRET: &[u8] = b"LS0tLS1CRUdJTiBFQyBQUklWQVRFIEtFWS0tLS0tCk1IY0NBUUVFSUlPejlFem04Ri9oSnluNTBrM3BVcW5Dc08wRVdGSjAxbmJjWFE1MFpyV0pvQW9HQ0NxR1NNNDkKQXdFSG9VUURRZ0FFNmlIZUZrSHRBajd1TENZOUlTdGk1TUZoaTkvaDYrbkVLbzFUOWdlcHd0UFR3MnpYNTRabgpkZTZ0NnJlM3VxUjAvcWhXcGF5TVhxb25HSEltTmsyZ3dRPT0KLS0tLS1FTkQgRUMgUFJJVkFURSBLRVktLS0tLQo";
     const EC_PUBLIC: &[u8] = b"LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFNmlIZUZrSHRBajd1TENZOUlTdGk1TUZoaTkvaAo2K25FS28xVDlnZXB3dFBUdzJ6WDU0Wm5kZTZ0NnJlM3VxUjAvcWhXcGF5TVhxb25HSEltTmsyZ3dRPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg";
@@ -150,11 +159,7 @@ pub mod tests {
     fn verify_totp_ok() {
         const SECRET: &[u8] = "hello world".as_bytes();
 
-        let code = TOTPBuilder::new()
-            .key(SECRET)
-            .period(30)
-            .hash_function(Sha256)
-            .finalize()
+        let code = generate_totp(SECRET)
             .unwrap()
             .generate();
 

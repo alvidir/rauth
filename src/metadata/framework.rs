@@ -86,13 +86,12 @@ impl MetadataRepository for PostgresMetadataRepository {
             created_at: meta.created_at,
             updated_at: meta.updated_at,
         };
-        
-        { // block is required because of connection release            
-            let connection = get_connection().get()?;
-            diesel::update(metadata)
-                .set(&pg_meta)
-                .execute(&connection)?;
-        }
+                 
+        let connection = get_connection().get()?;
+        diesel::update(metadata)
+            .filter(id.eq(meta.id))
+            .set(&pg_meta)
+            .execute(&connection)?;
 
         Ok(())
     }

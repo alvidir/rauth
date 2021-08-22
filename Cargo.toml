@@ -22,7 +22,7 @@ openssl = "0.10.35"
 lazy_static = "1.4.0"
 serde = "1.0.126"
 bson = "1.2.2"
-libreauth = "0.14.1"
+libreauth = { version = "0.14.1", features = ["oath-uri"]}
 jsonwebtoken = "7.2.0"
 log = "0.4.14"
 env_logger = "0.9.0"

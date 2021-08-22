@@ -92,63 +92,63 @@ impl InMemorySessionRepository {
     }
 
     fn get_readable_sids(sids_arc: &Arc<RwLock<HashSet<String>>>) -> Result<RwLockReadGuard<HashSet<String>>, Box<dyn Error>> {
-        let sids_rd = sids_arc.read();
-        if let Err(err) = sids_rd {
-            error!("read-only lock for set of sessions IDs got poisoned: {}", err);
-            return Err(errors::POISONED.into());
+        match sids_arc.read() {
+            Ok(sids) => Ok(sids),
+            Err(err) => {
+                error!("read-only lock for set of sessions IDs got poisoned: {}", err);
+                Err(errors::POISONED.into())
+            }
         }
-
-        Ok(sids_rd.unwrap()) // this line will not panic due the previous check of Err
     }
 
     fn get_writable_sids(sids_arc: &Arc<RwLock<HashSet<String>>>) -> Result<RwLockWriteGuard<HashSet<String>>, Box<dyn Error>> {
-        let sids_wr = sids_arc.write();
-        if let Err(err) = sids_wr {
-            error!("read-write lock for set of sessions IDs got poisoned: {}", err);
-            return Err(errors::POISONED.into());
+        match sids_arc.write() {
+            Ok(sids) => Ok(sids),
+            Err(err) => {
+                error!("read-write lock for set of sessions IDs got poisoned: {}", err);
+                Err(errors::POISONED.into())
+            }
         }
-
-        Ok(sids_wr.unwrap()) // this line will not panic due the previous check of Err
     }
 
     fn get_readable_repo(&self) -> Result<RwLockReadGuard<HashMap<String, Arc<RwLock<Session>>>>, Box<dyn Error>> {
-        let repo_rd = self.all_instances.read();
-        if let Err(err) = &repo_rd {
-            error!("read-only lock for all_instances from session's repo got poisoned: {}", err);
-            return Err(errors::POISONED.into());
+        match self.all_instances.read() {
+            Ok(repo) => Ok(repo),
+            Err(err) => {
+                error!("read-only lock for all_instances from session's repo got poisoned: {}", err);
+                Err(errors::POISONED.into())
+            }
         }
-
-        Ok(repo_rd.unwrap()) // this line will not panic due the previous check of Err
     }
 
     fn get_writable_repo(&self) -> Result<RwLockWriteGuard<HashMap<String, Arc<RwLock<Session>>>>, Box<dyn Error>> {
-        let repo_wr = self.all_instances.write();
-        if let Err(err) = &repo_wr {
-            error!("read-write lock for all_instances from session's repo got poisoned: {}", err);
-            return Err(errors::POISONED.into());
+        match self.all_instances.write() {
+            Ok(repo) => Ok(repo),
+            Err(err) => {
+                error!("read-write lock for all_instances from session's repo got poisoned: {}", err);
+                Err(errors::POISONED.into())
+            }
         }
-
-        Ok(repo_wr.unwrap()) // this line will not panic due the previous check of Err
     }
 
     fn get_readable_group(&self) -> Result<RwLockReadGuard<HashMap<String, Arc<RwLock<HashSet<String>>>>>, Box<dyn Error>>{
-        let group_rd = self.group_by_app.read();
-        if let Err(err) = &group_rd {
-            error!("read-only lock for group_by_app from session's repo got poisoned: {}", err);
-            return Err(errors::POISONED.into());
+        match self.group_by_app.read() {
+            Ok(group) => Ok(group),
+            Err(err) => {
+                error!("read-only lock for group_by_app from session's repo got poisoned: {}", err);
+                Err(errors::POISONED.into())
+            }
         }
-
-        Ok(group_rd.unwrap()) // this line will not panic due the previous check of Err
     }
 
     fn get_writable_group(&self) -> Result<RwLockWriteGuard<HashMap<String, Arc<RwLock<HashSet<String>>>>>, Box<dyn Error>>{
-        let group_wr = self.group_by_app.write();
-        if let Err(err) = &group_wr {
-            error!("read-write lock for group_by_app from session's repo got poisoned: {}", err);
-            return Err(errors::POISONED.into());
+        match self.group_by_app.write() {
+            Ok(group) => Ok(group),
+            Err(err) => {
+                error!("read-write lock for group_by_app from session's repo got poisoned: {}", err);
+                Err(errors::POISONED.into())
+            }
         }
-
-        Ok(group_wr.unwrap()) // this line will not panic due the previous check of Err
     }
 
     fn create_group(&self, url: &str, sid: &str) -> Result<(), Box<dyn Error>> {

@@ -125,6 +125,14 @@ fn user_enable_two_factor_authenticator(sess: &mut Session, totp: &str) -> Resul
             let token = security::get_random_string(settings::TOKEN_LEN);
             sess.store(TOTP_SECRET_PROPOSAL_KEY, &token);
             Ok(token)
+
+            // let issuer = match env::var(environment::APP_NAME) {
+            //     Ok(app_name) => app_name,
+            //     Err(_) => "".to_string(),
+            // };
+            
+            // let uri = security::get_uri_format(token.as_bytes(), &issuer, sess.get_user().get_email())?;
+            //Ok(uri)
         }
     }
 }
@@ -140,6 +148,7 @@ fn user_disable_two_factor_authenticator(sess: &mut Session, totp: &str) -> Resu
 
     // this block got duplicated in order to avoid mutability collisions
     if let Some(secret) = sess.get_user_mut().set_secret(None) {
+        get_user_repository().save(sess.get_user())?;
         get_secret_repository().delete(&secret)?;
     }
     
@@ -180,17 +189,42 @@ pub fn user_two_factor_authenticator(token: &str,
 #[cfg(feature = "integration-tests")]
 mod tests {
     use std::time::Duration;
+    use openssl::sign::Signer;
+    use openssl::pkey::{PKey};
+    use openssl::ec::EcKey;
+    use openssl::hash::MessageDigest;
+    
     use crate::constants::settings;
     use crate::security;
     use crate::secret::get_repository as get_secret_repository;
     use crate::metadata::get_repository as get_meta_repository;
+    use crate::directory::get_repository as get_dir_repository;
 
-    use super::{user_signup, user_verify, user_delete};
+    use crate::session::{
+        application as sess_application,
+    };
+
+    use crate::app::{
+        application as app_application,
+        get_repository as get_app_repository,
+    };
+
+    use super::{
+        user_signup,
+        user_verify,
+        user_delete,
+        user_two_factor_authenticator,
+        TfaActions
+    };
+
     use super::super::{
         domain::Token,
         get_repository as get_user_repository,
     };
 
+
+    const EC_SECRET: &[u8] = b"LS0tLS1CRUdJTiBFQyBQUklWQVRFIEtFWS0tLS0tCk1IY0NBUUVFSUlPejlFem04Ri9oSnluNTBrM3BVcW5Dc08wRVdGSjAxbmJjWFE1MFpyV0pvQW9HQ0NxR1NNNDkKQXdFSG9VUURRZ0FFNmlIZUZrSHRBajd1TENZOUlTdGk1TUZoaTkvaDYrbkVLbzFUOWdlcHd0UFR3MnpYNTRabgpkZTZ0NnJlM3VxUjAvcWhXcGF5TVhxb25HSEltTmsyZ3dRPT0KLS0tLS1FTkQgRUMgUFJJVkFURSBLRVktLS0tLQo";
+    const EC_PUBLIC: &[u8] = b"LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFNmlIZUZrSHRBajd1TENZOUlTdGk1TUZoaTkvaAo2K25FS28xVDlnZXB3dFBUdzJ6WDU0Wm5kZTZ0NnJlM3VxUjAvcWhXcGF5TVhxb25HSEltTmsyZ3dRPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg";
     const PASSWORD: &str = "936a185caaa266bb9cbe981e9e05cb78cd732b0b3280eb944412bb6f8f8f07af";
 
     #[test]
@@ -203,6 +237,19 @@ mod tests {
 
         let user = get_user_repository().find_by_email(EMAIL).unwrap();
         get_meta_repository().find(user.meta.get_id()).unwrap();
+
+        get_user_repository().delete(&user).unwrap();
+    }
+
+    #[test]
+    fn user_signup_repeated_should_fail() {
+        dotenv::dotenv().unwrap();
+
+        const EMAIL: &str = "user_signup_repeated_should_fail@testing.com";
+
+        user_signup(EMAIL, PASSWORD).unwrap();
+        let user = get_user_repository().find_by_email(EMAIL).unwrap();
+        assert!(user_signup(EMAIL, PASSWORD).is_err());
 
         get_user_repository().delete(&user).unwrap();
     }
@@ -224,7 +271,7 @@ mod tests {
         let user = get_user_repository().find_by_email(EMAIL).unwrap(); // get the updated data of the user
         assert!(user.verified_at.is_some());
 
-        user_delete(EMAIL, PASSWORD, "").unwrap();
+        get_user_repository().delete(&user).unwrap();
     }
 
     #[test]
@@ -239,5 +286,141 @@ mod tests {
         assert!(user_delete(EMAIL, PASSWORD, "").is_ok());
         assert!(get_user_repository().find(user.id).is_err());
         assert!(get_meta_repository().find(user.meta.get_id()).is_err());
+    }
+
+    #[test]
+    fn user_delete_with_wrong_password_should_fail() {
+        dotenv::dotenv().unwrap();
+
+        const EMAIL: &str = "user_delete_with_wrong_password_should_fail@testing.com";
+
+        user_signup(EMAIL, PASSWORD).unwrap();
+        let user = get_user_repository().find_by_email(EMAIL).unwrap();
+
+        assert!(user_delete(EMAIL, "fakepassword", "").is_err());
+        get_user_repository().delete(&user).unwrap();
+    }
+
+    #[test]
+    fn user_tfa_enable_should_not_fail() {
+        dotenv::dotenv().unwrap();
+
+        const URL: &str = "http://user.tfa.enable.should.not.fail";
+        const EMAIL: &str = "user_tfa_enable_should_not_fail@testing.com";
+
+        let private = base64::decode(EC_SECRET).unwrap();
+        let eckey = EcKey::private_key_from_pem(&private).unwrap();
+        let keypair = PKey::from_ec_key(eckey).unwrap();
+
+        let mut signer = Signer::new(MessageDigest::sha256(), &keypair).unwrap();
+        signer.update(URL.as_bytes()).unwrap();
+        signer.update(EC_PUBLIC).unwrap();
+        let signature = signer.sign_to_vec().unwrap();
+
+        app_application::app_register(URL, EC_PUBLIC, &signature).unwrap();
+        let app = get_app_repository().find_by_url(URL).unwrap();
+
+        user_signup(EMAIL, PASSWORD).unwrap();
+
+        let user = get_user_repository().find_by_email(EMAIL).unwrap();
+        let claim = Token::new(&user, Duration::from_secs(settings::TOKEN_TIMEOUT));
+        let token = security::encode_jwt(claim).unwrap();
+        user_verify(&token).unwrap();
+
+        let token = sess_application::session_login(EMAIL, PASSWORD, "", URL).unwrap();
+
+        // generate secret proposal
+        let secret = user_two_factor_authenticator(&token, PASSWORD, "", TfaActions::ENABLE).unwrap();
+        assert_ne!("", secret);
+        assert!(user.secret.is_none());
+
+        let code = security::generate_totp(secret.as_bytes())
+            .unwrap()
+            .generate();
+
+        assert_eq!(code.len(), 6);
+
+        // confirm secret
+        let secret = user_two_factor_authenticator(&token, PASSWORD, &code, TfaActions::ENABLE).unwrap();
+        assert_eq!("", secret);
+
+        let user_id: i32 = user.get_id();
+        let user = get_user_repository().find(user_id).unwrap(); // get the user up to date
+        assert!(user.secret.is_some());
+
+        let secret_id: i32 = user.secret.unwrap().get_id(); 
+        assert!(get_secret_repository().find(secret_id).is_ok());
+
+        // clear up data
+        let mut signer = Signer::new(MessageDigest::sha256(), &keypair).unwrap();
+        signer.update(URL.as_bytes()).unwrap();
+        let signature = signer.sign_to_vec().unwrap();
+
+        app_application::app_delete(URL, &signature).unwrap();
+        
+        assert!(user_delete(EMAIL, PASSWORD, "").is_err());
+        assert!(user_delete(EMAIL, PASSWORD, &code).is_ok());
+
+        assert!(get_dir_repository().find_by_user_and_app(user_id, app.get_id()).is_err());
+        assert!(get_secret_repository().find(secret_id).is_err());
+    }
+
+    #[test]
+    fn user_tfa_disable_should_not_fail() {
+        dotenv::dotenv().unwrap();
+
+        const URL: &str = "http://user.tfa.disable.should.not.fail";
+        const EMAIL: &str = "user_tfa_disable_should_not_fail@testing.com";
+
+        let private = base64::decode(EC_SECRET).unwrap();
+        let eckey = EcKey::private_key_from_pem(&private).unwrap();
+        let keypair = PKey::from_ec_key(eckey).unwrap();
+
+        let mut signer = Signer::new(MessageDigest::sha256(), &keypair).unwrap();
+        signer.update(URL.as_bytes()).unwrap();
+        signer.update(EC_PUBLIC).unwrap();
+        let signature = signer.sign_to_vec().unwrap();
+
+        app_application::app_register(URL, EC_PUBLIC, &signature).unwrap();
+        let app = get_app_repository().find_by_url(URL).unwrap();
+
+        user_signup(EMAIL, PASSWORD).unwrap();
+
+        let user = get_user_repository().find_by_email(EMAIL).unwrap();
+        let claim = Token::new(&user, Duration::from_secs(settings::TOKEN_TIMEOUT));
+        let token = security::encode_jwt(claim).unwrap();
+        user_verify(&token).unwrap();
+
+        let token = sess_application::session_login(EMAIL, PASSWORD, "", URL).unwrap();
+
+        // generate secret proposal
+        let secret = user_two_factor_authenticator(&token, PASSWORD, "", TfaActions::ENABLE).unwrap();
+        let code = security::generate_totp(secret.as_bytes())
+            .unwrap()
+            .generate();
+
+        // confirm secret
+        user_two_factor_authenticator(&token, PASSWORD, &code, TfaActions::ENABLE).unwrap();
+        
+        let user_id: i32 = user.get_id();
+        let user = get_user_repository().find(user_id).unwrap(); // get the user up to date
+        let secret_id: i32 = user.secret.unwrap().get_id();
+
+        // disable tfa
+        let secret = user_two_factor_authenticator(&token, PASSWORD, &code, TfaActions::DISABLE).unwrap();
+        assert_eq!(secret, "");
+        
+        let user = get_user_repository().find(user_id).unwrap(); // get the user up to date
+        assert!(user.secret.is_none());
+        assert!(get_secret_repository().find(secret_id).is_err());
+
+        // clear up data
+        let mut signer = Signer::new(MessageDigest::sha256(), &keypair).unwrap();
+        signer.update(URL.as_bytes()).unwrap();
+        let signature = signer.sign_to_vec().unwrap();
+
+        app_application::app_delete(URL, &signature).unwrap();
+        assert!(user_delete(EMAIL, PASSWORD, "").is_ok());
+        assert!(get_dir_repository().find_by_user_and_app(user_id, app.get_id()).is_err());
     }
 }

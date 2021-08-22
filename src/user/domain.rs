@@ -110,10 +110,8 @@ impl Token {
 #[cfg(test)]
 pub mod tests {
     use std::time::{SystemTime, Duration};
-    use std::thread::sleep;
     use crate::metadata::domain::tests::new_metadata;
     use crate::time::unix_timestamp;
-    use crate::security;
     use super::{User, Token};
         
     pub fn new_user() -> User {
@@ -215,8 +213,10 @@ pub mod tests {
     }
 
     #[test]
-    #[ignore]
+    #[cfg(feature = "integration-tests")]
     fn user_token_encode_should_not_fail() {
+        use crate::security;
+        
         dotenv::dotenv().unwrap();
 
         let user = new_user();
@@ -237,8 +237,11 @@ pub mod tests {
     }
 
     #[test]
-    #[ignore]
+    #[cfg(feature = "integration-tests")]
     fn user_token_expired_should_fail() {
+        use std::thread::sleep;
+        use crate::security;
+
         dotenv::dotenv().unwrap();
 
         let user = new_user();

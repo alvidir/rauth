@@ -103,9 +103,9 @@ impl UserService for UserServiceImplementation {
                                                                 &msg_ref.totp,
                                                                 action) {
             Err(err) => Err(Status::aborted(err.to_string())),
-            Ok(secret) => Ok(Response::new(
+            Ok(uri) => Ok(Response::new(
                 TfaResponse{
-                    secret: secret.as_bytes().to_vec(),
+                    uri: uri,
                 }
             )),
         }
@@ -116,6 +116,7 @@ impl UserService for UserServiceImplementation {
 #[derive(Identifiable)]
 #[derive(AsChangeset)]
 #[derive(Clone)]
+#[changeset_options(treat_none_as_null = "true")]
 #[table_name = "users"]
 struct PostgresUser {
     pub id: i32,
@@ -238,7 +239,7 @@ impl UserRepository for PostgresUserRepository {
             secret_id: if let Some(secret) = &user.secret {Some(secret.get_id())} else {None},
             meta_id: user.meta.get_id(),
         };
-                 
+        
         let connection = get_connection().get()?;
         diesel::update(users)
             .filter(id.eq(user.id))

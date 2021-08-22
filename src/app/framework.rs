@@ -175,13 +175,12 @@ impl AppRepository for PostgresAppRepository {
             secret_id: app.secret.get_id(),
             meta_id: app.meta.get_id(),
         };
-        
-        { // block is required because of connection release            
-            let connection = get_connection().get()?;
-            diesel::update(apps)
-                .set(&pg_app)
-                .execute(&connection)?;
-        }
+               
+        let connection = get_connection().get()?;
+        diesel::update(apps)
+            .filter(id.eq(app.id))
+            .set(&pg_app)
+            .execute(&connection)?;
 
         Ok(())
     }
