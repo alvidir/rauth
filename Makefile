@@ -29,6 +29,9 @@ setup:
 
 deploy:
 	podman-compose -f docker-compose.yaml up --remove-orphans -d
+
+logs:
+	podman logs --follow --names tpauth-server
 	
 migration:
 	diesel migration run

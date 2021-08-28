@@ -9,8 +9,6 @@ services:
         volumes:
             - dbdata:/data/postgres
             - "./migrations/.postgres:/docker-entrypoint-initdb.d"
-        ports:
-            - 5432:5432
         networks: 
             - database
         env_file:
@@ -31,30 +29,30 @@ services:
         env_file:
             - ".env"
     
-    ### ENVOY PROXY ###
-    # envoy:
-    #     container_name: tpauth-envoy
-    #     image: alvidir/tpauth:0.1.0-envoy
-    #     restart: always
-    #     ports:
-    #         - "5050:5050"
-    #         - "9901:9901"
-    #     networks:
-    #         - ingress
+    ## ENVOY PROXY ###
+    envoy:
+        container_name: tpauth-envoy
+        image: localhost/alvidir/tpauth:0.2.0-envoy
+        restart: always
+        ports:
+            - "8080:8080"
+            - "9901:9901"
+        networks:
+            - ingress
         
-    ### BACKEND ###
-    # tpauth:
-    #     container_name: tpauth-server
-    #     image: alvidir/tpauth:0.2.0-server
-    #     restart: always
-    #     networks: 
-    #         - ingress
-    #         - database
-    #     depends_on: 
-    #         - postgres
-    #         - envoy
-    #     env_file:
-    #         - .env
+    ## BACKEND ###
+    tpauth:
+        container_name: tpauth-server
+        image: localhost/alvidir/tpauth:0.2.0-server
+        restart: always
+        networks: 
+            - ingress
+            - database
+        depends_on: 
+            - postgres
+            - envoy
+        env_file:
+            - .env
 
 networks:
     # Ingress network works as bridge between envoyproxy and the available services

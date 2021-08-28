@@ -4,14 +4,14 @@ RUN USER=root cargo new --bin tpauth
 RUN apt-get install -y pkg-config libssl-dev libpq-dev
 
 WORKDIR /tpauth
-COPY ./Cargo.toml ./Cargo.toml
-RUN cargo build --release
-RUN rm src/*.rs
+# COPY ./Cargo.toml ./Cargo.toml
+# RUN cargo build --release
+# RUN rm src/*.rs
 
 RUN rustup component add rustfmt --toolchain 1.53.0-x86_64-unknown-linux-gnu
 ADD . ./
 
-RUN rm ./target/release/deps/tpauth*
+# RUN rm ./target/release/deps/tpauth*
 RUN cargo build --release
 
 ######## Start a new stage from scratch #######
