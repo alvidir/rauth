@@ -1,9 +1,9 @@
 FROM docker.io/rust:latest as builder
 
-RUN USER=root cargo new --bin oauth
+RUN USER=root cargo new --bin tpauth
 RUN apt-get install -y pkg-config libssl-dev libpq-dev
 
-WORKDIR /oauth
+WORKDIR /tpauth
 COPY ./Cargo.toml ./Cargo.toml
 RUN cargo build --release
 RUN rm src/*.rs
@@ -11,7 +11,7 @@ RUN rm src/*.rs
 RUN rustup component add rustfmt --toolchain 1.53.0-x86_64-unknown-linux-gnu
 ADD . ./
 
-RUN rm ./target/release/deps/oauth*
+RUN rm ./target/release/deps/tpauth*
 RUN cargo build --release
 
 ######## Start a new stage from scratch #######
@@ -29,11 +29,11 @@ RUN groupadd $APP_USER \
     && useradd -g $APP_USER $APP_USER \
     && mkdir -p ${APP}
 
-COPY --from=builder /oauth/target/release/oauth ${APP}/oauth
+COPY --from=builder /tpauth/target/release/tpauth ${APP}/tpauth
 
 RUN chown -R $APP_USER:$APP_USER ${APP}
 
 USER $APP_USER
 WORKDIR ${APP}
 
-CMD ["./oauth"]
+CMD ["./tpauth"]

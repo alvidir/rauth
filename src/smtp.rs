@@ -35,7 +35,7 @@ pub fn send_verification_email(to: &str, token: &str) -> Result<(), Box<dyn Erro
     
     let prefix = match env::var(environment::APP_NAME) {
         Ok(app_name) => app_name,
-        Err(_) => "OAuth".to_string(),
+        Err(_) => "tpauth".to_string(),
     };
 
     let subject = format!("[{}] Verification email", prefix);

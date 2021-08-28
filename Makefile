@@ -1,7 +1,7 @@
 # Global about the project
 VERSION=0.2.0
 REPO=alvidir
-PROJECT=oauth
+PROJECT=tpauth
 
 install:
 	sudo apt install libpq-dev
@@ -12,7 +12,7 @@ all: build setup deploy
 
 build:
 	podman build -t ${REPO}/${PROJECT}:${VERSION}-envoy -f ./docker/envoy/dockerfile .
-	podman build -t ${REPO}/${PROJECT}:${VERSION}-server -f ./docker/oauth/dockerfile .
+	podman build -t ${REPO}/${PROJECT}:${VERSION}-server -f ./docker/tpauth/dockerfile .
 	
 setup:
 	mkdir -p .ssh/

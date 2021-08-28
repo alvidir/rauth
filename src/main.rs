@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate log;
 
-use oauth::{
+use tpauth::{
     user,
     app,
     session,
