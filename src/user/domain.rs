@@ -125,6 +125,17 @@ pub mod tests {
         }
     }
 
+    pub fn new_user_custom(id: i32, email: &str) -> User {
+        User{
+            id: id,
+            email: email.to_string(),
+            password: "ABCDEF1234567890".to_string(),
+            verified_at: None,
+            secret: None,
+            meta: new_metadata(),
+        }
+    }
+
     #[test]
     fn user_new_should_not_fail() {
         const PWD: &str = "ABCDEF1234567890";

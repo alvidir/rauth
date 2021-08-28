@@ -5,8 +5,11 @@ use tonic::{Request, Response, Status};
 use crate::security;
 use crate::constants::{settings, errors};
 use crate::app::domain::App;
-use super::domain::{Session, SessionRepository};
-use super::application::get_writable_session;
+use super::domain::{
+    Session,
+    SessionRepository,
+    GroupByAppRepository
+};
 
 // Import the generated rust code into module
 mod proto {
@@ -65,13 +68,19 @@ impl SessionService for SessionServiceImplementation {
 
 pub struct InMemorySessionRepository {
     all_instances: RwLock<HashMap<String, Arc<RwLock<Session>>>>,
-    group_by_app: RwLock<HashMap<String, Arc<RwLock<HashSet<String>>>>>,
+    sids_by_email: RwLock<HashMap<String, String>>,
+    group_by_app: RwLock<HashMap<i32, Arc<RwLock<HashSet<String>>>>>,
 }
 
 impl InMemorySessionRepository {
     pub fn new() -> Self {
         InMemorySessionRepository {
             all_instances: {
+                let repo = HashMap::new();
+                RwLock::new(repo)
+            },
+
+            sids_by_email: {
                 let repo = HashMap::new();
                 RwLock::new(repo)
             },
@@ -83,36 +92,28 @@ impl InMemorySessionRepository {
         }
     }
 
-    fn session_has_email(sess: &Arc<RwLock<Session>>, email: &str) -> bool {
-        if let Ok(session) = sess.read() {
-            return session.user.get_email() == email;
-        }
-
-        false
-    }
-
-    fn get_readable_sids(sids_arc: &Arc<RwLock<HashSet<String>>>) -> Result<RwLockReadGuard<HashSet<String>>, Box<dyn Error>> {
-        match sids_arc.read() {
-            Ok(sids) => Ok(sids),
-            Err(err) => {
-                error!("read-only lock for set of sessions IDs got poisoned: {}", err);
-                Err(errors::POISONED.into())
-            }
-        }
-    }
-
-    fn get_writable_sids(sids_arc: &Arc<RwLock<HashSet<String>>>) -> Result<RwLockWriteGuard<HashSet<String>>, Box<dyn Error>> {
-        match sids_arc.write() {
-            Ok(sids) => Ok(sids),
-            Err(err) => {
-                error!("read-write lock for set of sessions IDs got poisoned: {}", err);
-                Err(errors::POISONED.into())
-            }
-        }
-    }
-
     fn get_readable_repo(&self) -> Result<RwLockReadGuard<HashMap<String, Arc<RwLock<Session>>>>, Box<dyn Error>> {
         match self.all_instances.read() {
+            Ok(repo) => Ok(repo),
+            Err(err) => {
+                error!("read-only lock for all_instances from session's repo got poisoned: {}", err);
+                Err(errors::POISONED.into())
+            }
+        }
+    }
+
+    fn get_writable_emails(&self) -> Result<RwLockWriteGuard<HashMap<String, String>>, Box<dyn Error>> {
+        match self.sids_by_email.write() {
+            Ok(repo) => Ok(repo),
+            Err(err) => {
+                error!("read-write lock for sids_by_email from session's repo got poisoned: {}", err);
+                Err(errors::POISONED.into())
+            }
+        }
+    }
+
+    fn get_readable_emails(&self) -> Result<RwLockReadGuard<HashMap<String, String>>, Box<dyn Error>> {
+        match self.sids_by_email.read() {
             Ok(repo) => Ok(repo),
             Err(err) => {
                 error!("read-only lock for all_instances from session's repo got poisoned: {}", err);
@@ -131,7 +132,7 @@ impl InMemorySessionRepository {
         }
     }
 
-    fn get_readable_group(&self) -> Result<RwLockReadGuard<HashMap<String, Arc<RwLock<HashSet<String>>>>>, Box<dyn Error>>{
+    fn get_readable_group(&self) -> Result<RwLockReadGuard<HashMap<i32, Arc<RwLock<HashSet<String>>>>>, Box<dyn Error>>{
         match self.group_by_app.read() {
             Ok(group) => Ok(group),
             Err(err) => {
@@ -141,7 +142,7 @@ impl InMemorySessionRepository {
         }
     }
 
-    fn get_writable_group(&self) -> Result<RwLockWriteGuard<HashMap<String, Arc<RwLock<HashSet<String>>>>>, Box<dyn Error>>{
+    fn get_writable_group(&self) -> Result<RwLockWriteGuard<HashMap<i32, Arc<RwLock<HashSet<String>>>>>, Box<dyn Error>>{
         match self.group_by_app.write() {
             Ok(group) => Ok(group),
             Err(err) => {
@@ -151,35 +152,58 @@ impl InMemorySessionRepository {
         }
     }
 
-    fn create_group(&self, url: &str, sid: &str) -> Result<(), Box<dyn Error>> {
-        let mut sids = HashSet::new();
-        sids.insert(sid.to_string());
+    fn get_sid_by_email(&self, email: &str) -> Result<String, Box<dyn Error>> {
+        let by_email = self.get_readable_emails()?;
+        match by_email.get(email) {
+            Some(sid) => Ok(sid.clone()),
+            None => Err(errors::NOT_FOUND.into()),  
+        }
+    }
 
-        let mu = RwLock::new(sids);
+    fn get_session_by_sid(&self, sid: &str) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
+        let repo = self.get_readable_repo()?;
+        match repo.get(sid) {
+            Some(sess) => Ok(Arc::clone(sess)),
+            None => Err(errors::ALREADY_EXISTS.into()),
+        }
+    }
+
+    fn insert_session_into_repo(&self, mut session: Session) -> Result<String, Box<dyn Error>> {
+        let mut repo = self.get_writable_repo()?;
+
+        loop { // make sure the token is unique
+            let sid = security::get_random_string(settings::TOKEN_LEN);
+            if repo.get(&sid).is_none() {
+                session.sid = sid;
+                break;
+            }
+
+            warn!("collition: generated sid already exists");
+        }
+        
+        let token = session.sid.clone();
+        let mu = RwLock::new(session);
         let arc = Arc::new(mu);
 
-        let mut group = self.get_writable_group()?;
-        group.insert(url.to_string(), arc);
+        repo.insert(token.to_string(), arc);
+        Ok(token)
+    }
+
+    fn remove_session_by_sid(&self, sid: &str) -> Result<(), Box<dyn Error>>  {
+        let mut repo = self.get_writable_repo()?;
+        repo.remove(sid);
         Ok(())
     }
 
-    fn destroy_group(&self, url: &str) -> Result<(), Box<dyn Error>> {
-        let mut group = self.get_writable_group()?;
-        let size = {
-            if let Some(sids_arc) = group.get(url){
-                let sids = InMemorySessionRepository::get_readable_sids(sids_arc)?;
-                sids.len()
-            } else {
-                0
-            }
-        };
+    fn insert_sid_by_email(&self, email: &str, sid: &str) -> Result<(), Box<dyn Error>> {
+        let mut by_email = self.get_writable_emails()?;
+        by_email.insert(email.to_string(), sid.to_string());
+        Ok(())
+    }
 
-        if size > 0 {
-            warn!("cannot remove group {}, got size {} want 0", url, size);
-        } else {
-            group.remove(url);
-        }
-
+    fn remove_email(&self, email: &str) -> Result<(), Box<dyn Error>> {
+        let mut by_email = self.get_writable_emails()?;
+        by_email.remove(email);
         Ok(())
     }
 }
@@ -195,142 +219,144 @@ impl SessionRepository for InMemorySessionRepository {
     }
 
     fn find_by_email(&self, email: &str) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
+        let sid = self.get_sid_by_email(email)?;
+        
         let repo = self.get_readable_repo()?;
-        if let Some((_, sess)) = repo.iter().find(|(_, sess)| InMemorySessionRepository::session_has_email(sess, email)) {
-            return Ok(Arc::clone(sess));
+        if let Some(sess_arc) = repo.get(&sid) {
+            Ok(Arc::clone(sess_arc))
+        } else {
+            Err(errors::NOT_FOUND.into())
+        }
+    }
+
+    fn insert(&self, session: Session) -> Result<String, Box<dyn Error>> {
+        let email = session.get_user().get_email().to_string();
+        if let Ok(_) = self.get_sid_by_email(&email) {
+            return Err(errors::ALREADY_EXISTS.into());
+        }
+
+        if let Ok(_) = self.get_session_by_sid(session.get_id()) {
+            return Err(errors::ALREADY_EXISTS.into());
+        }
+
+        let token = self.insert_session_into_repo(session)?;
+        self.insert_sid_by_email(&email, &token)?;
+        Ok(token)
+    }
+
+    fn delete(&self, session: &Session) -> Result<(), Box<dyn Error>> {
+        self.remove_session_by_sid(session.get_id())?;
+        self.remove_email(session.get_user().get_email())?;
+        Ok(())
+    }
+}
+
+impl GroupByAppRepository for InMemorySessionRepository {
+    fn find(&self, app: &App) -> Result<Arc<RwLock<HashSet<String>>>, Box<dyn Error>> {
+        let group = self.get_readable_group()?;
+        if let Some(group) = group.get(&app.get_id()) {
+            return Ok(Arc::clone(group));
         }
 
         Err(errors::NOT_FOUND.into())
     }
 
-    fn insert(&self, mut session: Session) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
-        let mut repo = self.get_writable_repo()?;
-        if let Some(_) = repo.get(&session.sid) {
+    fn insert(&self, app: &App) -> Result<(), Box<dyn Error>> {
+        let mut group = self.get_writable_group()?;
+        if let Some(_) = group.get(&app.get_id()) {
             return Err(errors::ALREADY_EXISTS.into());
         }
 
-        if let Some(_) = repo.iter().find(|(_, sess)| InMemorySessionRepository::session_has_email(sess, session.user.get_email())) {
-            return Err(errors::ALREADY_EXISTS.into());
-        }
-
-        loop { // make sure the token is unique
-            let sid = security::get_random_string(settings::TOKEN_LEN);
-            if repo.get(&sid).is_none() {
-                session.sid = sid;
-                break;
-            }
-        }
-        
-        let token = session.sid.clone();
-        let mu = RwLock::new(session);
+        let sids = HashSet::new();
+        let mu = RwLock::new(sids);
         let arc = Arc::new(mu);
 
-        repo.insert(token.to_string(), arc);
-        let sess = repo.get(&token).unwrap(); // this line will not panic due to the previous insert
-        Ok(Arc::clone(sess))
-    }
-
-    fn delete(&self, session: &Session) -> Result<(), Box<dyn Error>> {
-        let mut repo = self.get_writable_repo()?;
-        if let None = repo.remove(&session.sid) {
-            return Err(errors::NOT_FOUND.into());
-        }
-
+        group.insert(app.get_id(), arc);
         Ok(())
     }
 
-    fn delete_all_by_app(&self, app: &App) -> Result<(), Box<dyn Error>> {    
-        { // write lock is released at the end of this block
-            let group = self.get_readable_group()?;
-            let sids_search = group.get(app.get_url());
-            if let None = sids_search {
-                //return Err(errors::NOT_FOUND.into());
-                return Ok(()); // there is nothing to delete
-            }
-
-            let sids_arc = sids_search.unwrap(); // this line will not panic due to the previous check of None
-            let sids = InMemorySessionRepository::get_readable_sids(sids_arc)?;
-            
-            for sid in sids.iter() {
-                let repo = self.get_writable_repo()?;
-                if let Some(sess_arc) = repo.get(sid) {
-                    let mut sess = get_writable_session(sess_arc)?;
-                    sess.delete_directory(app);
-                }
-            }
-        }
-
-        // and empty group cannot exists, so it must be removed
-        self.destroy_group(app.get_url())
-    }
-
-    fn find_all_by_app(&self, app: &App) -> Result<Vec<Arc<RwLock<Session>>>, Box<dyn Error>> {
-        let sids_arc = {
-            let group = self.get_readable_group()?;
-            match group.get(app.get_url()){
-                Some(sids) => Arc::clone(sids),
-                None => {
-                    return Err(errors::NOT_FOUND.into());
-                }
-            }
-        };
-
-        let sids = InMemorySessionRepository::get_readable_sids(&sids_arc)?;
-        
-        let mut all_sess = Vec::new();
-        for sid in sids.iter() {
-            let repo = self.get_readable_repo()?;
-            if let Some(sess_arc) = repo.get(sid) {
-                all_sess.push(Arc::clone(sess_arc));
-            } else {
-                error!("sid {} exists in group by {} but not found in repository", sid, app.get_url());
-            }
-        }
-
-        Ok(all_sess)
-    }
-
-    fn add_to_app_group(&self, app: &App, sess: &Session) -> Result<(), Box<dyn Error>> {
-        let create = {
-            let group = self.get_readable_group()?;
-            if let Some(sids_arc) = group.get(app.get_url()){
-                let mut sids = InMemorySessionRepository::get_writable_sids(sids_arc)?;
-                if let None = sids.iter().position(|item| *item == sess.sid) {
-                    sids.insert(sess.sid.to_string());
-                }
-
-                false
-            } else {
-                // if no group for the given url has been found then it must be created,
-                // being sid the first session_id to insert
-                true
-            }
-        };
-        
-        if create { // if group == None then ...
-            self.create_group(app.get_url(), &sess.sid)?;
-        }
-
+    fn delete(&self, app: &App) -> Result<(), Box<dyn Error>> {
+        let mut group = self.get_writable_group()?;
+        group.remove(&app.get_id());
         Ok(())
     }
+}
 
-    fn delete_from_app_group(&self, app: &App, sess: &Session) -> Result<(), Box<dyn Error>> {
-        let size = { // read lock is released at the end of this block
-            let group = self.get_readable_group()?;
-            if let Some(sids_arc) = group.get(app.get_url()){
-                let mut sids = InMemorySessionRepository::get_writable_sids(sids_arc)?;
-                sids.remove(&sess.sid);
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+    use crate::constants::settings;
+    use crate::user::domain::tests::new_user_custom;
+    use crate::app::domain::tests::new_app_custom;
+    use super::super::{
+        get_repository as get_sess_repository,
+        get_group_by_app,
+        domain::Session,
+    };
 
-                sids.len()
-            } else {
-                0
-            }
-        };
+    #[test]
+    fn session_insert_should_not_fail() {
+        let user = new_user_custom(999, "session_insert_should_not_fail@testing.com");
+        let timeout = Duration::from_secs(10);
+        let sess = Session::new(user, timeout);
         
-        if size == 0 {
-            self.destroy_group(app.get_url())?;
-        }
+        let token = get_sess_repository().insert(sess).unwrap();
+        let sess_arc = get_sess_repository().find(&token).unwrap();
+        let sess = sess_arc.read().unwrap();
 
-        Ok(())
+        assert_eq!(settings::TOKEN_LEN, sess.get_id().len());
+    }
+
+    #[test]
+    fn session_insert_repeated_should_fail() {
+        let user = new_user_custom(999, "session_insert_repeated_should_fail@testing.com");
+        let timeout = Duration::from_secs(10);
+        let sess = Session::new(user, timeout);
+        
+        assert!(get_sess_repository().insert(sess).is_ok());
+        
+        let user = new_user_custom(999, "session_insert_repeated_should_fail@testing.com");
+        let timeout = Duration::from_secs(10);
+        let sess = Session::new(user, timeout);
+        assert!(get_sess_repository().insert(sess).is_err());
+    }
+
+    #[test]
+    fn session_find_by_email_should_not_fail() {
+        let user = new_user_custom(999, "session_find_by_email_should_not_fail@testing.com");
+        let timeout = Duration::from_secs(10);
+        let sess = Session::new(user, timeout);
+        
+        get_sess_repository().insert(sess).unwrap();
+        assert!(get_sess_repository().find_by_email("session_find_by_email_should_not_fail@testing.com").is_ok());
+    }
+
+    #[test]
+    fn session_delete_should_not_fail() {
+        let user = new_user_custom(999, "session_delete_should_not_fail@testing.com");
+        let timeout = Duration::from_secs(10);
+        let sess = Session::new(user, timeout);
+        
+        let token = get_sess_repository().insert(sess).unwrap();
+        let sess_arc = get_sess_repository().find(&token).unwrap();
+        let sess = sess_arc.read().unwrap();
+
+        assert!(get_sess_repository().delete(&sess).is_ok());
+        assert!(get_sess_repository().find(&token).is_err());
+    }
+
+    #[test]
+    fn group_by_app_insert_should_not_fail() {
+        let app = new_app_custom(111, "http://group.by.app.insert.should.not.fail.com");
+        assert!(get_group_by_app().insert(&app).is_ok());
+        assert!(get_group_by_app().find(&app).is_ok());
+    }
+
+    #[test]
+    fn group_by_app_delete_should_not_fail() {
+        let app = new_app_custom(222, "http://group.by.app.delete.should.not.fail.com");
+        assert!(get_group_by_app().insert(&app).is_ok());
+        assert!(get_group_by_app().delete(&app).is_ok());
+        assert!(get_group_by_app().find(&app).is_err());
     }
 }

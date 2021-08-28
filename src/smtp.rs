@@ -1,3 +1,5 @@
+#![allow(dead_code, unused_imports, unused_variables)]
+
 use std::error::Error;
 use std::env;
 use lettre::smtp::authentication::Credentials;
@@ -38,6 +40,7 @@ pub fn send_verification_email(to: &str, token: &str) -> Result<(), Box<dyn Erro
 
     let subject = format!("[{}] Verification email", prefix);
     let body = TERA.render("verification_email.html", &context)?;
+
     if let Err(err) = send_email(to, &subject, &body) {
         info!("got error {} while sending verification email to {}", err, to);
         return Err(err);
@@ -56,9 +59,12 @@ pub fn send_email(to: &str, subject: &str, body: &str) -> Result<(), Box<dyn Err
         .html(body)
         .build()?;
 
+    #[cfg(not(test))]
     get_mailer()?.send(email.into())?;
+    
     Ok(())
 }
+
 
 
 #[cfg(test)]

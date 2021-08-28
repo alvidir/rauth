@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::metadata::domain::InnerMetadata;
 use crate::user::domain::User;
@@ -13,14 +13,14 @@ use crate::time::unix_timestamp;
 pub trait SessionRepository {
     fn find(&self, cookie: &str) -> Result<Arc<RwLock<Session>>, Box<dyn Error>>;
     fn find_by_email(&self, email: &str) -> Result<Arc<RwLock<Session>>, Box<dyn Error>>;
-    fn insert(&self, session: Session) -> Result<Arc<RwLock<Session>>, Box<dyn Error>>;
+    fn insert(&self, session: Session) -> Result<String, Box<dyn Error>>;
     fn delete(&self, session: &Session) -> Result<(), Box<dyn Error>>;
-    fn delete_all_by_app(&self, app: &App) -> Result<(), Box<dyn Error>>;
+}
 
-    // group by app methods
-    fn find_all_by_app(&self, app: &App) -> Result<Vec<Arc<RwLock<Session>>>, Box<dyn Error>>;
-    fn add_to_app_group(&self, app: &App, sess: &Session) -> Result<(), Box<dyn Error>>;
-    fn delete_from_app_group(&self, app: &App, sess: &Session) -> Result<(), Box<dyn Error>>;
+pub trait GroupByAppRepository {
+    fn find(&self, app: &App) -> Result<Arc<RwLock<HashSet<String>>>, Box<dyn Error>>;
+    fn insert(&self, app: &App) -> Result<(), Box<dyn Error>>;
+    fn delete(&self, app: &App) -> Result<(), Box<dyn Error>>;
 }
 
 pub struct Session {
@@ -36,18 +36,20 @@ pub struct Session {
 
 impl Session {
     pub fn new(user: User,
-               timeout: Duration) -> Result<Arc<RwLock<Session>>, Box<dyn Error>> {
+               timeout: Duration) -> Self {
 
-        let sess = Session{
+        Session{
             sid: "".to_string(), // will be set by the repository controller down below
             deadline: SystemTime::now() + timeout,
             user: user,
             apps: HashMap::new(),
             meta: InnerMetadata::new(),
             sandbox: HashMap::new(),
-        };
+        }
+    }
 
-        super::get_repository().insert(sess)
+    pub fn get_id(&self) -> &str {
+        &self.sid
     }
 
     pub fn get_user(&self) -> &User {
@@ -136,7 +138,6 @@ pub mod tests {
     use crate::directory::domain::tests::new_directory;
     use crate::app::domain::tests::new_app;
     use crate::time::unix_timestamp;
-    use crate::constants::settings;
     use super::{Session, Token};
 
     pub fn new_session() -> Session {
@@ -158,11 +159,9 @@ pub mod tests {
         let user_id = user.get_id();
 
         let before = SystemTime::now();
-        let sess_arc = Session::new(user, TIMEOUT).unwrap();
+        let sess = Session::new(user, TIMEOUT);
         let after = SystemTime::now();
-        let sess = sess_arc.read().unwrap();
         
-        assert_eq!(settings::TOKEN_LEN, sess.sid.len());
         assert!(sess.deadline < after + TIMEOUT);
         assert!(sess.deadline > before + TIMEOUT);
 

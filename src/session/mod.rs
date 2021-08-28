@@ -11,3 +11,7 @@ lazy_static! {
 pub fn get_repository() -> Box<&'static dyn domain::SessionRepository> {
     Box::new(&*REPO_PROVIDER)
 }
+
+pub fn get_group_by_app() -> Box<&'static dyn domain::GroupByAppRepository> {
+    Box::new(&*REPO_PROVIDER)
+}

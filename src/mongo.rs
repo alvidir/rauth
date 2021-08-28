@@ -1,26 +1,25 @@
 use mongodb::{
     bson::doc,
-    sync::{Client, Collection, Database},
+    sync::{Client, Collection},
 };
 
 use std::env;
 use crate::constants::{environment, errors};
 
-struct Stream {
-   db_connection: Database,
+struct Conn {
+   client: Client,
+   db_name: String,
 }
 
 lazy_static! {
-    static ref STREAM: Stream = {
-        Stream {
-            db_connection: {
+    static ref CONN: Conn = {
+        Conn {
+            client: {
                 let mongo_dsn = env::var(environment::MONGO_DSN).expect("mongodb dsn must be set");
-                let mongo_db = env::var(environment::MONGO_DB).expect("mongodb database name must be set");
-
                 match Client::with_uri_str(&mongo_dsn) {
                     Ok(client) => {
                         info!("connection with mongodb cluster established");
-                        client.database(&mongo_db)
+                        client
                     },
                     Err(err) => {
                         error!("{}", err);
@@ -28,11 +27,13 @@ lazy_static! {
                     } 
                 }               
             },
+            
+            db_name: env::var(environment::MONGO_DB).expect("mongodb database name must be set"),
         }
     };
 }
 
 pub fn get_connection(name: &str) -> Collection {
     // Get a handle to a database.
-    STREAM.db_connection.collection(name)
+    CONN.client.clone().database(&CONN.db_name).collection(name)
 }

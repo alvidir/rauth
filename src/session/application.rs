@@ -1,6 +1,7 @@
 use std::error::Error;
 use std::time::Duration;
 use std::sync::{Arc, RwLock, RwLockWriteGuard};
+use std::collections::HashSet;
 
 use crate::user::get_repository as get_user_repository;
 use crate::app::get_repository as get_app_repository;
@@ -14,14 +15,25 @@ use crate::security;
 
 use super::{
     get_repository as get_sess_repository,
+    get_group_by_app,
     domain::{Session, Token},
 };
 
-pub fn get_writable_session(sess_arc: &Arc<RwLock<Session>>) -> Result<RwLockWriteGuard<Session>, Box<dyn Error>> {
+fn get_writable_session(sess_arc: &Arc<RwLock<Session>>) -> Result<RwLockWriteGuard<Session>, Box<dyn Error>> {
     match sess_arc.write() {
         Ok(sess) => Ok(sess),
         Err(err) => {
             error!("read-write lock for session got poisoned: {}", err);
+            Err(errors::POISONED.into())
+        }
+    }
+}
+
+fn get_writable_sids(sids_arc: &Arc<RwLock<HashSet<String>>>) -> Result<RwLockWriteGuard<HashSet<String>>, Box<dyn Error>> {
+    match sids_arc.write() {
+        Ok(sids) => Ok(sids),
+        Err(err) => {
+            error!("read-write lock for sids got poisoned: {}", err);
             Err(errors::POISONED.into())
         }
     }
@@ -55,7 +67,9 @@ pub fn session_login(email: &str,
         Ok(sess_arc) => sess_arc,
         Err(_) => {
             let timeout =  Duration::from_secs(settings::TOKEN_TIMEOUT);
-            Session::new(user, timeout)?
+            let sess = Session::new(user, timeout);
+            let sid = get_sess_repository().insert(sess)?;
+            get_sess_repository().find(&sid)?
         }
     };
 
@@ -79,7 +93,18 @@ pub fn session_login(email: &str,
             }
 
             // subscribe the session's sid into the app's group 
-            get_sess_repository().add_to_app_group(&app, &sess)?;
+            let sids_arc = match get_group_by_app().find(&app) {
+                Ok(sids_arc) => sids_arc,
+                Err(_) => {
+                    get_group_by_app().insert(&app)?;
+                    get_group_by_app().find(&app)?
+                }
+            };
+
+            let mut sids = get_writable_sids(&sids_arc)?;
+            if !sids.insert(sess.get_id().to_string()) {
+                return Err(errors::ALREADY_EXISTS.into());
+            }
         }
 
         token
@@ -99,9 +124,13 @@ pub fn session_logout(token: &str) -> Result<(), Box<dyn Error>> {
 
     let app = get_app_repository().find(claim.app)?;
     if let Some(dir) = sess.delete_directory(&app) {
-        // unsubscribe the session's from the app's group 
-        get_sess_repository().delete_from_app_group(&app, &sess)?;
         get_dir_repository().save(&dir)?;
+
+        // unsubscribe the session's from the app's group 
+        if let Ok(sids_arc) = get_group_by_app().find(&app) {
+            let mut sids = get_writable_sids(&sids_arc)?;
+            sids.remove(sess.get_id());
+        }
     }
 
     if sess.apps.len() == 0 {
@@ -213,6 +242,7 @@ mod tests {
         user_application::user_verify(&token).unwrap();
 
         let token = session_login(EMAIL, PASSWORD, "", URL).unwrap();
+
         assert!(session_logout(&token).is_ok());
         assert!(get_sess_repository().find_by_email(EMAIL).is_err());
         assert!(get_dir_repository().find_by_user_and_app(user.get_id(), app.get_id()).is_ok());
@@ -227,4 +257,5 @@ mod tests {
 
         assert!(get_dir_repository().find_by_user_and_app(user.get_id(), app.get_id()).is_err());
     }
+
 }

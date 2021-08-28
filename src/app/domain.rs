@@ -61,6 +61,15 @@ pub mod tests {
         }
     }
 
+    pub fn new_app_custom(id: i32, url: &str) -> App {
+        App{
+            id: id,
+            url: url.to_string(),
+            secret: new_secret(),
+            meta: new_metadata(),
+        }
+    }
+
     #[test]
     fn app_new_should_not_fail() {
         const URL: &str = "http://testing.com";

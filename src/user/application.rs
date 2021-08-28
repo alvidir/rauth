@@ -6,7 +6,6 @@ use crate::constants::{errors, settings};
 use crate::smtp;
 use crate::session::{
     get_repository as get_sess_repository,
-    application::get_writable_session,
     domain::{Session, Token as SessionToken},
 };
 
@@ -71,7 +70,14 @@ pub fn user_delete(email: &str,
 
     // if the user was logged in, the session must be removed
     if let Ok(sess_arc) = get_sess_repository().find_by_email(&user.email) {
-        let sess = get_writable_session(&sess_arc)?;
+        let sess = match sess_arc.write() {
+            Ok(sess) => sess,
+            Err(err) => {
+                error!("read-write lock for session got poisoned: {}", err);
+                return Err(errors::POISONED.into());
+            }
+        };
+
         get_sess_repository().delete(&sess)?; // do not save directories
     }
 
@@ -168,7 +174,13 @@ pub fn user_two_factor_authenticator(token: &str,
     // session is required in order to have an ephimeral place where to find the metadata for the action
     // aka: sandbox
     let sess_arc = get_sess_repository().find(&claim.sub)?;
-    let mut sess = get_writable_session(&sess_arc)?;
+    let mut sess = match sess_arc.write() {
+        Ok(sess) => sess,
+        Err(err) => {
+            error!("read-write lock for session got poisoned: {}", err);
+            return Err(errors::POISONED.into());
+        }
+    };
 
     if !sess.get_user().match_password(pwd) {
         return Err(errors::NOT_FOUND.into());
@@ -297,6 +309,7 @@ mod tests {
         user_signup(EMAIL, PASSWORD).unwrap();
         let user = get_user_repository().find_by_email(EMAIL).unwrap();
 
+
         assert!(user_delete(EMAIL, "fakepassword", "").is_err());
         get_user_repository().delete(&user).unwrap();
     }
@@ -328,9 +341,10 @@ mod tests {
         user_verify(&token).unwrap();
 
         let token = sess_application::session_login(EMAIL, PASSWORD, "", URL).unwrap();
-
+        
         // generate secret proposal
         let secret = user_two_factor_authenticator(&token, PASSWORD, "", TfaActions::ENABLE).unwrap();
+
         assert_ne!("", secret);
         assert!(user.secret.is_none());
 
@@ -351,6 +365,7 @@ mod tests {
         let secret_id: i32 = user.secret.unwrap().get_id(); 
         assert!(get_secret_repository().find(secret_id).is_ok());
 
+        
         // clear up data
         let mut signer = Signer::new(MessageDigest::sha256(), &keypair).unwrap();
         signer.update(URL.as_bytes()).unwrap();
@@ -363,6 +378,7 @@ mod tests {
 
         assert!(get_dir_repository().find_by_user_and_app(user_id, app.get_id()).is_err());
         assert!(get_secret_repository().find(secret_id).is_err());
+        
     }
 
     #[test]

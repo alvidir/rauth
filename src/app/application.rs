@@ -1,9 +1,13 @@
 use std::error::Error;
+use crate::constants::errors;
 use crate::metadata::domain::Metadata;
 use crate::secret::domain::Secret;
 use crate::security;
 use crate::directory::get_repository as get_dir_repository;
-use crate::session::get_repository as get_sess_repository;
+use crate::session::{
+    get_repository as get_sess_repository,
+    get_group_by_app,
+};
 use super::{
     get_repository as get_app_repository,
     domain::App,
@@ -47,10 +51,37 @@ pub fn app_delete(url: &str,
     data.push(url.as_bytes());
 
     security::verify_ec_signature(pem, firm, &data)?;
-    
-    get_sess_repository().delete_all_by_app(&app)?;
+
     get_dir_repository().delete_all_by_app(&app)?;
     get_app_repository().delete(&app)?;
+    
+    // delete the app's directory from the current sessions
+    if let Ok(sids_arc) = get_group_by_app().find(&app) {
+        let sids = match sids_arc.read() {
+            Ok(sids) => sids,
+            Err(err) => {
+                error!("read lock for group_by_app got poisoned: {}", err);
+                return Err(errors::POISONED.into());
+            }
+        };
+        
+        get_group_by_app().delete(&app)?;
+    
+        for sid in sids.iter() {
+            if let Ok(sess_arc) = get_sess_repository().find(sid) {
+                let mut sess = match sess_arc.write() {
+                    Ok(sess) => sess,
+                    Err(err) => {
+                        error!("read-write lock for session got poisoned: {}", err);
+                        return Err(errors::POISONED.into());
+                    }
+                };
+    
+                sess.delete_directory(&app);
+            }
+        }
+    }
+    
     Ok(())
 }
 
