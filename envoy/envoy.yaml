@@ -52,7 +52,7 @@ static_resources:
                 address:
                   socket_address:
                     address: tpauth-server
-                    port_value: 8081
+                    port_value: 8000
 
 layered_runtime:
   layers:
