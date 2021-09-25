@@ -4,11 +4,11 @@ services:
     ### DATABASE ###
     postgres:
         container_name: postgres
-        image: postgres:latest
+        image: docker.io/postgres:latest
         restart: on-failure
         volumes:
             - dbdata:/data/postgres
-            - "./migrations/.postgres:/docker-entrypoint-initdb.d"
+            - ./migrations/.postgres:/docker-entrypoint-initdb.d
         networks: 
             - database
         env_file:
@@ -16,7 +16,7 @@ services:
            
     pgadmin:
         container_name: pgadmin
-        image: dpage/pgadmin4:latest
+        image: docker.io/dpage/pgadmin4:latest
         restart: always
         depends_on:
             - postgres
