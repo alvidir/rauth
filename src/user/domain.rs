@@ -100,7 +100,7 @@ impl Token {
         Token {
             exp: unix_timestamp(SystemTime::now() + timeout),
             iat: SystemTime::now(),
-            iss: "tpauth.alvidir.com".to_string(),
+            iss: "rauth.alvidir.com".to_string(),
             sub: user.id,
         }
     }
@@ -219,7 +219,7 @@ pub mod tests {
         assert!(claim.iat >= before && claim.iat <= after);     
         assert!(claim.exp >= unix_timestamp(before + timeout));
         assert!(claim.exp <= unix_timestamp(after + timeout));       
-        assert_eq!("tpauth.alvidir.com", claim.iss);
+        assert_eq!("rauth.alvidir.com", claim.iss);
         assert_eq!(user.id, claim.sub);
     }
 
@@ -243,7 +243,7 @@ pub mod tests {
         assert!(claim.iat >= before && claim.iat <= after);     
         assert!(claim.exp >= unix_timestamp(before + timeout));
         assert!(claim.exp <= unix_timestamp(after + timeout));       
-        assert_eq!("tpauth.alvidir.com", claim.iss);
+        assert_eq!("rauth.alvidir.com", claim.iss);
         assert_eq!(user.id, claim.sub);
     }
 

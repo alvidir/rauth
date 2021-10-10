@@ -1,12 +1,12 @@
-# tpauth
+# rauth
 
-[![Rust version](https://img.shields.io/badge/Rust-v1.54.0-orange.svg)](https://www.rust-lang.org/) [![tests](https://github.com/alvidir/tpauth/actions/workflows/test.yaml/badge.svg?branch=master)](https://github.com/alvidir/tpauth/actions/workflows/test.yaml)
+[![Rust version](https://img.shields.io/badge/Rust-v1.54.0-orange.svg)](https://www.rust-lang.org/) [![tests](https://github.com/alvidir/rauth/actions/workflows/test.yaml/badge.svg?branch=master)](https://github.com/alvidir/rauth/actions/workflows/test.yaml)
 
 Third-party authenticator
 
 ## About
 
-TpAuth is a third-party authentication for all Alvidir's applications. Deployed as a microservice, it will provide a session management for both sides, the user/client, and the application itself.
+Rauth is a third-party authentication for all Alvidir's applications. Deployed as a microservice, it will provide a session management for both sides, the user/client, and the application itself.
 
 ## Architecture
 
@@ -21,7 +21,7 @@ The whole service implementation as well as the files organization has been refa
 
 ## Design
 
-The _conceptual diagram_ about tpauth's model has been done via Draw.io provided by Google. The most up-to-date document can be found clicking [right here](https://drive.google.com/file/d/1huTe3jNqp3A_0WMB6tjhwSkBoqh_uA9F/view?usp=sharing).
+The _conceptual diagram_ about rauth's model has been done via Draw.io provided by Google. The most up-to-date document can be found clicking [right here](https://drive.google.com/file/d/1huTe3jNqp3A_0WMB6tjhwSkBoqh_uA9F/view?usp=sharing).
 
 The main objects of the domain and their role in the system are listed down below:
 

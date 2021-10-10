@@ -121,7 +121,7 @@ impl Token {
         Token {
             exp: unix_timestamp(deadline),
             iat: SystemTime::now(),
-            iss: "tpauth.alvidir.com".to_string(),
+            iss: "rauth.alvidir.com".to_string(),
             sub: sess.sid.clone(),
             app: app.get_id(),
         }
@@ -208,7 +208,7 @@ pub mod tests {
 
         assert!(claim.iat >= before && claim.iat <= after);        
         assert_eq!(claim.exp, unix_timestamp(deadline));
-        assert_eq!("tpauth.alvidir.com", claim.iss);
+        assert_eq!("rauth.alvidir.com", claim.iss);
         assert_eq!(sess.sid, claim.sub);
         assert_eq!(app.get_id(), claim.app);
     }
@@ -233,7 +233,7 @@ pub mod tests {
 
         assert!(claim.iat >= before && claim.iat <= after);        
         assert_eq!(claim.exp, unix_timestamp(deadline));
-        assert_eq!("tpauth.alvidir.com", claim.iss);
+        assert_eq!("rauth.alvidir.com", claim.iss);
         assert_eq!(sess.sid, claim.sub);
         assert_eq!(app.get_id(), claim.app);
     }

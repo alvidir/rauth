@@ -1,7 +1,7 @@
 # Global about the project
 VERSION=0.2.0
 REPO=alvidir
-PROJECT=tpauth
+PROJECT=rauth
 
 install:
 	sudo apt install libpq-dev
@@ -12,7 +12,7 @@ all: build setup deploy
 
 build:
 	podman build -t ${REPO}/${PROJECT}:${VERSION}-envoy -f ./docker/envoy/dockerfile .
-	podman build -t ${REPO}/${PROJECT}:${VERSION}-server -f ./docker/tpauth/dockerfile .
+	podman build -t ${REPO}/${PROJECT}:${VERSION}-server -f ./docker/rauth/dockerfile .
 	
 setup:
 	mkdir -p .ssh/
@@ -31,7 +31,7 @@ deploy:
 	podman-compose -f docker-compose.yaml up --remove-orphans -d
 
 logs:
-	podman logs --follow --names tpauth-server
+	podman logs --follow --names rauth-server
 	
 migration:
 	diesel migration run

@@ -31,8 +31,8 @@ services:
     
     ## ENVOY PROXY ###
     envoy:
-        container_name: tpauth-envoy
-        image: localhost/alvidir/tpauth:0.2.0-envoy
+        container_name: rauth-envoy
+        image: localhost/alvidir/rauth:0.2.0-envoy
         restart: always
         ports:
             - "8080:8080"
@@ -41,9 +41,9 @@ services:
             - ingress
         
     ## BACKEND ###
-    tpauth:
-        container_name: tpauth-server
-        image: localhost/alvidir/tpauth:0.2.0-server
+    rauth:
+        container_name: rauth-server
+        image: localhost/alvidir/rauth:0.2.0-server
         restart: always
         networks: 
             - ingress

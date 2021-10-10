@@ -1,5 +1,5 @@
 [package]
-name = "tpauth"
+name = "rauth"
 version = "0.2.0"
 authors = ["Hèctor Morales <hector.morales.carnice@gmail.com>"]
 edition = "2018"
@@ -37,11 +37,11 @@ features = ["sync"]
 tonic-build = "0.5.1"
 
 [[bin]]
-name = "tpauth"
+name = "rauth"
 path = "src/main.rs"
 
 [lib]
-name = "tpauth"
+name = "rauth"
 path = "src/lib.rs"
 
 [features]
