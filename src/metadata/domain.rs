@@ -13,6 +13,7 @@ pub struct Metadata {
     pub(super) id: i32,
     pub(super) created_at: SystemTime,
     pub(super) updated_at: SystemTime,
+    pub(super) deleted_at: Option<SystemTime>,
 }
 
 impl Metadata {
@@ -21,6 +22,7 @@ impl Metadata {
             id: 0,
             created_at: SystemTime::now(),
             updated_at: SystemTime::now(),
+            deleted_at: None,
         }
     }
 
@@ -62,6 +64,7 @@ pub mod tests {
             id: 999,
             created_at: SystemTime::now(),
             updated_at: SystemTime::now(),
+            deleted_at: None,
         }
     }
 

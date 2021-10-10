@@ -19,6 +19,7 @@ struct PostgresMetadata {
     pub id: i32,
     pub created_at: SystemTime,
     pub updated_at: SystemTime,
+    pub deleted_at: Option<SystemTime>
 }
 
 #[derive(Insertable)]
@@ -27,6 +28,7 @@ struct PostgresMetadata {
 struct NewPostgresMetadata {
     pub created_at: SystemTime,
     pub updated_at: SystemTime,
+    pub deleted_at: Option<SystemTime>
 }
 
 pub struct PostgresMetadataRepository;
@@ -36,6 +38,7 @@ impl PostgresMetadataRepository {
         let new_meta = NewPostgresMetadata {
             created_at: meta.created_at,
             updated_at: meta.updated_at,
+            deleted_at: None,
         };
         
         let result = diesel::insert_into(metadata::table)
@@ -71,6 +74,7 @@ impl MetadataRepository for PostgresMetadataRepository {
             id: results[0].id,
             created_at: results[0].created_at,
             updated_at: results[0].updated_at,
+            deleted_at: results[0].deleted_at,
         })
     }
 
@@ -85,6 +89,7 @@ impl MetadataRepository for PostgresMetadataRepository {
             id: meta.id,
             created_at: meta.created_at,
             updated_at: meta.updated_at,
+            deleted_at: meta.deleted_at,
         };
                  
         let connection = get_connection().get()?;
