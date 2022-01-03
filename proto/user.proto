@@ -3,39 +3,33 @@ syntax = "proto3";
 package user;
 import "google/protobuf/empty.proto";
 
-// SignupRequest description
+message Secure {
+  string pwd = 1;
+  string totp = 2;
+}
+
 message SignupRequest {
   string email = 1;
-  string pwd = 2; // hash of the password
+  string pwd = 2;
 }
 
-// DeleteRequest description
-message DeleteRequest {
-  string ident = 1; // the user's email
-  string pwd = 2;   // hash of the password
-  string totp = 3;  // optional time-based one time password 
-}
-
-// TFARequest description
-message TFARequest {
+message TotpRequest {
   enum actions {
     ENABLE = 0;
     DISABLE = 1;
   };
 
   actions action = 1;
-  string pwd = 2;     // hash of the password
-  string totp = 3;    // optional time-based one time password 
+  Secure secure = 1;
 }
 
-// TFAResponse description
-message TFAResponse {
-  string uri = 1;   // present if, and only if, the secret was just generated and the server is waiting for confirmation
+message TotpResponse {
+  bytes secret = 1;
 }
 
 service UserService {
   rpc Signup(user.SignupRequest) returns (google.protobuf.Empty);
   rpc Verify(google.protobuf.Empty) returns (google.protobuf.Empty);
-  rpc Delete(user.DeleteRequest) returns (google.protobuf.Empty);
-  rpc TFA(user.TFARequest) returns (user.TFAResponse);
+  rpc Delete(user.Secure) returns (google.protobuf.Empty);
+  rpc Totp(user.TotpRequest) returns (user.TotpResponse);
 }

@@ -2,21 +2,14 @@ syntax = "proto3";
 
 package session;
 import "google/protobuf/empty.proto";
+import "proto/user.proto";
 
-// LoginRequest description
 message LoginRequest {
-  string ident = 1;   // the user identity
-  string pwd = 2;     // hash of the user's password
-  string totp = 3;    // optional time-based one time password 
-  string app = 4;     // application
-}
-
-// LoginResponse description
-message LoginResponse {
-  string token = 1;    // Session token
+  string ident = 1;
+  user.Secure secure = 2;
 }
 
 service SessionService {
-  rpc Login(session.LoginRequest) returns (session.LoginResponse);
+  rpc Login(session.LoginRequest) returns (google.protobuf.Empty);
   rpc Logout(google.protobuf.Empty) returns (google.protobuf.Empty);
 }

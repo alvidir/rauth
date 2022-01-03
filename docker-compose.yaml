@@ -6,9 +6,11 @@ services:
         container_name: postgres
         image: docker.io/postgres:latest
         restart: on-failure
+        ports:
+            - "5432:5432"
         volumes:
             - dbdata:/data/postgres
-            - ./migrations/.postgres:/docker-entrypoint-initdb.d
+            # - ./migrations/.postgres:/docker-entrypoint-initdb.d
         networks: 
             - database
         env_file:
@@ -29,36 +31,36 @@ services:
         env_file:
             - ".env"
     
-    ## ENVOY PROXY ###
-    envoy:
-        container_name: rauth-envoy
-        image: localhost/alvidir/rauth:0.2.0-envoy
-        restart: always
-        ports:
-            - "8080:8080"
-            - "9901:9901"
-        networks:
-            - ingress
+    # ## ENVOY PROXY ###
+    # envoy:
+    #     container_name: rauth-envoy
+    #     image: localhost/alvidir/rauth:0.2.0-envoy
+    #     restart: always
+    #     ports:
+    #         - "8080:8080"
+    #         - "9901:9901"
+    #     networks:
+    #         - ingress
         
-    ## BACKEND ###
-    rauth:
-        container_name: rauth-server
-        image: localhost/alvidir/rauth:0.2.0-server
-        restart: always
-        networks: 
-            - ingress
-            - database
-        depends_on: 
-            - postgres
-            - envoy
-        env_file:
-            - .env
+    # ## BACKEND ###
+    # rauth:
+    #     container_name: rauth-server
+    #     image: localhost/alvidir/rauth:0.2.0-server
+    #     restart: always
+    #     networks: 
+    #         - ingress
+    #         - database
+    #     depends_on: 
+    #         - postgres
+    #         - envoy
+    #     env_file:
+    #         - .env
 
 networks:
     # Ingress network works as bridge between envoyproxy and the available services
-    ingress:
-        name: ingress
-        driver: bridge
+    # ingress:
+    #     name: ingress
+    #     driver: bridge
  
     # Database network is the bridge between domain environment and the sql databases
     database:
