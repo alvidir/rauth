@@ -155,31 +155,3 @@ impl<'a, M: MetadataRepository> SecretRepository for PostgresSecretRepository<'a
         Ok(())
     }
 }
-
-#[cfg(test)]
-#[cfg(feature = "integration-tests")]
-pub mod tests {
-    use super::super::{
-        domain::Secret,
-        get_repository as get_secret_repository,
-    };
-
-    #[test]
-    fn secret_insert_should_not_fail() {
-        let mut secret = Secret::new("secret_insert_should_success".as_bytes());
-        get_secret_repository().create(&mut secret).unwrap();
-
-        assert_eq!("secret_insert_should_success".as_bytes(), secret.data);
-        get_secret_repository().delete(&secret).unwrap();
-    }
-
-    #[test]
-    fn secret_save_modified_data_should_fail() {
-        let mut secret = Secret::new("secret_save_modified_data_should_fail".as_bytes());
-        get_secret_repository().create(&mut secret).unwrap();
-
-        secret.data = "secret_save_modified_data_should_fail_2".as_bytes().to_vec();
-        assert!(get_secret_repository().save(&secret).is_err());
-        get_secret_repository().delete(&secret).unwrap();
-    }
-}
