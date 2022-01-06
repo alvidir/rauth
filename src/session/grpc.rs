@@ -1,6 +1,7 @@
 use tonic::{Request, Response, Status};
 use crate::security;
 use crate::user::application::UserRepository;
+use crate::secret::application::SecretRepository;
 use super::{
     application::{SessionApplication, SessionRepository},
     domain::{SessionToken},
@@ -18,17 +19,23 @@ pub use proto::session_service_server::SessionServiceServer;
 // Proto message structs
 use proto::LoginRequest;
 
-pub struct SessionServiceImplementation<SR: SessionRepository + Sync + Send, UR: UserRepository + Sync + Send> {
-    pub sess_app: SessionApplication<SR, UR>,
-    pub jwt_secret: Vec<u8>,
-    pub jwt_public: Vec<u8>,
+pub struct SessionServiceImplementation<
+    S: SessionRepository + Sync + Send,
+    U: UserRepository + Sync + Send,
+    E: SecretRepository + Sync + Send
+    > {
+    pub sess_app: SessionApplication<S, U, E>,
+    pub jwt_secret: &'static [u8],
+    pub jwt_public: &'static [u8],
+    pub jwt_header: &'static str,
 }
 
 #[tonic::async_trait]
 impl<
-    SR: 'static + SessionRepository + Sync + Send,
-    UR: 'static + UserRepository + Sync + Send
-    > SessionService for SessionServiceImplementation<SR, UR> {
+    S: 'static + SessionRepository + Sync + Send,
+    U: 'static + UserRepository + Sync + Send,
+    E: 'static + SecretRepository + Sync + Send
+    > SessionService for SessionServiceImplementation<S, U, E> {
     async fn login(&self, request: Request<LoginRequest>) -> Result<Response<()>, Status> {
         let msg_ref = request.into_inner();
         let token = match self.sess_app.login(&msg_ref.ident, &msg_ref.pwd, &msg_ref.totp) {
@@ -45,19 +52,18 @@ impl<
             }
         };
 
-
-        res.metadata_mut().append("x-token", secure_token.parse().unwrap());
+        res.metadata_mut().append(self.jwt_header, secure_token.parse().unwrap());
         Ok(res)
     }
 
     async fn logout(&self, request: Request<()>) -> Result<Response<()>, Status> {
         let metadata = request.metadata();
-        if let None = metadata.get("token") {
+        if let None = metadata.get(self.jwt_header) {
             return Err(Status::failed_precondition("token required"));
         };
 
         // this line will not fail due to the previous check of None 
-        let token = match metadata.get("token").unwrap().to_str() {
+        let token = match metadata.get(self.jwt_header).unwrap().to_str() {
             Err(err) => return Err(Status::aborted(err.to_string())),
             Ok(secure_token) => security::decode_jwt::<SessionToken>(&self.jwt_public, secure_token),
         };

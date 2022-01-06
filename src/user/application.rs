@@ -1,8 +1,8 @@
-use crate::session::application::SessionRepository;
 use std::error::Error;
 use std::sync::Arc;
 use crate::metadata::domain::Metadata;
-use crate::session::domain::VerificationToken;
+use crate::secret::application::SecretRepository;
+use crate::session::application::SessionRepository;
 use super::domain::User;
 
 pub trait UserRepository {
@@ -13,27 +13,19 @@ pub trait UserRepository {
     fn delete(&self, user: &User) -> Result<(), Box<dyn Error>>;
 }
 
-pub struct UserApplication<UR: UserRepository, SR: SessionRepository> {
-    pub user_repo: Arc<UR>,
-    pub sess_repo: Arc<SR>
+pub struct UserApplication<U: UserRepository, S: SessionRepository, E: SecretRepository> {
+    pub user_repo: Arc<U>,
+    pub session_repo: Arc<S>,
+    pub secret_repo: Arc<E>,
 }
 
-impl<UR: UserRepository, SR: SessionRepository> UserApplication<UR, SR> {
-    pub fn signup(&self, token: VerificationToken, email: &str, pwd: &str) -> Result<User, Box<dyn Error>> {
+
+impl<U: UserRepository, S: SessionRepository, E: SecretRepository> UserApplication<U, S, E> {
+    pub fn signup(&self, email: &str, pwd: &str) -> Result<User, Box<dyn Error>> {
         info!("got a \"signup\" request from email {} ", email);
-
-        let final_email = match token.sub {
-            Some(verified_email) => verified_email,
-            None => email.to_string(),
-        };
-
-        let final_pwd = match token.pwd {
-            Some(verified_pwd) => verified_pwd,
-            None => pwd.to_string(),
-        };
    
         let meta = Metadata::new();
-        let mut user = User::new(meta, &final_email, &final_pwd)?;
+        let mut user = User::new(meta, email, pwd)?;
         self.user_repo.create(&mut user)?;
         
         Ok(user)

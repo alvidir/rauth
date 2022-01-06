@@ -9,8 +9,8 @@ use super::{
 
 pub struct RedisSessionRepository {
     pub conn: redis::Connection,
-    pub jwt_secret: Vec<u8>,
-    pub jwt_public: Vec<u8>,
+    pub jwt_secret: &'static [u8],
+    pub jwt_public: &'static [u8],
 }
 
 impl SessionRepository for RedisSessionRepository {

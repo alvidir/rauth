@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::sync::Arc;
 use diesel::{
     r2d2::{Pool, ConnectionManager},
     result::Error as PgError,
@@ -40,8 +41,8 @@ struct NewPostgresSecret<'a> {
 }
 
 pub struct PostgresSecretRepository<'a, M: MetadataRepository> {
-    pool: &'a Pool<ConnectionManager<PgConnection>>,
-    metadata_repo: M,
+    pub pool: &'a Pool<ConnectionManager<PgConnection>>,
+    pub metadata_repo: Arc<M>,
 }
 
 impl<'a, M: MetadataRepository> PostgresSecretRepository<'a, M> {

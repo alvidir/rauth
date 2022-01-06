@@ -1,6 +1,7 @@
 use tonic::{Request, Response, Status};
 use crate::security;
 use crate::user::application::{UserRepository, UserApplication};
+use crate::secret::application::SecretRepository;
 use crate::session::{
     application::SessionRepository,
     domain::{SessionToken, VerificationToken},
@@ -18,24 +19,34 @@ pub use proto::user_service_server::UserServiceServer;
 // Proto message structs
 use proto::{SignupRequest, DeleteRequest, TotpRequest};
 
-pub struct UserServiceImplementation<UR: UserRepository + Sync + Send, SR: SessionRepository + Sync + Send> {
-    pub user_app: UserApplication<UR, SR>,
-    pub jwt_secret: Vec<u8>,
-    pub jwt_public: Vec<u8>,
+pub struct UserServiceImplementation<
+    U: UserRepository + Sync + Send,
+    S: SessionRepository + Sync + Send,
+    E:  SecretRepository + Sync + Send
+    > {
+    pub user_app: UserApplication<U, S, E>,
+    pub jwt_secret: &'static [u8],
+    pub jwt_public: &'static [u8],
+    pub jwt_header: &'static str,
 }
 
 #[tonic::async_trait]
 impl<
-    UR: 'static + UserRepository + Sync + Send,
-    SR: 'static + SessionRepository + Sync + Send
-    > UserService for UserServiceImplementation<UR, SR> {
+    U: 'static + UserRepository + Sync + Send,
+    S: 'static + SessionRepository + Sync + Send,
+    E: 'static + SecretRepository + Sync + Send
+    > UserService for UserServiceImplementation<U, S, E> {
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<()>, Status> {
-        if let None = request.metadata().get("token") {
-            return Err(Status::failed_precondition("token required"));
+        if request.metadata().get(self.jwt_header).is_none() {
+            let msg_ref = request.into_inner();
+            match self.user_app.signup(&msg_ref.email, &msg_ref.pwd) {
+                Err(err) => return Err(Status::aborted(err.to_string())),
+                Ok(_) => return Ok(Response::new(())),
+            };
         };
     
         // this line will not fail due to the previous check of None 
-        let token = match request.metadata().get("token").unwrap().to_str() {
+        let token = match request.metadata().get(self.jwt_header).unwrap().to_str() {
             Err(err) => return Err(Status::aborted(err.to_string())),
             Ok(token) => token.to_string(),
         };
@@ -46,19 +57,32 @@ impl<
         };
 
         let msg_ref = request.into_inner();
-        match self.user_app.signup(claims, &msg_ref.email, &msg_ref.pwd) {
-            Err(err) => Err(Status::aborted(err.to_string())),
-            Ok(_) => Ok(Response::new(())),
+        if claims.sub.is_some() && claims.pwd.is_none() {
+            // this line will not fail due to the previous check of Some
+            match self.user_app.signup(&claims.sub.unwrap(), &msg_ref.pwd) {
+                Err(err) => return Err(Status::aborted(err.to_string())),
+                Ok(_) => return Ok(Response::new(())),
+            };
         }
+
+        if claims.sub.is_some() && claims.pwd.is_some() {
+            // this line will not fail due to the previous check of Some
+            match self.user_app.signup(&claims.sub.unwrap(), &claims.pwd.unwrap()) {
+                Err(err) => return Err(Status::aborted(err.to_string())),
+                Ok(_) => return Ok(Response::new(())),
+            };
+        }
+
+        Err(Status::invalid_argument("bad request"))
     }
 
     async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<()>, Status> {
-        if let None = request.metadata().get("token") {
+        if let None = request.metadata().get(self.jwt_header) {
             return Err(Status::failed_precondition("token required"));
         };
 
         // this line will not fail due to the previous check of None 
-        let token = match request.metadata().get("token").unwrap().to_str() {
+        let token = match request.metadata().get(self.jwt_header).unwrap().to_str() {
             Err(err) => return Err(Status::aborted(err.to_string())),
             Ok(token) => token.to_string(),
         };
@@ -76,12 +100,12 @@ impl<
     }
 
     async fn totp(&self, request: Request<TotpRequest>) -> Result<Response<()>, Status> {
-        if let None = request.metadata().get("token") {
+        if let None = request.metadata().get(self.jwt_header) {
             return Err(Status::failed_precondition("token required"));
         };
 
         // this line will not fail due to the previous check of None 
-        let token = match request.metadata().get("token").unwrap().to_str() {
+        let token = match request.metadata().get(self.jwt_header).unwrap().to_str() {
             Err(err) => return Err(Status::aborted(err.to_string())),
             Ok(token) => token.to_string(),
         };
