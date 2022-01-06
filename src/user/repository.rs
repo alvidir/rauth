@@ -120,6 +120,22 @@ impl<'a, M: MetadataRepository> UserRepository for PostgresUserRepository<'a, M>
         self.build(&results[0]) // another connection consumed here
     }
 
+    fn find_by_name(&self, target: &str) -> Result<User, Box<dyn Error>>  {
+        use crate::schema::users::dsl::*;
+        
+        let results = { // block is required because of connection release
+            let connection = self.pool.get()?;
+            users.filter(name.eq(target))
+                 .load::<PostgresUser>(&connection)?
+        };
+
+        if results.len() == 0 {
+            return Err(Box::new(NotFound));
+        }
+    
+        self.build(&results[0]) // another connection consumed here
+    }
+
     fn create(&self, user: &mut User) -> Result<(), Box<dyn Error>> {
         self.metadata_repo.create(&mut user.meta)?;
 

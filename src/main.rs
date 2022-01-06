@@ -37,13 +37,15 @@ const ENV_JWT_SECRET: &str = "JWT_SECRET";
 const ENV_JWT_PUBLIC: &str = "JWT_PUBLIC";
 const ENV_JWT_HEADER: &str = "JWT_HEADER";
 const ENV_REDIS_DSN: &str = "REDIS_DSN";
+const ENV_SESSION_LIFETIME: &str = "SESSION_LIFETIME";
 
 type PgPool = Pool<ConnectionManager<PgConnection>>;
 
 lazy_static! {
-    static ref JWT_SECRET: Vec<u8> = base64::decode(env::var(ENV_JWT_SECRET).unwrap()).unwrap();
-    static ref JWT_PUBLIC: Vec<u8> = base64::decode(env::var(ENV_JWT_PUBLIC).unwrap()).unwrap();
-    static ref JWT_HEADER: String = env::var(ENV_JWT_HEADER).unwrap();
+    static ref JWT_SECRET: Vec<u8> = base64::decode(env::var(ENV_JWT_SECRET).expect("jwt secret must be set")).unwrap();
+    static ref JWT_PUBLIC: Vec<u8> = base64::decode(env::var(ENV_JWT_PUBLIC).expect("jwt public key must be set")).unwrap();
+    static ref JWT_HEADER: String = env::var(ENV_JWT_HEADER).expect("token's header must be set");
+    static ref SESSION_LIFETIME: u64 =  env::var(ENV_SESSION_LIFETIME).expect("session's lifetime must be set").parse().unwrap();
 
     static ref PG_POOL: PgPool = {
         let postgres_dsn = env::var(ENV_POSTGRES_DSN).expect("postgres url must be set");
@@ -58,19 +60,17 @@ lazy_static! {
             }
         }
     };
+
+    static ref REDIS_CLIENT: redis::Client = {
+        let redis_dsn: String = env::var(ENV_REDIS_DSN).expect("redis url must be set");
+        redis::Client::open(redis_dsn).unwrap()
+    };
 }
 
-fn get_redis_conn() -> redis::Connection {
-    let redis_dsn = env::var(ENV_REDIS_DSN).expect("redis url must be set");
-    match redis::Client::open(redis_dsn).unwrap().get_connection() {
-        Ok(conn) => {
-            info!("connection with redis cluster established");
-            conn
-        },
-        Err(err) => {
-            error!("{}", err);
-            panic!("cannot establish connection with redis cluster");
-        }
+fn get_redis_conn() -> Result<redis::Connection, Box<dyn Error>> {
+    match REDIS_CLIENT.get_connection() {
+        Ok(conn) => Ok(conn),
+        Err(err) => Err(err.into())
     }
 }
 
@@ -90,14 +90,13 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
     });
 
     let session_repo = Arc::new(RedisSessionRepository{
-        conn: get_redis_conn(),
+        conn: get_redis_conn,
         jwt_secret: &JWT_SECRET,
         jwt_public: &JWT_PUBLIC,
     });
 
     let user_app = UserApplication{
         user_repo: user_repo.clone(),
-        session_repo: session_repo.clone(),
         secret_repo: secret_repo.clone(),
     };
 
@@ -105,6 +104,7 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
         session_repo: session_repo.clone(),
         user_repo: user_repo.clone(),
         secret_repo: secret_repo.clone(),
+        lifetime: *SESSION_LIFETIME,
     };
 
     let user_server = UserServiceImplementation{

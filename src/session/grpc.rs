@@ -74,7 +74,7 @@ impl<
         }
 
         // this line will not fail due to the previous check of Err 
-        if let Err(err) = self.sess_app.logout(&token.unwrap()){   
+        if let Err(err) = self.sess_app.logout(token.unwrap().sub){   
             error!("failed to logout user: {}", err);            
             return Err(Status::aborted(err.to_string()));
         }

@@ -147,6 +147,6 @@ pub mod tests {
     #[test]
     fn verify_totp_ko() {
         const SECRET: &[u8] = "hello world".as_bytes();
-        assert!(verify_totp(&SECRET, "tester").is_err());
+        assert!(!verify_totp(&SECRET, "tester").unwrap());
     }
 }

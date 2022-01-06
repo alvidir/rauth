@@ -2,10 +2,7 @@ use tonic::{Request, Response, Status};
 use crate::security;
 use crate::user::application::{UserRepository, UserApplication};
 use crate::secret::application::SecretRepository;
-use crate::session::{
-    application::SessionRepository,
-    domain::{SessionToken, VerificationToken},
-};
+use crate::session::domain::{SessionToken, VerificationToken};
 
 // Import the generated rust code into module
 mod proto {
@@ -21,10 +18,9 @@ use proto::{SignupRequest, DeleteRequest, TotpRequest};
 
 pub struct UserServiceImplementation<
     U: UserRepository + Sync + Send,
-    S: SessionRepository + Sync + Send,
     E:  SecretRepository + Sync + Send
     > {
-    pub user_app: UserApplication<U, S, E>,
+    pub user_app: UserApplication<U, E>,
     pub jwt_secret: &'static [u8],
     pub jwt_public: &'static [u8],
     pub jwt_header: &'static str,
@@ -33,9 +29,8 @@ pub struct UserServiceImplementation<
 #[tonic::async_trait]
 impl<
     U: 'static + UserRepository + Sync + Send,
-    S: 'static + SessionRepository + Sync + Send,
     E: 'static + SecretRepository + Sync + Send
-    > UserService for UserServiceImplementation<U, S, E> {
+    > UserService for UserServiceImplementation<U, E> {
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<()>, Status> {
         if request.metadata().get(self.jwt_header).is_none() {
             let msg_ref = request.into_inner();

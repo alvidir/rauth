@@ -8,26 +8,26 @@ use super::{
 };
 
 pub struct RedisSessionRepository {
-    pub conn: redis::Connection,
+    pub conn: fn() -> Result<redis::Connection, Box<dyn Error>>,
     pub jwt_secret: &'static [u8],
     pub jwt_public: &'static [u8],
 }
 
 impl SessionRepository for RedisSessionRepository {
-    fn find(&mut self, token: &SessionToken) -> Result<SessionToken, Box<dyn Error>> {
-        let secure_token: String = redis::cmd("GET").arg(token.sub).query(&mut self.conn)?;
+    fn find(&self, user_id: i32) -> Result<SessionToken, Box<dyn Error>> {
+        let secure_token: String = redis::cmd("GET").arg(user_id).query(&mut (self.conn)()?)?;
         let token = security::decode_jwt(&self.jwt_public, &secure_token)?;
         Ok(token)
     }
 
-    fn save(&mut self, token: &SessionToken) -> Result<(), Box<dyn Error>> {
+    fn save(&self, token: &SessionToken) -> Result<(), Box<dyn Error>> {
         let secure_token = security::encode_jwt(&self.jwt_secret, token)?;
-        redis::cmd("SET").arg(token.sub).arg(secure_token).query(&mut self.conn)?;
+        redis::cmd("SET").arg(token.sub).arg(secure_token).query(&mut (self.conn)()?)?;
         Ok(())
     }
 
-    fn delete(&mut self, token: &SessionToken) -> Result<(), Box<dyn Error>> {
-        redis::cmd("DEL").arg(token.sub).query(&mut self.conn)?;
+    fn delete(&self, user_id: i32) -> Result<(), Box<dyn Error>> {
+        redis::cmd("DEL").arg(user_id).query(&mut (self.conn)()?)?;
         Ok(())
     }
 

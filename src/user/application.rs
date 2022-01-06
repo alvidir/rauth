@@ -6,7 +6,7 @@ use crate::secret::{
     application::SecretRepository,
     domain::Secret,
 };
-use crate::session::application::SessionRepository;
+
 use crate::constants;
 use crate::security;
 use super::domain::User;
@@ -14,24 +14,25 @@ use super::domain::User;
 pub trait UserRepository {
     fn find(&self, id: i32) -> Result<User, Box<dyn Error>>;
     fn find_by_email(&self, email: &str) -> Result<User, Box<dyn Error>>;
+    fn find_by_name(&self, name: &str) -> Result<User, Box<dyn Error>>;
     fn create(&self, user: &mut User) -> Result<(), Box<dyn Error>>;
     fn save(&self, user: &User) -> Result<(), Box<dyn Error>>;
     fn delete(&self, user: &User) -> Result<(), Box<dyn Error>>;
 }
 
-pub struct UserApplication<U: UserRepository, S: SessionRepository, E: SecretRepository> {
+pub struct UserApplication<U: UserRepository, E: SecretRepository> {
     pub user_repo: Arc<U>,
-    pub session_repo: Arc<S>,
     pub secret_repo: Arc<E>,
 }
 
 
-impl<U: UserRepository, S: SessionRepository, E: SecretRepository> UserApplication<U, S, E> {
+impl<U: UserRepository, E: SecretRepository> UserApplication<U, E> {
     pub fn signup(&self, email: &str, pwd: &str) -> Result<User, Box<dyn Error>> {
         info!("got a \"signup\" request from email {} ", email);
-   
+        
         let meta = Metadata::new();
-        let mut user = User::new(meta, email, pwd)?;
+        let shadowed_pwd = security::shadow(pwd, constants::PWD_SUFIX);
+        let mut user = User::new(meta, email, &shadowed_pwd)?;
         self.user_repo.create(&mut user)?;
         
         Ok(user)
@@ -41,7 +42,8 @@ impl<U: UserRepository, S: SessionRepository, E: SecretRepository> UserApplicati
         info!("got a \"delete\" request from user id {} ", user_id);
         
         let user = self.user_repo.find(user_id)?;
-        if !user.match_password(pwd) {
+        let shadowed_pwd = security::shadow(pwd, constants::PWD_SUFIX);
+        if !user.match_password(&shadowed_pwd) {
             return Err(constants::ERR_NOT_FOUND.into());
         }
 
@@ -69,7 +71,8 @@ impl<U: UserRepository, S: SessionRepository, E: SecretRepository> UserApplicati
         info!("got an \"enable totp\" request from user id {} ", user_id);
 
         let user = self.user_repo.find(user_id)?;
-        if !user.match_password(pwd) {
+        let shadowed_pwd = security::shadow(pwd, constants::PWD_SUFIX);
+        if !user.match_password(&shadowed_pwd) {
             return Err(constants::ERR_NOT_FOUND.into());
         }
 
@@ -100,7 +103,8 @@ impl<U: UserRepository, S: SessionRepository, E: SecretRepository> UserApplicati
         info!("got an \"disable totp\" request from user id {} ", user_id);
         
         let user = self.user_repo.find(user_id)?;
-        if !user.match_password(pwd) {
+        let shadowed_pwd = security::shadow(pwd, constants::PWD_SUFIX);
+        if !user.match_password(&shadowed_pwd) {
             return Err(constants::ERR_NOT_FOUND.into());
         }
 
