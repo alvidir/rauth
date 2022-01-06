@@ -11,6 +11,7 @@ pub mod session;
 pub mod user;
 pub mod regex;
 pub mod security;
+pub mod constants;
 
 mod schema;
 mod time;

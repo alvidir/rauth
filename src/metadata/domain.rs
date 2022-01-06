@@ -2,10 +2,10 @@ use std::time::{SystemTime};
 
 #[derive(Clone)]
 pub struct Metadata {
-    pub(super) id: i32,
-    pub(super) created_at: SystemTime,
-    pub(super) updated_at: SystemTime,
-    pub(super) deleted_at: Option<SystemTime>,
+    pub id: i32,
+    pub created_at: SystemTime,
+    pub updated_at: SystemTime,
+    pub deleted_at: Option<SystemTime>,
 }
 
 impl Metadata {

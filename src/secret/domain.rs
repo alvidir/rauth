@@ -1,3 +1,4 @@
+use std::time::{SystemTime};
 use crate::metadata::domain::Metadata;
 
 #[derive(Clone)]
@@ -24,6 +25,14 @@ impl Secret {
 
     pub fn get_id(&self) -> i32 {
         self.id
+    }
+
+    pub fn is_deleted(&self) -> bool {
+        self.meta.deleted_at.is_none()
+    }
+
+    pub fn set_deleted_at(&mut self, deleted_at: Option<SystemTime>) {
+        self.meta.deleted_at = deleted_at;
     }
 }
 

@@ -1,8 +1,14 @@
+use std::time::SystemTime;
 use std::error::Error;
 use std::sync::Arc;
 use crate::metadata::domain::Metadata;
-use crate::secret::application::SecretRepository;
+use crate::secret::{
+    application::SecretRepository,
+    domain::Secret,
+};
 use crate::session::application::SessionRepository;
+use crate::constants;
+use crate::security;
 use super::domain::User;
 
 pub trait UserRepository {
@@ -36,22 +42,84 @@ impl<U: UserRepository, S: SessionRepository, E: SecretRepository> UserApplicati
         
         let user = self.user_repo.find(user_id)?;
         if !user.match_password(pwd) {
-            return Err("not found".into());
+            return Err(constants::ERR_NOT_FOUND.into());
+        }
+
+        // if, and only if, the user has activated the totp
+        if let Ok(secret) = self.secret_repo.find_by_user_and_name(user.id, constants::TOTP_SECRET_NAME) {
+            if !secret.is_deleted() {
+                if totp.len() == 0 {
+                    return Err(constants::ERR_UNAUTHORIZED.into());
+                }
+    
+                let data = secret.get_data();
+                if !security::verify_totp(data, totp)? {
+                    return Err(constants::ERR_UNAUTHORIZED.into());
+                }
+    
+                self.secret_repo.delete(&secret)?;
+            }
         }
 
         self.user_repo.delete(&user)?;
         Ok(())
     }
 
-    pub fn enable_totp(&self, user_id: i32, pwd: &str, totp: &str) -> Result<(), Box<dyn Error>> {
+    pub fn enable_totp(&self, user_id: i32, pwd: &str, totp: &str) -> Result<String, Box<dyn Error>> {
         info!("got an \"enable totp\" request from user id {} ", user_id);
+
+        let user = self.user_repo.find(user_id)?;
+        if !user.match_password(pwd) {
+            return Err(constants::ERR_NOT_FOUND.into());
+        }
+
+        // if, and only if, the user has activated the totp
+        if let Ok(secret) = &mut self.secret_repo.find_by_user_and_name(user.id, constants::TOTP_SECRET_NAME) {
+            if !secret.is_deleted() {
+                // the totp is already enabled
+                return Err(constants::ERR_UNAUTHORIZED.into())
+            }
+
+            let data = secret.get_data();
+            if !security::verify_totp(data, totp)? {
+                return Err(constants::ERR_UNAUTHORIZED.into());
+            }
+
+            secret.set_deleted_at(None);
+            self.secret_repo.save(&secret)?;
+        }
         
-        Err("unimplemented".into())
+        let token = security::get_random_string(constants::TOTP_SECRET_LEN);
+        let mut secret = Secret::new(constants::TOTP_SECRET_NAME, token.as_bytes());
+        secret.set_deleted_at(Some(SystemTime::now())); // unavailable till confirmed
+        self.secret_repo.create(&mut secret)?;
+        Ok(token)
     }
 
     pub fn disable_totp(&self, user_id: i32, pwd: &str, totp: &str) -> Result<(), Box<dyn Error>> {
         info!("got an \"disable totp\" request from user id {} ", user_id);
         
-        Err("unimplemented".into())
+        let user = self.user_repo.find(user_id)?;
+        if !user.match_password(pwd) {
+            return Err(constants::ERR_NOT_FOUND.into());
+        }
+
+        // if, and only if, the user has activated the totp
+        if let Ok(secret) = &mut self.secret_repo.find_by_user_and_name(user.id, constants::TOTP_SECRET_NAME) {
+            if secret.is_deleted() {
+                // the totp is not enabled yet
+                return Err(constants::ERR_UNAUTHORIZED.into())
+            }
+
+            let data = secret.get_data();
+            if !security::verify_totp(data, totp)? {
+                return Err(constants::ERR_UNAUTHORIZED.into());
+            }
+
+            self.secret_repo.delete(&secret)?;
+            return Ok(());
+        }
+
+        Err(constants::ERR_NOT_FOUND.into())
     }
 }

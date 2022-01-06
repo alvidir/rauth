@@ -11,8 +11,7 @@ use jsonwebtoken::{Header, EncodingKey, DecodingKey, Validation, Algorithm};
 use rand::prelude::*;
 use base64;
 use sha256;
-
-const ERR_UNAUTHORIZED: &str = "unauthorized";
+use crate::constants::ERR_UNAUTHORIZED;
 
 const SECURE_CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
                                 abcdefghijklmnopqrstuvwxyz\
@@ -59,12 +58,9 @@ pub fn generate_totp(secret: &[u8]) -> Result<TOTP, Box<dyn Error>> {
     }
 }
 
-pub fn verify_totp(secret: &[u8], pwd: &str) -> Result<(), Box<dyn Error>> {
+pub fn verify_totp(secret: &[u8], pwd: &str) -> Result<bool, Box<dyn Error>> {
     let totp = generate_totp(secret)?;
-    if !totp.is_valid(pwd) {
-        return Err(ERR_UNAUTHORIZED.into());
-    }
-    Ok(())
+    Ok(totp.is_valid(pwd))
 }
 
 pub fn verify_ec_signature(pem: &[u8], signature: &[u8], data: &[&[u8]]) -> Result<(), Box<dyn Error>> {

@@ -108,6 +108,23 @@ impl<'a, M: MetadataRepository> SecretRepository for PostgresSecretRepository<'a
         self.build(&results[0])
     }
 
+    fn find_by_user_and_name(&self, user: i32, secret_name: &str) -> Result<Secret, Box<dyn Error>> {
+        use crate::schema::secrets::dsl::*;
+        
+        let results = { // block is required because of connection release
+            let connection = self.pool.get()?;
+            secrets.filter(user_id.eq(user))
+                .filter(name.eq(secret_name))
+                .load::<PostgresSecret>(&connection)?
+        };
+    
+        if results.len() == 0 {
+            return Err(Box::new(NotFound));
+        }
+
+        self.build(&results[0])
+    }
+
     fn create(&self, secret: &mut Secret) -> Result<(), Box<dyn Error>> {
         let conn = self.pool.get()?;
         conn.transaction::<_, PgError, _>(|| self.tx_create(&conn, secret))?;

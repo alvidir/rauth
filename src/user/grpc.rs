@@ -116,16 +116,30 @@ impl<
         };
 
         let msg_ref = request.into_inner(); 
-        let result = match msg_ref.action {
-            0 => self.user_app.enable_totp(claims.sub, &msg_ref.pwd, &msg_ref.totp),
-            1 => self.user_app.disable_totp(claims.sub, &msg_ref.pwd, &msg_ref.totp),
-            _ => return Err(Status::invalid_argument("wrong action")),
-        };
-
-        if let Err(err) = result {
-            return Err(Status::aborted(err.to_string()));
+        if msg_ref.action == 0 {
+            match self.user_app.enable_totp(claims.sub, &msg_ref.pwd, &msg_ref.totp) {
+                Err(err) => {
+                    error!("cannot enable the totp: {:?}", err);
+                    return Err(Status::unknown(err.to_string()))
+                },
+                Ok(token) => {
+                    let mut response = Response::new(());
+                    response.metadata_mut().insert(self.jwt_header, token.parse().unwrap());
+                    return Ok(response);
+                }
+            }
         }
 
-        Ok(Response::new(()))
+        if msg_ref.action == 1 {
+            match self.user_app.disable_totp(claims.sub, &msg_ref.pwd, &msg_ref.totp) {
+                Ok(_) => return Ok(Response::new(())),
+                Err(err) => {
+                    error!("cannot disable the totp: {:?}", err);
+                    return Err(Status::unknown(err.to_string()))
+                },
+            }
+        }
+
+        Err(Status::invalid_argument("wrong action"))
     }
 }
