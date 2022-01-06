@@ -15,10 +15,14 @@ dotenv = "0.15.0"
 base64 = "0.13.0"
 sha256 = "1.0.2"
 openssl = "0.10.35"
+libreauth = "0.14.1"
+rand = "0.8.4"
 lazy_static = "1.4.0"
 jsonwebtoken = "7.2.0"
 log = "0.4.14"
 tera = "1.15.0" # templates processor
+chrono = "0.4.19"
+serde = "1.0.133"
 
 [build-dependencies]
 tonic-build = "0.6.2"
@@ -26,6 +30,3 @@ tonic-build = "0.6.2"
 [lib]
 name = "rauth"
 path = "src/lib.rs"
-
-[features]
-integration-tests = []

@@ -20,16 +20,11 @@ message TotpRequest {
   };
 
   actions action = 1;
-  Secure secure = 1;
-}
-
-message TotpResponse {
-  bytes secret = 1;
+  Secure secure = 2;
 }
 
 service UserService {
   rpc Signup(user.SignupRequest) returns (google.protobuf.Empty);
-  rpc Verify(google.protobuf.Empty) returns (google.protobuf.Empty);
   rpc Delete(user.Secure) returns (google.protobuf.Empty);
-  rpc Totp(user.TotpRequest) returns (user.TotpResponse);
+  rpc Totp(user.TotpRequest) returns (google.protobuf.Empty);
 }

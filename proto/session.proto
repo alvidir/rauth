@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package session;
 import "google/protobuf/empty.proto";
-import "proto/user.proto";
+import "user.proto";
 
 message LoginRequest {
   string ident = 1;

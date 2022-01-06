@@ -34,13 +34,16 @@ services:
     # ## ENVOY PROXY ###
     # envoy:
     #     container_name: rauth-envoy
-    #     image: localhost/alvidir/rauth:0.2.0-envoy
+    #     image: localhost/alvidir/rauth:1.0.0-envoy
     #     restart: always
     #     ports:
     #         - "8080:8080"
     #         - "9901:9901"
     #     networks:
     #         - ingress
+    #     security_opt:
+    #         label: disable
+
         
     # ## BACKEND ###
     # rauth:
