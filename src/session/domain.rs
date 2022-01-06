@@ -95,21 +95,27 @@ pub mod tests {
 
     #[test]
     fn token_expired_should_fail() {
-        use std::thread::sleep;
         use crate::security;
 
         dotenv::dotenv().unwrap();
 
         const ISS: &str = "test";
         const SUB: i32 = 999;
+        const IT_LIMIT: i32 = 100_000;
         let timeout = Duration::from_secs(0);
 
         let claim = SessionToken::new(ISS, SUB, timeout);
         let secret = base64::decode(JWT_SECRET).unwrap();
         let token = security::encode_jwt(&secret, claim).unwrap();
-        
-        sleep(Duration::from_secs(3));
+
         let public = base64::decode(JWT_PUBLIC).unwrap();
+
+        let mut iterations: i32 = 0;
+        while iterations < IT_LIMIT && security::decode_jwt::<SessionToken>(&public, &token).is_ok() {
+            iterations += 1;
+        }
+
+
         assert!(security::decode_jwt::<SessionToken>(&public, &token).is_err());
     }
 }
