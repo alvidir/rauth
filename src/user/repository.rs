@@ -9,9 +9,15 @@ use diesel::{
 use crate::diesel::prelude::*;
 use crate::schema::users;
 use crate::schema::users::dsl::*;
-use crate::metadata::domain::MetadataRepository;
 
-use super::domain::{User, UserRepository};
+use crate::metadata::{
+    application::MetadataRepository
+};
+
+use super::{
+    application::UserRepository,
+    domain::User,
+};
 
 #[derive(Queryable, Insertable, Associations)]
 #[derive(Identifiable)]
@@ -38,15 +44,12 @@ struct NewPostgresUser<'a> {
 }
 
 pub struct PostgresUserRepository<'a, M: MetadataRepository> {
-    pool: &'a Pool<ConnectionManager<PgConnection>>,
-    metadata_repo: M,
+    pub pool: &'a Pool<ConnectionManager<PgConnection>>,
+    pub metadata_repo: M,
 }
 
 impl<'a, M: MetadataRepository> PostgresUserRepository<'a, M> {
-    fn create_on_conn(&self, conn: &PgConnection, user: &mut User) -> Result<(), PgError>  {
-         // in order to create a user it must exists the metadata for this user
-         // PostgresMetadataRepository::create_on_conn(conn, &mut user.meta)?;
-
+    fn tx_create(&self, conn: &PgConnection, user: &mut User) -> Result<(), PgError>  {
         let new_user = NewPostgresUser {
             email: &user.email,
             name: &user.name,
@@ -62,28 +65,22 @@ impl<'a, M: MetadataRepository> PostgresUserRepository<'a, M> {
         Ok(())
     }
 
-    fn delete_on_conn(&self, conn: &PgConnection, user: &User) -> Result<(), PgError>  {
+    fn tx_delete(&self, conn: &PgConnection, user: &User) -> Result<(), PgError>  {
         let _result = diesel::delete(
             users.filter(id.eq(user.id))
         ).execute(conn)?;
 
-        //PostgresMetadataRepository::delete_on_conn(conn, &user.meta)?;
-
         Ok(())
    }
 
-    fn build_first(&self, results: &[PostgresUser]) -> Result<User, Box<dyn Error>> {
-        if results.len() == 0 {
-            return Err(Box::new(NotFound));
-        }
-
-        let meta = self.metadata_repo.find(results[0].meta_id)?;
+    fn build(&self, pg_user: &PostgresUser) -> Result<User, Box<dyn Error>> {
+        let meta = self.metadata_repo.find(pg_user.meta_id)?;
 
         Ok(User{
-            id: results[0].id,
-            name: results[0].name.clone(),
-            email: results[0].email.clone(),
-            password: results[0].password.clone(),
+            id: pg_user.id,
+            name: pg_user.name.clone(),
+            email: pg_user.email.clone(),
+            password: pg_user.password.clone(),
             meta: meta,
         })
     }
@@ -98,8 +95,12 @@ impl<'a, M: MetadataRepository> UserRepository for PostgresUserRepository<'a, M>
             users.filter(id.eq(target))
                  .load::<PostgresUser>(&connection)?
         };
+
+        if results.len() == 0 {
+            return Err(Box::new(NotFound));
+        }
     
-        self.build_first(&results)
+        self.build(&results[0]) // another connection consumed here
     }
     
     fn find_by_email(&self, target: &str) -> Result<User, Box<dyn Error>>  {
@@ -110,13 +111,19 @@ impl<'a, M: MetadataRepository> UserRepository for PostgresUserRepository<'a, M>
             users.filter(email.eq(target))
                  .load::<PostgresUser>(&connection)?
         };
+
+        if results.len() == 0 {
+            return Err(Box::new(NotFound));
+        }
     
-        self.build_first(&results)
+        self.build(&results[0]) // another connection consumed here
     }
 
     fn create(&self, user: &mut User) -> Result<(), Box<dyn Error>> {
+        self.metadata_repo.create(&mut user.meta)?;
+
         let conn = self.pool.get()?;
-        conn.transaction::<_, PgError, _>(|| self.create_on_conn(&conn, user))?;
+        conn.transaction::<_, PgError, _>(|| self.tx_create(&conn, user))?;
         Ok(())
     }
 
@@ -139,8 +146,12 @@ impl<'a, M: MetadataRepository> UserRepository for PostgresUserRepository<'a, M>
     }
 
     fn delete(&self, user: &User) -> Result<(), Box<dyn Error>> {
-        let conn = self.pool.get()?;
-        conn.transaction::<_, PgError, _>(|| self.delete_on_conn(&conn, user))?;
+        { // block is required because of connection release
+            let conn = self.pool.get()?;
+            conn.transaction::<_, PgError, _>(|| self.tx_delete(&conn, user))?;
+        }
+
+        self.metadata_repo.delete(&user.meta)?; // another connection consumed here
         Ok(())
     }
 }

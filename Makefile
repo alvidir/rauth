@@ -41,7 +41,7 @@ migration:
 	diesel migration run
 
 deploy:
-	podman-compose  -f docker-compose.yaml up --remove-orphans
+	podman-compose  -f docker-compose.yaml up --remove-orphans -d
 
 logs:
 	podman logs --follow --names rauth-server

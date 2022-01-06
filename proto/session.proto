@@ -2,11 +2,11 @@ syntax = "proto3";
 
 package session;
 import "google/protobuf/empty.proto";
-import "user.proto";
 
 message LoginRequest {
   string ident = 1;
-  user.Secure secure = 2;
+  string pwd = 2;
+  string totp = 3;
 }
 
 service SessionService {

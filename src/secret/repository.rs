@@ -9,8 +9,12 @@ use diesel::{
 use crate::diesel::prelude::*;
 use crate::schema::secrets;
 use crate::schema::secrets::dsl::*;
-use crate::metadata::domain::MetadataRepository;
-use super::domain::{Secret, SecretRepository};
+use crate::metadata::application::MetadataRepository;
+
+use super::{
+    application::SecretRepository,
+    domain::Secret,
+};
 
 #[derive(Queryable, Insertable, Associations)]
 #[derive(Identifiable)]
@@ -41,9 +45,9 @@ pub struct PostgresSecretRepository<'a, M: MetadataRepository> {
 }
 
 impl<'a, M: MetadataRepository> PostgresSecretRepository<'a, M> {
-    pub fn create_on_conn(&self, conn: &PgConnection, secret: &mut Secret) -> Result<(), PgError>  {
+    pub fn tx_create(&self, conn: &PgConnection, secret: &mut Secret) -> Result<(), PgError>  {
         // in order to create a secret it must exists the metadata for this secret
-        // PostgresMetadataRepository::create_on_conn(conn, &mut secret.meta)?;
+        // PostgresMetadataRepository::tx_create(conn, &mut secret.meta)?;
 
         let data_as_str = match String::from_utf8(secret.data.clone()) {
             Err(err) => return Err(PgError::DeserializationError(Box::new(err))),
@@ -65,26 +69,22 @@ impl<'a, M: MetadataRepository> PostgresSecretRepository<'a, M> {
         Ok(())
     }
 
-    pub fn delete_on_conn(&self, conn: &PgConnection, secret: &Secret) -> Result<(), PgError>  {
+    pub fn tx_delete(&self, conn: &PgConnection, secret: &Secret) -> Result<(), PgError>  {
         let _result = diesel::delete(
             secrets.filter(id.eq(secret.id))
         ).execute(conn)?;
 
-        // PostgresMetadataRepository::delete_on_conn(conn, &secret.meta)?;
+        // PostgresMetadataRepository::tx_delete(conn, &secret.meta)?;
         Ok(())
     }
 
-    fn build_first(&self, results: &[PostgresSecret]) -> Result<Secret, Box<dyn Error>> {
-        if results.len() == 0 {
-            return Err(Box::new(NotFound));
-        }
-
-        let meta = self.metadata_repo.find(results[0].meta_id)?;
+    fn build(&self, pg_secret: &PostgresSecret) -> Result<Secret, Box<dyn Error>> {
+        let meta = self.metadata_repo.find(pg_secret.meta_id)?;
 
         Ok(Secret{
-            id: results[0].id,
-            name: results[0].name.clone(),
-            data: results[0].data.as_bytes().to_vec(),
+            id: pg_secret.id,
+            name: pg_secret.name.clone(),
+            data: pg_secret.data.as_bytes().to_vec(),
             meta: meta,
         })
     }
@@ -100,12 +100,16 @@ impl<'a, M: MetadataRepository> SecretRepository for PostgresSecretRepository<'a
                 .load::<PostgresSecret>(&connection)?
         };
     
-        self.build_first(&results)
+        if results.len() == 0 {
+            return Err(Box::new(NotFound));
+        }
+
+        self.build(&results[0])
     }
 
     fn create(&self, secret: &mut Secret) -> Result<(), Box<dyn Error>> {
         let conn = self.pool.get()?;
-        conn.transaction::<_, PgError, _>(|| self.create_on_conn(&conn, secret))?;
+        conn.transaction::<_, PgError, _>(|| self.tx_create(&conn, secret))?;
         Ok(())
     }
 
@@ -129,7 +133,7 @@ impl<'a, M: MetadataRepository> SecretRepository for PostgresSecretRepository<'a
 
     fn delete(&self, secret: &Secret) -> Result<(), Box<dyn Error>> {
         let conn = self.pool.get()?;
-        self.delete_on_conn(&conn, secret)?;
+        self.tx_delete(&conn, secret)?;
         Ok(())
     }
 }

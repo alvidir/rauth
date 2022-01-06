@@ -11,7 +11,10 @@ use crate::diesel::prelude::*;
 use crate::schema::metadata::dsl::*;
 use crate::schema::metadata;
 
-use super::domain::{Metadata, MetadataRepository};
+use super::{
+    domain::Metadata,
+    application::MetadataRepository
+};
 
 #[derive(Queryable, Insertable, Associations)]
 #[derive(Identifiable)]
@@ -35,11 +38,11 @@ struct NewPostgresMetadata {
 }
 
 pub struct PostgresMetadataRepository<'a> {
-    pool: &'a Pool<ConnectionManager<PgConnection>>,
+    pub pool: &'a Pool<ConnectionManager<PgConnection>>,
 }
 
 impl<'a> PostgresMetadataRepository<'a> {
-    pub fn create_on_conn(conn: &PgConnection, meta: &mut Metadata) -> Result<(), PgError>  {
+    pub fn tx_create(conn: &PgConnection, meta: &mut Metadata) -> Result<(), PgError>  {
         let new_meta = NewPostgresMetadata {
             created_at: meta.created_at,
             updated_at: meta.updated_at,
@@ -54,7 +57,7 @@ impl<'a> PostgresMetadataRepository<'a> {
         Ok(())
     }
 
-    pub fn delete_on_conn(conn: &PgConnection, meta: &Metadata) -> Result<(), PgError>  {
+    pub fn tx_delete(conn: &PgConnection, meta: &Metadata) -> Result<(), PgError>  {
         diesel::delete(
             metadata.filter(id.eq(meta.id))
         ).execute(conn)?;
@@ -85,7 +88,7 @@ impl<'a> MetadataRepository for PostgresMetadataRepository<'a> {
 
     fn create(&self, meta: &mut Metadata) -> Result<(), Box<dyn Error>> {
         let conn = self.pool.get()?;
-        PostgresMetadataRepository::create_on_conn(&conn, meta)?;
+        PostgresMetadataRepository::tx_create(&conn, meta)?;
         Ok(())
     }
 
@@ -108,7 +111,7 @@ impl<'a> MetadataRepository for PostgresMetadataRepository<'a> {
 
     fn delete(&self, meta: &Metadata) -> Result<(), Box<dyn Error>> {
         let conn = self.pool.get()?;
-        PostgresMetadataRepository::delete_on_conn(&conn, meta)?;
+        PostgresMetadataRepository::tx_delete(&conn, meta)?;
         Ok(())
     }
 

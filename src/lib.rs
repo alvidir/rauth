@@ -9,9 +9,8 @@ pub mod metadata;
 pub mod secret;
 pub mod session;
 pub mod user;
-pub mod token;
 pub mod regex;
+pub mod security;
 
 mod schema;
-mod security;
 mod time;

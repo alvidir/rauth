@@ -26,8 +26,8 @@ pub fn encode_jwt(secret: &[u8], payload: impl Serialize) -> Result<String, Box<
 }
 
 pub fn decode_jwt<T: DeserializeOwned>(public: &[u8], token: &str) -> Result<T, Box<dyn Error>> {
-    let key = DecodingKey::from_ec_pem(public)?;
     let validation = Validation::new(Algorithm::ES256);
+    let key = DecodingKey::from_ec_pem(public)?;
     let token = jsonwebtoken::decode::<T>(token, &key, &validation)?;
     Ok(token.claims)
 }

@@ -30,8 +30,18 @@ services:
             - database
         env_file:
             - ".env"
+
+    ### IN-MEMORY DATABASE ###
+    redis:
+        container_name: redis
+        image: docker.io/redis:latest
+        restart: always
+        ports:
+            - "6379:6379"
+        networks: 
+            - cache
     
-    # ## ENVOY PROXY ###
+    ### ENVOY PROXY ###
     # envoy:
     #     container_name: rauth-envoy
     #     image: localhost/alvidir/rauth:1.0.0-envoy
@@ -45,7 +55,7 @@ services:
     #         label: disable
 
         
-    # ## BACKEND ###
+    ### BACKEND ###
     # rauth:
     #     container_name: rauth-server
     #     image: localhost/alvidir/rauth:0.2.0-server
@@ -55,19 +65,22 @@ services:
     #         - database
     #     depends_on: 
     #         - postgres
+    #         - cache
     #         - envoy
     #     env_file:
     #         - .env
 
 networks:
-    # Ingress network works as bridge between envoyproxy and the available services
     # ingress:
     #     name: ingress
     #     driver: bridge
  
-    # Database network is the bridge between domain environment and the sql databases
     database:
         name: database
+        driver: bridge
+
+    cache:
+        name: cache
         driver: bridge
 
 volumes:

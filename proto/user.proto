@@ -3,14 +3,14 @@ syntax = "proto3";
 package user;
 import "google/protobuf/empty.proto";
 
-message Secure {
-  string pwd = 1;
-  string totp = 2;
-}
-
 message SignupRequest {
   string email = 1;
   string pwd = 2;
+}
+
+message DeleteRequest {
+  string pwd = 1;
+  string totp = 2;
 }
 
 message TotpRequest {
@@ -20,11 +20,12 @@ message TotpRequest {
   };
 
   actions action = 1;
-  Secure secure = 2;
+  string pwd = 2;
+  string totp = 3;
 }
 
 service UserService {
   rpc Signup(user.SignupRequest) returns (google.protobuf.Empty);
-  rpc Delete(user.Secure) returns (google.protobuf.Empty);
+  rpc Delete(user.DeleteRequest) returns (google.protobuf.Empty);
   rpc Totp(user.TotpRequest) returns (google.protobuf.Empty);
 }

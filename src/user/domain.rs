@@ -2,14 +2,6 @@ use std::error::Error;
 use crate::regex;
 use crate::metadata::domain::Metadata;
 
-pub trait UserRepository {
-    fn find(&self, id: i32) -> Result<User, Box<dyn Error>>;
-    fn find_by_email(&self, email: &str) -> Result<User, Box<dyn Error>>;
-    fn create(&self, user: &mut User) -> Result<(), Box<dyn Error>>;
-    fn save(&self, user: &User) -> Result<(), Box<dyn Error>>;
-    fn delete(&self, user: &User) -> Result<(), Box<dyn Error>>;
-}
-
 pub struct User {
     pub(super) id: i32,
     pub(super) name: String,
@@ -20,7 +12,6 @@ pub struct User {
 
 impl User {
     pub fn new(meta: Metadata,
-               name: &str,
                email: &str,
                password: &str) -> Result<Self, Box<dyn Error>> {
         
@@ -29,7 +20,7 @@ impl User {
         
         let user = User {
             id: 0,
-            name: name.to_string(),
+            name: email.split("@").collect::<Vec<&str>>()[0].to_string(),
             email: email.to_string(),
             password: password.to_string(),
             meta: meta,
@@ -81,11 +72,11 @@ pub mod tests {
     #[test]
     fn user_new_should_not_fail() {
         const PWD: &str = "ABCDEF1234567890";
-        const NAME: &str = "dummy user";
+        const NAME: &str = "dummy";
         const EMAIL: &str = "dummy@test.com";
 
         let meta = new_metadata();
-        let user = User::new(meta, NAME, EMAIL, PWD).unwrap();
+        let user = User::new(meta, EMAIL, PWD).unwrap();
 
         assert_eq!(user.id, 0); 
         assert_eq!(user.name, NAME);
@@ -95,11 +86,10 @@ pub mod tests {
     #[test]
     fn user_new_wrong_email_should_fail() {
         const PWD: &str = "ABCDEF1234567890";
-        const NAME: &str = "dummy user";
         const EMAIL: &str = "not_an_email";
 
         let meta = new_metadata();
-        let user = User::new(meta, NAME, EMAIL, PWD);
+        let user = User::new(meta, EMAIL, PWD);
     
         assert!(user.is_err());
     }
@@ -107,11 +97,10 @@ pub mod tests {
     #[test]
     fn user_new_wrong_password_should_fail() {
         const PWD: &str = "ABCDEFG1234567890";
-        const NAME: &str = "dummy user";
         const EMAIL: &str = "dummy@test.com";
 
         let meta = new_metadata();
-        let user = User::new(meta, NAME, EMAIL, PWD);
+        let user = User::new(meta, EMAIL, PWD);
     
         assert!(user.is_err());
     }
