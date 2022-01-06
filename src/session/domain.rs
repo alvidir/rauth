@@ -108,7 +108,7 @@ pub mod tests {
         let secret = base64::decode(JWT_SECRET).unwrap();
         let token = security::encode_jwt(&secret, claim).unwrap();
         
-        sleep(Duration::from_secs(1));
+        sleep(Duration::from_secs(3));
         let public = base64::decode(JWT_PUBLIC).unwrap();
         assert!(security::decode_jwt::<SessionToken>(&public, &token).is_err());
     }
