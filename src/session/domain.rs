@@ -97,8 +97,6 @@ pub mod tests {
     fn token_expired_should_fail() {
         use crate::security;
 
-        dotenv::dotenv().unwrap();
-
         const ISS: &str = "test";
         const SUB: i32 = 999;
         const IT_LIMIT: i32 = 100_000;
