@@ -3,7 +3,6 @@ extern crate log;
 #[macro_use]
 extern crate lazy_static;
 
-use rauth::secret::repository::PostgresSecretRepository;
 use dotenv;
 use redis;
 use std::env;
@@ -18,6 +17,8 @@ use diesel::{
 use rauth::metadata::{
     repository::PostgresMetadataRepository,
 };
+
+use rauth::secret::repository::PostgresSecretRepository;
 
 use rauth::user::{
     grpc::{UserServiceServer, UserServiceImplementation},
@@ -38,7 +39,7 @@ const ENV_JWT_PUBLIC: &str = "JWT_PUBLIC";
 const ENV_JWT_HEADER: &str = "JWT_HEADER";
 const ENV_REDIS_DSN: &str = "REDIS_DSN";
 const ENV_SESSION_LIFETIME: &str = "SESSION_LIFETIME";
-const ENV_PG_POOL_SIZE: &str = "PG_POOL_SIZE";
+const ENV_POSTGRES_POOL: &str = "POSTGRES_POOL";
 
 type PgPool = Pool<ConnectionManager<PgConnection>>;
 
@@ -47,14 +48,11 @@ lazy_static! {
     static ref JWT_PUBLIC: Vec<u8> = base64::decode(env::var(ENV_JWT_PUBLIC).expect("jwt public key must be set")).unwrap();
     static ref JWT_HEADER: String = env::var(ENV_JWT_HEADER).expect("token's header must be set");
     static ref SESSION_LIFETIME: u64 = env::var(ENV_SESSION_LIFETIME).expect("session's lifetime must be set").parse().unwrap();
-    static ref PG_POOL_SIZE: u32 = match env::var(ENV_PG_POOL_SIZE) {
-        Err(_) => 1,
-        Ok(size) => size.parse().unwrap()
-    };
 
     static ref PG_POOL: PgPool = {
         let postgres_dsn = env::var(ENV_POSTGRES_DSN).expect("postgres url must be set");
-        match PgPool::builder().max_size(*PG_POOL_SIZE).build(ConnectionManager::new(&postgres_dsn)) {
+        let postgres_pool = env::var(ENV_POSTGRES_POOL).expect("postgres pool size must be set").parse().unwrap();
+        match PgPool::builder().max_size(postgres_pool).build(ConnectionManager::new(&postgres_dsn)) {
             Ok(pool) => {
                 info!("connection with postgres cluster established");
                 pool
