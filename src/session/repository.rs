@@ -8,7 +8,7 @@ use super::{
 };
 
 pub struct RedisSessionRepository {
-    pub conn: fn() -> Result<redis::Connection, Box<dyn Error>>,
+    pub conn: fn() -> redis::RedisResult<redis::Connection>,
     pub jwt_secret: &'static [u8],
     pub jwt_public: &'static [u8],
 }

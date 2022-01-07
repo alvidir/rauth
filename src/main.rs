@@ -38,6 +38,7 @@ const ENV_JWT_PUBLIC: &str = "JWT_PUBLIC";
 const ENV_JWT_HEADER: &str = "JWT_HEADER";
 const ENV_REDIS_DSN: &str = "REDIS_DSN";
 const ENV_SESSION_LIFETIME: &str = "SESSION_LIFETIME";
+const ENV_PG_POOL_SIZE: &str = "PG_POOL_SIZE";
 
 type PgPool = Pool<ConnectionManager<PgConnection>>;
 
@@ -45,11 +46,15 @@ lazy_static! {
     static ref JWT_SECRET: Vec<u8> = base64::decode(env::var(ENV_JWT_SECRET).expect("jwt secret must be set")).unwrap();
     static ref JWT_PUBLIC: Vec<u8> = base64::decode(env::var(ENV_JWT_PUBLIC).expect("jwt public key must be set")).unwrap();
     static ref JWT_HEADER: String = env::var(ENV_JWT_HEADER).expect("token's header must be set");
-    static ref SESSION_LIFETIME: u64 =  env::var(ENV_SESSION_LIFETIME).expect("session's lifetime must be set").parse().unwrap();
+    static ref SESSION_LIFETIME: u64 = env::var(ENV_SESSION_LIFETIME).expect("session's lifetime must be set").parse().unwrap();
+    static ref PG_POOL_SIZE: u32 = match env::var(ENV_PG_POOL_SIZE) {
+        Err(_) => 1,
+        Ok(size) => size.parse().unwrap()
+    };
 
     static ref PG_POOL: PgPool = {
         let postgres_dsn = env::var(ENV_POSTGRES_DSN).expect("postgres url must be set");
-        match PgPool::builder().max_size(1).build(ConnectionManager::new(&postgres_dsn)) {
+        match PgPool::builder().max_size(*PG_POOL_SIZE).build(ConnectionManager::new(&postgres_dsn)) {
             Ok(pool) => {
                 info!("connection with postgres cluster established");
                 pool
@@ -67,11 +72,8 @@ lazy_static! {
     };
 }
 
-fn get_redis_conn() -> Result<redis::Connection, Box<dyn Error>> {
-    match REDIS_CLIENT.get_connection() {
-        Ok(conn) => Ok(conn),
-        Err(err) => Err(err.into())
-    }
+fn get_redis_conn() -> redis::RedisResult<redis::Connection> {
+    REDIS_CLIENT.get_connection()
 }
 
 pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
@@ -109,9 +111,9 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
 
     let user_server = UserServiceImplementation{
         user_app: user_app,
-        jwt_secret: &JWT_SECRET,
         jwt_public: &JWT_PUBLIC,
         jwt_header: &JWT_HEADER,
+        allow_unverified: false,
     };
 
     let sess_server = SessionServiceImplementation {
@@ -143,7 +145,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
         warn!("no dotenv file has been found");
     }
 
-    let port = env::var(ENV_SERVICE_PORT)?;
+    let port = env::var(ENV_SERVICE_PORT)
+        .expect("service port must be set");
+    
     let addr = format!("127.0.0.1:{}", port);
     start_server(addr).await
 }

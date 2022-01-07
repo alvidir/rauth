@@ -1,5 +1,6 @@
 use tonic::{Request, Response, Status};
 use crate::security;
+use crate::constants;
 use crate::user::application::{UserRepository, UserApplication};
 use crate::secret::application::SecretRepository;
 use crate::session::domain::{SessionToken, VerificationToken};
@@ -21,9 +22,9 @@ pub struct UserServiceImplementation<
     E:  SecretRepository + Sync + Send
     > {
     pub user_app: UserApplication<U, E>,
-    pub jwt_secret: &'static [u8],
     pub jwt_public: &'static [u8],
     pub jwt_header: &'static str,
+    pub allow_unverified: bool,
 }
 
 #[tonic::async_trait]
@@ -33,12 +34,16 @@ impl<
     > UserService for UserServiceImplementation<U, E> {
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<()>, Status> {
         if request.metadata().get(self.jwt_header).is_none() {
+            if !self.allow_unverified {
+                return Err(Status::failed_precondition(constants::ERR_UNVERIFIED))
+            }
+
             let msg_ref = request.into_inner();
             match self.user_app.signup(&msg_ref.email, &msg_ref.pwd) {
                 Err(err) => return Err(Status::aborted(err.to_string())),
                 Ok(_) => return Ok(Response::new(())),
             };
-        };
+        }
     
         // this line will not fail due to the previous check of None 
         let token = match request.metadata().get(self.jwt_header).unwrap().to_str() {
