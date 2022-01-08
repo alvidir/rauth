@@ -5,6 +5,12 @@ use crate::user::application::{UserRepository, UserApplication};
 use crate::secret::application::SecretRepository;
 use crate::session::domain::{SessionToken, VerificationToken};
 
+pub const ERR_UNVERIFIED: &str = "E-U001"; // unverified signup is not allowed
+pub const ERR_MISSING_DATA: &str = "E-U002"; // some data is missing
+pub const ERR_TOKEN_REQUIRED: &str = "E-U003"; // a token is required to perform the request
+pub const ERR_BAD_REQUEST: &str = "E-U004"; // some data is wrong or not valid
+pub const ERR_INTERNAL_ERROR: &str = "E-U005"; // was not possible to complete the request
+
 // Import the generated rust code into module
 mod proto {
     tonic::include_proto!("user");
@@ -35,11 +41,12 @@ impl<
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<()>, Status> {
         if request.metadata().get(self.jwt_header).is_none() {
             if !self.allow_unverified {
-                return Err(Status::failed_precondition(constants::ERR_UNVERIFIED))
+                return Err(Status::failed_precondition(ERR_UNVERIFIED))
             }
 
             let msg_ref = request.into_inner();
-            match self.user_app.signup(&msg_ref.email, &msg_ref.pwd) {
+            let shadowed_pwd = security::shadow(&msg_ref.pwd, constants::PWD_SUFIX);
+            match self.user_app.signup(&msg_ref.email, &shadowed_pwd) {
                 Err(err) => return Err(Status::aborted(err.to_string())),
                 Ok(_) => return Ok(Response::new(())),
             };
@@ -59,7 +66,8 @@ impl<
         let msg_ref = request.into_inner();
         if claims.sub.is_some() && claims.pwd.is_none() {
             // this line will not fail due to the previous check of Some
-            match self.user_app.signup(&claims.sub.unwrap(), &msg_ref.pwd) {
+            let shadowed_pwd = security::shadow(&msg_ref.pwd, constants::PWD_SUFIX);
+            match self.user_app.signup(&claims.sub.unwrap(), &shadowed_pwd) {
                 Err(err) => return Err(Status::aborted(err.to_string())),
                 Ok(_) => return Ok(Response::new(())),
             };
@@ -73,12 +81,12 @@ impl<
             };
         }
 
-        Err(Status::invalid_argument("bad request"))
+        Err(Status::invalid_argument(ERR_MISSING_DATA))
     }
 
     async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<()>, Status> {
         if let None = request.metadata().get(self.jwt_header) {
-            return Err(Status::failed_precondition("token required"));
+            return Err(Status::failed_precondition(ERR_TOKEN_REQUIRED));
         };
 
         // this line will not fail due to the previous check of None 
@@ -101,7 +109,7 @@ impl<
 
     async fn totp(&self, request: Request<TotpRequest>) -> Result<Response<()>, Status> {
         if let None = request.metadata().get(self.jwt_header) {
-            return Err(Status::failed_precondition("token required"));
+            return Err(Status::failed_precondition(ERR_TOKEN_REQUIRED));
         };
 
         // this line will not fail due to the previous check of None 
@@ -118,10 +126,7 @@ impl<
         let msg_ref = request.into_inner(); 
         if msg_ref.action == 0 {
             match self.user_app.enable_totp(claims.sub, &msg_ref.pwd, &msg_ref.totp) {
-                Err(err) => {
-                    error!("cannot enable the totp: {:?}", err);
-                    return Err(Status::unknown(err.to_string()))
-                },
+                Err(err) => return Err(Status::unknown(err.to_string())),
                 Ok(token) => {
                     let mut response = Response::new(());
                     response.metadata_mut().insert(self.jwt_header, token.parse().unwrap());
@@ -133,13 +138,10 @@ impl<
         if msg_ref.action == 1 {
             match self.user_app.disable_totp(claims.sub, &msg_ref.pwd, &msg_ref.totp) {
                 Ok(_) => return Ok(Response::new(())),
-                Err(err) => {
-                    error!("cannot disable the totp: {:?}", err);
-                    return Err(Status::unknown(err.to_string()))
-                },
+                Err(err) => return Err(Status::unknown(err.to_string())),
             }
         }
 
-        Err(Status::invalid_argument("wrong action"))
+        Err(Status::invalid_argument(ERR_BAD_REQUEST))
     }
 }

@@ -5,8 +5,8 @@ authors = ["Hèctor Morales <hector.morales.carnice@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-diesel = { version = "1.4.8", features = ["postgres", "chrono", "r2d2"] } # postgres orm
-redis = "0.21.4"
+diesel = { version = "1.4.8", features = ["postgres", "chrono", "r2d2"] } # postgres client
+r2d2_redis = "0.14.0" # sync redis connection pool
 tonic = "0.6.2" # gRPC
 prost = "0.9.0" # protobuf
 tokio = { version = "1.15.0", features = ["full"] }
@@ -22,7 +22,7 @@ lazy_static = "1.4.0"
 jsonwebtoken = "7.2.0"
 log = "0.4.14"
 chrono = "0.4.19"
-serde = "1.0.133"
+serde = "1.0.133" # data parser
 
 [build-dependencies]
 tonic-build = "0.6.2"

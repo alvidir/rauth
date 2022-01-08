@@ -31,8 +31,7 @@ impl<U: UserRepository, E: SecretRepository> UserApplication<U, E> {
         info!("got a \"signup\" request from email {} ", email);
         
         let meta = Metadata::new();
-        let shadowed_pwd = security::shadow(pwd, constants::PWD_SUFIX);
-        let mut user = User::new(meta, email, &shadowed_pwd)?;
+        let mut user = User::new(meta, email, pwd)?;
         self.user_repo.create(&mut user)?;
         
         Ok(user)

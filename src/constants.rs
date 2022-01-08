@@ -5,4 +5,3 @@ pub const PWD_SUFIX: &str = "::PWD::RAUTH";
 
 pub const ERR_NOT_FOUND: &str = "not found";
 pub const ERR_UNAUTHORIZED: &str = "unauthorized";
-pub const ERR_UNVERIFIED: &str = "unverified";

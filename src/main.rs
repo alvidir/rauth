@@ -4,11 +4,11 @@ extern crate log;
 extern crate lazy_static;
 
 use dotenv;
-use redis;
 use std::env;
 use std::error::Error;
 use std::sync::Arc;
 use tonic::transport::Server;
+use r2d2_redis::{r2d2, RedisConnectionManager};
 use diesel::{
     r2d2::{Pool, ConnectionManager},
     pg::PgConnection
@@ -32,7 +32,10 @@ use rauth::session::{
     application::SessionApplication,
 };
 
+const DEFAULT_NETW: &str = "127.0.0.1";
+
 const ENV_SERVICE_PORT: &str = "SERVICE_PORT";
+const ENV_SERVICE_NET: &str = "SERVICE_NETW";
 const ENV_POSTGRES_DSN: &str = "DATABASE_URL";
 const ENV_JWT_SECRET: &str = "JWT_SECRET";
 const ENV_JWT_PUBLIC: &str = "JWT_PUBLIC";
@@ -40,8 +43,10 @@ const ENV_JWT_HEADER: &str = "JWT_HEADER";
 const ENV_REDIS_DSN: &str = "REDIS_DSN";
 const ENV_SESSION_LIFETIME: &str = "SESSION_LIFETIME";
 const ENV_POSTGRES_POOL: &str = "POSTGRES_POOL";
+const ENV_REDIS_POOL: &str = "REDIS_POOL";
 
 type PgPool = Pool<ConnectionManager<PgConnection>>;
+type RdPool = r2d2::Pool<RedisConnectionManager> ;
 
 lazy_static! {
     static ref JWT_SECRET: Vec<u8> = base64::decode(env::var(ENV_JWT_SECRET).expect("jwt secret must be set")).unwrap();
@@ -64,14 +69,21 @@ lazy_static! {
         }
     };
 
-    static ref REDIS_CLIENT: redis::Client = {
+    static ref RD_POOL: RdPool = {
         let redis_dsn: String = env::var(ENV_REDIS_DSN).expect("redis url must be set");
-        redis::Client::open(redis_dsn).unwrap()
+        let redis_pool = env::var(ENV_REDIS_POOL).expect("redis pool size must be set").parse().unwrap();
+        let manager = RedisConnectionManager::new(redis_dsn).unwrap();
+        match r2d2::Pool::builder().max_size(redis_pool).build(manager) {
+            Ok(pool) => {
+                info!("connection with redis cluster established");
+                pool
+            },
+            Err(err) => {
+                error!("{}", err);
+                panic!("cannot establish connection with redis cluster");
+            }
+        }
     };
-}
-
-fn get_redis_conn() -> redis::RedisResult<redis::Connection> {
-    REDIS_CLIENT.get_connection()
 }
 
 pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
@@ -90,7 +102,7 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
     });
 
     let session_repo = Arc::new(RedisSessionRepository{
-        conn: get_redis_conn,
+        pool: &RD_POOL,
         jwt_secret: &JWT_SECRET,
         jwt_public: &JWT_PUBLIC,
     });
@@ -135,17 +147,20 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    // configuring logs
     env_logger::init();
 
-    // seting up environment variables
     if let Err(_) = dotenv::dotenv() {
         warn!("no dotenv file has been found");
     }
 
+    let netw = match env::var(ENV_SERVICE_NET) {
+        Err(_) => DEFAULT_NETW.to_string(),
+        Ok(netw)  => netw,
+    };
+
     let port = env::var(ENV_SERVICE_PORT)
         .expect("service port must be set");
     
-    let addr = format!("127.0.0.1:{}", port);
+    let addr = format!("{}:{}", netw, port);
     start_server(addr).await
 }
