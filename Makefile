@@ -40,9 +40,6 @@ setup:
 	
 	python3 scripts/build_db_setup_script.py
 
-migration:
-	diesel migration run
-
 deploy:
 	podman-compose  -f docker-compose.yaml up --remove-orphans -d
 
