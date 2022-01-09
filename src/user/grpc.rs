@@ -3,13 +3,10 @@ use crate::security;
 use crate::constants;
 use crate::user::application::{UserRepository, UserApplication};
 use crate::secret::application::SecretRepository;
-use crate::session::domain::{SessionToken, VerificationToken};
-
-pub const ERR_UNVERIFIED: &str = "E-U001"; // unverified signup is not allowed
-pub const ERR_MISSING_DATA: &str = "E-U002"; // some data is missing
-pub const ERR_TOKEN_REQUIRED: &str = "E-U003"; // a token is required to perform the request
-pub const ERR_BAD_REQUEST: &str = "E-U004"; // some data is wrong or not valid
-pub const ERR_INTERNAL_ERROR: &str = "E-U005"; // was not possible to complete the request
+use crate::session::{
+    grpc::get_session_token,
+    domain::VerificationToken
+};
 
 // Import the generated rust code into module
 mod proto {
@@ -42,7 +39,7 @@ impl<
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<()>, Status> {
         if request.metadata().get(self.jwt_header).is_none() {
             if !self.allow_unverified {
-                return Err(Status::failed_precondition(ERR_UNVERIFIED))
+                return Err(Status::failed_precondition(constants::ERR_UNVERIFIED))
             }
 
             let msg_ref = request.into_inner();
@@ -55,15 +52,28 @@ impl<
     
         // this line will not fail due to the previous check of None 
         let secure_token = request.metadata().get(self.jwt_header).unwrap().to_str()
-            .map_err(|err| Status::aborted(err.to_string()))?;
+            .map_err(|err| {
+                error!("{}: {}", constants::ERR_PARSE_TOKEN, err);
+                Status::aborted(constants::ERR_PARSE_TOKEN)
+            })?;
 
         let token = match security::decrypt(self.rsa_secret, secure_token.as_bytes()) {
-            Err(err) => return Err(Status::invalid_argument(err.to_string())),
-            Ok(token) => String::from_utf8(token).map_err(|err| Status::unknown(err.to_string()))?,
+            Ok(token) => String::from_utf8(token).map_err(|err| {
+                warn!("{}: {}", constants::ERR_PARSE_TOKEN, err);
+                Status::unknown(constants::ERR_PARSE_TOKEN)
+            })?,
+
+            Err(err) => {
+                warn!("{}: {}", constants::ERR_DECRYPT_TOKEN, err);
+                return Err(Status::invalid_argument(constants::ERR_DECRYPT_TOKEN))
+            },
         };
 
         let claims = security::verify_jwt::<VerificationToken>(&self.jwt_public, &token)
-            .map_err(|err| Status::aborted(err.to_string()))?;
+            .map_err(|err| {
+                warn!("{}: {}", constants::ERR_VERIFY_TOKEN, err);
+                Status::aborted(constants::ERR_VERIFY_TOKEN)
+            })?;
 
         let msg_ref = request.into_inner();
         if claims.sub.is_some() && claims.pwd.is_none() {
@@ -83,22 +93,15 @@ impl<
             };
         }
 
-        Err(Status::invalid_argument(ERR_MISSING_DATA))
+        Err(Status::invalid_argument(constants::ERR_MISSING_DATA))
     }
 
     async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<()>, Status> {
-        if let None = request.metadata().get(self.jwt_header) {
-            return Err(Status::failed_precondition(ERR_TOKEN_REQUIRED));
-        };
-
-        // this line will not fail due to the previous check of None 
-        let token = match request.metadata().get(self.jwt_header).unwrap().to_str() {
-            Err(err) => return Err(Status::aborted(err.to_string())),
-            Ok(token) => token.to_string(),
-        };
-
-        let claims =  security::verify_jwt::<SessionToken>(&self.jwt_public, &token)
-            .map_err(|err| Status::aborted(err.to_string()))?;
+        let claims =  get_session_token(request.metadata(), self.jwt_public, self.jwt_header)
+            .map_err(|err| {
+                warn!("{}: {}", constants::ERR_VERIFY_TOKEN, err);
+                Status::unauthenticated(constants::ERR_VERIFY_TOKEN)
+            })?;
 
         let msg_ref = request.into_inner();
         match self.user_app.delete(claims.sub, &msg_ref.pwd, &msg_ref.totp) {
@@ -108,18 +111,11 @@ impl<
     }
 
     async fn totp(&self, request: Request<TotpRequest>) -> Result<Response<()>, Status> {
-        if let None = request.metadata().get(self.jwt_header) {
-            return Err(Status::failed_precondition(ERR_TOKEN_REQUIRED));
-        };
-
-        // this line will not fail due to the previous check of None 
-        let token = match request.metadata().get(self.jwt_header).unwrap().to_str() {
-            Err(err) => return Err(Status::aborted(err.to_string())),
-            Ok(token) => token.to_string(),
-        };
-
-        let claims = security::verify_jwt::<SessionToken>(&self.jwt_public, &token)
-            .map_err(|err| Status::aborted(err.to_string()))?;
+        let claims =  get_session_token(request.metadata(), self.jwt_public, self.jwt_header)
+            .map_err(|err| {
+                warn!("{}: {}", constants::ERR_VERIFY_TOKEN, err);
+                Status::unauthenticated(constants::ERR_VERIFY_TOKEN)
+            })?;
 
         let msg_ref = request.into_inner(); 
         if msg_ref.action == 0 {
@@ -140,6 +136,6 @@ impl<
             }
         }
 
-        Err(Status::invalid_argument(ERR_BAD_REQUEST))
+        Err(Status::invalid_argument(constants::ERR_INVALID_OPTION))
     }
 }
