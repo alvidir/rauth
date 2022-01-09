@@ -44,8 +44,10 @@ struct NewPostgresUser<'a> {
     pub meta_id: i32,
 }
 
+type PgPool = Pool<ConnectionManager<PgConnection>>;
+
 pub struct PostgresUserRepository<'a, M: MetadataRepository> {
-    pub pool: &'a Pool<ConnectionManager<PgConnection>>,
+    pub pool: &'a PgPool,
     pub metadata_repo: Arc<M>,
 }
 

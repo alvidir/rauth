@@ -37,8 +37,10 @@ struct NewPostgresMetadata {
     pub deleted_at: Option<SystemTime>
 }
 
+type PgPool = Pool<ConnectionManager<PgConnection>>;
+
 pub struct PostgresMetadataRepository<'a> {
-    pub pool: &'a Pool<ConnectionManager<PgConnection>>,
+    pub pool: &'a PgPool,
 }
 
 impl<'a> PostgresMetadataRepository<'a> {

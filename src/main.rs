@@ -37,6 +37,8 @@ const DEFAULT_NETW: &str = "127.0.0.1";
 const ENV_SERVICE_PORT: &str = "SERVICE_PORT";
 const ENV_SERVICE_NET: &str = "SERVICE_NETW";
 const ENV_POSTGRES_DSN: &str = "DATABASE_URL";
+const ENV_RSA_SECRET: &str = "RSA_SECRET";
+const ENV_RSA_PUBLIC: &str = "RSA_PUBLIC";
 const ENV_JWT_SECRET: &str = "JWT_SECRET";
 const ENV_JWT_PUBLIC: &str = "JWT_PUBLIC";
 const ENV_JWT_HEADER: &str = "JWT_HEADER";
@@ -49,6 +51,8 @@ type PgPool = Pool<ConnectionManager<PgConnection>>;
 type RdPool = r2d2::Pool<RedisConnectionManager> ;
 
 lazy_static! {
+    static ref RSA_SECRET: Vec<u8> = base64::decode(env::var(ENV_RSA_SECRET).expect("rsa secret must be set")).unwrap();
+    static ref RSA_PUBLIC: Vec<u8> = base64::decode(env::var(ENV_RSA_PUBLIC).expect("rsa public key must be set")).unwrap();
     static ref JWT_SECRET: Vec<u8> = base64::decode(env::var(ENV_JWT_SECRET).expect("jwt secret must be set")).unwrap();
     static ref JWT_PUBLIC: Vec<u8> = base64::decode(env::var(ENV_JWT_PUBLIC).expect("jwt public key must be set")).unwrap();
     static ref JWT_HEADER: String = env::var(ENV_JWT_HEADER).expect("token's header must be set");
@@ -121,6 +125,7 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
 
     let user_server = UserServiceImplementation{
         user_app: user_app,
+        rsa_secret: &RSA_SECRET,
         jwt_public: &JWT_PUBLIC,
         jwt_header: &JWT_HEADER,
         allow_unverified: false,

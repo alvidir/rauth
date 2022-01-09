@@ -24,17 +24,20 @@ build:
 setup:
 	mkdir -p .ssh/
 	
-	### setting up required secrets ###
+	openssl genrsa -out .ssh/rsa_key.pem 3072
+	openssl rsa -in .ssh/rsa_key.pem -pubout -out .ssh/rsa_pubkey.pem
+
+	cat .ssh/rsa_key.pem | base64 | tr -d '\n' > .ssh/rsa_key.base64
+	cat .ssh/rsa_pubkey.pem | base64 | tr -d '\n' > .ssh/rsa_pubkey.base64
+
 	openssl ecparam -name prime256v1 -genkey -noout -out .ssh/ec_key.pem
 	openssl ec -in .ssh/ec_key.pem -pubout -out .ssh/ec_pubkey.pem
 	openssl pkcs8 -topk8 -nocrypt -in .ssh/ec_key.pem -out .ssh/pkcs8_key.pem
 	
-	### base64 encoding for JWT's required public and private keys ###
 	cat .ssh/ec_key.pem | base64 | tr -d '\n' > .ssh/ec_key.base64
 	cat .ssh/ec_pubkey.pem | base64 | tr -d '\n' > .ssh/ec_pubkey.base64
 	cat .ssh/pkcs8_key.pem | base64 | tr -d '\n' > .ssh/pkcs8_key.base64
 	
-	### setting up db scripts ###
 	python3 scripts/build_db_setup_script.py
 
 migration:

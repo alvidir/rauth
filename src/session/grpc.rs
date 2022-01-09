@@ -38,43 +38,35 @@ impl<
     > SessionService for SessionServiceImplementation<S, U, E> {
     async fn login(&self, request: Request<LoginRequest>) -> Result<Response<()>, Status> {
         let msg_ref = request.into_inner();
-        let token = match self.sess_app.login(&msg_ref.ident, &msg_ref.pwd, &msg_ref.totp) {
-            Err(err) => return Err(Status::aborted(err.to_string())),
-            Ok(token) => token,
-        };
+
+        let token = self.sess_app.login(&msg_ref.ident, &msg_ref.pwd, &msg_ref.totp)
+            .map_err(|err| Status::aborted(err.to_string()))?;
 
         let mut res = Response::new(());
-        let secure_token = match security::encode_jwt(&self.jwt_secret, token) {
-            Ok(secure_token) => secure_token,
-            Err(err) => {
-                error!("cannot encode JWT {:?}", err);
-                return Err(Status::unknown(err.to_string()));
-            }
-        };
+        let secure_token = security::sign_jwt(&self.jwt_secret, token)
+            .map_err(|err| Status::unknown(err.to_string()))?;
 
-        res.metadata_mut().append(self.jwt_header, secure_token.parse().unwrap());
+        let parsed_token = secure_token.parse()
+            .map_err(|_| Status::unknown("unable to parse token"))?;
+
+        res.metadata_mut().append(self.jwt_header, parsed_token);
         Ok(res)
     }
 
     async fn logout(&self, request: Request<()>) -> Result<Response<()>, Status> {
         let metadata = request.metadata();
-        if let None = metadata.get(self.jwt_header) {
+        if metadata.get(self.jwt_header).is_none() {
             return Err(Status::failed_precondition("token required"));
         };
 
         // this line will not fail due to the previous check of None 
         let token = match metadata.get(self.jwt_header).unwrap().to_str() {
             Err(err) => return Err(Status::aborted(err.to_string())),
-            Ok(secure_token) => security::decode_jwt::<SessionToken>(&self.jwt_public, secure_token),
+            Ok(secure_token) => security::verify_jwt::<SessionToken>(&self.jwt_public, secure_token)
+                .map_err(|err| Status::unknown(err.to_string()))?,
         };
 
-        if let Err(err) = token {
-            error!("cannot decode JWT: {:?}", err);
-            return Err(Status::unknown(err.to_string()));
-        }
-
-        // this line will not fail due to the previous check of Err 
-        if let Err(err) = self.sess_app.logout(token.unwrap().sub){   
+        if let Err(err) = self.sess_app.logout(token.sub){   
             error!("failed to logout user: {}", err);            
             return Err(Status::aborted(err.to_string()));
         }

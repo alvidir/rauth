@@ -28,6 +28,7 @@ pub struct UserServiceImplementation<
     E:  SecretRepository + Sync + Send
     > {
     pub user_app: UserApplication<U, E>,
+    pub rsa_secret: &'static [u8],
     pub jwt_public: &'static [u8],
     pub jwt_header: &'static str,
     pub allow_unverified: bool,
@@ -53,15 +54,16 @@ impl<
         }
     
         // this line will not fail due to the previous check of None 
-        let token = match request.metadata().get(self.jwt_header).unwrap().to_str() {
-            Err(err) => return Err(Status::aborted(err.to_string())),
-            Ok(token) => token.to_string(),
+        let secure_token = request.metadata().get(self.jwt_header).unwrap().to_str()
+            .map_err(|err| Status::aborted(err.to_string()))?;
+
+        let token = match security::decrypt(self.rsa_secret, secure_token.as_bytes()) {
+            Err(err) => return Err(Status::invalid_argument(err.to_string())),
+            Ok(token) => String::from_utf8(token).map_err(|err| Status::unknown(err.to_string()))?,
         };
 
-        let claims = match security::decode_jwt::<VerificationToken>(&self.jwt_public, &token) {
-            Ok(claims) => claims,
-            Err(err) => return Err(Status::aborted(err.to_string())),
-        };
+        let claims = security::verify_jwt::<VerificationToken>(&self.jwt_public, &token)
+            .map_err(|err| Status::aborted(err.to_string()))?;
 
         let msg_ref = request.into_inner();
         if claims.sub.is_some() && claims.pwd.is_none() {
@@ -95,10 +97,8 @@ impl<
             Ok(token) => token.to_string(),
         };
 
-        let claims = match security::decode_jwt::<SessionToken>(&self.jwt_public, &token) {
-            Ok(claims) => claims,
-            Err(err) => return Err(Status::aborted(err.to_string())),
-        };
+        let claims =  security::verify_jwt::<SessionToken>(&self.jwt_public, &token)
+            .map_err(|err| Status::aborted(err.to_string()))?;
 
         let msg_ref = request.into_inner();
         match self.user_app.delete(claims.sub, &msg_ref.pwd, &msg_ref.totp) {
@@ -118,10 +118,8 @@ impl<
             Ok(token) => token.to_string(),
         };
 
-        let claims = match security::decode_jwt::<SessionToken>(&self.jwt_public, &token) {
-            Ok(claims) => claims,
-            Err(err) => return Err(Status::aborted(err.to_string())),
-        };
+        let claims = security::verify_jwt::<SessionToken>(&self.jwt_public, &token)
+            .map_err(|err| Status::aborted(err.to_string()))?;
 
         let msg_ref = request.into_inner(); 
         if msg_ref.action == 0 {

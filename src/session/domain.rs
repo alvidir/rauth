@@ -81,10 +81,10 @@ pub mod tests {
         let after = SystemTime::now();
         
         let secret = base64::decode(JWT_SECRET).unwrap();
-        let token = security::encode_jwt(&secret, claim).unwrap();
+        let token = security::sign_jwt(&secret, claim).unwrap();
 
         let public = base64::decode(JWT_PUBLIC).unwrap();
-        let claim = security::decode_jwt::<SessionToken>(&public, &token).unwrap();
+        let claim = security::verify_jwt::<SessionToken>(&public, &token).unwrap();
 
         assert!(claim.iat >= before && claim.iat <= after);     
         assert!(claim.exp >= unix_timestamp(before + timeout));
@@ -104,16 +104,16 @@ pub mod tests {
 
         let claim = SessionToken::new(ISS, SUB, timeout);
         let secret = base64::decode(JWT_SECRET).unwrap();
-        let token = security::encode_jwt(&secret, claim).unwrap();
+        let token = security::sign_jwt(&secret, claim).unwrap();
 
         let public = base64::decode(JWT_PUBLIC).unwrap();
 
         let mut iterations: i32 = 0;
-        while iterations < IT_LIMIT && security::decode_jwt::<SessionToken>(&public, &token).is_ok() {
+        while iterations < IT_LIMIT && security::verify_jwt::<SessionToken>(&public, &token).is_ok() {
             iterations += 1;
         }
 
 
-        assert!(security::decode_jwt::<SessionToken>(&public, &token).is_err());
+        assert!(security::verify_jwt::<SessionToken>(&public, &token).is_err());
     }
 }
