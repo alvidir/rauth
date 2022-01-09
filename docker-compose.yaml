@@ -1,87 +1,44 @@
-version: '3.8'
-
 services:
-    ### DATABASE ###
     postgres:
         container_name: postgres
-        image: docker.io/postgres:latest
+        image: docker.io/postgres:alpine3.15
         restart: on-failure
         ports:
             - "5432:5432"
         volumes:
             - dbdata:/data/postgres
-            # - ./migrations/.postgres:/docker-entrypoint-initdb.d
-        networks: 
-            - database
+            - ./migrations/.postgres:/docker-entrypoint-initdb.d
+        security_opt:
+            label: disable
         env_file:
             - ".env"
-           
-    pgadmin:
-        container_name: pgadmin
-        image: docker.io/dpage/pgadmin4:latest
-        restart: always
-        depends_on:
-            - postgres
-        ports:
-            - "${PGADMIN_PORT}:80"
-        volumes:
-            - pgdata:/root/.pgadmin
-        networks: 
-            - database
-        env_file:
-            - ".env"
-
-    ### IN-MEMORY DATABASE ###
+            
     redis:
         container_name: redis
-        image: docker.io/redis:latest
+        image: docker.io/redis:alpine3.15
         restart: always
         ports:
             - "6379:6379"
-        networks: 
-            - cache
     
-    ### ENVOY PROXY ###
-    # envoy:
-    #     container_name: rauth-envoy
-    #     image: localhost/alvidir/rauth:1.0.0-envoy
-    #     restart: always
-    #     ports:
-    #         - "8080:8080"
-    #         - "9901:9901"
-    #     networks:
-    #         - ingress
-    #     security_opt:
-    #         label: disable
+    envoy:
+        container_name: rauth-envoy
+        image: localhost/alvidir/rauth:1.0.0-envoy
+        restart: always
+        ports:
+            - "8080:8080"
+            - "9901:9901"
+        security_opt:
+            label: disable
 
-        
-    ### BACKEND ###
-    # rauth:
-    #     container_name: rauth-server
-    #     image: localhost/alvidir/rauth:0.2.0-server
-    #     restart: always
-    #     networks: 
-    #         - ingress
-    #         - database
-    #     depends_on: 
-    #         - postgres
-    #         - cache
-    #         - envoy
-    #     env_file:
-    #         - .env
-
-networks:
-    # ingress:
-    #     name: ingress
-    #     driver: bridge
- 
-    database:
-        name: database
-        driver: bridge
-
-    cache:
-        name: cache
-        driver: bridge
+    rauth:
+        container_name: rauth-server
+        image: localhost/alvidir/rauth:1.0.0-server
+        restart: always
+        depends_on: 
+            - postgres
+            - redis
+        env_file:
+            - .env
 
 volumes:
     dbdata:

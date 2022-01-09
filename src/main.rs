@@ -68,7 +68,7 @@ lazy_static! {
             },
             Err(err) => {
                 error!("{}", err);
-                panic!("cannot establish connection with postgres cluster");
+                panic!("cannot establish connection with {}", postgres_dsn);
             }
         }
     };
@@ -76,7 +76,7 @@ lazy_static! {
     static ref RD_POOL: RdPool = {
         let redis_dsn: String = env::var(ENV_REDIS_DSN).expect("redis url must be set");
         let redis_pool = env::var(ENV_REDIS_POOL).expect("redis pool size must be set").parse().unwrap();
-        let manager = RedisConnectionManager::new(redis_dsn).unwrap();
+        let manager = RedisConnectionManager::new(redis_dsn.clone()).unwrap();
         match r2d2::Pool::builder().max_size(redis_pool).build(manager) {
             Ok(pool) => {
                 info!("connection with redis cluster established");
@@ -84,7 +84,7 @@ lazy_static! {
             },
             Err(err) => {
                 error!("{}", err);
-                panic!("cannot establish connection with redis cluster");
+                panic!("cannot establish connection with {}", redis_dsn);
             }
         }
     };

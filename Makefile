@@ -15,7 +15,7 @@ install:
 	### global ###
 	cargo install diesel_cli --no-default-features --features postgres
 
-all: build setup deploy
+all: build setup deploy logs
 
 build:
 	podman build -t ${REPO}/${PROJECT}:${VERSION}-envoy -f ./docker/envoy/dockerfile .
