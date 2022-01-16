@@ -126,3 +126,105 @@ impl<U: UserRepository, E: SecretRepository> UserApplication<U, E> {
         Err(constants::ERR_NOT_FOUND.into())
     }
 }
+
+#[cfg(test)]
+pub mod tests {
+    use std::error::Error;
+    use std::sync::Arc;
+    use super::super::domain::{
+        tests::new_user,
+        User
+    };
+    use super::{UserRepository, UserApplication};
+    use crate::secret::application::tests::SecretRepositoryMock;
+
+    pub struct UserRepositoryMock {
+        fn_find: Option<fn (this: &UserRepositoryMock, id: i32) -> Result<User, Box<dyn Error>>>,
+        fn_find_by_email: Option<fn (this: &UserRepositoryMock, email: &str) -> Result<User, Box<dyn Error>>>,
+        fn_find_by_name: Option<fn (this: &UserRepositoryMock, name: &str) -> Result<User, Box<dyn Error>>>,
+        fn_create: Option<fn (this: &UserRepositoryMock, user: &mut User) -> Result<(), Box<dyn Error>>>,
+        fn_save: Option<fn (this: &UserRepositoryMock, user: &User) -> Result<(), Box<dyn Error>>>,
+        fn_delete: Option<fn (this: &UserRepositoryMock, user: &User) -> Result<(), Box<dyn Error>>>,
+    }
+
+    impl UserRepositoryMock {
+        fn new() -> Self {
+            UserRepositoryMock {
+                fn_find: None,
+                fn_find_by_email: None,
+                fn_find_by_name: None,
+                fn_create: None,
+                fn_save: None,
+                fn_delete: None,
+            }
+        }
+    }
+
+    impl UserRepository for UserRepositoryMock {
+        fn find(&self, id: i32) -> Result<User, Box<dyn Error>> {
+            if let Some(f) = self.fn_find {
+                return f(self, id);
+            }
+
+            Ok(new_user())
+        }
+
+        fn find_by_email(&self, email: &str) -> Result<User, Box<dyn Error>> {
+            if let Some(f) = self.fn_find_by_email {
+                return f(self, email);
+            }
+
+            Ok(new_user())
+        }
+
+        fn find_by_name(&self, name: &str) -> Result<User, Box<dyn Error>> {
+            if let Some(f) = self.fn_find_by_name {
+                return f(self, name);
+            }
+
+            Ok(new_user())
+        }
+
+        fn create(&self, user: &mut User) -> Result<(), Box<dyn Error>> {
+            if let Some(f) = self.fn_create {
+                return f(self, user);
+            }
+
+            user.id = 999;
+            Ok(())
+        }
+
+        fn save(&self, user: &User) -> Result<(), Box<dyn Error>> {
+            if let Some(f) = self.fn_save {
+                return f(self, user);
+            }
+
+            Ok(())
+        }
+
+        fn delete(&self, user: &User) -> Result<(), Box<dyn Error>> {
+            if let Some(f) = self.fn_delete {
+                return f(self, user);
+            }
+
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn user_signup_should_not_fail() {
+        let user_repo = UserRepositoryMock::new();
+        let secret_repo = SecretRepositoryMock::new();
+        
+        let app = UserApplication{
+            user_repo: Arc::new(user_repo),
+            secret_repo: Arc::new(secret_repo),
+        };
+
+        const PWD: &str = "ABCDEF1234567890";
+        const EMAIL: &str = "dummy@test.com";
+        let user = app.signup(EMAIL, PWD).unwrap();
+
+        assert_eq!(user.id, 999);
+    }
+}

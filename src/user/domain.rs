@@ -76,11 +76,15 @@ pub mod tests {
         const EMAIL: &str = "dummy@test.com";
 
         let meta = new_metadata();
-        let user = User::new(meta, EMAIL, PWD).unwrap();
+        let user = User::new(meta.clone(), EMAIL, PWD).unwrap();
 
         assert_eq!(user.id, 0); 
         assert_eq!(user.name, NAME);
         assert_eq!(user.email, EMAIL);
+        assert_eq!(user.meta.id, meta.id);
+        assert_eq!(user.meta.created_at, meta.created_at);
+        assert_eq!(user.meta.updated_at, meta.updated_at);
+        assert_eq!(user.meta.deleted_at, meta.deleted_at);
     }
 
     #[test]
