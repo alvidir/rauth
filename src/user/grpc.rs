@@ -18,7 +18,7 @@ use proto::user_service_server::UserService;
 pub use proto::user_service_server::UserServiceServer;
 
 // Proto message structs
-use proto::{SignupRequest, DeleteRequest, TotpRequest};
+use proto::{SignupRequest, DeleteRequest, TotpRequest, Empty};
 
 pub struct UserServiceImplementation<
     U: UserRepository + Sync + Send,
@@ -36,7 +36,7 @@ impl<
     U: 'static + UserRepository + Sync + Send,
     E: 'static + SecretRepository + Sync + Send
     > UserService for UserServiceImplementation<U, E> {
-    async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<()>, Status> {
+    async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<Empty>, Status> {
         if request.metadata().get(self.jwt_header).is_none() {
             if !self.allow_unverified {
                 return Err(Status::failed_precondition(constants::ERR_UNVERIFIED))
@@ -46,7 +46,7 @@ impl<
             let shadowed_pwd = security::shadow(&msg_ref.pwd, constants::PWD_SUFIX);
             match self.user_app.signup(&msg_ref.email, &shadowed_pwd) {
                 Err(err) => return Err(Status::aborted(err.to_string())),
-                Ok(_) => return Ok(Response::new(())),
+                Ok(_) => return Ok(Response::new(Empty{})),
             };
         }
     
@@ -81,7 +81,7 @@ impl<
             let shadowed_pwd = security::shadow(&msg_ref.pwd, constants::PWD_SUFIX);
             match self.user_app.signup(&claims.sub.unwrap(), &shadowed_pwd) {
                 Err(err) => return Err(Status::aborted(err.to_string())),
-                Ok(_) => return Ok(Response::new(())),
+                Ok(_) => return Ok(Response::new(Empty{})),
             };
         }
 
@@ -89,14 +89,14 @@ impl<
             // this line will not fail due to the previous check of Some
             match self.user_app.signup(&claims.sub.unwrap(), &claims.pwd.unwrap()) {
                 Err(err) => return Err(Status::aborted(err.to_string())),
-                Ok(_) => return Ok(Response::new(())),
+                Ok(_) => return Ok(Response::new(Empty{})),
             };
         }
 
         Err(Status::invalid_argument(constants::ERR_MISSING_DATA))
     }
 
-    async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<()>, Status> {
+    async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<Empty>, Status> {
         let claims =  get_session_token(request.metadata(), self.jwt_public, self.jwt_header)
             .map_err(|err| {
                 warn!("{}: {}", constants::ERR_VERIFY_TOKEN, err);
@@ -106,11 +106,11 @@ impl<
         let msg_ref = request.into_inner();
         match self.user_app.delete(claims.sub, &msg_ref.pwd, &msg_ref.totp) {
             Err(err) => Err(Status::aborted(err.to_string())),
-            Ok(()) => Ok(Response::new(())),
+            Ok(()) => Ok(Response::new(Empty{})),
         }
     }
 
-    async fn totp(&self, request: Request<TotpRequest>) -> Result<Response<()>, Status> {
+    async fn totp(&self, request: Request<TotpRequest>) -> Result<Response<Empty>, Status> {
         let claims =  get_session_token(request.metadata(), self.jwt_public, self.jwt_header)
             .map_err(|err| {
                 warn!("{}: {}", constants::ERR_VERIFY_TOKEN, err);
@@ -122,7 +122,7 @@ impl<
             match self.user_app.enable_totp(claims.sub, &msg_ref.pwd, &msg_ref.totp) {
                 Err(err) => return Err(Status::unknown(err.to_string())),
                 Ok(token) => {
-                    let mut response = Response::new(());
+                    let mut response = Response::new(Empty{});
                     response.metadata_mut().insert(self.jwt_header, token.parse().unwrap());
                     return Ok(response);
                 }
@@ -131,11 +131,20 @@ impl<
 
         if msg_ref.action == 1 {
             match self.user_app.disable_totp(claims.sub, &msg_ref.pwd, &msg_ref.totp) {
-                Ok(_) => return Ok(Response::new(())),
+                Ok(_) => return Ok(Response::new(Empty{})),
                 Err(err) => return Err(Status::unknown(err.to_string())),
             }
         }
 
         Err(Status::invalid_argument(constants::ERR_INVALID_OPTION))
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "integration-test")]
+pub mod tests {
+    #[test]
+    fn signup_should_not_fail() {
+        
     }
 }

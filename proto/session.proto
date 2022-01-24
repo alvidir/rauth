@@ -1,7 +1,6 @@
 syntax = "proto3";
 
 package session;
-import "google/protobuf/empty.proto";
 
 message LoginRequest {
   string ident = 1;
@@ -9,7 +8,9 @@ message LoginRequest {
   string totp = 3;
 }
 
+message Empty {}
+
 service SessionService {
-  rpc Login(session.LoginRequest) returns (google.protobuf.Empty);
-  rpc Logout(google.protobuf.Empty) returns (google.protobuf.Empty);
+  rpc Login(session.LoginRequest) returns (Empty);
+  rpc Logout(Empty) returns (Empty);
 }

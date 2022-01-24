@@ -34,3 +34,6 @@ path = "src/lib.rs"
 [[bin]]
 name = "rauth"
 path = "src/main.rs"
+
+[features]
+integration-test = []

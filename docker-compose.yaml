@@ -27,6 +27,8 @@ services:
         ports:
             - "8080:8080"
             - "9901:9901"
+        volumes:
+            - ./envoy:/etc/envoy
         security_opt:
             label: disable
 
@@ -34,6 +36,8 @@ services:
         container_name: rauth-server
         image: localhost/alvidir/rauth:1.0.0-server
         restart: always
+        ports:
+            - "8000:8000"
         depends_on: 
             - postgres
             - redis

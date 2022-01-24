@@ -52,5 +52,8 @@ undeploy:
 run:
 	RUST_LOG=INFO cargo run
 
-tests:
+test:
 	RUST_BACKTRACE=1 cargo test -- --nocapture
+
+integration-test:
+	RUST_BACKTRACE=1 cargo test --features integration-test -- --nocapture

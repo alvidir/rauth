@@ -24,7 +24,7 @@ use proto::session_service_server::SessionService;
 pub use proto::session_service_server::SessionServiceServer;
 
 // Proto message structs
-use proto::LoginRequest;
+use proto::{LoginRequest, Empty};
 
 pub fn get_session_token(meta: &MetadataMap, public: &[u8], header: &str) -> Result<SessionToken, Box<dyn Error>> {
     if meta.get(header).is_none() {
@@ -54,13 +54,13 @@ impl<
     U: 'static + UserRepository + Sync + Send,
     E: 'static + SecretRepository + Sync + Send
     > SessionService for SessionServiceImplementation<S, U, E> {
-    async fn login(&self, request: Request<LoginRequest>) -> Result<Response<()>, Status> {
+    async fn login(&self, request: Request<LoginRequest>) -> Result<Response<Empty>, Status> {
         let msg_ref = request.into_inner();
 
         let token = self.sess_app.login(&msg_ref.ident, &msg_ref.pwd, &msg_ref.totp)
             .map_err(|err| Status::aborted(err.to_string()))?;
 
-        let mut res = Response::new(());
+        let mut res = Response::new(Empty{});
         let secure_token = security::sign_jwt(&self.jwt_secret, token)
             .map_err(|err| {
                 error!("{}: {}", constants::ERR_SIGN_TOKEN, err);
@@ -77,7 +77,7 @@ impl<
         Ok(res)
     }
 
-    async fn logout(&self, request: Request<()>) -> Result<Response<()>, Status> {
+    async fn logout(&self, request: Request<Empty>) -> Result<Response<Empty>, Status> {
         let metadata = request.metadata();
         if metadata.get(self.jwt_header).is_none() {
             return Err(Status::failed_precondition(constants::ERR_TOKEN_REQUIRED));
@@ -101,6 +101,6 @@ impl<
             return Err(Status::aborted(err.to_string()));
         }
 
-        Ok(Response::new(()))
+        Ok(Response::new(Empty{}))
     }
 }
