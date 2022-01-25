@@ -139,12 +139,3 @@ impl<
         Err(Status::invalid_argument(constants::ERR_INVALID_OPTION))
     }
 }
-
-#[cfg(test)]
-#[cfg(feature = "integration-test")]
-pub mod tests {
-    #[test]
-    fn signup_should_not_fail() {
-        
-    }
-}

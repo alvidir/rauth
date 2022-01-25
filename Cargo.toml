@@ -36,4 +36,4 @@ name = "rauth"
 path = "src/main.rs"
 
 [features]
-integration-test = []
+lifeness-test = []

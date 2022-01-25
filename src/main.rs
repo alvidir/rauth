@@ -169,3 +169,57 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let addr = format!("{}:{}", netw, port);
     start_server(addr).await
 }
+
+#[cfg(test)]
+#[cfg(feature = "lifeness-test")]
+pub mod tests {
+    use dotenv;
+    use std::env;
+    use tonic::transport::Channel;
+    use regex::Regex;
+
+    mod proto {
+        tonic::include_proto!("user");
+    }
+
+    use proto::user_service_client::UserServiceClient;
+    use proto::{SignupRequest};
+
+    const ENV_TEST_SERVER_URL: &str = "TEST_SERVER_URL";
+    pub const ERR_CODE: &str = r"^E-([0-9]*){3,}$";
+
+    lazy_static! {
+        static ref SERVER_URL: String = env::var(ENV_TEST_SERVER_URL).expect("test server url must be set");
+    }
+
+    #[tokio::test]
+    async fn service_should_be_alive() {
+        env_logger::init();
+
+        if let Err(_) = dotenv::dotenv() {
+            warn!("no dotenv file has been found");
+        }
+
+        let channel = Channel::from_static(&SERVER_URL)
+            .connect()
+            .await
+            .unwrap();
+        
+        let mut client = UserServiceClient::new(channel);        
+        let request = tonic::Request::new(
+            SignupRequest {
+                email: "".to_string(),
+                pwd: "".to_string(),
+            },
+        );
+
+        // sending request and waiting for response
+        let response = client.signup(request).await;
+        if let Err(ref err) = response {
+            println!("RESPONSE={:?}", response);
+            
+            let regex = Regex::new(ERR_CODE).unwrap();
+            assert!(regex.is_match(err.message()));
+        }
+    }
+}
