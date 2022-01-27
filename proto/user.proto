@@ -7,6 +7,11 @@ message SignupRequest {
   string pwd = 2;
 }
 
+message ResetPasswordRequest {
+  string old = 1;
+  string new = 2;
+}
+
 message DeleteRequest {
   string pwd = 1;
   string totp = 2;
@@ -27,6 +32,7 @@ message Empty {}
 
 service User {
   rpc Signup(user.SignupRequest) returns (Empty);
+  rpc ResetPassword(user.ResetPasswordRequest) returns (Empty);
   rpc Delete(user.DeleteRequest) returns (Empty);
   rpc Totp(user.TotpRequest) returns (Empty);
 }

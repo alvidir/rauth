@@ -18,7 +18,7 @@ use proto::user_server::User;
 pub use proto::user_server::UserServer;
 
 // Proto message structs
-use proto::{SignupRequest, DeleteRequest, TotpRequest, Empty};
+use proto::{SignupRequest, ResetPasswordRequest, DeleteRequest, TotpRequest, Empty};
 
 pub struct UserImplementation<
     U: UserRepository + Sync + Send,
@@ -94,6 +94,10 @@ impl<
         }
 
         Err(Status::invalid_argument(constants::ERR_MISSING_DATA))
+    }
+
+    async fn reset_password(&self, _: Request<ResetPasswordRequest>) -> Result<Response<Empty>, Status> {
+        return Err(Status::unimplemented("not implemented".to_string()));
     }
 
     async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<Empty>, Status> {

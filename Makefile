@@ -55,5 +55,5 @@ run:
 test:
 	RUST_BACKTRACE=1 cargo test -- --nocapture
 
-lifeness-test:
-	RUST_BACKTRACE=1 cargo test --features lifeness-test -- --nocapture
+integration-test:
+	RUST_BACKTRACE=1 cargo test --features integration-test -- --nocapture

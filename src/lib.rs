@@ -12,6 +12,7 @@ pub mod user;
 pub mod regex;
 pub mod security;
 pub mod constants;
+pub mod smtp;
 
 mod schema;
 mod time;

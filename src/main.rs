@@ -46,6 +46,7 @@ const ENV_REDIS_DSN: &str = "REDIS_DSN";
 const ENV_SESSION_LIFETIME: &str = "SESSION_LIFETIME";
 const ENV_POSTGRES_POOL: &str = "POSTGRES_POOL";
 const ENV_REDIS_POOL: &str = "REDIS_POOL";
+const ENV_ALLOW_UNVERIFIED: &str = "ALLOW_UNVERIFIED";
 
 type PgPool = Pool<ConnectionManager<PgConnection>>;
 type RdPool = r2d2::Pool<RedisConnectionManager> ;
@@ -57,6 +58,15 @@ lazy_static! {
     static ref JWT_PUBLIC: Vec<u8> = base64::decode(env::var(ENV_JWT_PUBLIC).expect("jwt public key must be set")).unwrap();
     static ref JWT_HEADER: String = env::var(ENV_JWT_HEADER).expect("token's header must be set");
     static ref SESSION_LIFETIME: u64 = env::var(ENV_SESSION_LIFETIME).expect("session's lifetime must be set").parse().unwrap();
+    
+    static ref ALLOW_UNVERIFIED: bool = {
+        if let Ok(allow) = env::var(ENV_ALLOW_UNVERIFIED) {
+            info!("unverified actions allowness set to {}", allow);
+            return allow.parse().unwrap();
+        }
+
+        false
+    };
 
     static ref PG_POOL: PgPool = {
         let postgres_dsn = env::var(ENV_POSTGRES_DSN).expect("postgres url must be set");
@@ -128,7 +138,7 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
         rsa_secret: &RSA_SECRET,
         jwt_public: &JWT_PUBLIC,
         jwt_header: &JWT_HEADER,
-        allow_unverified: false,
+        allow_unverified: *ALLOW_UNVERIFIED,
     };
 
     let sess_server = SessionImplementation {
@@ -168,58 +178,4 @@ async fn main() -> Result<(), Box<dyn Error>> {
     
     let addr = format!("{}:{}", netw, port);
     start_server(addr).await
-}
-
-#[cfg(test)]
-#[cfg(feature = "lifeness-test")]
-pub mod tests {
-    use dotenv;
-    use std::env;
-    use tonic::transport::Channel;
-    use regex::Regex;
-
-    mod proto {
-        tonic::include_proto!("user");
-    }
-
-    use proto::user_service_client::UserClient;
-    use proto::{SignupRequest};
-
-    const ENV_TEST_SERVER_URL: &str = "TEST_SERVER_URL";
-    pub const ERR_CODE: &str = r"^E-([0-9]*){3,}$";
-
-    lazy_static! {
-        static ref SERVER_URL: String = env::var(ENV_TEST_SERVER_URL).expect("test server url must be set");
-    }
-
-    #[tokio::test]
-    async fn service_should_be_alive() {
-        env_logger::init();
-
-        if let Err(_) = dotenv::dotenv() {
-            warn!("no dotenv file has been found");
-        }
-
-        let channel = Channel::from_static(&SERVER_URL)
-            .connect()
-            .await
-            .unwrap();
-        
-        let mut client = UserClient::new(channel);        
-        let request = tonic::Request::new(
-            SignupRequest {
-                email: "".to_string(),
-                pwd: "".to_string(),
-            },
-        );
-
-        // sending request and waiting for response
-        let response = client.signup(request).await;
-        if let Err(ref err) = response {
-            println!("RESPONSE={:?}", response);
-            
-            let regex = Regex::new(ERR_CODE).unwrap();
-            assert!(regex.is_match(err.message()));
-        }
-    }
 }
