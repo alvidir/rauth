@@ -21,13 +21,13 @@ use rauth::metadata::{
 use rauth::secret::repository::PostgresSecretRepository;
 
 use rauth::user::{
-    grpc::{UserServiceServer, UserServiceImplementation},
+    grpc::{UserServer, UserImplementation},
     repository::PostgresUserRepository,
     application::UserApplication,
 };
 
 use rauth::session::{
-    grpc::{SessionServiceServer, SessionServiceImplementation},
+    grpc::{SessionServer, SessionImplementation},
     repository::RedisSessionRepository,
     application::SessionApplication,
 };
@@ -123,7 +123,7 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
         lifetime: *SESSION_LIFETIME,
     };
 
-    let user_server = UserServiceImplementation{
+    let user_server = UserImplementation{
         user_app: user_app,
         rsa_secret: &RSA_SECRET,
         jwt_public: &JWT_PUBLIC,
@@ -131,7 +131,7 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
         allow_unverified: false,
     };
 
-    let sess_server = SessionServiceImplementation {
+    let sess_server = SessionImplementation {
         sess_app: sess_app,
         jwt_secret: &JWT_SECRET,
         jwt_public: &JWT_PUBLIC,
@@ -142,8 +142,8 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
     info!("server listening on {}", addr);
  
     Server::builder()
-        .add_service(UserServiceServer::new(user_server))
-        .add_service(SessionServiceServer::new(sess_server))
+        .add_service(UserServer::new(user_server))
+        .add_service(SessionServer::new(sess_server))
         .serve(addr)
         .await?;
  
@@ -182,7 +182,7 @@ pub mod tests {
         tonic::include_proto!("user");
     }
 
-    use proto::user_service_client::UserServiceClient;
+    use proto::user_service_client::UserClient;
     use proto::{SignupRequest};
 
     const ENV_TEST_SERVER_URL: &str = "TEST_SERVER_URL";
@@ -205,7 +205,7 @@ pub mod tests {
             .await
             .unwrap();
         
-        let mut client = UserServiceClient::new(channel);        
+        let mut client = UserClient::new(channel);        
         let request = tonic::Request::new(
             SignupRequest {
                 email: "".to_string(),

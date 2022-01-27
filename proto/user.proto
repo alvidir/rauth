@@ -25,7 +25,7 @@ message TotpRequest {
 
 message Empty {}
 
-service UserService {
+service User {
   rpc Signup(user.SignupRequest) returns (Empty);
   rpc Delete(user.DeleteRequest) returns (Empty);
   rpc Totp(user.TotpRequest) returns (Empty);

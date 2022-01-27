@@ -41,7 +41,6 @@ static_resources:
     type: logical_dns
     connect_timeout: 0.25s
     lb_policy: round_robin
-    # https://github.com/projectcontour/contour/issues/152#issuecomment-366015336
     http2_protocol_options: {}
     load_assignment:
       cluster_name: rauth_service

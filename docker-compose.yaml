@@ -3,8 +3,6 @@ services:
         container_name: postgres
         image: docker.io/postgres:alpine3.15
         restart: on-failure
-        ports:
-            - "5432:5432"
         volumes:
             - dbdata:/data/postgres
             - ./migrations/.postgres:/docker-entrypoint-initdb.d
@@ -17,15 +15,11 @@ services:
         container_name: redis
         image: docker.io/redis:alpine3.15
         restart: always
-        ports:
-            - "6379:6379"
 
     rauth:
         container_name: rauth-server
         image: localhost/alvidir/rauth:1.0.0-server
         restart: always
-        ports:
-            - "8000:8000"
         depends_on: 
             - postgres
             - redis

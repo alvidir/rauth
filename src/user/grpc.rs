@@ -14,13 +14,13 @@ mod proto {
 }
 
 // Proto generated server traits
-use proto::user_service_server::UserService;
-pub use proto::user_service_server::UserServiceServer;
+use proto::user_server::User;
+pub use proto::user_server::UserServer;
 
 // Proto message structs
 use proto::{SignupRequest, DeleteRequest, TotpRequest, Empty};
 
-pub struct UserServiceImplementation<
+pub struct UserImplementation<
     U: UserRepository + Sync + Send,
     E:  SecretRepository + Sync + Send
     > {
@@ -35,7 +35,7 @@ pub struct UserServiceImplementation<
 impl<
     U: 'static + UserRepository + Sync + Send,
     E: 'static + SecretRepository + Sync + Send
-    > UserService for UserServiceImplementation<U, E> {
+    > User for UserImplementation<U, E> {
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<Empty>, Status> {
         if request.metadata().get(self.jwt_header).is_none() {
             if !self.allow_unverified {

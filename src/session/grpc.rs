@@ -20,8 +20,8 @@ mod proto {
 }
 
 // Proto generated server traits
-use proto::session_service_server::SessionService;
-pub use proto::session_service_server::SessionServiceServer;
+use proto::session_server::Session;
+pub use proto::session_server::SessionServer;
 
 // Proto message structs
 use proto::{LoginRequest, Empty};
@@ -37,7 +37,7 @@ pub fn get_session_token(meta: &MetadataMap, public: &[u8], header: &str) -> Res
     Ok(claims)
 }
 
-pub struct SessionServiceImplementation<
+pub struct SessionImplementation<
     S: SessionRepository + Sync + Send,
     U: UserRepository + Sync + Send,
     E: SecretRepository + Sync + Send
@@ -53,7 +53,7 @@ impl<
     S: 'static + SessionRepository + Sync + Send,
     U: 'static + UserRepository + Sync + Send,
     E: 'static + SecretRepository + Sync + Send
-    > SessionService for SessionServiceImplementation<S, U, E> {
+    > Session for SessionImplementation<S, U, E> {
     async fn login(&self, request: Request<LoginRequest>) -> Result<Response<Empty>, Status> {
         let msg_ref = request.into_inner();
 

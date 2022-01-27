@@ -10,7 +10,7 @@ message LoginRequest {
 
 message Empty {}
 
-service SessionService {
+service Session {
   rpc Login(session.LoginRequest) returns (Empty);
   rpc Logout(Empty) returns (Empty);
 }
