@@ -5,9 +5,9 @@ pub const PWD_SUFIX: &str = "::PWD::RAUTH";
 
 pub const ERR_NOT_FOUND: &str = "E-001";
 pub const ERR_UNAUTHORIZED: &str = "E-002";
-pub const ERR_SIGN_TOKEN: &str = "E-003";
-pub const ERR_PARSE_TOKEN: &str = "E-004";
-pub const ERR_TOKEN_REQUIRED: &str = "E-005";
+pub const ERR_PARSE_HEADER: &str = "E-003";
+pub const ERR_HEADER_REQUIRED: &str = "E-004";
+pub const ERR_SIGN_TOKEN: &str = "E-005";
 pub const ERR_VERIFY_TOKEN: &str = "E-006";
 pub const ERR_DECRYPT_TOKEN: &str = "E-007";
 pub const ERR_UNVERIFIED: &str = "E-008";

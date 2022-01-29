@@ -1,17 +1,14 @@
-use std::error::Error;
-
 use tonic::{
     Request, Response, Status,
-    metadata::MetadataMap,
 };
 
 use crate::security;
 use crate::constants;
+use crate::grpc;
 use crate::user::application::UserRepository;
 use crate::secret::application::SecretRepository;
 use super::{
     application::{SessionApplication, SessionRepository},
-    domain::{SessionToken},
 };
 
 // Import the generated rust code into module
@@ -25,17 +22,6 @@ pub use proto::session_server::SessionServer;
 
 // Proto message structs
 use proto::{LoginRequest, Empty};
-
-pub fn get_session_token(meta: &MetadataMap, public: &[u8], header: &str) -> Result<SessionToken, Box<dyn Error>> {
-    if meta.get(header).is_none() {
-        return Err(constants::ERR_TOKEN_REQUIRED.into());
-    };
-
-    // this line will not fail due to the previous check of None 
-    let token = meta.get(header).unwrap().to_str()?;
-    let claims = security::verify_jwt::<SessionToken>(public, &token)?;
-    Ok(claims)
-}
 
 pub struct SessionImplementation<
     S: SessionRepository + Sync + Send,
@@ -69,8 +55,8 @@ impl<
 
         let parsed_token = secure_token.parse()
             .map_err(|err| {
-                error!("{}: {}", constants::ERR_PARSE_TOKEN, err);
-                Status::unknown(constants::ERR_PARSE_TOKEN)
+                error!("{}: {}", constants::ERR_PARSE_HEADER, err);
+                Status::unknown(constants::ERR_PARSE_HEADER)
             })?;
 
         res.metadata_mut().append(self.jwt_header, parsed_token);
@@ -78,26 +64,8 @@ impl<
     }
 
     async fn logout(&self, request: Request<Empty>) -> Result<Response<Empty>, Status> {
-        let metadata = request.metadata();
-        if metadata.get(self.jwt_header).is_none() {
-            return Err(Status::failed_precondition(constants::ERR_TOKEN_REQUIRED));
-        };
-
-        // this line will not fail due to the previous check of None 
-        let token = match metadata.get(self.jwt_header).unwrap().to_str() {
-            Ok(secure_token) => security::verify_jwt::<SessionToken>(&self.jwt_public, secure_token)
-                .map_err(|err| {
-                    warn!("{}: {}", constants::ERR_VERIFY_TOKEN, err);
-                    Status::unknown(constants::ERR_VERIFY_TOKEN)
-                })?,
-            
-            Err(err) => {
-                error!("{}: {}", constants::ERR_PARSE_TOKEN, err);
-                return Err(Status::aborted(constants::ERR_PARSE_TOKEN))
-            },
-        };
-
-        if let Err(err) = self.sess_app.logout(token.sub){    
+        let token = grpc::get_header(&request, self.jwt_header)?;
+        if let Err(err) = self.sess_app.secure_logout(&token, self.jwt_public){    
             return Err(Status::aborted(err.to_string()));
         }
 

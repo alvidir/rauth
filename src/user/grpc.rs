@@ -3,10 +3,7 @@ use crate::security;
 use crate::constants;
 use crate::user::application::{UserRepository, UserApplication};
 use crate::secret::application::SecretRepository;
-use crate::session::{
-    grpc::get_session_token,
-    domain::VerificationToken
-};
+use crate::grpc;
 
 // Import the generated rust code into module
 mod proto {
@@ -43,24 +40,17 @@ impl<
             }
 
             let msg_ref = request.into_inner();
-            let shadowed_pwd = security::shadow(&msg_ref.pwd, constants::PWD_SUFIX);
-            match self.user_app.signup(&msg_ref.email, &shadowed_pwd) {
+            match self.user_app.signup(&msg_ref.email, &msg_ref.pwd) {
                 Err(err) => return Err(Status::aborted(err.to_string())),
                 Ok(_) => return Ok(Response::new(Empty{})),
             };
         }
-    
-        // this line will not fail due to the previous check of None 
-        let secure_token = request.metadata().get(self.jwt_header).unwrap().to_str()
-            .map_err(|err| {
-                error!("{}: {}", constants::ERR_PARSE_TOKEN, err);
-                Status::aborted(constants::ERR_PARSE_TOKEN)
-            })?;
-
-        let token = match security::decrypt(self.rsa_secret, secure_token.as_bytes()) {
+            
+        let secure_jwt = grpc::get_header(&request, self.jwt_header)?;
+        let jwt = match security::decrypt(self.rsa_secret, secure_jwt.as_bytes()) {
             Ok(token) => String::from_utf8(token).map_err(|err| {
-                warn!("{}: {}", constants::ERR_PARSE_TOKEN, err);
-                Status::unknown(constants::ERR_PARSE_TOKEN)
+                warn!("{}: {}", constants::ERR_PARSE_HEADER, err);
+                Status::unknown(constants::ERR_PARSE_HEADER)
             })?,
 
             Err(err) => {
@@ -69,31 +59,11 @@ impl<
             },
         };
 
-        let claims = security::verify_jwt::<VerificationToken>(&self.jwt_public, &token)
-            .map_err(|err| {
-                warn!("{}: {}", constants::ERR_VERIFY_TOKEN, err);
-                Status::aborted(constants::ERR_VERIFY_TOKEN)
-            })?;
-
         let msg_ref = request.into_inner();
-        if claims.sub.is_some() && claims.pwd.is_none() {
-            // this line will not fail due to the previous check of Some
-            let shadowed_pwd = security::shadow(&msg_ref.pwd, constants::PWD_SUFIX);
-            match self.user_app.signup(&claims.sub.unwrap(), &shadowed_pwd) {
-                Err(err) => return Err(Status::aborted(err.to_string())),
-                Ok(_) => return Ok(Response::new(Empty{})),
-            };
+        match self.user_app.secure_signup(&msg_ref.email, &msg_ref.pwd, &jwt, self.jwt_public) {
+            Err(err) => Err(Status::aborted(err.to_string())),
+            Ok(_) => Ok(Response::new(Empty{})),
         }
-
-        if claims.sub.is_some() && claims.pwd.is_some() {
-            // this line will not fail due to the previous check of Some
-            match self.user_app.signup(&claims.sub.unwrap(), &claims.pwd.unwrap()) {
-                Err(err) => return Err(Status::aborted(err.to_string())),
-                Ok(_) => return Ok(Response::new(Empty{})),
-            };
-        }
-
-        Err(Status::invalid_argument(constants::ERR_MISSING_DATA))
     }
 
     async fn reset_password(&self, _: Request<ResetPasswordRequest>) -> Result<Response<Empty>, Status> {
@@ -101,29 +71,21 @@ impl<
     }
 
     async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<Empty>, Status> {
-        let claims =  get_session_token(request.metadata(), self.jwt_public, self.jwt_header)
-            .map_err(|err| {
-                warn!("{}: {}", constants::ERR_VERIFY_TOKEN, err);
-                Status::unauthenticated(constants::ERR_VERIFY_TOKEN)
-            })?;
-
+        let token = grpc::get_header(&request, self.jwt_header)?;
         let msg_ref = request.into_inner();
-        match self.user_app.delete(claims.sub, &msg_ref.pwd, &msg_ref.totp) {
+        
+        match self.user_app.secure_delete(&msg_ref.pwd, &msg_ref.totp, &token, self.jwt_public) {
             Err(err) => Err(Status::aborted(err.to_string())),
             Ok(()) => Ok(Response::new(Empty{})),
         }
     }
 
     async fn totp(&self, request: Request<TotpRequest>) -> Result<Response<Empty>, Status> {
-        let claims =  get_session_token(request.metadata(), self.jwt_public, self.jwt_header)
-            .map_err(|err| {
-                warn!("{}: {}", constants::ERR_VERIFY_TOKEN, err);
-                Status::unauthenticated(constants::ERR_VERIFY_TOKEN)
-            })?;
+        let token = grpc::get_header(&request, self.jwt_header)?;
+        let msg_ref = request.into_inner();
 
-        let msg_ref = request.into_inner(); 
         if msg_ref.action == 0 {
-            match self.user_app.enable_totp(claims.sub, &msg_ref.pwd, &msg_ref.totp) {
+            match self.user_app.secure_enable_totp(&msg_ref.pwd, &msg_ref.totp, &token, self.jwt_public) {
                 Err(err) => return Err(Status::unknown(err.to_string())),
                 Ok(token) => {
                     let mut response = Response::new(Empty{});
@@ -134,7 +96,7 @@ impl<
         }
 
         if msg_ref.action == 1 {
-            match self.user_app.disable_totp(claims.sub, &msg_ref.pwd, &msg_ref.totp) {
+            match self.user_app.secure_disable_totp(&msg_ref.pwd, &msg_ref.totp, &token, self.jwt_public) {
                 Ok(_) => return Ok(Response::new(Empty{})),
                 Err(err) => return Err(Status::unknown(err.to_string())),
             }

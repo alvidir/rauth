@@ -13,6 +13,7 @@ pub mod regex;
 pub mod security;
 pub mod constants;
 pub mod smtp;
+pub mod grpc;
 
 mod schema;
 mod time;

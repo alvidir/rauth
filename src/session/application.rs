@@ -59,6 +59,16 @@ impl<S: SessionRepository, U: UserRepository, E: SecretRepository> SessionApplic
         Ok(sess)
     }
 
+    pub fn secure_logout(&self, token: &str, jwt_public: &[u8]) -> Result<(), Box<dyn Error>> {
+        let claims: SessionToken = security::verify_jwt(jwt_public, &token)
+            .map_err(|err| {
+                warn!("{}: {}", constants::ERR_VERIFY_TOKEN, err);
+                constants::ERR_VERIFY_TOKEN
+            })?;
+
+        self.logout(claims.sub)
+    }
+
     pub fn logout(&self, user_id: i32) -> Result<(), Box<dyn Error>> {
         info!("got a \"logout\" request from user id {} ", user_id);  
         self.session_repo.delete(user_id)

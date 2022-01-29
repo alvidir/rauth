@@ -1,6 +1,7 @@
-use std::time::SystemTime;
 use std::error::Error;
+use std::time::SystemTime;
 use std::sync::Arc;
+use crate::session::domain::{VerificationToken, SessionToken};
 use crate::secret::{
     application::SecretRepository,
     domain::Secret,
@@ -24,19 +25,40 @@ pub struct UserApplication<U: UserRepository, E: SecretRepository> {
     pub secret_repo: Arc<E>,
 }
 
-
 impl<U: UserRepository, E: SecretRepository> UserApplication<U, E> {
-    pub fn signup(&self, email: &str, pwd: &str) -> Result<User, Box<dyn Error>> {
-        info!("got a \"signup\" request from email {} ", email);
+    pub fn secure_signup(&self, email: &str, pwd: &str, token: &str, jwt_public: &[u8])  -> Result<i32, Box<dyn Error>> {
+        let claims: VerificationToken = security::verify_jwt(jwt_public, token)
+            .map_err(|err| {
+                warn!("{}: {}", constants::ERR_VERIFY_TOKEN, err);
+                constants::ERR_VERIFY_TOKEN
+            })?;
+
+        let email = claims.sub.unwrap_or(email.to_string());
+        let pwd = claims.pwd.unwrap_or(security::shadow(pwd, constants::PWD_SUFIX));
+        self.signup(&email, &pwd)
+    }
+
+    pub fn signup(&self, email: &str, pwd: &str) -> Result<i32, Box<dyn Error>> {
+        info!("got a \"signup\" request for email {} ", email);
 
         let mut user = User::new(email, pwd)?;
         self.user_repo.create(&mut user)?;
         
-        Ok(user)
+        Ok(user.id)
+    }
+
+    pub fn secure_delete(&self, pwd: &str, totp: &str, token: &str, jwt_public: &[u8]) -> Result<(), Box<dyn Error>> {
+        let claims: SessionToken = security::verify_jwt(jwt_public, &token)
+            .map_err(|err| {
+                warn!("{}: {}", constants::ERR_VERIFY_TOKEN, err);
+                constants::ERR_VERIFY_TOKEN
+            })?;
+        
+        self.delete(claims.sub, pwd, totp)
     }
 
     pub fn delete(&self, user_id: i32, pwd: &str, totp: &str) -> Result<(), Box<dyn Error>> {
-        info!("got a \"delete\" request from user id {} ", user_id);
+        info!("got a \"delete\" request for user id {} ", user_id);
         
         let user = self.user_repo.find(user_id)?;
         let shadowed_pwd = security::shadow(pwd, constants::PWD_SUFIX);
@@ -64,8 +86,18 @@ impl<U: UserRepository, E: SecretRepository> UserApplication<U, E> {
         Ok(())
     }
 
+    pub fn secure_enable_totp(&self, pwd: &str, totp: &str, token: &str, jwt_public: &[u8]) -> Result<String, Box<dyn Error>> {
+        let claims: SessionToken = security::verify_jwt(jwt_public, &token)
+            .map_err(|err| {
+                warn!("{}: {}", constants::ERR_VERIFY_TOKEN, err);
+                constants::ERR_VERIFY_TOKEN
+            })?;
+        
+        self.enable_totp(claims.sub, pwd, totp)
+    }
+
     pub fn enable_totp(&self, user_id: i32, pwd: &str, totp: &str) -> Result<String, Box<dyn Error>> {
-        info!("got an \"enable totp\" request from user id {} ", user_id);
+        info!("got an \"enable totp\" request for user id {} ", user_id);
 
         let user = self.user_repo.find(user_id)?;
         let shadowed_pwd = security::shadow(pwd, constants::PWD_SUFIX);
@@ -96,8 +128,18 @@ impl<U: UserRepository, E: SecretRepository> UserApplication<U, E> {
         Ok(token)
     }
 
+    pub fn secure_disable_totp(&self, pwd: &str, totp: &str, token: &str, jwt_public: &[u8]) -> Result<(), Box<dyn Error>> {
+        let claims: SessionToken = security::verify_jwt(jwt_public, &token)
+            .map_err(|err| {
+                warn!("{}: {}", constants::ERR_VERIFY_TOKEN, err);
+                constants::ERR_VERIFY_TOKEN
+            })?;
+
+        self.disable_totp(claims.sub, pwd, totp)
+    }
+
     pub fn disable_totp(&self, user_id: i32, pwd: &str, totp: &str) -> Result<(), Box<dyn Error>> {
-        info!("got an \"disable totp\" request from user id {} ", user_id);
+        info!("got an \"disable totp\" request for user id {} ", user_id);
         
         let user = self.user_repo.find(user_id)?;
         let shadowed_pwd = security::shadow(pwd, constants::PWD_SUFIX);
@@ -221,8 +263,8 @@ pub mod tests {
 
         const PWD: &str = "ABCDEF1234567890";
         const EMAIL: &str = "dummy@test.com";
-        let user = app.signup(EMAIL, PWD).unwrap();
+        let user_id = app.signup(EMAIL, PWD).unwrap();
 
-        assert_eq!(user.id, 999);
+        assert_eq!(user_id, 999);
     }
 }
