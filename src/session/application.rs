@@ -1,6 +1,11 @@
 use std::time::Duration;
 use std::error::Error;
 use std::sync::Arc;
+use std::hash::Hash;
+use serde::{
+    Serialize, 
+    de::DeserializeOwned
+};
 use super::domain::SessionToken;
 use crate::user::application::UserRepository;
 use crate::secret::application::SecretRepository;
@@ -9,9 +14,9 @@ use crate::constants;
 use crate::security;
 
 pub trait SessionRepository {
-    fn find(&self, user_id: i32) -> Result<SessionToken, Box<dyn Error>>;
-    fn save(&self, token: &SessionToken) -> Result<(), Box<dyn Error>>;
-    fn delete(&self, user_id: i32) -> Result<(), Box<dyn Error>>;
+    fn find<T: Serialize + DeserializeOwned + Hash>(&self, token: &T) -> Result<T, Box<dyn Error>>;
+    fn save<T: Serialize + DeserializeOwned + Hash>(&self, token: &T) -> Result<(), Box<dyn Error>>;
+    fn delete<T: Serialize + DeserializeOwned + Hash>(&self, token: &T) -> Result<(), Box<dyn Error>>;
 }
 
 pub struct SessionApplication<S: SessionRepository, U: UserRepository, E: SecretRepository> {
@@ -50,27 +55,20 @@ impl<S: SessionRepository, U: UserRepository, E: SecretRepository> SessionApplic
             }
         }
 
-        if let Ok(token) = self.session_repo.find(user.get_id()) {
-            return Ok(token);
-        }
-
         let sess = SessionToken::new(constants::TOKEN_ISSUER, user.get_id(), Duration::from_secs(self.lifetime));
         self.session_repo.save(&sess)?;
         Ok(sess)
     }
 
-    pub fn secure_logout(&self, token: &str, jwt_public: &[u8]) -> Result<(), Box<dyn Error>> {
+    pub fn logout(&self, token: &str, jwt_public: &[u8]) -> Result<(), Box<dyn Error>> {
+        info!("got a \"logout\" request for token {} ", token);  
+
         let claims: SessionToken = security::verify_jwt(jwt_public, &token)
             .map_err(|err| {
                 warn!("{}: {}", constants::ERR_VERIFY_TOKEN, err);
                 constants::ERR_VERIFY_TOKEN
             })?;
 
-        self.logout(claims.sub)
-    }
-
-    pub fn logout(&self, user_id: i32) -> Result<(), Box<dyn Error>> {
-        info!("got a \"logout\" request from user id {} ", user_id);  
-        self.session_repo.delete(user_id)
+        self.session_repo.delete(&claims)
     }
 }

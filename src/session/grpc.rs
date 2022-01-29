@@ -65,7 +65,7 @@ impl<
 
     async fn logout(&self, request: Request<Empty>) -> Result<Response<Empty>, Status> {
         let token = grpc::get_header(&request, self.jwt_header)?;
-        if let Err(err) = self.sess_app.secure_logout(&token, self.jwt_public){    
+        if let Err(err) = self.sess_app.logout(&token, self.jwt_public){    
             return Err(Status::aborted(err.to_string()));
         }
 

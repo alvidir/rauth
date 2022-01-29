@@ -3,6 +3,7 @@ use crate::security;
 use crate::constants;
 use crate::user::application::{UserRepository, UserApplication};
 use crate::secret::application::SecretRepository;
+use crate::smtp::Mailer;
 use crate::grpc;
 
 // Import the generated rust code into module
@@ -19,10 +20,13 @@ use proto::{SignupRequest, ResetPasswordRequest, DeleteRequest, TotpRequest, Emp
 
 pub struct UserImplementation<
     U: UserRepository + Sync + Send,
-    E:  SecretRepository + Sync + Send
+    E:  SecretRepository + Sync + Send,
+    M: Mailer,
     > {
-    pub user_app: UserApplication<U, E>,
+    pub user_app: UserApplication<U, E, M>,
     pub rsa_secret: &'static [u8],
+    pub rsa_public: &'static [u8],
+    pub jwt_secret: &'static [u8],
     pub jwt_public: &'static [u8],
     pub jwt_header: &'static str,
     pub allow_unverified: bool,
@@ -31,11 +35,16 @@ pub struct UserImplementation<
 #[tonic::async_trait]
 impl<
     U: 'static + UserRepository + Sync + Send,
-    E: 'static + SecretRepository + Sync + Send
-    > User for UserImplementation<U, E> {
+    E: 'static + SecretRepository + Sync + Send,
+    M: 'static + Mailer + Sync + Send,
+    > User for UserImplementation<U, E, M> {
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<Empty>, Status> {
         if request.metadata().get(self.jwt_header).is_none() {
             if !self.allow_unverified {
+                let msg_ref = request.into_inner();
+                self.user_app.verify_user(&msg_ref.email, &msg_ref.pwd, self.jwt_secret, self.rsa_public)
+                    .map_err(|err| Status::aborted(err.to_string()))?;
+                
                 return Err(Status::failed_precondition(constants::ERR_UNVERIFIED))
             }
 
@@ -45,7 +54,7 @@ impl<
                 Ok(_) => return Ok(Response::new(Empty{})),
             };
         }
-            
+        
         let secure_jwt = grpc::get_header(&request, self.jwt_header)?;
         let jwt = match security::decrypt(self.rsa_secret, secure_jwt.as_bytes()) {
             Ok(token) => String::from_utf8(token).map_err(|err| {

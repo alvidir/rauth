@@ -1,5 +1,5 @@
 use std::error::Error;
-use std::time::SystemTime;
+use std::time::{SystemTime, Duration};
 use std::sync::Arc;
 use crate::session::domain::{VerificationToken, SessionToken};
 use crate::secret::{
@@ -9,6 +9,7 @@ use crate::secret::{
 
 use crate::constants;
 use crate::security;
+use crate::smtp::Mailer;
 use super::domain::User;
 
 pub trait UserRepository {
@@ -20,12 +21,34 @@ pub trait UserRepository {
     fn delete(&self, user: &User) -> Result<(), Box<dyn Error>>;
 }
 
-pub struct UserApplication<U: UserRepository, E: SecretRepository> {
+pub struct UserApplication<U: UserRepository, E: SecretRepository, M: Mailer> {
     pub user_repo: Arc<U>,
     pub secret_repo: Arc<E>,
+    pub mailer: Arc<M>,
+    pub lifetime: u64,
 }
 
-impl<U: UserRepository, E: SecretRepository> UserApplication<U, E> {
+impl<U: UserRepository, E: SecretRepository, M: Mailer> UserApplication<U, E, M> {
+    pub fn verify_user(&self, email: &str, pwd: &str,  jwt_private: &[u8], rsa_public: &[u8]) -> Result<(), Box<dyn Error>> {
+        let claims = VerificationToken::new(
+            constants::TOKEN_ISSUER,
+            Some(email.to_string()),
+            Some(pwd.to_string()),
+            Duration::from_secs(self.lifetime)
+        );
+
+        let token = security::sign_jwt(jwt_private, claims)?;
+        let secure_token = security::encrypt(rsa_public, token.as_ref())?;
+        self.mailer.send_verification_email(email, &String::from_utf8(secure_token)?)
+            .map_err(|err| {
+                error!("{}: {}", constants::ERR_SEND_EMAIL, err);
+                constants::ERR_SEND_EMAIL
+            })?;
+        
+
+        Ok(())
+    }
+
     pub fn secure_signup(&self, email: &str, pwd: &str, token: &str, jwt_public: &[u8])  -> Result<i32, Box<dyn Error>> {
         let claims: VerificationToken = security::verify_jwt(jwt_public, token)
             .map_err(|err| {
@@ -171,9 +194,10 @@ impl<U: UserRepository, E: SecretRepository> UserApplication<U, E> {
 pub mod tests {
     use std::error::Error;
     use std::sync::Arc;
+    use super::Mailer;
     use super::super::domain::{
         tests::new_user,
-        User
+        User,
     };
     use super::{UserRepository, UserApplication};
     use crate::secret::application::tests::SecretRepositoryMock;
@@ -197,6 +221,13 @@ pub mod tests {
                 fn_save: None,
                 fn_delete: None,
             }
+        }
+    }
+
+    struct MailerMock;
+    impl Mailer for MailerMock {
+        fn send_verification_email(&self, _: &str, _: &str) -> Result<(), Box<dyn Error>> {
+            Err("unimplemented".into())
         }
     }
 
@@ -255,10 +286,13 @@ pub mod tests {
     fn user_signup_should_not_fail() {
         let user_repo = UserRepositoryMock::new();
         let secret_repo = SecretRepositoryMock::new();
+        let mailer_mock = MailerMock{};
         
         let app = UserApplication{
             user_repo: Arc::new(user_repo),
             secret_repo: Arc::new(secret_repo),
+            mailer: Arc::new(mailer_mock),
+            lifetime: 0,
         };
 
         const PWD: &str = "ABCDEF1234567890";

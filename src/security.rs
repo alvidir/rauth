@@ -24,7 +24,7 @@ const SECURE_CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
                                 abcdefghijklmnopqrstuvwxyz\
                                 0123456789";
 
-pub fn sign_jwt(secret: &[u8], payload: impl Serialize) -> Result<String, Box<dyn Error>> {
+pub fn sign_jwt<S: Serialize>(secret: &[u8], payload: S) -> Result<String, Box<dyn Error>> {
     let header = Header::new(Algorithm::ES256);
     let key = EncodingKey::from_ec_pem(&secret)?;
     let token = jsonwebtoken::encode(&header, &payload, &key)?;

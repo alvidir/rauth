@@ -1,16 +1,18 @@
 use std::error::Error;
 use std::ops::DerefMut;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use serde::{
+    Serialize,
+    de::DeserializeOwned,
+};
 use r2d2_redis::{r2d2, redis, RedisConnectionManager};
 use crate::security;
+use super::application::SessionRepository;
 
 const REDIS_CMD_GET: &str = "GET";
 const REDIS_CMD_SET: &str = "SET";
 const REDIS_CMD_DELETE: &str = "DEL";
-
-use super::{
-    application::SessionRepository,
-    domain::SessionToken,
-};
 
 type RdPool = r2d2::Pool<RedisConnectionManager> ;
 
@@ -20,24 +22,35 @@ pub struct RedisSessionRepository<'a> {
     pub jwt_public: &'a [u8],
 }
 
+impl<'a> RedisSessionRepository<'a> {
+    fn hash<T: Serialize + DeserializeOwned + Hash>(token: &T) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        token.hash(&mut hasher);
+        hasher.finish()
+    }
+}
+
 impl<'a> SessionRepository for RedisSessionRepository<'a> {
-    fn find(&self, user_id: i32) -> Result<SessionToken, Box<dyn Error>> {
+    fn find<T: Serialize + DeserializeOwned + Hash>(&self, token: &T) -> Result<T, Box<dyn Error>> {
         let mut conn = self.pool.get()?;
-        let secure_token: String = redis::cmd(REDIS_CMD_GET).arg(user_id).query(conn.deref_mut())?;
+        let key = RedisSessionRepository::hash(token);
+        let secure_token: String = redis::cmd(REDIS_CMD_GET).arg(key).query(conn.deref_mut())?;
         let token = security::verify_jwt(&self.jwt_public, &secure_token)?;
         Ok(token)
     }
 
-    fn save(&self, token: &SessionToken) -> Result<(), Box<dyn Error>> {
+    fn save<T: Serialize + DeserializeOwned + Hash>(&self, token: &T) -> Result<(), Box<dyn Error>> {
         let mut conn = self.pool.get()?;
-        let secure_token = security::sign_jwt(&self.jwt_secret, token)?;
-        redis::cmd(REDIS_CMD_SET).arg(token.sub).arg(secure_token).query(conn.deref_mut())?;
+        let key = RedisSessionRepository::hash(token);
+        let secure_token = security::sign_jwt(self.jwt_secret, token)?;
+        redis::cmd(REDIS_CMD_SET).arg(key).arg(secure_token).query(conn.deref_mut())?;
         Ok(())
     }
 
-    fn delete(&self, user_id: i32) -> Result<(), Box<dyn Error>> {
+    fn delete<T: Serialize + DeserializeOwned + Hash>(&self, token: &T) -> Result<(), Box<dyn Error>> {
         let mut conn = self.pool.get()?;
-        redis::cmd(REDIS_CMD_DELETE).arg(user_id).query(conn.deref_mut())?;
+        let key = RedisSessionRepository::hash(token);
+        redis::cmd(REDIS_CMD_DELETE).arg(key).query(conn.deref_mut())?;
         Ok(())
     }
 

@@ -14,6 +14,7 @@ use diesel::{
     pg::PgConnection
 };
 
+use rauth::smtp::Smtp;
 use rauth::metadata::{
     repository::PostgresMetadataRepository,
 };
@@ -33,6 +34,8 @@ use rauth::session::{
 };
 
 const DEFAULT_NETW: &str = "127.0.0.1";
+const DEFAULT_TEMPLATES_PATH: &str = "/etc/rauth/mailer/templates/*.html";
+const DEFAULT_EMAIL_ISSUER: &str = "rauth";
 
 const ENV_SERVICE_PORT: &str = "SERVICE_PORT";
 const ENV_SERVICE_NET: &str = "SERVICE_NETW";
@@ -44,29 +47,42 @@ const ENV_JWT_PUBLIC: &str = "JWT_PUBLIC";
 const ENV_JWT_HEADER: &str = "JWT_HEADER";
 const ENV_REDIS_DSN: &str = "REDIS_DSN";
 const ENV_SESSION_LIFETIME: &str = "SESSION_LIFETIME";
+const ENV_TOKEN_LIFETIME: &str = "TOKEN_LIFETIME";
 const ENV_POSTGRES_POOL: &str = "POSTGRES_POOL";
 const ENV_REDIS_POOL: &str = "REDIS_POOL";
 const ENV_ALLOW_UNVERIFIED: &str = "ALLOW_UNVERIFIED";
+const ENV_SMTP_TRANSPORT: &str = "SMTP_TRANSPORT";
+const ENV_SMTP_USERNAME: &str = "SMTP_USERNAME";
+const ENV_SMTP_PASSWORD: &str = "SMTP_PASSWORD";
+const ENV_SMTP_ISSUER: &str = "SMTP_ISSUER";
+const ENV_SMTP_TEMPLATES: &str = "SMTP_TEMPLATES";
+const ENV_SMTP_ORIGIN: &str = "SMTP_ORIGIN";
 
 type PgPool = Pool<ConnectionManager<PgConnection>>;
 type RdPool = r2d2::Pool<RedisConnectionManager> ;
 
 lazy_static! {
+    static ref SESSION_LIFETIME: u64 = env::var(ENV_SESSION_LIFETIME).expect("session's lifetime must be set").parse().unwrap();
+    static ref TOKEN_LIFETIME: u64 = env::var(ENV_TOKEN_LIFETIME).expect("verification token's lifetime must be set").parse().unwrap();
     static ref RSA_SECRET: Vec<u8> = base64::decode(env::var(ENV_RSA_SECRET).expect("rsa secret must be set")).unwrap();
     static ref RSA_PUBLIC: Vec<u8> = base64::decode(env::var(ENV_RSA_PUBLIC).expect("rsa public key must be set")).unwrap();
     static ref JWT_SECRET: Vec<u8> = base64::decode(env::var(ENV_JWT_SECRET).expect("jwt secret must be set")).unwrap();
     static ref JWT_PUBLIC: Vec<u8> = base64::decode(env::var(ENV_JWT_PUBLIC).expect("jwt public key must be set")).unwrap();
     static ref JWT_HEADER: String = env::var(ENV_JWT_HEADER).expect("token's header must be set");
-    static ref SESSION_LIFETIME: u64 = env::var(ENV_SESSION_LIFETIME).expect("session's lifetime must be set").parse().unwrap();
+    static ref SMTP_TRANSPORT: String = env::var(ENV_SMTP_TRANSPORT).expect("smtp transport must be set");
+    static ref SMTP_USERNAME: String = env::var(ENV_SMTP_USERNAME).expect("smtp username must be set");
+    static ref SMTP_PASSWORD: String = env::var(ENV_SMTP_PASSWORD).expect("smtp password must be set");
+    static ref SMTP_ORIGIN: String = env::var(ENV_SMTP_ORIGIN).expect("smpt origin must be set");
+    static ref SMTP_ISSUER: String = env::var(ENV_SMTP_ISSUER).unwrap_or(DEFAULT_EMAIL_ISSUER.to_string());
+    static ref SMTP_TEMPLATES: String = env::var(ENV_SMTP_TEMPLATES).unwrap_or(DEFAULT_TEMPLATES_PATH.to_string());
     
-    static ref ALLOW_UNVERIFIED: bool = {
-        if let Ok(allow) = env::var(ENV_ALLOW_UNVERIFIED) {
+    static ref ALLOW_UNVERIFIED: bool = env::var(ENV_ALLOW_UNVERIFIED)
+        .map(|allow| {
             info!("unverified actions allowness set to {}", allow);
             return allow.parse().unwrap();
-        }
+        })
+        .unwrap_or_default();
 
-        false
-    };
 
     static ref PG_POOL: PgPool = {
         let postgres_dsn = env::var(ENV_POSTGRES_DSN).expect("postgres url must be set");
@@ -121,9 +137,21 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
         jwt_public: &JWT_PUBLIC,
     });
 
+    let credentials = if SMTP_USERNAME.len() > 0 && SMTP_PASSWORD.len() > 0 {
+        Some((SMTP_USERNAME.to_string(), SMTP_PASSWORD.to_string()))
+    } else {
+        None
+    };
+
+    let mut mailer = Smtp::new(&SMTP_TEMPLATES, &SMTP_TRANSPORT, credentials)?;
+    mailer.issuer = &*SMTP_ISSUER;
+    mailer.origin = &*SMTP_ORIGIN;
+
     let user_app = UserApplication{
         user_repo: user_repo.clone(),
         secret_repo: secret_repo.clone(),
+        mailer: Arc::new(mailer),
+        lifetime: *TOKEN_LIFETIME,
     };
 
     let sess_app = SessionApplication{
@@ -136,6 +164,8 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
     let user_server = UserImplementation{
         user_app: user_app,
         rsa_secret: &RSA_SECRET,
+        rsa_public: &RSA_PUBLIC,
+        jwt_secret: &JWT_SECRET,
         jwt_public: &JWT_PUBLIC,
         jwt_header: &JWT_HEADER,
         allow_unverified: *ALLOW_UNVERIFIED,

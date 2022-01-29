@@ -1,8 +1,11 @@
 use std::error::Error;
-use std::collections::BTreeMap;
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::{SmtpTransport, Message, Transport};
 use tera::{Tera, Context};
+
+pub trait Mailer {
+    fn send_verification_email(&self, to: &str, token: &str) ->  Result<(), Box<dyn Error>>;
+}
 
 pub struct Smtp<'a> {
     pub issuer: &'a str,
@@ -12,7 +15,7 @@ pub struct Smtp<'a> {
 }
 
 impl<'a> Smtp<'a> {
-    pub fn new(templates_path: &str, smtp_transport: String, smtp_credentials: Option<(String, String)>) -> Result<Self, Box<dyn Error>> {
+    pub fn new(templates_path: &str, smtp_transport: &str, smtp_credentials: Option<(String, String)>) -> Result<Self, Box<dyn Error>> {
         let tera = Tera::new(templates_path)?;
         let mut mailer = SmtpTransport::relay(&smtp_transport)?;
         if let Some(credentials) = smtp_credentials {
@@ -44,14 +47,16 @@ impl<'a> Smtp<'a> {
         self.mailer.send(&email)?;
         Ok(())
     }
+}
 
-    pub fn send_email_template(&self, to: &str, subject: &str, template: &str, context: BTreeMap<String, String>) -> Result<(), Box<dyn Error>> {
-        let mut tera_context = Context::new();
-        context.iter().for_each(|(key, value)| {
-            tera_context.insert(key.to_string(), value);
-        });
-        
-        let body = self.tera.render(template, &tera_context)?;
-        self.send_email(to, &subject, body)
+impl<'a> Mailer for Smtp<'a> {
+    fn send_verification_email(&self, to: &str, token: &str) ->  Result<(), Box<dyn Error>> {
+        let mut context = Context::new();
+        context.insert("email", to);
+        context.insert("token", token);
+
+        const SUBJECT: &str = "hello world";
+        let body = self.tera.render("verification_email", &context)?;
+        self.send_email(to, &SUBJECT, body)
     }
 }
