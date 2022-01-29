@@ -1,6 +1,7 @@
 use std::error::Error;
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::{SmtpTransport, Message, Transport};
+use lettre::message::SinglePart;
 use tera::{Tera, Context};
 
 pub trait Mailer {
@@ -42,7 +43,7 @@ impl<'a> Smtp<'a> {
             .from(self.origin.parse()?)
             .to(to.parse()?)
             .subject(formated_subject)
-            .body(body)?;
+            .singlepart(SinglePart::html(body))?;
     
         self.mailer.send(&email)?;
         Ok(())
@@ -56,7 +57,7 @@ impl<'a> Mailer for Smtp<'a> {
         context.insert("token", token);
 
         const SUBJECT: &str = "hello world";
-        let body = self.tera.render("verification_email", &context)?;
+        let body = self.tera.render("verification_email.html", &context)?;
         self.send_email(to, &SUBJECT, body)
     }
 }

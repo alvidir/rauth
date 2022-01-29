@@ -29,7 +29,10 @@ pub struct UserApplication<U: UserRepository, E: SecretRepository, M: Mailer> {
 }
 
 impl<U: UserRepository, E: SecretRepository, M: Mailer> UserApplication<U, E, M> {
-    pub fn verify_user(&self, email: &str, pwd: &str,  jwt_private: &[u8], rsa_public: &[u8]) -> Result<(), Box<dyn Error>> {
+    pub fn verify_user(&self, email: &str, pwd: &str,  jwt_secret: &[u8], rsa_public: &[u8]) -> Result<(), Box<dyn Error>> {
+        info!("sending a verification email to {} ", email);
+        User::new(email, pwd)?;
+
         let claims = VerificationToken::new(
             constants::TOKEN_ISSUER,
             Some(email.to_string()),
@@ -37,15 +40,9 @@ impl<U: UserRepository, E: SecretRepository, M: Mailer> UserApplication<U, E, M>
             Duration::from_secs(self.lifetime)
         );
 
-        let token = security::sign_jwt(jwt_private, claims)?;
+        let token = security::sign_jwt(jwt_secret, claims)?;
         let secure_token = security::encrypt(rsa_public, token.as_ref())?;
-        self.mailer.send_verification_email(email, &String::from_utf8(secure_token)?)
-            .map_err(|err| {
-                error!("{}: {}", constants::ERR_SEND_EMAIL, err);
-                constants::ERR_SEND_EMAIL
-            })?;
-        
-
+        self.mailer.send_verification_email(email, &base64::encode(secure_token))?;
         Ok(())
     }
 
@@ -57,14 +54,14 @@ impl<U: UserRepository, E: SecretRepository, M: Mailer> UserApplication<U, E, M>
             })?;
 
         let email = claims.sub.unwrap_or(email.to_string());
-        let pwd = claims.pwd.unwrap_or(security::shadow(pwd, constants::PWD_SUFIX));
         self.signup(&email, &pwd)
     }
 
     pub fn signup(&self, email: &str, pwd: &str) -> Result<i32, Box<dyn Error>> {
         info!("got a \"signup\" request for email {} ", email);
 
-        let mut user = User::new(email, pwd)?;
+        let pwd = security::shadow(pwd, constants::PWD_SUFIX);
+        let mut user = User::new(email, &pwd)?;
         self.user_repo.create(&mut user)?;
         
         Ok(user.id)

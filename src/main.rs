@@ -63,7 +63,7 @@ type RdPool = r2d2::Pool<RedisConnectionManager> ;
 
 lazy_static! {
     static ref SESSION_LIFETIME: u64 = env::var(ENV_SESSION_LIFETIME).expect("session's lifetime must be set").parse().unwrap();
-    static ref TOKEN_LIFETIME: u64 = env::var(ENV_TOKEN_LIFETIME).expect("verification token's lifetime must be set").parse().unwrap();
+    static ref TOKEN_LIFETIME: u64 = env::var(ENV_TOKEN_LIFETIME).expect("token's lifetime must be set").parse().unwrap();
     static ref RSA_SECRET: Vec<u8> = base64::decode(env::var(ENV_RSA_SECRET).expect("rsa secret must be set")).unwrap();
     static ref RSA_PUBLIC: Vec<u8> = base64::decode(env::var(ENV_RSA_PUBLIC).expect("rsa public key must be set")).unwrap();
     static ref JWT_SECRET: Vec<u8> = base64::decode(env::var(ENV_JWT_SECRET).expect("jwt secret must be set")).unwrap();

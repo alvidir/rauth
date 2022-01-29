@@ -43,7 +43,10 @@ impl<
             if !self.allow_unverified {
                 let msg_ref = request.into_inner();
                 self.user_app.verify_user(&msg_ref.email, &msg_ref.pwd, self.jwt_secret, self.rsa_public)
-                    .map_err(|err| Status::aborted(err.to_string()))?;
+                .map_err(|err| {
+                    error!("{}: {}", constants::ERR_SEND_EMAIL, err);
+                    Status::aborted(constants::ERR_SEND_EMAIL)
+                })?;
                 
                 return Err(Status::failed_precondition(constants::ERR_UNVERIFIED))
             }

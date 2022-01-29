@@ -93,29 +93,7 @@ pub fn decrypt(private: &[u8], data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
 
 #[cfg(test)]
 pub mod tests {
-    use std::error::Error;
     use super::{verify_totp, generate_totp};
-
-    pub fn get_ec_signature(pem: &[u8], data: &[&[u8]]) -> Result<Vec<u8>, Box<dyn Error>> {
-        use openssl::{
-            sign::Signer,
-            pkey::PKey,
-            ec::EcKey,
-            hash::MessageDigest
-        };
-
-        let private = base64::decode(pem)?;
-        let eckey = EcKey::private_key_from_pem(&private)?;
-        let keypair = PKey::from_ec_key(eckey)?;
-    
-        let mut signer = Signer::new(MessageDigest::sha256(), &keypair).unwrap();
-        for item in data {
-            signer.update(item)?;
-        }
-    
-        let signature = signer.sign_to_vec()?;
-        Ok(signature)
-    }
 
     #[test]
     fn verify_totp_ok() {

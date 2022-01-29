@@ -11,9 +11,8 @@ pub fn get_header<T>(req: &Request<T>, header: &str) -> Result<String, Status> {
                 Status::aborted(constants::ERR_PARSE_HEADER)
             }),
 
-        None => {
-            warn!("{}", constants::ERR_NOT_FOUND);
-            return Err(Status::unauthenticated(constants::ERR_NOT_FOUND));
-        }
+        None => Err(
+            Status::unauthenticated(constants::ERR_HEADER_REQUIRED)
+        ),
     }    
 }
