@@ -21,7 +21,7 @@ impl SessionToken {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Hash)]
 pub struct VerificationToken {
     pub exp: usize,          // expiration time (as UTC timestamp) - required
     pub iat: SystemTime,     // issued at: creation time

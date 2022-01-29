@@ -11,8 +11,7 @@ pub struct User {
 }
 
 impl User {
-    pub fn new(meta: Metadata,
-               email: &str,
+    pub fn new(email: &str,
                password: &str) -> Result<Self, Box<dyn Error>> {
         
         regex::match_regex(regex::EMAIL, email)?;
@@ -23,7 +22,7 @@ impl User {
             name: email.split("@").collect::<Vec<&str>>()[0].to_string(),
             email: email.to_string(),
             password: password.to_string(),
-            meta: meta,
+            meta: Metadata::new(),
         };
 
         Ok(user)
@@ -75,16 +74,11 @@ pub mod tests {
         const NAME: &str = "dummy";
         const EMAIL: &str = "dummy@test.com";
 
-        let meta = new_metadata();
-        let user = User::new(meta.clone(), EMAIL, PWD).unwrap();
+        let user = User::new(EMAIL, PWD).unwrap();
 
         assert_eq!(user.id, 0); 
         assert_eq!(user.name, NAME);
         assert_eq!(user.email, EMAIL);
-        assert_eq!(user.meta.id, meta.id);
-        assert_eq!(user.meta.created_at, meta.created_at);
-        assert_eq!(user.meta.updated_at, meta.updated_at);
-        assert_eq!(user.meta.deleted_at, meta.deleted_at);
     }
 
     #[test]
@@ -92,9 +86,7 @@ pub mod tests {
         const PWD: &str = "ABCDEF1234567890";
         const EMAIL: &str = "not_an_email";
 
-        let meta = new_metadata();
-        let user = User::new(meta, EMAIL, PWD);
-    
+        let user = User::new(EMAIL, PWD);
         assert!(user.is_err());
     }
 
@@ -103,9 +95,7 @@ pub mod tests {
         const PWD: &str = "ABCDEFG1234567890";
         const EMAIL: &str = "dummy@test.com";
 
-        let meta = new_metadata();
-        let user = User::new(meta, EMAIL, PWD);
-    
+        let user = User::new(EMAIL, PWD);
         assert!(user.is_err());
     }
 

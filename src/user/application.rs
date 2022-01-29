@@ -1,7 +1,6 @@
 use std::time::SystemTime;
 use std::error::Error;
 use std::sync::Arc;
-use crate::metadata::domain::Metadata;
 use crate::secret::{
     application::SecretRepository,
     domain::Secret,
@@ -29,9 +28,8 @@ pub struct UserApplication<U: UserRepository, E: SecretRepository> {
 impl<U: UserRepository, E: SecretRepository> UserApplication<U, E> {
     pub fn signup(&self, email: &str, pwd: &str) -> Result<User, Box<dyn Error>> {
         info!("got a \"signup\" request from email {} ", email);
-        
-        let meta = Metadata::new();
-        let mut user = User::new(meta, email, pwd)?;
+
+        let mut user = User::new(email, pwd)?;
         self.user_repo.create(&mut user)?;
         
         Ok(user)
