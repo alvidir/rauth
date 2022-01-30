@@ -26,18 +26,18 @@ pub struct VerificationToken {
     pub exp: usize,          // expiration time (as UTC timestamp) - required
     pub iat: SystemTime,     // issued at: creation time
     pub iss: String,         // issuer
-    pub sub: Option<String>,
-    pub pwd: Option<String>,
+    pub sub: String,
+    pub pwd: String,
 }
 
 impl VerificationToken {
-    pub fn new(iss: &str, email: Option<String>, pwd: Option<String>, timeout: Duration) -> Self {
+    pub fn new(iss: &str, email: &str, pwd: &str, timeout: Duration) -> Self {
         VerificationToken {
             exp: unix_timestamp(SystemTime::now() + timeout),
             iat: SystemTime::now(),
             iss: iss.to_string(),
-            sub: email.clone(),
-            pwd: pwd.clone(),
+            sub: email.to_string(),
+            pwd: pwd.to_string(),
         }
     }
 }

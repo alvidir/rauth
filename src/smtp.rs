@@ -3,9 +3,10 @@ use lettre::transport::smtp::authentication::Credentials;
 use lettre::{SmtpTransport, Message, Transport};
 use lettre::message::SinglePart;
 use tera::{Tera, Context};
+use crate::constants;
 
 pub trait Mailer {
-    fn send_verification_email(&self, to: &str, token: &str) ->  Result<(), Box<dyn Error>>;
+    fn send_verification_email(&self, to: &str, token: &[u8]) ->  Result<(), Box<dyn Error>>;
 }
 
 pub struct Smtp<'a> {
@@ -51,13 +52,13 @@ impl<'a> Smtp<'a> {
 }
 
 impl<'a> Mailer for Smtp<'a> {
-    fn send_verification_email(&self, to: &str, token: &str) ->  Result<(), Box<dyn Error>> {
+    fn send_verification_email(&self, email: &str, token: &[u8]) ->  Result<(), Box<dyn Error>> {
         let mut context = Context::new();
-        context.insert("email", to);
-        context.insert("token", token);
+        context.insert("name", email.split("@").collect::<Vec<&str>>()[0]);
+        context.insert("token", &base64::encode(token));
 
-        const SUBJECT: &str = "hello world";
-        let body = self.tera.render("verification_email.html", &context)?;
-        self.send_email(to, &SUBJECT, body)
+        const SUBJECT: &str = constants::VERIFICATION_EMAIL_SUBJECT;
+        let body = self.tera.render(constants::VERIFICATION_EMAIL_TEMPLATE, &context)?;
+        self.send_email(email, &SUBJECT, body)
     }
 }

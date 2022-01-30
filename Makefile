@@ -24,7 +24,7 @@ build:
 setup:
 	mkdir -p .ssh/
 	
-	openssl genrsa -out .ssh/rsa_key.pem 3072
+	openssl genrsa -out .ssh/rsa_key.pem 4096
 	openssl rsa -in .ssh/rsa_key.pem -pubout -out .ssh/rsa_pubkey.pem
 
 	cat .ssh/rsa_key.pem | base64 | tr -d '\n' > .ssh/rsa_key.base64

@@ -43,10 +43,10 @@ impl<
             if !self.allow_unverified {
                 let msg_ref = request.into_inner();
                 self.user_app.verify_user(&msg_ref.email, &msg_ref.pwd, self.jwt_secret, self.rsa_public)
-                .map_err(|err| {
-                    error!("{}: {}", constants::ERR_SEND_EMAIL, err);
-                    Status::aborted(constants::ERR_SEND_EMAIL)
-                })?;
+                    .map_err(|err| {
+                        error!("{}: {}", constants::ERR_SEND_EMAIL, err);
+                        Status::aborted(constants::ERR_SEND_EMAIL)
+                    })?;
                 
                 return Err(Status::failed_precondition(constants::ERR_UNVERIFIED))
             }
@@ -58,8 +58,14 @@ impl<
             };
         }
         
-        let secure_jwt = grpc::get_header(&request, self.jwt_header)?;
-        let jwt = match security::decrypt(self.rsa_secret, secure_jwt.as_bytes()) {
+        let data = grpc::get_header(&request, self.jwt_header)?;
+        let secure_jwt = base64::decode(data)
+            .map_err(|err| {
+                warn!("{}: {}", constants::ERR_PARSE_HEADER, err);
+                Status::unknown(constants::ERR_PARSE_HEADER)
+            })?;
+
+        let jwt = match security::decrypt(self.rsa_secret, &secure_jwt) {
             Ok(token) => String::from_utf8(token).map_err(|err| {
                 warn!("{}: {}", constants::ERR_PARSE_HEADER, err);
                 Status::unknown(constants::ERR_PARSE_HEADER)
@@ -71,8 +77,7 @@ impl<
             },
         };
 
-        let msg_ref = request.into_inner();
-        match self.user_app.secure_signup(&msg_ref.email, &msg_ref.pwd, &jwt, self.jwt_public) {
+        match self.user_app.secure_signup(&jwt, self.jwt_public) {
             Err(err) => Err(Status::aborted(err.to_string())),
             Ok(_) => Ok(Response::new(Empty{})),
         }

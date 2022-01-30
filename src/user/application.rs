@@ -31,30 +31,35 @@ pub struct UserApplication<U: UserRepository, E: SecretRepository, M: Mailer> {
 impl<U: UserRepository, E: SecretRepository, M: Mailer> UserApplication<U, E, M> {
     pub fn verify_user(&self, email: &str, pwd: &str,  jwt_secret: &[u8], rsa_public: &[u8]) -> Result<(), Box<dyn Error>> {
         info!("sending a verification email to {} ", email);
+        
+        if self.user_repo.find_by_email(email).is_ok() {
+            // returns Ok to not provide information about users
+            return Ok(());
+        }
+
         User::new(email, pwd)?;
 
         let claims = VerificationToken::new(
             constants::TOKEN_ISSUER,
-            Some(email.to_string()),
-            Some(pwd.to_string()),
+            email,
+            &security::shadow(pwd, constants::PWD_SUFIX),
             Duration::from_secs(self.lifetime)
         );
 
         let token = security::sign_jwt(jwt_secret, claims)?;
         let secure_token = security::encrypt(rsa_public, token.as_ref())?;
-        self.mailer.send_verification_email(email, &base64::encode(secure_token))?;
+        self.mailer.send_verification_email(email, &secure_token)?;
         Ok(())
     }
 
-    pub fn secure_signup(&self, email: &str, pwd: &str, token: &str, jwt_public: &[u8])  -> Result<i32, Box<dyn Error>> {
+    pub fn secure_signup(&self, token: &str, jwt_public: &[u8])  -> Result<i32, Box<dyn Error>> {
         let claims: VerificationToken = security::verify_jwt(jwt_public, token)
             .map_err(|err| {
                 warn!("{}: {}", constants::ERR_VERIFY_TOKEN, err);
                 constants::ERR_VERIFY_TOKEN
             })?;
 
-        let email = claims.sub.unwrap_or(email.to_string());
-        self.signup(&email, &pwd)
+        self.signup(&claims.sub, &claims.pwd)
     }
 
     pub fn signup(&self, email: &str, pwd: &str) -> Result<i32, Box<dyn Error>> {
@@ -223,8 +228,8 @@ pub mod tests {
 
     struct MailerMock;
     impl Mailer for MailerMock {
-        fn send_verification_email(&self, _: &str, _: &str) -> Result<(), Box<dyn Error>> {
-            Err("unimplemented".into())
+        fn send_verification_email(&self, _: &str, _: &[u8]) -> Result<(), Box<dyn Error>> {
+            unimplemented!();
         }
     }
 
