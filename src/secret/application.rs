@@ -12,11 +12,11 @@ pub trait SecretRepository {
 #[cfg(test)]
 pub mod tests {
     use std::error::Error;
+    use super::SecretRepository;
     use super::super::domain::{
         tests::new_secret,
         Secret
     };
-    use super::SecretRepository;
   
     pub struct SecretRepositoryMock {
         pub fn_find: Option<fn (this: &SecretRepositoryMock, id: i32) -> Result<Secret, Box<dyn Error>>>,

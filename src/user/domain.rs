@@ -100,6 +100,12 @@ pub mod tests {
     }
 
     #[test]
+    fn user_match_password_should_not_fail() {
+        let user = new_user();
+        assert!(!user.match_password("ABCDEFG1234567890"));
+    }
+
+    #[test]
     fn user_match_password_should_fail() {
         let user = new_user();
         assert!(!user.match_password("TESTER"));

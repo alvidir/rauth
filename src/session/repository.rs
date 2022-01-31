@@ -31,12 +31,12 @@ impl<'a> RedisSessionRepository<'a> {
 }
 
 impl<'a> SessionRepository for RedisSessionRepository<'a> {
-    fn find<T: Serialize + DeserializeOwned + Hash>(&self, token: &T) -> Result<T, Box<dyn Error>> {
+    fn find<T: Serialize + DeserializeOwned + Hash>(&self, token: &T) -> Result<(), Box<dyn Error>> {
         let mut conn = self.pool.get()?;
         let key = RedisSessionRepository::hash(token);
         let secure_token: String = redis::cmd(REDIS_CMD_GET).arg(key).query(conn.deref_mut())?;
-        let token = security::verify_jwt(&self.jwt_public, &secure_token)?;
-        Ok(token)
+        security::verify_jwt::<T>(&self.jwt_public, &secure_token)?;
+        Ok(())
     }
 
     fn save<T: Serialize + DeserializeOwned + Hash>(&self, token: &T) -> Result<(), Box<dyn Error>> {

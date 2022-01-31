@@ -14,7 +14,7 @@ use crate::constants;
 use crate::security;
 
 pub trait SessionRepository {
-    fn find<T: Serialize + DeserializeOwned + Hash>(&self, token: &T) -> Result<T, Box<dyn Error>>;
+    fn find<T: Serialize + DeserializeOwned + Hash>(&self, token: &T) -> Result<(), Box<dyn Error>>;
     fn save<T: Serialize + DeserializeOwned + Hash>(&self, token: &T) -> Result<(), Box<dyn Error>>;
     fn delete<T: Serialize + DeserializeOwned + Hash>(&self, token: &T) -> Result<(), Box<dyn Error>>;
 }
@@ -70,5 +70,87 @@ impl<S: SessionRepository, U: UserRepository, E: SecretRepository> SessionApplic
             })?;
 
         self.session_repo.delete(&claims)
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use std::error::Error;
+    use std::hash::Hash;
+    use serde::{
+        Serialize, 
+        de::DeserializeOwned
+    };
+    use super::SessionRepository;
+    // use super::super::domain::{
+    //     tests::{new_session_token, new_verification_token},
+    //     SessionToken,
+    //     VerificationToken
+    // };
+  
+    pub struct SessionRepositoryMock {
+        pub force_fail: bool,
+    }
+
+    impl SessionRepository for SessionRepositoryMock{
+        fn find<T: Serialize + DeserializeOwned + Hash>(&self, _: &T) -> Result<(), Box<dyn Error>> {
+            if self.force_fail {
+                return Err("forced failure".into());
+            }
+
+            Ok(())
+        }
+
+        fn save<T: Serialize + DeserializeOwned + Hash>(&self, _: &T) -> Result<(), Box<dyn Error>> {
+            if self.force_fail {
+                return Err("forced failure".into());
+            }
+
+            Ok(())
+        }
+
+        fn delete<T: Serialize + DeserializeOwned + Hash>(&self, _: &T) -> Result<(), Box<dyn Error>> {
+            if self.force_fail {
+                return Err("forced failure".into());
+            }
+
+            Ok(())
+        }
+    }
+
+
+    #[test]
+    fn login_by_email_should_not_fail() {
+
+    }
+
+    #[test]
+    fn login_by_username_should_not_fail() {
+        
+    }
+
+    #[test]
+    fn login_with_totp_should_not_fail() {
+        
+    }
+
+    #[test]
+    fn login_wrong_password_should_fail() {
+        
+    }
+
+    #[test]
+    fn login_wrong_totp_should_fail() {
+        
+    }
+
+    #[test]
+    fn logout_should_not_fail() {
+        
+    }
+
+    #[test]
+    fn logout_wrong_token_should() {
+        
     }
 }

@@ -229,7 +229,7 @@ pub mod tests {
     struct MailerMock;
     impl Mailer for MailerMock {
         fn send_verification_email(&self, _: &str, _: &[u8]) -> Result<(), Box<dyn Error>> {
-            unimplemented!();
+            Ok(())
         }
     }
 

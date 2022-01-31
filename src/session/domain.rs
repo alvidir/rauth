@@ -2,7 +2,7 @@ use std::time::{SystemTime, Duration};
 use std::hash::Hash;
 use crate::time::unix_timestamp;
 
-#[derive(Serialize, Deserialize, Hash)]
+#[derive(Serialize, Deserialize, Hash, PartialEq)]
 pub struct SessionToken {
     pub exp: usize,          // expiration time (as UTC timestamp) - required
     pub iat: SystemTime,     // issued at: creation time
@@ -21,7 +21,7 @@ impl SessionToken {
     }
 }
 
-#[derive(Serialize, Deserialize, Hash)]
+#[derive(Serialize, Deserialize, Hash, PartialEq)]
 pub struct VerificationToken {
     pub exp: usize,          // expiration time (as UTC timestamp) - required
     pub iat: SystemTime,     // issued at: creation time
@@ -47,10 +47,27 @@ pub mod tests {
     use std::time::{SystemTime, Duration};
     use crate::time::unix_timestamp;
     use crate::security;
-    use super::SessionToken;
+    use super::{SessionToken, VerificationToken};
 
     const JWT_SECRET: &[u8] = b"LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR0hBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJHMHdhd0lCQVFRZy9JMGJTbVZxL1BBN2FhRHgKN1FFSGdoTGxCVS9NcWFWMUJab3ZhM2Y5aHJxaFJBTkNBQVJXZVcwd3MydmlnWi96SzRXcGk3Rm1mK0VPb3FybQpmUlIrZjF2azZ5dnBGd0gzZllkMlllNXl4b3ZsaTROK1ZNNlRXVFErTmVFc2ZmTWY2TkFBMloxbQotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg==";
     const JWT_PUBLIC: &[u8] = b"LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFVm5sdE1MTnI0b0dmOHl1RnFZdXhabi9oRHFLcQo1bjBVZm45YjVPc3I2UmNCOTMySGRtSHVjc2FMNVl1RGZsVE9rMWswUGpYaExIM3pIK2pRQU5tZFpnPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg==";
+
+    pub fn new_session_token() -> SessionToken {
+        const ISS: &str = "test";
+        const SUB: i32 = 999;
+
+        let timeout = Duration::from_secs(60);
+        SessionToken::new(ISS, SUB, timeout)
+    }
+
+    pub fn new_verification_token() -> VerificationToken {
+        const ISS: &str = "test";
+        const EMAIL: &str = "test@dummy.com ";
+        const PWD: &str = "ABCabc123";
+
+        let timeout = Duration::from_secs(60);
+        VerificationToken::new(ISS, EMAIL, PWD, timeout)
+    }
 
     #[test]
     fn token_should_not_fail() {
@@ -99,14 +116,15 @@ pub mod tests {
 
         const ISS: &str = "test";
         const SUB: i32 = 999;
-        const IT_LIMIT: i32 = 100_000;
+        
         let timeout = Duration::from_secs(0);
-
         let claim = SessionToken::new(ISS, SUB, timeout);
         let secret = base64::decode(JWT_SECRET).unwrap();
         let token = security::sign_jwt(&secret, claim).unwrap();
 
         let public = base64::decode(JWT_PUBLIC).unwrap();
+
+        const IT_LIMIT: i32 = 100_000;
 
         let mut iterations: i32 = 0;
         while iterations < IT_LIMIT && security::verify_jwt::<SessionToken>(&public, &token).is_ok() {
