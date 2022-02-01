@@ -47,13 +47,18 @@ impl User {
 pub mod tests {
     use crate::metadata::domain::tests::new_metadata;
     use super::User;
+
+    pub const TEST_DEFAULT_USER_ID: i32 = 999;
+    pub const TEST_DEFAULT_USER_NAME: &str = "dummyuser";
+    pub const TEST_DEFAULT_USER_EMAIL: &str = "dummy@test.com";
+    pub const TEST_DEFAULT_USER_PASSWORD: &str = "ABCDEF1234567890";
         
     pub fn new_user() -> User {
         User{
-            id: 999,
-            name: "dummyuser".to_string(),
-            email: "dummy@test.com".to_string(),
-            password: "ABCDEF1234567890".to_string(),
+            id: TEST_DEFAULT_USER_ID,
+            name: TEST_DEFAULT_USER_NAME.to_string(),
+            email: TEST_DEFAULT_USER_EMAIL.to_string(),
+            password: TEST_DEFAULT_USER_PASSWORD.to_string(),
             meta: new_metadata(),
         }
     }
@@ -61,53 +66,49 @@ pub mod tests {
     pub fn new_user_custom(id: i32, email: &str) -> User {
         User{
             id: id,
-            name: "custom user".to_string(),
+            name: "customuser".to_string(),
             email: email.to_string(),
-            password: "ABCDEF1234567890".to_string(),
+            password: TEST_DEFAULT_USER_PASSWORD.to_string(),
             meta: new_metadata(),
         }
     }
 
     #[test]
     fn user_new_should_not_fail() {
-        const PWD: &str = "ABCDEF1234567890";
         const NAME: &str = "dummy";
-        const EMAIL: &str = "dummy@test.com";
-
-        let user = User::new(EMAIL, PWD).unwrap();
+        let user = User::new(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD).unwrap();
 
         assert_eq!(user.id, 0); 
         assert_eq!(user.name, NAME);
-        assert_eq!(user.email, EMAIL);
+        assert_eq!(user.email, TEST_DEFAULT_USER_EMAIL);
+        assert_eq!(user.password, TEST_DEFAULT_USER_PASSWORD);
     }
 
     #[test]
     fn user_new_wrong_email_should_fail() {
-        const PWD: &str = "ABCDEF1234567890";
         const EMAIL: &str = "not_an_email";
 
-        let user = User::new(EMAIL, PWD);
+        let user = User::new(EMAIL, TEST_DEFAULT_USER_PASSWORD);
         assert!(user.is_err());
     }
 
     #[test]
     fn user_new_wrong_password_should_fail() {
         const PWD: &str = "ABCDEFG1234567890";
-        const EMAIL: &str = "dummy@test.com";
 
-        let user = User::new(EMAIL, PWD);
+        let user = User::new(TEST_DEFAULT_USER_EMAIL, PWD);
         assert!(user.is_err());
     }
 
     #[test]
     fn user_match_password_should_not_fail() {
         let user = new_user();
-        assert!(!user.match_password("ABCDEFG1234567890"));
+        assert!(user.match_password(TEST_DEFAULT_USER_PASSWORD));
     }
 
     #[test]
     fn user_match_password_should_fail() {
         let user = new_user();
-        assert!(!user.match_password("TESTER"));
+        assert!(!user.match_password("wrong password"));
     }
 }

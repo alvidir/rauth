@@ -49,6 +49,7 @@ pub mod tests {
     use crate::security;
     use super::{SessionToken, VerificationToken};
 
+    pub const TEST_DEFAULT_TOKEN_TIMEOUT: u64 = 60;
     const JWT_SECRET: &[u8] = b"LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR0hBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJHMHdhd0lCQVFRZy9JMGJTbVZxL1BBN2FhRHgKN1FFSGdoTGxCVS9NcWFWMUJab3ZhM2Y5aHJxaFJBTkNBQVJXZVcwd3MydmlnWi96SzRXcGk3Rm1mK0VPb3FybQpmUlIrZjF2azZ5dnBGd0gzZllkMlllNXl4b3ZsaTROK1ZNNlRXVFErTmVFc2ZmTWY2TkFBMloxbQotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg==";
     const JWT_PUBLIC: &[u8] = b"LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFVm5sdE1MTnI0b0dmOHl1RnFZdXhabi9oRHFLcQo1bjBVZm45YjVPc3I2UmNCOTMySGRtSHVjc2FMNVl1RGZsVE9rMWswUGpYaExIM3pIK2pRQU5tZFpnPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg==";
 
@@ -56,7 +57,7 @@ pub mod tests {
         const ISS: &str = "test";
         const SUB: i32 = 999;
 
-        let timeout = Duration::from_secs(60);
+        let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
         SessionToken::new(ISS, SUB, timeout)
     }
 
@@ -65,7 +66,7 @@ pub mod tests {
         const EMAIL: &str = "test@dummy.com ";
         const PWD: &str = "ABCabc123";
 
-        let timeout = Duration::from_secs(60);
+        let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
         VerificationToken::new(ISS, EMAIL, PWD, timeout)
     }
 
@@ -74,7 +75,7 @@ pub mod tests {
         const ISS: &str = "test";
         const SUB: i32 = 999;
 
-        let timeout = Duration::from_secs(60);
+        let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
 
         let before = SystemTime::now();
         let claim = SessionToken::new(ISS, SUB, timeout);
@@ -91,7 +92,7 @@ pub mod tests {
     fn token_encode_should_not_fail() {
         const ISS: &str = "test";
         const SUB: i32 = 999;
-        let timeout = Duration::from_secs(60);
+        let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
 
         let before = SystemTime::now();
         let claim = SessionToken::new(ISS, SUB, timeout);
@@ -113,24 +114,13 @@ pub mod tests {
     #[test]
     fn token_expired_should_fail() {
         use crate::security;
-
-        const ISS: &str = "test";
-        const SUB: i32 = 999;
         
-        let timeout = Duration::from_secs(0);
-        let claim = SessionToken::new(ISS, SUB, timeout);
+        let mut claim = new_session_token();
+        claim.exp = 0_usize;
+        
         let secret = base64::decode(JWT_SECRET).unwrap();
         let token = security::sign_jwt(&secret, claim).unwrap();
-
         let public = base64::decode(JWT_PUBLIC).unwrap();
-
-        const IT_LIMIT: i32 = 100_000;
-
-        let mut iterations: i32 = 0;
-        while iterations < IT_LIMIT && security::verify_jwt::<SessionToken>(&public, &token).is_ok() {
-            iterations += 1;
-        }
-
 
         assert!(security::verify_jwt::<SessionToken>(&public, &token).is_err());
     }

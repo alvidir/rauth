@@ -46,8 +46,8 @@ const ENV_JWT_SECRET: &str = "JWT_SECRET";
 const ENV_JWT_PUBLIC: &str = "JWT_PUBLIC";
 const ENV_JWT_HEADER: &str = "JWT_HEADER";
 const ENV_REDIS_DSN: &str = "REDIS_DSN";
-const ENV_SESSION_LIFETIME: &str = "SESSION_LIFETIME";
-const ENV_TOKEN_LIFETIME: &str = "TOKEN_LIFETIME";
+const ENV_SESSION_TIMEOUT: &str = "SESSION_TIMEOUT";
+const ENV_TOKEN_TIMEOUT: &str = "TOKEN_TIMEOUT";
 const ENV_POSTGRES_POOL: &str = "POSTGRES_POOL";
 const ENV_REDIS_POOL: &str = "REDIS_POOL";
 const ENV_ALLOW_UNVERIFIED: &str = "ALLOW_UNVERIFIED";
@@ -62,8 +62,8 @@ type PgPool = Pool<ConnectionManager<PgConnection>>;
 type RdPool = r2d2::Pool<RedisConnectionManager> ;
 
 lazy_static! {
-    static ref SESSION_LIFETIME: u64 = env::var(ENV_SESSION_LIFETIME).expect("session's lifetime must be set").parse().unwrap();
-    static ref TOKEN_LIFETIME: u64 = env::var(ENV_TOKEN_LIFETIME).expect("token's lifetime must be set").parse().unwrap();
+    static ref SESSION_TIMEOUT: u64 = env::var(ENV_SESSION_TIMEOUT).expect("session's timeout must be set").parse().unwrap();
+    static ref TOKEN_TIMEOUT: u64 = env::var(ENV_TOKEN_TIMEOUT).expect("token's timeout must be set").parse().unwrap();
     static ref RSA_SECRET: Vec<u8> = base64::decode(env::var(ENV_RSA_SECRET).expect("rsa secret must be set")).unwrap();
     static ref RSA_PUBLIC: Vec<u8> = base64::decode(env::var(ENV_RSA_PUBLIC).expect("rsa public key must be set")).unwrap();
     static ref JWT_SECRET: Vec<u8> = base64::decode(env::var(ENV_JWT_SECRET).expect("jwt secret must be set")).unwrap();
@@ -151,14 +151,14 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
         user_repo: user_repo.clone(),
         secret_repo: secret_repo.clone(),
         mailer: Arc::new(mailer),
-        lifetime: *TOKEN_LIFETIME,
+        timeout: *TOKEN_TIMEOUT,
     };
 
     let sess_app = SessionApplication{
         session_repo: session_repo.clone(),
         user_repo: user_repo.clone(),
         secret_repo: secret_repo.clone(),
-        lifetime: *SESSION_LIFETIME,
+        timeout: *SESSION_TIMEOUT,
     };
 
     let user_server = UserImplementation{

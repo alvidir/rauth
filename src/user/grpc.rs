@@ -40,9 +40,11 @@ impl<
     > User for UserImplementation<U, E, M> {
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<Empty>, Status> {
         if request.metadata().get(self.jwt_header).is_none() {
+            let msg_ref = request.into_inner();
+            let shadowed_pwd = security::shadow(&msg_ref.pwd, constants::PWD_SUFIX);
+
             if !self.allow_unverified {
-                let msg_ref = request.into_inner();
-                self.user_app.verify_user(&msg_ref.email, &msg_ref.pwd, self.jwt_secret, self.rsa_public)
+                self.user_app.verify_user(&msg_ref.email, &shadowed_pwd, self.jwt_secret, self.rsa_public)
                     .map_err(|err| {
                         error!("{}: {}", constants::ERR_SEND_EMAIL, err);
                         Status::aborted(constants::ERR_SEND_EMAIL)
@@ -51,8 +53,7 @@ impl<
                 return Err(Status::failed_precondition(constants::ERR_UNVERIFIED))
             }
 
-            let msg_ref = request.into_inner();
-            match self.user_app.signup(&msg_ref.email, &msg_ref.pwd) {
+            match self.user_app.signup(&msg_ref.email, &shadowed_pwd) {
                 Err(err) => return Err(Status::aborted(err.to_string())),
                 Ok(_) => return Ok(Response::new(Empty{})),
             };
@@ -91,7 +92,8 @@ impl<
         let token = grpc::get_header(&request, self.jwt_header)?;
         let msg_ref = request.into_inner();
         
-        match self.user_app.secure_delete(&msg_ref.pwd, &msg_ref.totp, &token, self.jwt_public) {
+        let shadowed_pwd = security::shadow(&msg_ref.pwd, constants::PWD_SUFIX);
+        match self.user_app.secure_delete(&shadowed_pwd, &msg_ref.totp, &token, self.jwt_public) {
             Err(err) => Err(Status::aborted(err.to_string())),
             Ok(()) => Ok(Response::new(Empty{})),
         }
@@ -100,9 +102,10 @@ impl<
     async fn totp(&self, request: Request<TotpRequest>) -> Result<Response<Empty>, Status> {
         let token = grpc::get_header(&request, self.jwt_header)?;
         let msg_ref = request.into_inner();
+        let shadowed_pwd = security::shadow(&msg_ref.pwd, constants::PWD_SUFIX);
 
         if msg_ref.action == 0 {
-            match self.user_app.secure_enable_totp(&msg_ref.pwd, &msg_ref.totp, &token, self.jwt_public) {
+            match self.user_app.secure_enable_totp(&shadowed_pwd, &msg_ref.totp, &token, self.jwt_public) {
                 Err(err) => return Err(Status::unknown(err.to_string())),
                 Ok(token) => {
                     let mut response = Response::new(Empty{});
@@ -113,7 +116,7 @@ impl<
         }
 
         if msg_ref.action == 1 {
-            match self.user_app.secure_disable_totp(&msg_ref.pwd, &msg_ref.totp, &token, self.jwt_public) {
+            match self.user_app.secure_disable_totp(&shadowed_pwd, &msg_ref.totp, &token, self.jwt_public) {
                 Ok(_) => return Ok(Response::new(Empty{})),
                 Err(err) => return Err(Status::unknown(err.to_string())),
             }

@@ -42,8 +42,9 @@ impl<
     > Session for SessionImplementation<S, U, E> {
     async fn login(&self, request: Request<LoginRequest>) -> Result<Response<Empty>, Status> {
         let msg_ref = request.into_inner();
+        let shadowed_pwd = security::shadow(&msg_ref.pwd, constants::PWD_SUFIX);
 
-        let token = self.sess_app.login(&msg_ref.ident, &msg_ref.pwd, &msg_ref.totp)
+        let token = self.sess_app.login(&msg_ref.ident, &shadowed_pwd, &msg_ref.totp, self.jwt_secret)
             .map_err(|err| Status::aborted(err.to_string()))?;
 
         let mut res = Response::new(Empty{});

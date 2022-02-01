@@ -28,7 +28,7 @@ impl Secret {
     }
 
     pub fn is_deleted(&self) -> bool {
-        self.meta.deleted_at.is_none()
+        self.meta.deleted_at.is_some()
     }
 
     pub fn set_deleted_at(&mut self, deleted_at: Option<SystemTime>) {
@@ -42,13 +42,16 @@ pub mod tests {
     use crate::metadata::domain::Metadata;
     use super::Secret;
 
+    pub const TEST_DEFAULT_SECRET_NAME: &str = "dummysecret";
+    pub const TEST_DEFAULT_SECRET_DATA: &str = "this is a secret";
+
     pub fn new_secret() -> Secret {
         let inner_meta = Metadata::new();
 
         Secret {
             id: 999,
-            name: "dummy secret".to_string(),
-            data: "this is a secret".as_bytes().to_vec(),
+            name: TEST_DEFAULT_SECRET_NAME.to_string(),
+            data: TEST_DEFAULT_SECRET_DATA.as_bytes().to_vec(),
             meta: inner_meta,
         }
     }
