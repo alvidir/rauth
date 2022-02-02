@@ -29,7 +29,7 @@ pub struct UserApplication<U: UserRepository, E: SecretRepository, M: Mailer> {
 }
 
 impl<U: UserRepository, E: SecretRepository, M: Mailer> UserApplication<U, E, M> {
-    pub fn verify_user(&self, email: &str, pwd: &str,  jwt_secret: &[u8], rsa_public: &[u8]) -> Result<(), Box<dyn Error>> {
+    pub fn verify_user(&self, email: &str, pwd: &str,  jwt_secret: &[u8], rsa_public: Option<&[u8]>) -> Result<(), Box<dyn Error>> {
         info!("sending a verification email to {} ", email);
         
         if self.user_repo.find_by_email(email).is_ok() {
@@ -47,13 +47,35 @@ impl<U: UserRepository, E: SecretRepository, M: Mailer> UserApplication<U, E, M>
         );
 
         let token = security::sign_jwt(jwt_secret, claims)?;
-        let secure_token = security::encrypt(rsa_public, token.as_ref())?;
-        self.mailer.send_verification_email(email, &secure_token)?;
+        let token = if let Some(rsa_public) = rsa_public {
+            let token = security::encrypt(rsa_public, token.as_ref())?;
+            base64::encode(token)
+        } else {
+            token
+        };
+
+        self.mailer.send_verification_email(email, &token)?;
         Ok(())
     }
 
-    pub fn secure_signup(&self, token: &str, jwt_public: &[u8])  -> Result<i32, Box<dyn Error>> {
-        let claims: VerificationToken = security::verify_jwt(jwt_public, token)
+    pub fn secure_signup(&self, token: &str, jwt_public: &[u8], rsa_secret: Option<&[u8]>)  -> Result<i32, Box<dyn Error>> {
+        let token = if let Some(rsa_secret) = rsa_secret {
+            let token = security::decrypt(rsa_secret, &base64::decode(token)?)
+                .map_err(|err| {
+                    warn!("{}: {}", constants::ERR_DECRYPT_TOKEN, err);
+                    constants::ERR_DECRYPT_TOKEN
+                })?;
+
+            String::from_utf8(token).map_err(|err| {
+                warn!("{}: {}", constants::ERR_PARSE_TOKEN, err);
+                constants::ERR_PARSE_TOKEN
+            })?
+
+        } else {
+            token.to_string()
+        };
+
+        let claims: VerificationToken = security::verify_jwt(jwt_public, &token)
             .map_err(|err| {
                 warn!("{}: {}", constants::ERR_VERIFY_TOKEN, err);
                 constants::ERR_VERIFY_TOKEN
@@ -206,6 +228,17 @@ pub mod tests {
     pub const TEST_FIND_BY_EMAIL_ID: i32 = 888;
     pub const TEST_FIND_BY_NAME_ID: i32 = 777;
 
+    const JWT_SECRET: &[u8] = b"LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR0hBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJHMHdhd0lCQVFRZy9JMGJTbVZxL1BBN2FhRHgKN1FFSGdoTGxCVS9NcWFWMUJab3ZhM2Y5aHJxaFJBTkNBQVJXZVcwd3MydmlnWi96SzRXcGk3Rm1mK0VPb3FybQpmUlIrZjF2azZ5dnBGd0gzZllkMlllNXl4b3ZsaTROK1ZNNlRXVFErTmVFc2ZmTWY2TkFBMloxbQotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg==";
+    //const JWT_PUBLIC: &[u8] = b"LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFVm5sdE1MTnI0b0dmOHl1RnFZdXhabi9oRHFLcQo1bjBVZm45YjVPc3I2UmNCOTMySGRtSHVjc2FMNVl1RGZsVE9rMWswUGpYaExIM3pIK2pRQU5tZFpnPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg==";
+
+    pub struct MailerMock;
+
+    impl Mailer for MailerMock {
+        fn send_verification_email(&self, _: &str, _: &str) -> Result<(), Box<dyn Error>> {
+            Ok(())
+        }
+    }
+
     pub struct UserRepositoryMock {
         pub fn_find: Option<fn (this: &UserRepositoryMock, id: i32) -> Result<User, Box<dyn Error>>>,
         pub fn_find_by_email: Option<fn (this: &UserRepositoryMock, email: &str) -> Result<User, Box<dyn Error>>>,
@@ -225,13 +258,6 @@ pub mod tests {
                 fn_save: None,
                 fn_delete: None,
             }
-        }
-    }
-
-    struct MailerMock;
-    impl Mailer for MailerMock {
-        fn send_verification_email(&self, _: &str, _: &[u8]) -> Result<(), Box<dyn Error>> {
-            Ok(())
         }
     }
 
@@ -286,9 +312,41 @@ pub mod tests {
         }
     }
 
+    pub fn new_user_application() -> UserApplication<
+            UserRepositoryMock,
+            SecretRepositoryMock,
+            MailerMock> {
+        let user_repo = UserRepositoryMock::new();
+        let secret_repo = SecretRepositoryMock::new();
+        let mailer_mock = MailerMock{};
+
+        UserApplication {
+            user_repo: Arc::new(user_repo),
+            secret_repo: Arc::new(secret_repo),
+            mailer: Arc::new(mailer_mock),
+            timeout: 60,
+        }
+    }
+
     #[test]
     fn user_verify_should_not_fail() {
+        let mut user_repo = UserRepositoryMock::new();
+        user_repo.fn_find_by_email = Some(|_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
+            Err("forced failure".into())
+        });
 
+        let secret_repo = SecretRepositoryMock::new();
+        let mailer_mock = MailerMock{};
+
+        let app = UserApplication {
+            user_repo: Arc::new(user_repo),
+            secret_repo: Arc::new(secret_repo),
+            mailer: Arc::new(mailer_mock),
+            timeout: 60,
+        };
+
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        app.verify_user(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD, &jwt_secret, None).unwrap();
     }
 
     #[test]

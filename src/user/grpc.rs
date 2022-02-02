@@ -44,7 +44,7 @@ impl<
             let shadowed_pwd = security::shadow(&msg_ref.pwd, constants::PWD_SUFIX);
 
             if !self.allow_unverified {
-                self.user_app.verify_user(&msg_ref.email, &shadowed_pwd, self.jwt_secret, self.rsa_public)
+                self.user_app.verify_user(&msg_ref.email, &shadowed_pwd, self.jwt_secret, Some(self.rsa_public))
                     .map_err(|err| {
                         error!("{}: {}", constants::ERR_SEND_EMAIL, err);
                         Status::aborted(constants::ERR_SEND_EMAIL)
@@ -59,26 +59,8 @@ impl<
             };
         }
         
-        let data = grpc::get_header(&request, self.jwt_header)?;
-        let secure_jwt = base64::decode(data)
-            .map_err(|err| {
-                warn!("{}: {}", constants::ERR_PARSE_HEADER, err);
-                Status::unknown(constants::ERR_PARSE_HEADER)
-            })?;
-
-        let jwt = match security::decrypt(self.rsa_secret, &secure_jwt) {
-            Ok(token) => String::from_utf8(token).map_err(|err| {
-                warn!("{}: {}", constants::ERR_PARSE_HEADER, err);
-                Status::unknown(constants::ERR_PARSE_HEADER)
-            })?,
-
-            Err(err) => {
-                warn!("{}: {}", constants::ERR_DECRYPT_TOKEN, err);
-                return Err(Status::invalid_argument(constants::ERR_DECRYPT_TOKEN))
-            },
-        };
-
-        match self.user_app.secure_signup(&jwt, self.jwt_public) {
+        let token = grpc::get_header(&request, self.jwt_header)?;
+        match self.user_app.secure_signup(&token, self.jwt_public, Some(self.rsa_secret)) {
             Err(err) => Err(Status::aborted(err.to_string())),
             Ok(_) => Ok(Response::new(Empty{})),
         }
