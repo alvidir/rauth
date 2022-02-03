@@ -1,7 +1,10 @@
 use std::error::Error;
 use std::time::{SystemTime, Duration};
 use std::sync::Arc;
-use crate::session::domain::{VerificationToken, SessionToken};
+use crate::session::{
+    application::SessionRepository,
+    domain::{VerificationToken, SessionToken}
+};
 use crate::secret::{
     application::SecretRepository,
     domain::Secret,
@@ -21,14 +24,31 @@ pub trait UserRepository {
     fn delete(&self, user: &User) -> Result<(), Box<dyn Error>>;
 }
 
-pub struct UserApplication<U: UserRepository, E: SecretRepository, M: Mailer> {
+pub struct UserApplication<U: UserRepository, E: SecretRepository, S: SessionRepository, M: Mailer> {
     pub user_repo: Arc<U>,
     pub secret_repo: Arc<E>,
+    pub session_repo: Arc<S>,
     pub mailer: Arc<M>,
     pub timeout: u64,
 }
 
-impl<U: UserRepository, E: SecretRepository, M: Mailer> UserApplication<U, E, M> {
+impl<U: UserRepository, E: SecretRepository, S: SessionRepository, M: Mailer> UserApplication<U, E, S, M> {
+    pub fn get_valid_session_token(&self, token: &str, jwt_public: &[u8]) -> Result<SessionToken, Box<dyn Error>> {
+        let claims: SessionToken = security::verify_jwt(jwt_public, token)
+            .map_err(|err| {
+                warn!("{}: {}", constants::ERR_VERIFY_TOKEN, err);
+                constants::ERR_VERIFY_TOKEN
+            })?;
+    
+        self.session_repo.exists(claims.sid)
+            .map_err(|err| {
+                warn!("{}: {}", constants::ERR_NOT_FOUND, err);
+                constants::ERR_NOT_FOUND
+            })?;
+    
+        Ok(claims)
+    }
+
     pub fn verify_user(&self, email: &str, pwd: &str,  jwt_secret: &[u8]) -> Result<(), Box<dyn Error>> {
         info!("sending a verification email to {} ", email);
         
@@ -58,6 +78,12 @@ impl<U: UserRepository, E: SecretRepository, M: Mailer> UserApplication<U, E, M>
                 constants::ERR_VERIFY_TOKEN
             })?;
 
+        self.session_repo.exists(claims.tid)
+            .map_err(|err| {
+                warn!("{}: {}", constants::ERR_NOT_FOUND, err);
+                constants::ERR_NOT_FOUND
+            })?;
+
         self.signup(&claims.sub, &claims.pwd)
     }
 
@@ -71,12 +97,7 @@ impl<U: UserRepository, E: SecretRepository, M: Mailer> UserApplication<U, E, M>
     }
 
     pub fn secure_delete(&self, pwd: &str, totp: &str, token: &str, jwt_public: &[u8]) -> Result<(), Box<dyn Error>> {
-        let claims: SessionToken = security::verify_jwt(jwt_public, &token)
-            .map_err(|err| {
-                warn!("{}: {}", constants::ERR_VERIFY_TOKEN, err);
-                constants::ERR_VERIFY_TOKEN
-            })?;
-        
+        let claims = self.get_valid_session_token(token, jwt_public)?;
         self.delete(claims.sub, pwd, totp)
     }
 
@@ -109,12 +130,7 @@ impl<U: UserRepository, E: SecretRepository, M: Mailer> UserApplication<U, E, M>
     }
 
     pub fn secure_enable_totp(&self, pwd: &str, totp: &str, token: &str, jwt_public: &[u8]) -> Result<String, Box<dyn Error>> {
-        let claims: SessionToken = security::verify_jwt(jwt_public, &token)
-            .map_err(|err| {
-                warn!("{}: {}", constants::ERR_VERIFY_TOKEN, err);
-                constants::ERR_VERIFY_TOKEN
-            })?;
-        
+        let claims = self.get_valid_session_token(token, jwt_public)?;
         self.enable_totp(claims.sub, pwd, totp)
     }
 
@@ -150,12 +166,7 @@ impl<U: UserRepository, E: SecretRepository, M: Mailer> UserApplication<U, E, M>
     }
 
     pub fn secure_disable_totp(&self, pwd: &str, totp: &str, token: &str, jwt_public: &[u8]) -> Result<(), Box<dyn Error>> {
-        let claims: SessionToken = security::verify_jwt(jwt_public, &token)
-            .map_err(|err| {
-                warn!("{}: {}", constants::ERR_VERIFY_TOKEN, err);
-                constants::ERR_VERIFY_TOKEN
-            })?;
-
+        let claims = self.get_valid_session_token(token, jwt_public)?;
         self.disable_totp(claims.sub, pwd, totp)
     }
 
@@ -200,6 +211,7 @@ pub mod tests {
     use super::{UserRepository, UserApplication};
     use super::super::domain::tests::{TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD};
     use crate::secret::application::tests::SecretRepositoryMock;
+    use crate::session::application::tests::SessionRepositoryMock;
 
     pub const TEST_CREATE_ID: i32 = 999;
     pub const TEST_FIND_BY_EMAIL_ID: i32 = 888;
@@ -292,14 +304,19 @@ pub mod tests {
     pub fn new_user_application() -> UserApplication<
             UserRepositoryMock,
             SecretRepositoryMock,
+            SessionRepositoryMock,
             MailerMock> {
         let user_repo = UserRepositoryMock::new();
         let secret_repo = SecretRepositoryMock::new();
         let mailer_mock = MailerMock{};
-
+        let session_repo = SessionRepositoryMock{
+            force_fail: false,
+        };
+        
         UserApplication {
             user_repo: Arc::new(user_repo),
             secret_repo: Arc::new(secret_repo),
+            session_repo: Arc::new(session_repo),
             mailer: Arc::new(mailer_mock),
             timeout: 60,
         }
@@ -314,10 +331,14 @@ pub mod tests {
 
         let secret_repo = SecretRepositoryMock::new();
         let mailer_mock = MailerMock{};
+        let session_repo = SessionRepositoryMock{
+            force_fail: false,
+        };
 
         let app = UserApplication {
             user_repo: Arc::new(user_repo),
             secret_repo: Arc::new(secret_repo),
+            session_repo: Arc::new(session_repo),
             mailer: Arc::new(mailer_mock),
             timeout: 60,
         };
@@ -366,10 +387,14 @@ pub mod tests {
         let user_repo = UserRepositoryMock::new();
         let secret_repo = SecretRepositoryMock::new();
         let mailer_mock = MailerMock{};
+        let session_repo = SessionRepositoryMock{
+            force_fail: false,
+        };
         
         let app = UserApplication{
             user_repo: Arc::new(user_repo),
             secret_repo: Arc::new(secret_repo),
+            session_repo: Arc::new(session_repo),
             mailer: Arc::new(mailer_mock),
             timeout: 0,
         };

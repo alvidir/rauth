@@ -21,10 +21,10 @@ pub struct RedisSessionRepository<'a> {
 }
 
 impl<'a> SessionRepository for RedisSessionRepository<'a> {
-    fn exists<T: Serialize + DeserializeOwned>(&self, key: u64) -> Result<(), Box<dyn Error>> {
+    fn exists(&self, key: u64) -> Result<(), Box<dyn Error>> {
         let mut conn = self.pool.get()?;
         let secure_token: String = redis::cmd(REDIS_CMD_GET).arg(key).query(conn.deref_mut())?;
-        security::verify_jwt::<T>(&self.jwt_public, &secure_token)?;
+        security::verify_jwt(&self.jwt_public, &secure_token)?;
         Ok(())
     }
 

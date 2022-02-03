@@ -151,6 +151,7 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
     let user_app = UserApplication{
         user_repo: user_repo.clone(),
         secret_repo: secret_repo.clone(),
+        session_repo: session_repo.clone(),
         mailer: Arc::new(mailer),
         timeout: *TOKEN_TIMEOUT,
     };

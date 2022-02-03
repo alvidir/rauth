@@ -2,6 +2,7 @@ use tonic::{Request, Response, Status};
 use crate::security;
 use crate::constants;
 use crate::user::application::{UserRepository, UserApplication};
+use crate::session::application::SessionRepository;
 use crate::secret::application::SecretRepository;
 use crate::smtp::Mailer;
 use crate::grpc;
@@ -21,9 +22,10 @@ use proto::{SignupRequest, ResetPasswordRequest, DeleteRequest, TotpRequest, Emp
 pub struct UserImplementation<
     U: UserRepository + Sync + Send,
     E:  SecretRepository + Sync + Send,
+    S: SessionRepository + Sync + Send,
     M: Mailer,
     > {
-    pub user_app: UserApplication<U, E, M>,
+    pub user_app: UserApplication<U, E, S, M>,
     pub rsa_secret: &'static [u8],
     pub rsa_public: &'static [u8],
     pub jwt_secret: &'static [u8],
@@ -36,8 +38,9 @@ pub struct UserImplementation<
 impl<
     U: 'static + UserRepository + Sync + Send,
     E: 'static + SecretRepository + Sync + Send,
+    S: 'static + SessionRepository + Sync + Send,
     M: 'static + Mailer + Sync + Send,
-    > User for UserImplementation<U, E, M> {
+    > User for UserImplementation<U, E, S, M> {
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<Empty>, Status> {
         if request.metadata().get(self.jwt_header).is_none() {
             let msg_ref = request.into_inner();

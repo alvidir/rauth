@@ -13,7 +13,7 @@ use crate::constants;
 use crate::security;
 
 pub trait SessionRepository {
-    fn exists<T: Serialize + DeserializeOwned>(&self, key: u64) -> Result<(), Box<dyn Error>>;
+    fn exists(&self, key: u64) -> Result<(), Box<dyn Error>>;
     fn save<T: Serialize + DeserializeOwned>(&self, key: u64, token: &T) -> Result<(), Box<dyn Error>>;
     fn delete(&self, key: u64) -> Result<(), Box<dyn Error>>;
 }
@@ -107,7 +107,7 @@ pub mod tests {
     }
 
     impl SessionRepository for SessionRepositoryMock{
-        fn exists<T: Serialize + DeserializeOwned>(&self, _: u64) -> Result<(), Box<dyn Error>> {
+        fn exists(&self, _: u64) -> Result<(), Box<dyn Error>> {
             if self.force_fail {
                 return Err("forced failure".into());
             }
