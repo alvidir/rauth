@@ -29,7 +29,7 @@ pub struct UserApplication<U: UserRepository, E: SecretRepository, M: Mailer> {
 }
 
 impl<U: UserRepository, E: SecretRepository, M: Mailer> UserApplication<U, E, M> {
-    pub fn verify_user(&self, email: &str, pwd: &str,  jwt_secret: &[u8], rsa_public: Option<&[u8]>) -> Result<(), Box<dyn Error>> {
+    pub fn verify_user(&self, email: &str, pwd: &str,  jwt_secret: &[u8]) -> Result<(), Box<dyn Error>> {
         info!("sending a verification email to {} ", email);
         
         if self.user_repo.find_by_email(email).is_ok() {
@@ -47,35 +47,12 @@ impl<U: UserRepository, E: SecretRepository, M: Mailer> UserApplication<U, E, M>
         );
 
         let token = security::sign_jwt(jwt_secret, claims)?;
-        let token = if let Some(rsa_public) = rsa_public {
-            let token = security::encrypt(rsa_public, token.as_ref())?;
-            base64::encode(token)
-        } else {
-            token
-        };
-
         self.mailer.send_verification_email(email, &token)?;
         Ok(())
     }
 
-    pub fn secure_signup(&self, token: &str, jwt_public: &[u8], rsa_secret: Option<&[u8]>)  -> Result<i32, Box<dyn Error>> {
-        let token = if let Some(rsa_secret) = rsa_secret {
-            let token = security::decrypt(rsa_secret, &base64::decode(token)?)
-                .map_err(|err| {
-                    warn!("{}: {}", constants::ERR_DECRYPT_TOKEN, err);
-                    constants::ERR_DECRYPT_TOKEN
-                })?;
-
-            String::from_utf8(token).map_err(|err| {
-                warn!("{}: {}", constants::ERR_PARSE_TOKEN, err);
-                constants::ERR_PARSE_TOKEN
-            })?
-
-        } else {
-            token.to_string()
-        };
-
-        let claims: VerificationToken = security::verify_jwt(jwt_public, &token)
+    pub fn secure_signup(&self, token: &str, jwt_public: &[u8])  -> Result<i32, Box<dyn Error>> {
+        let claims: VerificationToken = security::verify_jwt(jwt_public, token)
             .map_err(|err| {
                 warn!("{}: {}", constants::ERR_VERIFY_TOKEN, err);
                 constants::ERR_VERIFY_TOKEN
@@ -346,7 +323,7 @@ pub mod tests {
         };
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
-        app.verify_user(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD, &jwt_secret, None).unwrap();
+        app.verify_user(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD, &jwt_secret).unwrap();
     }
 
     #[test]

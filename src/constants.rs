@@ -15,4 +15,3 @@ pub const ERR_DECRYPT_TOKEN: &str = "E-007";
 pub const ERR_UNVERIFIED: &str = "E-008";
 pub const ERR_INVALID_OPTION: &str = "E-009";
 pub const ERR_SEND_EMAIL: &str = "E-010";
-pub const ERR_PARSE_TOKEN: &str = "E-011";

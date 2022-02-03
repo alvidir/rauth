@@ -3,7 +3,10 @@ use lettre::transport::smtp::authentication::Credentials;
 use lettre::{SmtpTransport, Message, Transport};
 use lettre::message::SinglePart;
 use tera::{Tera, Context};
-use crate::constants;
+use crate::{
+    constants,
+    security
+};
 
 pub trait Mailer {
     fn send_verification_email(&self, to: &str, token: &str) ->  Result<(), Box<dyn Error>>;
@@ -12,6 +15,7 @@ pub trait Mailer {
 pub struct Smtp<'a> {
     pub issuer: &'a str,
     pub origin: &'a str,
+    pub rsa_public: Option<&'a [u8]>,
     mailer: SmtpTransport,
     tera: Tera,
 }
@@ -28,6 +32,7 @@ impl<'a> Smtp<'a> {
         Ok(Smtp {
             issuer: "",
             origin: "",
+            rsa_public: None,
             mailer: mailer.build(),
             tera: tera,
         })
@@ -55,7 +60,15 @@ impl<'a> Mailer for Smtp<'a> {
     fn send_verification_email(&self, email: &str, token: &str) ->  Result<(), Box<dyn Error>> {
         let mut context = Context::new();
         context.insert("name", email.split("@").collect::<Vec<&str>>()[0]);
-        context.insert("token", token);
+
+        let token = if let Some(rsa_public) = self.rsa_public {
+            let token = security::encrypt(rsa_public, token.as_ref())?;
+            base64::encode(token)
+        } else {
+            token.to_string()
+        };
+
+        context.insert("token", &token);
 
         const SUBJECT: &str = constants::VERIFICATION_EMAIL_SUBJECT;
         let body = self.tera.render(constants::VERIFICATION_EMAIL_TEMPLATE, &context)?;
