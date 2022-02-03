@@ -1,7 +1,6 @@
 use std::time::Duration;
 use std::error::Error;
 use std::sync::Arc;
-use std::hash::Hash;
 use serde::{
     Serialize, 
     de::DeserializeOwned
@@ -14,9 +13,9 @@ use crate::constants;
 use crate::security;
 
 pub trait SessionRepository {
-    fn find<T: Serialize + DeserializeOwned + Hash>(&self, token: &T) -> Result<(), Box<dyn Error>>;
-    fn save<T: Serialize + DeserializeOwned + Hash>(&self, token: &T) -> Result<(), Box<dyn Error>>;
-    fn delete<T: Serialize + DeserializeOwned + Hash>(&self, token: &T) -> Result<(), Box<dyn Error>>;
+    fn exists<T: Serialize + DeserializeOwned>(&self, key: u64) -> Result<(), Box<dyn Error>>;
+    fn save<T: Serialize + DeserializeOwned>(&self, key: u64, token: &T) -> Result<(), Box<dyn Error>>;
+    fn delete(&self, key: u64) -> Result<(), Box<dyn Error>>;
 }
 
 pub struct SessionApplication<S: SessionRepository, U: UserRepository, E: SecretRepository> {
@@ -55,7 +54,7 @@ impl<S: SessionRepository, U: UserRepository, E: SecretRepository> SessionApplic
         }
 
         let sess = SessionToken::new(constants::TOKEN_ISSUER, user.get_id(), Duration::from_secs(self.timeout));
-        self.session_repo.save(&sess)?;
+        self.session_repo.save(sess.sid, &sess)?;
 
         let token = security::sign_jwt(jwt_secret, sess)?;
         Ok(token)
@@ -70,7 +69,7 @@ impl<S: SessionRepository, U: UserRepository, E: SecretRepository> SessionApplic
                 constants::ERR_VERIFY_TOKEN
             })?;
 
-        self.session_repo.delete(&claims)
+        self.session_repo.delete(claims.sid)
     }
 }
 
@@ -79,7 +78,6 @@ pub mod tests {
     use std::error::Error;
     use std::time::{Duration, SystemTime};
     use std::sync::Arc;
-    use std::hash::Hash;
     use serde::{
         Serialize, 
         de::DeserializeOwned
@@ -109,7 +107,7 @@ pub mod tests {
     }
 
     impl SessionRepository for SessionRepositoryMock{
-        fn find<T: Serialize + DeserializeOwned + Hash>(&self, _: &T) -> Result<(), Box<dyn Error>> {
+        fn exists<T: Serialize + DeserializeOwned>(&self, _: u64) -> Result<(), Box<dyn Error>> {
             if self.force_fail {
                 return Err("forced failure".into());
             }
@@ -117,7 +115,7 @@ pub mod tests {
             Ok(())
         }
 
-        fn save<T: Serialize + DeserializeOwned + Hash>(&self, _: &T) -> Result<(), Box<dyn Error>> {
+        fn save<T: Serialize + DeserializeOwned>(&self, _: u64, _: &T) -> Result<(), Box<dyn Error>> {
             if self.force_fail {
                 return Err("forced failure".into());
             }
@@ -125,7 +123,7 @@ pub mod tests {
             Ok(())
         }
 
-        fn delete<T: Serialize + DeserializeOwned + Hash>(&self, _: &T) -> Result<(), Box<dyn Error>> {
+        fn delete(&self, _: u64) -> Result<(), Box<dyn Error>> {
             if self.force_fail {
                 return Err("forced failure".into());
             }

@@ -4,6 +4,8 @@ extern crate log;
 extern crate diesel;
 #[macro_use]
 extern crate serde;
+#[macro_use]
+extern crate derivative;
 
 pub mod metadata;
 pub mod secret;

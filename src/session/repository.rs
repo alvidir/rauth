@@ -1,7 +1,5 @@
 use std::error::Error;
 use std::ops::DerefMut;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 use serde::{
     Serialize,
     de::DeserializeOwned,
@@ -22,34 +20,23 @@ pub struct RedisSessionRepository<'a> {
     pub jwt_public: &'a [u8],
 }
 
-impl<'a> RedisSessionRepository<'a> {
-    fn hash<T: Serialize + DeserializeOwned + Hash>(token: &T) -> u64 {
-        let mut hasher = DefaultHasher::new();
-        token.hash(&mut hasher);
-        hasher.finish()
-    }
-}
-
 impl<'a> SessionRepository for RedisSessionRepository<'a> {
-    fn find<T: Serialize + DeserializeOwned + Hash>(&self, token: &T) -> Result<(), Box<dyn Error>> {
+    fn exists<T: Serialize + DeserializeOwned>(&self, key: u64) -> Result<(), Box<dyn Error>> {
         let mut conn = self.pool.get()?;
-        let key = RedisSessionRepository::hash(token);
         let secure_token: String = redis::cmd(REDIS_CMD_GET).arg(key).query(conn.deref_mut())?;
         security::verify_jwt::<T>(&self.jwt_public, &secure_token)?;
         Ok(())
     }
 
-    fn save<T: Serialize + DeserializeOwned + Hash>(&self, token: &T) -> Result<(), Box<dyn Error>> {
+    fn save<T: Serialize + DeserializeOwned>(&self, key: u64, token: &T) -> Result<(), Box<dyn Error>> {
         let mut conn = self.pool.get()?;
-        let key = RedisSessionRepository::hash(token);
         let secure_token = security::sign_jwt(self.jwt_secret, token)?;
         redis::cmd(REDIS_CMD_SET).arg(key).arg(secure_token).query(conn.deref_mut())?;
         Ok(())
     }
 
-    fn delete<T: Serialize + DeserializeOwned + Hash>(&self, token: &T) -> Result<(), Box<dyn Error>> {
+    fn delete(&self, key: u64) -> Result<(), Box<dyn Error>> {
         let mut conn = self.pool.get()?;
-        let key = RedisSessionRepository::hash(token);
         redis::cmd(REDIS_CMD_DELETE).arg(key).query(conn.deref_mut())?;
         Ok(())
     }

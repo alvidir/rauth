@@ -144,6 +144,7 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
     };
 
     let mut mailer = Smtp::new(&SMTP_TEMPLATES, &SMTP_TRANSPORT, credentials)?;
+    mailer.rsa_public = Some(&RSA_PUBLIC);
     mailer.issuer = &*SMTP_ISSUER;
     mailer.origin = &*SMTP_ORIGIN;
 
