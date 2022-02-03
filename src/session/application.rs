@@ -68,6 +68,12 @@ impl<S: SessionRepository, U: UserRepository, E: SecretRepository> SessionApplic
                 warn!("{}: {}", constants::ERR_VERIFY_TOKEN, err);
                 constants::ERR_VERIFY_TOKEN
             })?;
+    
+        self.session_repo.exists(claims.sid)
+            .map_err(|err| {
+                warn!("{}: {}", constants::ERR_NOT_FOUND, err);
+                constants::ERR_NOT_FOUND
+            })?;
 
         self.session_repo.delete(claims.sid)
     }

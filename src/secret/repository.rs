@@ -49,9 +49,6 @@ pub struct PostgresSecretRepository<'a, M: MetadataRepository> {
 
 impl<'a, M: MetadataRepository> PostgresSecretRepository<'a, M> {
     pub fn tx_create(&self, conn: &PgConnection, secret: &mut Secret) -> Result<(), PgError>  {
-        // in order to create a secret it must exists the metadata for this secret
-        // PostgresMetadataRepository::tx_create(conn, &mut secret.meta)?;
-
         let data_as_str = match String::from_utf8(secret.data.clone()) {
             Err(err) => return Err(PgError::DeserializationError(Box::new(err))),
             Ok(data_str) => data_str,
@@ -77,7 +74,6 @@ impl<'a, M: MetadataRepository> PostgresSecretRepository<'a, M> {
             secrets.filter(id.eq(secret.id))
         ).execute(conn)?;
 
-        // PostgresMetadataRepository::tx_delete(conn, &secret.meta)?;
         Ok(())
     }
 
