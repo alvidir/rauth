@@ -133,6 +133,7 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
 
     let session_repo = Arc::new(RedisSessionRepository{
         pool: &RD_POOL,
+        rsa_public: &RSA_PUBLIC,
         jwt_secret: &JWT_SECRET,
         jwt_public: &JWT_PUBLIC,
     });

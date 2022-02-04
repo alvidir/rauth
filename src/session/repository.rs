@@ -1,8 +1,8 @@
 use std::error::Error;
 use std::ops::DerefMut;
 use r2d2_redis::{r2d2, redis, RedisConnectionManager};
-use crate::security;
 use super::application::SessionRepository;
+use crate::security;
 
 const REDIS_CMD_GET: &str = "GET";
 const REDIS_CMD_SET: &str = "SET";
@@ -12,6 +12,7 @@ type RdPool = r2d2::Pool<RedisConnectionManager> ;
 
 pub struct RedisSessionRepository<'a> {
     pub pool: &'a RdPool,
+    pub rsa_public: &'a [u8],
     pub jwt_secret: &'a [u8],
     pub jwt_public: &'a [u8],
 }
@@ -21,9 +22,7 @@ impl<'a> SessionRepository for RedisSessionRepository<'a> {
         info!("looking for token with key {}", key);
 
         let mut conn = self.pool.get()?;
-        let secure_token: Vec<u8> = redis::cmd(REDIS_CMD_GET).arg(key).query(conn.deref_mut())?;
-
-        security::verify_jwt(&self.jwt_public, &String::from_utf8(secure_token)?)?;
+        redis::cmd(REDIS_CMD_GET).arg(key).query(conn.deref_mut())?;
         Ok(())
     }
 
@@ -31,7 +30,8 @@ impl<'a> SessionRepository for RedisSessionRepository<'a> {
         info!("storing token with key {} and value {}", key, token);
         
         let mut conn = self.pool.get()?;
-        redis::cmd(REDIS_CMD_SET).arg(key).arg(token.as_bytes()).query(conn.deref_mut())?;
+        let secure_token = security::encrypt(self.rsa_public, token.as_bytes())?;
+        redis::cmd(REDIS_CMD_SET).arg(key).arg(secure_token).query(conn.deref_mut())?;
         Ok(())
     }
 
