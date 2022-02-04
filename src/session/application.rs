@@ -1,10 +1,6 @@
 use std::time::Duration;
 use std::error::Error;
 use std::sync::Arc;
-use serde::{
-    Serialize, 
-    de::DeserializeOwned
-};
 use super::domain::SessionToken;
 use crate::user::application::UserRepository;
 use crate::secret::application::SecretRepository;
@@ -13,9 +9,9 @@ use crate::constants;
 use crate::security;
 
 pub trait SessionRepository {
-    fn exists(&self, key: u64) -> Result<(), Box<dyn Error>>;
-    fn save<T: Serialize + DeserializeOwned>(&self, key: u64, token: &T) -> Result<(), Box<dyn Error>>;
-    fn delete(&self, key: u64) -> Result<(), Box<dyn Error>>;
+    fn exists(&self, key: &str) -> Result<(), Box<dyn Error>>;
+    fn save(&self, key: &str, token: &str) -> Result<(), Box<dyn Error>>;
+    fn delete(&self, key: &str) -> Result<(), Box<dyn Error>>;
 }
 
 pub struct SessionApplication<S: SessionRepository, U: UserRepository, E: SecretRepository> {
@@ -54,9 +50,10 @@ impl<S: SessionRepository, U: UserRepository, E: SecretRepository> SessionApplic
         }
 
         let sess = SessionToken::new(constants::TOKEN_ISSUER, user.get_id(), Duration::from_secs(self.timeout));
-        self.session_repo.save(sess.sid, &sess)?;
-
+        let key = sess.sid.to_string();
         let token = security::sign_jwt(jwt_secret, sess)?;
+        self.session_repo.save(&key, &token)?;
+
         Ok(token)
     }
 
@@ -69,13 +66,13 @@ impl<S: SessionRepository, U: UserRepository, E: SecretRepository> SessionApplic
                 constants::ERR_VERIFY_TOKEN
             })?;
     
-        self.session_repo.exists(claims.sid)
+        self.session_repo.exists(&claims.sid.to_string())
             .map_err(|err| {
                 warn!("{}: {}", constants::ERR_NOT_FOUND, err);
                 constants::ERR_NOT_FOUND
             })?;
 
-        self.session_repo.delete(claims.sid)
+        self.session_repo.delete(&claims.sid.to_string())
     }
 }
 
@@ -84,10 +81,6 @@ pub mod tests {
     use std::error::Error;
     use std::time::{Duration, SystemTime};
     use std::sync::Arc;
-    use serde::{
-        Serialize, 
-        de::DeserializeOwned
-    };
 
     use crate::security;
     use crate::user::{
@@ -113,7 +106,7 @@ pub mod tests {
     }
 
     impl SessionRepository for SessionRepositoryMock{
-        fn exists(&self, _: u64) -> Result<(), Box<dyn Error>> {
+        fn exists(&self, _: &str) -> Result<(), Box<dyn Error>> {
             if self.force_fail {
                 return Err("forced failure".into());
             }
@@ -121,7 +114,7 @@ pub mod tests {
             Ok(())
         }
 
-        fn save<T: Serialize + DeserializeOwned>(&self, _: u64, _: &T) -> Result<(), Box<dyn Error>> {
+        fn save(&self, _: &str, _: &str) -> Result<(), Box<dyn Error>> {
             if self.force_fail {
                 return Err("forced failure".into());
             }
@@ -129,7 +122,7 @@ pub mod tests {
             Ok(())
         }
 
-        fn delete(&self, _: u64) -> Result<(), Box<dyn Error>> {
+        fn delete(&self, _: &str) -> Result<(), Box<dyn Error>> {
             if self.force_fail {
                 return Err("forced failure".into());
             }

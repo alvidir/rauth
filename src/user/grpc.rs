@@ -75,7 +75,13 @@ impl<
                 Status::aborted(constants::ERR_DECRYPT_TOKEN)
             })?;
 
-        match self.user_app.secure_signup(&base64::encode(token), self.jwt_public) {
+        let token = String::from_utf8(token)
+            .map_err(|err| {
+                warn!("{}: {}", constants::ERR_PARSE_TOKEN, err);
+                Status::aborted(constants::ERR_PARSE_TOKEN)
+            })?;
+
+        match self.user_app.secure_signup(&token, self.jwt_public) {
             Err(err) => Err(Status::aborted(err.to_string())),
             Ok(_) => Ok(Response::new(Empty{})),
         }

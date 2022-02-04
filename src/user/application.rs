@@ -40,7 +40,7 @@ impl<U: UserRepository, E: SecretRepository, S: SessionRepository, M: Mailer> Us
                 constants::ERR_VERIFY_TOKEN
             })?;
     
-        self.session_repo.exists(claims.sid)
+        self.session_repo.exists(&claims.sid.to_string())
             .map_err(|err| {
                 warn!("{}: {}", constants::ERR_NOT_FOUND, err);
                 constants::ERR_NOT_FOUND
@@ -54,6 +54,7 @@ impl<U: UserRepository, E: SecretRepository, S: SessionRepository, M: Mailer> Us
         
         if self.user_repo.find_by_email(email).is_ok() {
             // returns Ok to not provide information about users
+            info!("user with email {} already exists", email);
             return Ok(());
         }
 
@@ -65,8 +66,10 @@ impl<U: UserRepository, E: SecretRepository, S: SessionRepository, M: Mailer> Us
             pwd,
             Duration::from_secs(self.timeout)
         );
-
+        
+        let key = claims.tid.to_string();
         let token = security::sign_jwt(jwt_secret, claims)?;
+        self.session_repo.save(&key, &token)?;
         self.mailer.send_verification_email(email, &token)?;
         Ok(())
     }
@@ -78,7 +81,7 @@ impl<U: UserRepository, E: SecretRepository, S: SessionRepository, M: Mailer> Us
                 constants::ERR_VERIFY_TOKEN
             })?;
 
-        self.session_repo.exists(claims.tid)
+        self.session_repo.exists(&claims.tid.to_string())
             .map_err(|err| {
                 warn!("{}: {}", constants::ERR_NOT_FOUND, err);
                 constants::ERR_NOT_FOUND
