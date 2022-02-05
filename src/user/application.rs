@@ -44,7 +44,6 @@ impl<U: UserRepository, E: SecretRepository, S: SessionRepository, M: Mailer> Us
         }
 
         User::new(email, pwd)?;
-
         let token_to_store = VerificationToken::new(
             constants::TOKEN_ISSUER,
             email,
@@ -140,6 +139,7 @@ impl<U: UserRepository, E: SecretRepository, S: SessionRepository, M: Mailer> Us
 
             secret.set_deleted_at(None);
             self.secret_repo.save(&secret)?;
+            return Ok("".to_string());
         }
         
         let token = security::get_random_string(constants::TOTP_SECRET_LEN);
@@ -158,8 +158,7 @@ impl<U: UserRepository, E: SecretRepository, S: SessionRepository, M: Mailer> Us
         info!("got an \"disable totp\" request for user id {} ", user_id);
         
         let user = self.user_repo.find(user_id)?;
-        let shadowed_pwd = security::shadow(pwd, constants::PWD_SUFIX);
-        if !user.match_password(&shadowed_pwd) {
+        if !user.match_password(pwd) {
             return Err(constants::ERR_NOT_FOUND.into());
         }
 
@@ -196,7 +195,10 @@ pub mod tests {
     use super::super::domain::tests::{TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD};
     use crate::secret::{
         application::tests::SecretRepositoryMock,
-        domain::{Secret, tests::TEST_DEFAULT_SECRET_DATA},
+        domain::{
+            Secret,
+            tests::{TEST_DEFAULT_SECRET_DATA, new_secret},
+        },
     };
     use crate::{security, time, constants};
     use crate::session::{
@@ -626,46 +628,111 @@ pub mod tests {
 
     #[test]
     fn user_enable_totp_verify_should_not_fail() {
+        let mut secret_repo = SecretRepositoryMock::new();
+        secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+            let mut secret = new_secret();
+            secret.set_deleted_at(Some(SystemTime::now()));
+            Ok(secret)
+        });
 
+        let mut app = new_user_application();
+        app.secret_repo = Arc::new(secret_repo);
+
+        let code = security::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes()).unwrap().generate();
+        let totp = app.enable_totp(0, TEST_DEFAULT_USER_PASSWORD, &code).unwrap();
+        assert_eq!(totp.len(), 0);
     }
 
     #[test]
     fn user_enable_totp_wrong_password_should_fail() {
+        let mut secret_repo = SecretRepositoryMock::new();
+        secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+            let mut secret = new_secret();
+            secret.set_deleted_at(Some(SystemTime::now()));
+            Ok(secret)
+        });
 
+        let mut app = new_user_application();
+        app.secret_repo = Arc::new(secret_repo);
+
+        let code = security::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes()).unwrap().generate();
+        assert!(app.enable_totp(0, "bad password", &code).is_err());
     }
 
     #[test]
     fn user_enable_totp_already_enabled_should_fail() {
-
+        let app = new_user_application();
+        let code = security::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes()).unwrap().generate();
+        assert!(app.enable_totp(0, TEST_DEFAULT_USER_PASSWORD, &code).is_err());
     }
 
     #[test]
     fn user_secure_disable_totp_should_not_fail() {
+        let token = SessionToken::new("test", 0, Duration::from_secs(60));
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
+        let mut session_repo = SessionRepositoryMock::new();
+        session_repo.token = secure_token.clone();
+        session_repo.fn_find = Some(|this: &SessionRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+            Ok(this.token.clone())
+        });
+
+        let mut app = new_user_application();
+        app.session_repo = Arc::new(session_repo);
+
+        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        let code = security::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes()).unwrap().generate();
+        app.secure_disable_totp(TEST_DEFAULT_USER_PASSWORD, &code, &secure_token, &jwt_public).unwrap();
     }
 
     #[test]
     fn user_disable_totp_should_not_fail() {
-
+        let app = new_user_application();
+        let code = security::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes()).unwrap().generate();
+        app.disable_totp(0, TEST_DEFAULT_USER_PASSWORD, &code).unwrap();
     }
 
     #[test]
     fn user_disable_totp_wrong_password_should_fail() {
-
+        let app = new_user_application();
+        let code = security::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes()).unwrap().generate();
+        assert!(app.disable_totp(0, "bad password", &code).is_err());
     }
 
     #[test]
     fn user_disable_totp_wrong_totp_should_fail() {
-
+        let app = new_user_application();
+        assert!(app.disable_totp(0, TEST_DEFAULT_USER_PASSWORD, "bad totp").is_err());
     }
 
     #[test]
     fn user_disable_totp_not_enabled_should_fail() {
+        let mut secret_repo = SecretRepositoryMock::new();
+        secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+            Err("overrided".into())
+        });
 
+        let mut app = new_user_application();
+        app.secret_repo = Arc::new(secret_repo);
+
+        let code = security::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes()).unwrap().generate();
+        assert!(app.disable_totp(0, TEST_DEFAULT_USER_PASSWORD, &code).is_err());
     }
 
     #[test]
     fn user_disable_totp_not_verified_should_fail() {
+        let mut secret_repo = SecretRepositoryMock::new();
+        secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+            let mut secret = new_secret();
+            secret.set_deleted_at(Some(SystemTime::now()));
+            Ok(secret)
+        });
 
+        let mut app = new_user_application();
+        app.secret_repo = Arc::new(secret_repo);
+
+        let code = security::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes()).unwrap().generate();
+        assert!(app.disable_totp(0, TEST_DEFAULT_USER_PASSWORD, &code).is_err());
     }
 }
