@@ -24,6 +24,11 @@ const SECURE_CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
                                 abcdefghijklmnopqrstuvwxyz\
                                 0123456789";
 
+
+pub trait WithOwnedId {
+    fn get_id(&self) -> String;
+}
+
 pub fn sign_jwt<S: Serialize>(secret: &[u8], payload: S) -> Result<String, Box<dyn Error>> {
     let header = Header::new(Algorithm::ES256);
     let key = EncodingKey::from_ec_pem(&secret)?;

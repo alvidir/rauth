@@ -1,6 +1,7 @@
 use std::time::Duration;
 use std::error::Error;
 use std::sync::Arc;
+use crate::security::WithOwnedId;
 use super::domain::SessionToken;
 use crate::user::application::UserRepository;
 use crate::secret::application::SecretRepository;
@@ -9,8 +10,8 @@ use crate::constants;
 use crate::security;
 
 pub trait SessionRepository {
-    fn exists(&self, key: &str) -> Result<(), Box<dyn Error>>;
-    fn save(&self, key: &str, token: &str) -> Result<(), Box<dyn Error>>;
+    fn find(&self, key: &str) -> Result<String, Box<dyn Error>>;
+    fn save(&self, key: &str, token: &str, expire: Option<u64>) -> Result<(), Box<dyn Error>>;
     fn delete(&self, key: &str) -> Result<(), Box<dyn Error>>;
 }
 
@@ -50,9 +51,9 @@ impl<S: SessionRepository, U: UserRepository, E: SecretRepository> SessionApplic
         }
 
         let sess = SessionToken::new(constants::TOKEN_ISSUER, user.get_id(), Duration::from_secs(self.timeout));
-        let key = sess.sid.to_string();
+        let key = sess.get_id();
         let token = security::sign_jwt(jwt_secret, sess)?;
-        self.session_repo.save(&key, &token)?;
+        self.session_repo.save(&key, &token, Some(self.timeout))?;
 
         Ok(token)
     }
@@ -66,13 +67,60 @@ impl<S: SessionRepository, U: UserRepository, E: SecretRepository> SessionApplic
                 constants::ERR_VERIFY_TOKEN
             })?;
     
-        self.session_repo.exists(&claims.sid.to_string())
+        self.session_repo.find(&claims.get_id())
             .map_err(|err| {
                 warn!("{}: {}", constants::ERR_NOT_FOUND, err);
                 constants::ERR_NOT_FOUND
             })?;
 
-        self.session_repo.delete(&claims.sid.to_string())
+        self.session_repo.delete(&claims.get_id())
+            .map_err(|err| {
+                error!("{} failed to remove token with id {}: {}", constants::ERR_UNKNOWN, claims.get_id(), err);
+                constants::ERR_UNKNOWN
+            })?;
+        
+        Ok(())
+    }
+}
+
+pub mod util {
+    use std::error::Error;
+    use std::sync::Arc;
+    use serde::{
+        Serialize,
+        de::DeserializeOwned
+    };
+    use super::SessionRepository;
+    use crate::security::WithOwnedId;
+    use crate::constants;
+    use crate::security;
+
+    pub fn verify_token<S: SessionRepository, T: Serialize + DeserializeOwned + PartialEq + Eq + WithOwnedId>(repo: Arc<S>, token: &str, jwt_public: &[u8]) -> Result<T, Box<dyn Error>> {
+        let claims: T = security::verify_jwt(jwt_public, token)
+            .map_err(|err| {
+                warn!("{} verifying session token: {}", constants::ERR_VERIFY_TOKEN, err);
+                constants::ERR_VERIFY_TOKEN
+            })?;
+    
+        let key = claims.get_id(); 
+        let present_data = repo.find(&key)
+            .map_err(|err| {
+                warn!("{} finding token with id {}: {}", constants::ERR_NOT_FOUND, &key, err);
+                constants::ERR_NOT_FOUND
+            })?;
+
+        let present_token: T = security::verify_jwt(jwt_public, &present_data)
+            .map_err(|err| {
+                warn!("{} verifying found token with id {}: {}", constants::ERR_VERIFY_TOKEN, &key, err);
+                constants::ERR_VERIFY_TOKEN
+            })?;
+    
+        if present_token != claims {
+            error!("{}: got and want token for id {} do not match", constants::ERR_NOT_FOUND, &key);
+            return Err(constants::ERR_NOT_FOUND.into());
+        }
+    
+        Ok(claims)
     }
 }
 
@@ -102,29 +150,43 @@ pub mod tests {
     const JWT_PUBLIC: &[u8] = b"LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFVm5sdE1MTnI0b0dmOHl1RnFZdXhabi9oRHFLcQo1bjBVZm45YjVPc3I2UmNCOTMySGRtSHVjc2FMNVl1RGZsVE9rMWswUGpYaExIM3pIK2pRQU5tZFpnPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg==";
   
     pub struct SessionRepositoryMock {
-        pub force_fail: bool,
+        pub fn_find: Option<fn (this: &SessionRepositoryMock, key: &str) -> Result<String, Box<dyn Error>>>,
+        pub fn_save: Option<fn (this: &SessionRepositoryMock, key: &str, token: &str, expire: Option<u64>) -> Result<(), Box<dyn Error>>>,
+        pub fn_delete: Option<fn (this: &SessionRepositoryMock, key: &str) -> Result<(), Box<dyn Error>>>,
+        pub token: String,
+    }
+
+    impl SessionRepositoryMock {
+        pub fn new() -> Self {
+            SessionRepositoryMock{
+                fn_find: None,
+                fn_save: None,
+                fn_delete: None,
+                token: "".into(),
+            }
+        }
     }
 
     impl SessionRepository for SessionRepositoryMock{
-        fn exists(&self, _: &str) -> Result<(), Box<dyn Error>> {
-            if self.force_fail {
-                return Err("forced failure".into());
+        fn find(&self, key: &str) -> Result<String, Box<dyn Error>> {
+            if let Some(fn_find) = self.fn_find {
+                return fn_find(self, key);
+            }
+
+            Ok("".to_string())
+        }
+
+        fn save(&self, key: &str, token: &str, expire: Option<u64>) -> Result<(), Box<dyn Error>> {
+            if let Some(fn_save) = self.fn_save {
+                return fn_save(self, key, token, expire);
             }
 
             Ok(())
         }
 
-        fn save(&self, _: &str, _: &str) -> Result<(), Box<dyn Error>> {
-            if self.force_fail {
-                return Err("forced failure".into());
-            }
-
-            Ok(())
-        }
-
-        fn delete(&self, _: &str) -> Result<(), Box<dyn Error>> {
-            if self.force_fail {
-                return Err("forced failure".into());
+        fn delete(&self, key: &str) -> Result<(), Box<dyn Error>> {
+            if let Some(fn_delete) = self.fn_delete {
+                return fn_delete(self, key);
             }
 
             Ok(())
@@ -137,9 +199,7 @@ pub mod tests {
             SecretRepositoryMock> {
         let user_repo = UserRepositoryMock::new();
         let secret_repo = SecretRepositoryMock::new();
-        let session_repo = SessionRepositoryMock{
-            force_fail: false,
-        };
+        let session_repo = SessionRepositoryMock::new();
 
         SessionApplication {
             user_repo: Arc::new(user_repo),
@@ -157,9 +217,7 @@ pub mod tests {
             Err("overrided".into())
         });
 
-        let session_repo = SessionRepositoryMock{
-            force_fail: false,
-        };
+        let session_repo = SessionRepositoryMock::new();
 
         let app = SessionApplication {
             user_repo: Arc::new(user_repo),
@@ -184,9 +242,7 @@ pub mod tests {
             Err("overrided".into())
         });
 
-        let session_repo = SessionRepositoryMock{
-            force_fail: false,
-        };
+        let session_repo = SessionRepositoryMock::new();
 
         let app = SessionApplication {
             user_repo: Arc::new(user_repo),
@@ -251,16 +307,17 @@ pub mod tests {
     }
 
     #[test]
-    fn logout_wrong_token_should_fail() {    
+    fn logout_invalid_token_should_fail() {    
         let user_repo = UserRepositoryMock::new();
         let mut secret_repo = SecretRepositoryMock::new();
         secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
             Err("overrided".into())
         });
 
-        let session_repo = SessionRepositoryMock{
-            force_fail: true,
-        };
+        let mut session_repo = SessionRepositoryMock::new();
+        session_repo.fn_find = Some(|_: &SessionRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+            Err("fail forced".into())
+        });
 
         let app = SessionApplication {
             user_repo: Arc::new(user_repo),
@@ -271,6 +328,30 @@ pub mod tests {
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let token = security::sign_jwt(&jwt_secret, new_session_token()).unwrap();
+        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        assert!(app.logout(&token, &jwt_public).is_err())
+    }
+
+    #[test]
+    fn logout_wrong_token_should_fail() {    
+        let user_repo = UserRepositoryMock::new();
+        let mut secret_repo = SecretRepositoryMock::new();
+        secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+            Err("overrided".into())
+        });
+
+        let session_repo = SessionRepositoryMock::new();
+
+        let app = SessionApplication {
+            user_repo: Arc::new(user_repo),
+            secret_repo: Arc::new(secret_repo),
+            session_repo: Arc::new(session_repo),
+            timeout: 999,
+        };
+
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let token = security::sign_jwt(&jwt_secret, new_session_token()).unwrap()
+            .replace('A', "a");
         
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
         assert!(app.logout(&token, &jwt_public).is_err())

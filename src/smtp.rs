@@ -75,3 +75,31 @@ impl<'a> Mailer for Smtp<'a> {
         self.send_email(email, &SUBJECT, body)
     }
 }
+
+#[cfg(test)]
+pub mod tests {
+    use std::error::Error;
+    use super::Mailer;
+
+    pub struct MailerMock {
+        pub force_fail: bool,
+    }
+
+    impl MailerMock {
+        pub fn new() -> Self {
+            MailerMock{
+                force_fail: false,
+            }
+        }
+    }
+
+    impl Mailer for MailerMock {
+        fn send_verification_email(&self, _: &str, _: &str) -> Result<(), Box<dyn Error>> {
+            if self.force_fail {
+                return Err("fail forced".into());
+            }
+
+            Ok(())
+        }
+    }
+}

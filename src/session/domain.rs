@@ -1,22 +1,23 @@
 use std::time::{SystemTime, Duration};
 use std::hash::{Hash, Hasher};
 use std::collections::hash_map::DefaultHasher;
+use rand::Rng;
+use crate::security::WithOwnedId;
 use crate::time::unix_timestamp;
-use crate::constants;
 
-#[derive(Serialize, Deserialize, Hash, PartialEq)]
+#[derive(Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct SessionToken {
-    pub sid: u64,            // session id
     pub exp: usize,          // expiration time (as UTC timestamp) - required
     pub iat: SystemTime,     // issued at: creation time
     pub iss: String,         // issuer
     pub sub: i32,
+    id: u64,
 }
 
 impl SessionToken {
     pub fn new(iss: &str, sub: i32, timeout: Duration) -> Self {
         let mut token = SessionToken {
-            sid: constants::DEFAULT_TOKEN_ID,
+            id: rand::thread_rng().gen(), // noise
             exp: unix_timestamp(SystemTime::now() + timeout),
             iat: SystemTime::now(),
             iss: iss.to_string(),
@@ -25,25 +26,31 @@ impl SessionToken {
 
         let mut hasher = DefaultHasher::new();
         token.hash(&mut hasher);
-        token.sid = hasher.finish();
+        token.id = hasher.finish();
         token
     }
 }
 
-#[derive(Serialize, Deserialize, Hash, PartialEq)]
+impl WithOwnedId for SessionToken {
+    fn get_id(&self) -> String {
+        self.id.to_string()
+    }
+}
+
+#[derive(Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct VerificationToken {
-    pub tid: u64,            // token id
     pub exp: usize,          // expiration time (as UTC timestamp) - required
     pub iat: SystemTime,     // issued at: creation time
     pub iss: String,         // issuer
     pub sub: String,
     pub pwd: String,
+    id: u64,
 }
 
 impl VerificationToken {
     pub fn new(iss: &str, email: &str, pwd: &str, timeout: Duration) -> Self {
         let mut token = VerificationToken {
-            tid: constants::DEFAULT_TOKEN_ID,
+            id: rand::thread_rng().gen(), // noise
             exp: unix_timestamp(SystemTime::now() + timeout),
             iat: SystemTime::now(),
             iss: iss.to_string(),
@@ -53,8 +60,15 @@ impl VerificationToken {
 
         let mut hasher = DefaultHasher::new();
         token.hash(&mut hasher);
-        token.tid = hasher.finish();
+        token.id = hasher.finish();
         token
+    }
+}
+
+
+impl WithOwnedId for VerificationToken {
+    fn get_id(&self) -> String {
+        self.id.to_string()
     }
 }
 

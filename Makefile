@@ -53,7 +53,7 @@ run:
 	RUST_LOG=INFO cargo run
 
 test:
-	RUST_BACKTRACE=1 cargo test -- --nocapture
+	RUST_BACKTRACE=full cargo test -- --nocapture
 
 integration-test:
-	RUST_BACKTRACE=1 cargo test --features integration-test -- --nocapture
+	RUST_BACKTRACE=full cargo test --features integration-test -- --nocapture

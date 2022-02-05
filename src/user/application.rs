@@ -2,7 +2,7 @@ use std::error::Error;
 use std::time::{SystemTime, Duration};
 use std::sync::Arc;
 use crate::session::{
-    application::SessionRepository,
+    application::{SessionRepository, util::verify_token},
     domain::{VerificationToken, SessionToken}
 };
 use crate::secret::{
@@ -12,6 +12,7 @@ use crate::secret::{
 
 use crate::constants;
 use crate::security;
+use crate::security::WithOwnedId;
 use crate::smtp::Mailer;
 use super::domain::User;
 
@@ -33,61 +34,39 @@ pub struct UserApplication<U: UserRepository, E: SecretRepository, S: SessionRep
 }
 
 impl<U: UserRepository, E: SecretRepository, S: SessionRepository, M: Mailer> UserApplication<U, E, S, M> {
-    pub fn get_valid_session_token(&self, token: &str, jwt_public: &[u8]) -> Result<SessionToken, Box<dyn Error>> {
-        let claims: SessionToken = security::verify_jwt(jwt_public, token)
-            .map_err(|err| {
-                warn!("{}: {}", constants::ERR_VERIFY_TOKEN, err);
-                constants::ERR_VERIFY_TOKEN
-            })?;
-    
-        self.session_repo.exists(&claims.sid.to_string())
-            .map_err(|err| {
-                warn!("{}: {}", constants::ERR_NOT_FOUND, err);
-                constants::ERR_NOT_FOUND
-            })?;
-    
-        Ok(claims)
-    }
-
     pub fn verify_user(&self, email: &str, pwd: &str,  jwt_secret: &[u8]) -> Result<(), Box<dyn Error>> {
         info!("sending a verification email to {} ", email);
         
         if self.user_repo.find_by_email(email).is_ok() {
             // returns Ok to not provide information about users
-            info!("user with email {} already exists", email);
+            info!("user with email {} already exists, no email sent", email);
             return Ok(());
         }
 
         User::new(email, pwd)?;
 
-        let claims = VerificationToken::new(
+        let token_to_store = VerificationToken::new(
             constants::TOKEN_ISSUER,
             email,
             pwd,
             Duration::from_secs(self.timeout)
         );
         
-        let key = claims.tid.to_string();
-        let token = security::sign_jwt(jwt_secret, claims)?;
-        self.session_repo.save(&key, &token)?;
+        let key = token_to_store.get_id();
+        let token = security::sign_jwt(jwt_secret, token_to_store)?;
+        self.session_repo.save(&key, &token, Some(self.timeout))?;
         self.mailer.send_verification_email(email, &token)?;
         Ok(())
     }
 
     pub fn secure_signup(&self, token: &str, jwt_public: &[u8])  -> Result<i32, Box<dyn Error>> {
-        let claims: VerificationToken = security::verify_jwt(jwt_public, token)
-            .map_err(|err| {
-                warn!("{}: {}", constants::ERR_VERIFY_TOKEN, err);
-                constants::ERR_VERIFY_TOKEN
-            })?;
-
-        self.session_repo.exists(&claims.tid.to_string())
-            .map_err(|err| {
-                warn!("{}: {}", constants::ERR_NOT_FOUND, err);
-                constants::ERR_NOT_FOUND
-            })?;
-
-        self.signup(&claims.sub, &claims.pwd)
+        let claims: VerificationToken = verify_token(self.session_repo.clone(), token, jwt_public)?;
+        let user_id = self.signup(&claims.sub, &claims.pwd)?;
+        if let Err(err) = self.session_repo.delete(&claims.get_id()) {
+            error!("{} failed to remove token with id {}: {}", constants::ERR_UNKNOWN, claims.get_id(), err);
+        }
+        
+        Ok(user_id)
     }
 
     pub fn signup(&self, email: &str, pwd: &str) -> Result<i32, Box<dyn Error>> {
@@ -100,7 +79,7 @@ impl<U: UserRepository, E: SecretRepository, S: SessionRepository, M: Mailer> Us
     }
 
     pub fn secure_delete(&self, pwd: &str, totp: &str, token: &str, jwt_public: &[u8]) -> Result<(), Box<dyn Error>> {
-        let claims = self.get_valid_session_token(token, jwt_public)?;
+        let claims: SessionToken = verify_token(self.session_repo.clone(), token, jwt_public)?;
         self.delete(claims.sub, pwd, totp)
     }
 
@@ -133,7 +112,7 @@ impl<U: UserRepository, E: SecretRepository, S: SessionRepository, M: Mailer> Us
     }
 
     pub fn secure_enable_totp(&self, pwd: &str, totp: &str, token: &str, jwt_public: &[u8]) -> Result<String, Box<dyn Error>> {
-        let claims = self.get_valid_session_token(token, jwt_public)?;
+        let claims: SessionToken = verify_token(self.session_repo.clone(), token, jwt_public)?;
         self.enable_totp(claims.sub, pwd, totp)
     }
 
@@ -169,7 +148,7 @@ impl<U: UserRepository, E: SecretRepository, S: SessionRepository, M: Mailer> Us
     }
 
     pub fn secure_disable_totp(&self, pwd: &str, totp: &str, token: &str, jwt_public: &[u8]) -> Result<(), Box<dyn Error>> {
-        let claims = self.get_valid_session_token(token, jwt_public)?;
+        let claims: SessionToken = verify_token(self.session_repo.clone(), token, jwt_public)?;
         self.disable_totp(claims.sub, pwd, totp)
     }
 
@@ -205,8 +184,8 @@ impl<U: UserRepository, E: SecretRepository, S: SessionRepository, M: Mailer> Us
 #[cfg(test)]
 pub mod tests {
     use std::error::Error;
+    use std::time::{Duration, SystemTime};
     use std::sync::Arc;
-    use super::Mailer;
     use super::super::domain::{
         tests::new_user_custom,
         User,
@@ -214,22 +193,21 @@ pub mod tests {
     use super::{UserRepository, UserApplication};
     use super::super::domain::tests::{TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD};
     use crate::secret::application::tests::SecretRepositoryMock;
-    use crate::session::application::tests::SessionRepositoryMock;
+    use crate::{security, time};
+    use crate::session::{
+        application::tests::SessionRepositoryMock,
+        domain::VerificationToken,
+    };
+    use crate::smtp::{
+        tests::MailerMock,
+    };
 
     pub const TEST_CREATE_ID: i32 = 999;
     pub const TEST_FIND_BY_EMAIL_ID: i32 = 888;
     pub const TEST_FIND_BY_NAME_ID: i32 = 777;
 
     const JWT_SECRET: &[u8] = b"LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR0hBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJHMHdhd0lCQVFRZy9JMGJTbVZxL1BBN2FhRHgKN1FFSGdoTGxCVS9NcWFWMUJab3ZhM2Y5aHJxaFJBTkNBQVJXZVcwd3MydmlnWi96SzRXcGk3Rm1mK0VPb3FybQpmUlIrZjF2azZ5dnBGd0gzZllkMlllNXl4b3ZsaTROK1ZNNlRXVFErTmVFc2ZmTWY2TkFBMloxbQotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg==";
-    //const JWT_PUBLIC: &[u8] = b"LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFVm5sdE1MTnI0b0dmOHl1RnFZdXhabi9oRHFLcQo1bjBVZm45YjVPc3I2UmNCOTMySGRtSHVjc2FMNVl1RGZsVE9rMWswUGpYaExIM3pIK2pRQU5tZFpnPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg==";
-
-    pub struct MailerMock;
-
-    impl Mailer for MailerMock {
-        fn send_verification_email(&self, _: &str, _: &str) -> Result<(), Box<dyn Error>> {
-            Ok(())
-        }
-    }
+    const JWT_PUBLIC: &[u8] = b"LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFVm5sdE1MTnI0b0dmOHl1RnFZdXhabi9oRHFLcQo1bjBVZm45YjVPc3I2UmNCOTMySGRtSHVjc2FMNVl1RGZsVE9rMWswUGpYaExIM3pIK2pRQU5tZFpnPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg==";
 
     pub struct UserRepositoryMock {
         pub fn_find: Option<fn (this: &UserRepositoryMock, id: i32) -> Result<User, Box<dyn Error>>>,
@@ -311,10 +289,8 @@ pub mod tests {
             MailerMock> {
         let user_repo = UserRepositoryMock::new();
         let secret_repo = SecretRepositoryMock::new();
-        let mailer_mock = MailerMock{};
-        let session_repo = SessionRepositoryMock{
-            force_fail: false,
-        };
+        let mailer_mock = MailerMock::new();
+        let session_repo = SessionRepositoryMock::new();
         
         UserApplication {
             user_repo: Arc::new(user_repo),
@@ -333,10 +309,8 @@ pub mod tests {
         });
 
         let secret_repo = SecretRepositoryMock::new();
-        let mailer_mock = MailerMock{};
-        let session_repo = SessionRepositoryMock{
-            force_fail: false,
-        };
+        let mailer_mock = MailerMock::new();
+        let session_repo = SessionRepositoryMock::new();
 
         let app = UserApplication {
             user_repo: Arc::new(user_repo),
@@ -352,47 +326,197 @@ pub mod tests {
 
     #[test]
     fn user_verify_already_exists_should_not_fail() {
-
+        let app = new_user_application();
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        app.verify_user(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD, &jwt_secret).unwrap();
     }
 
     #[test]
     fn user_verify_wrong_email_should_fail() {
+        let mut user_repo = UserRepositoryMock::new();
+        user_repo.fn_find_by_email = Some(|_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
+            Err("forced failure".into())
+        });
 
+        let secret_repo = SecretRepositoryMock::new();
+        let mailer_mock = MailerMock::new();
+        let session_repo = SessionRepositoryMock::new();
+
+        let app = UserApplication {
+            user_repo: Arc::new(user_repo),
+            secret_repo: Arc::new(secret_repo),
+            session_repo: Arc::new(session_repo),
+            mailer: Arc::new(mailer_mock),
+            timeout: 60,
+        };
+
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        assert!(app.verify_user("this is not an email", TEST_DEFAULT_USER_PASSWORD, &jwt_secret).is_err());
     }
 
     #[test]
     fn user_verify_wrong_password_should_fail() {
+        let mut user_repo = UserRepositoryMock::new();
+        user_repo.fn_find_by_email = Some(|_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
+            Err("forced failure".into())
+        });
 
+        let secret_repo = SecretRepositoryMock::new();
+        let mailer_mock = MailerMock::new();
+        let session_repo = SessionRepositoryMock::new();
+
+        let app = UserApplication {
+            user_repo: Arc::new(user_repo),
+            secret_repo: Arc::new(secret_repo),
+            session_repo: Arc::new(session_repo),
+            mailer: Arc::new(mailer_mock),
+            timeout: 60,
+        };
+
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        assert!(app.verify_user(TEST_DEFAULT_USER_EMAIL, "bad password", &jwt_secret).is_err());
     }
 
     #[test]
     fn user_verify_cannot_send_email_should_fail() {
+        let mut user_repo = UserRepositoryMock::new();
+        user_repo.fn_find_by_email = Some(|_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
+            Err("forced failure".into())
+        });
 
+        let secret_repo = SecretRepositoryMock::new();
+        let mailer_mock = MailerMock{
+            force_fail: true,
+        };
+
+        let session_repo = SessionRepositoryMock::new();
+
+        let app = UserApplication {
+            user_repo: Arc::new(user_repo),
+            secret_repo: Arc::new(secret_repo),
+            session_repo: Arc::new(session_repo),
+            mailer: Arc::new(mailer_mock),
+            timeout: 60,
+        };
+
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        assert!(app.verify_user(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD, &jwt_secret).is_err());
     }
 
     #[test]
     fn user_secure_signup_should_not_fail() {
+        let user_repo = UserRepositoryMock::new();
+        let secret_repo = SecretRepositoryMock::new();
+        let mailer_mock = MailerMock{
+            force_fail: true,
+        };
 
+        let token = VerificationToken::new(
+            "test",
+            TEST_DEFAULT_USER_EMAIL,
+            TEST_DEFAULT_USER_PASSWORD,
+            Duration::from_secs(60),
+        );
+
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
+
+        let mut session_repo = SessionRepositoryMock::new();
+        session_repo.token = secure_token.clone();
+        session_repo.fn_find = Some(|this: &SessionRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+            Ok(this.token.clone())
+        });
+
+        let app = UserApplication {
+            user_repo: Arc::new(user_repo),
+            secret_repo: Arc::new(secret_repo),
+            session_repo: Arc::new(session_repo),
+            mailer: Arc::new(mailer_mock),
+            timeout: 60,
+        };
+
+        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();        
+        assert!(app.secure_signup(&secure_token, &jwt_public).is_ok());
+    }
+
+    #[test]
+    fn user_secure_signup_invalid_token_should_fail() {
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        let token = VerificationToken::new(
+            "test",
+            TEST_DEFAULT_USER_EMAIL,
+            TEST_DEFAULT_USER_PASSWORD,
+            Duration::from_secs(60),
+        );
+
+        let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
+        let app = new_user_application();
+        assert!(app.secure_signup(&secure_token, &jwt_public).is_err());
     }
 
     #[test]
     fn user_secure_signup_expired_token_should_fail() {
+        let user_repo = UserRepositoryMock::new();
+        let secret_repo = SecretRepositoryMock::new();
+        let mailer_mock = MailerMock{
+            force_fail: true,
+        };
 
+        let mut token = VerificationToken::new(
+            "test",
+            TEST_DEFAULT_USER_EMAIL,
+            TEST_DEFAULT_USER_PASSWORD,
+            Duration::from_secs(60),
+        );
+
+        token.exp = time::unix_timestamp(SystemTime::now() - Duration::from_secs(1));
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
+
+        let mut session_repo = SessionRepositoryMock::new();
+        session_repo.token = secure_token.clone();
+        session_repo.fn_find = Some(|this: &SessionRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+            Ok(this.token.clone())
+        });
+
+        let app = UserApplication {
+            user_repo: Arc::new(user_repo),
+            secret_repo: Arc::new(secret_repo),
+            session_repo: Arc::new(session_repo),
+            mailer: Arc::new(mailer_mock),
+            timeout: 60,
+        };
+
+        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();        
+        assert!(app.secure_signup(&secure_token, &jwt_public).is_err());
     }
 
     #[test]
     fn user_secure_signup_wrong_token_should_fail() {
+        let mut token = VerificationToken::new(
+            "test",
+            TEST_DEFAULT_USER_EMAIL,
+            TEST_DEFAULT_USER_PASSWORD,
+            Duration::from_secs(60),
+        );
 
+        token.exp = time::unix_timestamp(SystemTime::now() - Duration::from_secs(1));
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let secure_token = security::sign_jwt(&jwt_secret, token).unwrap()
+            .replace('A', "a");
+
+        let app = new_user_application();
+        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        assert!(app.secure_signup(&secure_token, &jwt_public).is_err());
     }
 
     #[test]
     fn user_signup_should_not_fail() {
         let user_repo = UserRepositoryMock::new();
         let secret_repo = SecretRepositoryMock::new();
-        let mailer_mock = MailerMock{};
-        let session_repo = SessionRepositoryMock{
-            force_fail: false,
-        };
+        let mailer_mock = MailerMock::new();
+        let session_repo = SessionRepositoryMock::new();
         
         let app = UserApplication{
             user_repo: Arc::new(user_repo),
@@ -423,16 +547,6 @@ pub mod tests {
 
     #[test]
     fn user_secure_delete_should_not_fail() {
-
-    }
-
-    #[test]
-    fn user_secure_delete_expired_token_should_fail() {
-
-    }
-
-    #[test]
-    fn user_secure_delete_wrong_token_should_fail() {
 
     }
 

@@ -4,7 +4,6 @@ pub const TOKEN_ISSUER: &str = "rauth.alvidir.com";
 pub const PWD_SUFIX: &str = "::PWD::RAUTH";
 pub const VERIFICATION_EMAIL_SUBJECT: &str = "Email verification";
 pub const VERIFICATION_EMAIL_TEMPLATE: &str = "verification_email.html";
-pub const DEFAULT_TOKEN_ID: u64 = 0;
 
 pub const ERR_NOT_FOUND: &str = "E-001";
 pub const ERR_UNAUTHORIZED: &str = "E-002";
@@ -17,3 +16,4 @@ pub const ERR_PARSE_TOKEN: &str = "E-008";
 pub const ERR_UNVERIFIED: &str = "E-009";
 pub const ERR_INVALID_OPTION: &str = "E-010";
 pub const ERR_SEND_EMAIL: &str = "E-011";
+pub const ERR_UNKNOWN: &str = "E-999";
