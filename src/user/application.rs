@@ -307,7 +307,7 @@ pub mod tests {
     fn user_verify_should_not_fail() {
         let mut user_repo = UserRepositoryMock::new();
         user_repo.fn_find_by_email = Some(|_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
-            Err("forced failure".into())
+            Err("overrided".into())
         });
 
         let secret_repo = SecretRepositoryMock::new();
@@ -337,7 +337,7 @@ pub mod tests {
     fn user_verify_wrong_email_should_fail() {
         let mut user_repo = UserRepositoryMock::new();
         user_repo.fn_find_by_email = Some(|_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
-            Err("forced failure".into())
+            Err("overrided".into())
         });
 
         let secret_repo = SecretRepositoryMock::new();
@@ -360,7 +360,7 @@ pub mod tests {
     fn user_verify_wrong_password_should_fail() {
         let mut user_repo = UserRepositoryMock::new();
         user_repo.fn_find_by_email = Some(|_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
-            Err("forced failure".into())
+            Err("overrided".into())
         });
 
         let secret_repo = SecretRepositoryMock::new();
@@ -383,7 +383,7 @@ pub mod tests {
     fn user_verify_cannot_send_email_should_fail() {
         let mut user_repo = UserRepositoryMock::new();
         user_repo.fn_find_by_email = Some(|_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
-            Err("forced failure".into())
+            Err("overrided".into())
         });
 
         let secret_repo = SecretRepositoryMock::new();

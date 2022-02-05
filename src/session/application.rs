@@ -308,7 +308,7 @@ pub mod tests {
 
         let mut session_repo = SessionRepositoryMock::new();
         session_repo.fn_find = Some(|_: &SessionRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
-            Err("fail forced".into())
+            Err("overrided".into())
         });
 
         let app = SessionApplication {
