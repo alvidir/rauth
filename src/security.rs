@@ -70,7 +70,7 @@ pub fn shadow(subject: &str, sufix: &str) -> String {
     return sha256::digest_bytes(format_pwd.as_bytes());
 }
 
-pub fn encrypt(public: &[u8], data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
+pub fn _encrypt(public: &[u8], data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
     let pkey = PKey::public_key_from_pem(public)?;
     let mut encrypter = Encrypter::new(&pkey)?;
     encrypter.set_rsa_padding(Padding::PKCS1)?;
@@ -83,7 +83,7 @@ pub fn encrypt(public: &[u8], data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
     Ok(encrypted)
 }
 
-pub fn decrypt(private: &[u8], data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
+pub fn _decrypt(private: &[u8], data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
     let key = PKey::private_key_from_pem(private)?;
     let mut decrypter = Decrypter::new(&key)?;
     decrypter.set_rsa_padding(Padding::PKCS1)?;

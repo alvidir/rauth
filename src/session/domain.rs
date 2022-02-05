@@ -10,18 +10,18 @@ pub struct SessionToken {
     pub exp: usize,          // expiration time (as UTC timestamp) - required
     pub iat: SystemTime,     // issued at: creation time
     pub iss: String,         // issuer
-    pub sub: i32,
+    pub sub: String,         // subject
     id: u64,
 }
 
 impl SessionToken {
-    pub fn new(iss: &str, sub: i32, timeout: Duration) -> Self {
+    pub fn new(iss: &str, sub: &str, timeout: Duration) -> Self {
         let mut token = SessionToken {
             id: rand::thread_rng().gen(), // noise
             exp: unix_timestamp(SystemTime::now() + timeout),
             iat: SystemTime::now(),
             iss: iss.to_string(),
-            sub: sub,
+            sub: sub.to_string(),
         };
 
         let mut hasher = DefaultHasher::new();
@@ -88,7 +88,7 @@ pub mod tests {
         const SUB: i32 = 999;
 
         let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
-        SessionToken::new(ISS, SUB, timeout)
+        SessionToken::new(ISS, &SUB.to_string(), timeout)
     }
 
     pub fn new_verification_token() -> VerificationToken {
@@ -108,14 +108,14 @@ pub mod tests {
         let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
 
         let before = SystemTime::now();
-        let claim = SessionToken::new(ISS, SUB, timeout);
+        let claim = SessionToken::new(ISS, &SUB.to_string(), timeout);
         let after = SystemTime::now();
 
         assert!(claim.iat >= before && claim.iat <= after);     
         assert!(claim.exp >= unix_timestamp(before + timeout));
         assert!(claim.exp <= unix_timestamp(after + timeout));       
         assert_eq!(ISS, claim.iss);
-        assert_eq!(SUB, claim.sub);
+        assert_eq!(SUB.to_string(), claim.sub);
     }
 
     #[test]
@@ -125,7 +125,7 @@ pub mod tests {
         let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
 
         let before = SystemTime::now();
-        let claim = SessionToken::new(ISS, SUB, timeout);
+        let claim = SessionToken::new(ISS, &SUB.to_string(), timeout);
         let after = SystemTime::now();
         
         let secret = base64::decode(JWT_SECRET).unwrap();
@@ -138,7 +138,7 @@ pub mod tests {
         assert!(claim.exp >= unix_timestamp(before + timeout));
         assert!(claim.exp <= unix_timestamp(after + timeout));       
         assert_eq!(ISS, claim.iss);
-        assert_eq!(SUB, claim.sub);
+        assert_eq!(SUB.to_string(), claim.sub);
     }
 
     #[test]

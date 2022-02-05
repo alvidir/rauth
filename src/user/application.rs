@@ -50,16 +50,35 @@ impl<U: UserRepository, E: SecretRepository, S: SessionRepository, M: Mailer> Us
             pwd,
             Duration::from_secs(self.timeout)
         );
+
+        let token_to_send = SessionToken::new(
+            constants::TOKEN_ISSUER,
+            &token_to_store.get_id(),
+            Duration::from_secs(self.timeout)
+        );
         
-        let key = token_to_store.get_id();
-        let token = security::sign_jwt(jwt_secret, token_to_store)?;
-        self.session_repo.save(&key, &token, Some(self.timeout))?;
-        self.mailer.send_verification_email(email, &token)?;
+        let token_to_store = security::sign_jwt(jwt_secret, token_to_store)?;
+        self.session_repo.save(&token_to_send.sub, &token_to_store, Some(self.timeout))?;
+        
+        let token_to_send = security::sign_jwt(jwt_secret, token_to_send)?;
+        self.mailer.send_verification_email(email, &token_to_send)?;
         Ok(())
     }
 
     pub fn secure_signup(&self, token: &str, jwt_public: &[u8])  -> Result<i32, Box<dyn Error>> {
-        let claims: VerificationToken = verify_token(self.session_repo.clone(), token, jwt_public)?;
+        let claims: SessionToken = security::verify_jwt(jwt_public, token)
+            .map_err(|err| {
+                warn!("{} verifying session token: {}", constants::ERR_VERIFY_TOKEN, err);
+                constants::ERR_VERIFY_TOKEN
+            })?;
+
+        let token = self.session_repo.find(&claims.sub)
+            .map_err(|err| {
+                warn!("{} finding verification token with id {}: {}", constants::ERR_VERIFY_TOKEN, claims.sub, err);
+                constants::ERR_VERIFY_TOKEN
+            })?;
+
+        let claims: VerificationToken = verify_token(self.session_repo.clone(), &token, jwt_public)?;
         let user_id = self.signup(&claims.sub, &claims.pwd)?;
         if let Err(err) = self.session_repo.delete(&claims.get_id()) {
             error!("{} failed to remove token with id {}: {}", constants::ERR_UNKNOWN, claims.get_id(), err);
@@ -81,7 +100,13 @@ impl<U: UserRepository, E: SecretRepository, S: SessionRepository, M: Mailer> Us
 
     pub fn secure_delete(&self, pwd: &str, totp: &str, token: &str, jwt_public: &[u8]) -> Result<(), Box<dyn Error>> {
         let claims: SessionToken = verify_token(self.session_repo.clone(), token, jwt_public)?;
-        self.delete(claims.sub, pwd, totp)
+        let user_id = claims.sub.parse()
+            .map_err(|err| {
+                warn!("{} failed to parse str to i32: {}", constants::ERR_PARSE_TOKEN, err);
+                constants::ERR_PARSE_TOKEN
+            })?;
+
+        self.delete(user_id, pwd, totp)
     }
 
     pub fn delete(&self, user_id: i32, pwd: &str, totp: &str) -> Result<(), Box<dyn Error>> {
@@ -114,7 +139,13 @@ impl<U: UserRepository, E: SecretRepository, S: SessionRepository, M: Mailer> Us
 
     pub fn secure_enable_totp(&self, pwd: &str, totp: &str, token: &str, jwt_public: &[u8]) -> Result<String, Box<dyn Error>> {
         let claims: SessionToken = verify_token(self.session_repo.clone(), token, jwt_public)?;
-        self.enable_totp(claims.sub, pwd, totp)
+        let user_id = claims.sub.parse()
+            .map_err(|err| {
+                warn!("{} failed to parse str to i32: {}", constants::ERR_PARSE_TOKEN, err);
+                constants::ERR_PARSE_TOKEN
+            })?;
+
+        self.enable_totp(user_id, pwd, totp)
     }
 
     pub fn enable_totp(&self, user_id: i32, pwd: &str, totp: &str) -> Result<String, Box<dyn Error>> {
@@ -151,7 +182,13 @@ impl<U: UserRepository, E: SecretRepository, S: SessionRepository, M: Mailer> Us
 
     pub fn secure_disable_totp(&self, pwd: &str, totp: &str, token: &str, jwt_public: &[u8]) -> Result<(), Box<dyn Error>> {
         let claims: SessionToken = verify_token(self.session_repo.clone(), token, jwt_public)?;
-        self.disable_totp(claims.sub, pwd, totp)
+        let user_id = claims.sub.parse()
+            .map_err(|err| {
+                warn!("{} failed to parse str to i32: {}", constants::ERR_PARSE_TOKEN, err);
+                constants::ERR_PARSE_TOKEN
+            })?;
+
+        self.disable_totp(user_id, pwd, totp)
     }
 
     pub fn disable_totp(&self, user_id: i32, pwd: &str, totp: &str) -> Result<(), Box<dyn Error>> {
@@ -509,7 +546,7 @@ pub mod tests {
             Err("overrided".into())
         });
 
-        let token = SessionToken::new("test", 0, Duration::from_secs(60));
+        let token = SessionToken::new("test", "0", Duration::from_secs(60));
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
@@ -593,7 +630,7 @@ pub mod tests {
             Err("overrided".into())
         });
 
-        let token = SessionToken::new("test", 0, Duration::from_secs(60));
+        let token = SessionToken::new("test", "0", Duration::from_secs(60));
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
@@ -684,7 +721,7 @@ pub mod tests {
 
     #[test]
     fn user_secure_disable_totp_should_not_fail() {
-        let token = SessionToken::new("test", 0, Duration::from_secs(60));
+        let token = SessionToken::new("test", "0", Duration::from_secs(60));
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 

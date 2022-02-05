@@ -32,6 +32,7 @@ pub struct SessionImplementation<
     pub jwt_secret: &'static [u8],
     pub jwt_public: &'static [u8],
     pub jwt_header: &'static str,
+    pub pwd_sufix: &'static str,
 }
 
 #[tonic::async_trait]
@@ -42,7 +43,7 @@ impl<
     > Session for SessionImplementation<S, U, E> {
     async fn login(&self, request: Request<LoginRequest>) -> Result<Response<Empty>, Status> {
         let msg_ref = request.into_inner();
-        let shadowed_pwd = security::shadow(&msg_ref.pwd, constants::PWD_SUFIX);
+        let shadowed_pwd = security::shadow(&msg_ref.pwd, self.pwd_sufix);
 
         let token = self.sess_app.login(&msg_ref.ident, &shadowed_pwd, &msg_ref.totp, self.jwt_secret)
             .map_err(|err| Status::aborted(err.to_string()))?;

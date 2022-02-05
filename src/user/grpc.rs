@@ -7,6 +7,9 @@ use crate::secret::application::SecretRepository;
 use crate::smtp::Mailer;
 use crate::grpc;
 
+const TOTP_ACTION_ENABLE: i32 = 0;
+const TOTP_ACTION_DISABLE: i32 = 1;
+
 // Import the generated rust code into module
 mod proto {
     tonic::include_proto!("user");
@@ -26,11 +29,11 @@ pub struct UserImplementation<
     M: Mailer,
     > {
     pub user_app: UserApplication<U, E, S, M>,
-    pub rsa_secret: &'static [u8],
-    pub rsa_public: &'static [u8],
     pub jwt_secret: &'static [u8],
     pub jwt_public: &'static [u8],
     pub jwt_header: &'static str,
+    pub totp_header: &'static str,
+    pub pwd_sufix: &'static str,
     pub allow_unverified: bool,
 }
 
@@ -44,7 +47,7 @@ impl<
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<Empty>, Status> {
         if request.metadata().get(self.jwt_header).is_none() {
             let msg_ref = request.into_inner();
-            let shadowed_pwd = security::shadow(&msg_ref.pwd, constants::PWD_SUFIX);
+            let shadowed_pwd = security::shadow(&msg_ref.pwd, self.pwd_sufix);
 
             if !self.allow_unverified {
                 self.user_app.verify_user(&msg_ref.email, &shadowed_pwd, self.jwt_secret)
@@ -63,24 +66,6 @@ impl<
         }
         
         let token = grpc::get_header(&request, self.jwt_header)?;
-        let token = base64::decode(token)
-            .map_err(|err| {
-                warn!("{}: {}", constants::ERR_PARSE_HEADER, err);
-                Status::aborted(constants::ERR_PARSE_HEADER)
-            })?;
-
-        let token = security::decrypt(self.rsa_secret, &token)
-            .map_err(|err| {
-                warn!("{}: {}", constants::ERR_DECRYPT_TOKEN, err);
-                Status::aborted(constants::ERR_DECRYPT_TOKEN)
-            })?;
-
-        let token = String::from_utf8(token)
-            .map_err(|err| {
-                warn!("{}: {}", constants::ERR_PARSE_TOKEN, err);
-                Status::aborted(constants::ERR_PARSE_TOKEN)
-            })?;
-
         match self.user_app.secure_signup(&token, self.jwt_public) {
             Err(err) => Err(Status::aborted(err.to_string())),
             Ok(_) => Ok(Response::new(Empty{})),
@@ -95,7 +80,7 @@ impl<
         let token = grpc::get_header(&request, self.jwt_header)?;
         let msg_ref = request.into_inner();
         
-        let shadowed_pwd = security::shadow(&msg_ref.pwd, constants::PWD_SUFIX);
+        let shadowed_pwd = security::shadow(&msg_ref.pwd, self.pwd_sufix);
         match self.user_app.secure_delete(&shadowed_pwd, &msg_ref.totp, &token, self.jwt_public) {
             Err(err) => Err(Status::aborted(err.to_string())),
             Ok(()) => Ok(Response::new(Empty{})),
@@ -105,20 +90,20 @@ impl<
     async fn totp(&self, request: Request<TotpRequest>) -> Result<Response<Empty>, Status> {
         let token = grpc::get_header(&request, self.jwt_header)?;
         let msg_ref = request.into_inner();
-        let shadowed_pwd = security::shadow(&msg_ref.pwd, constants::PWD_SUFIX);
+        let shadowed_pwd = security::shadow(&msg_ref.pwd, self.pwd_sufix);
 
-        if msg_ref.action == 0 {
+        if msg_ref.action == TOTP_ACTION_ENABLE {
             match self.user_app.secure_enable_totp(&shadowed_pwd, &msg_ref.totp, &token, self.jwt_public) {
                 Err(err) => return Err(Status::unknown(err.to_string())),
                 Ok(token) => {
                     let mut response = Response::new(Empty{});
-                    response.metadata_mut().insert(self.jwt_header, token.parse().unwrap());
+                    response.metadata_mut().insert(self.totp_header, token.parse().unwrap());
                     return Ok(response);
                 }
             }
         }
 
-        if msg_ref.action == 1 {
+        if msg_ref.action == TOTP_ACTION_DISABLE {
             match self.user_app.secure_disable_totp(&shadowed_pwd, &msg_ref.totp, &token, self.jwt_public) {
                 Ok(_) => return Ok(Response::new(Empty{})),
                 Err(err) => return Err(Status::unknown(err.to_string())),

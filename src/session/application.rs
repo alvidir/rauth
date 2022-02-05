@@ -50,7 +50,12 @@ impl<S: SessionRepository, U: UserRepository, E: SecretRepository> SessionApplic
             }
         }
 
-        let sess = SessionToken::new(constants::TOKEN_ISSUER, user.get_id(), Duration::from_secs(self.timeout));
+        let sess = SessionToken::new(
+            constants::TOKEN_ISSUER,
+            &user.get_id().to_string(),
+            Duration::from_secs(self.timeout)
+        );
+
         let key = sess.get_id();
         let token = security::sign_jwt(jwt_secret, sess)?;
         self.session_repo.save(&key, &token, Some(self.timeout))?;
@@ -224,7 +229,7 @@ pub mod tests {
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
         let session: SessionToken = security::verify_jwt(&jwt_public, &token).unwrap();
 
-        assert_eq!(session.sub, TEST_FIND_BY_EMAIL_ID);
+        assert_eq!(session.sub, TEST_FIND_BY_EMAIL_ID.to_string());
     }
 
     #[test]
@@ -243,7 +248,7 @@ pub mod tests {
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
         let session: SessionToken = security::verify_jwt(&jwt_public, &token).unwrap();
         
-        assert_eq!(session.sub, TEST_FIND_BY_NAME_ID);
+        assert_eq!(session.sub, TEST_FIND_BY_NAME_ID.to_string());
     }
 
     #[test]
@@ -255,7 +260,7 @@ pub mod tests {
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
         let session: SessionToken = security::verify_jwt(&jwt_public, &token).unwrap();
         
-        assert_eq!(session.sub, TEST_FIND_BY_NAME_ID);
+        assert_eq!(session.sub, TEST_FIND_BY_NAME_ID.to_string());
     }
 
     #[test]

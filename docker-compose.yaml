@@ -3,8 +3,8 @@ services:
         container_name: postgres
         image: docker.io/postgres:alpine3.15
         restart: on-failure
-        ports:
-            - 5432:5432
+        # ports:
+        #     - 5432:5432
         volumes:
             - dbdata:/data/postgres
             - ./migrations/.postgres:/docker-entrypoint-initdb.d
@@ -17,32 +17,32 @@ services:
         container_name: redis
         image: docker.io/redis:alpine3.15
         restart: always
+        # ports:
+        #     - 6379:6379
+
+    rauth:
+        container_name: rauth-server
+        image: localhost/alvidir/rauth:1.0.0-server
+        restart: always
+        depends_on: 
+            - postgres
+            - redis
+        env_file:
+            - .env
+
+    envoy:
+        container_name: rauth-envoy
+        image: localhost/alvidir/rauth:1.0.0-envoy
+        restart: always
         ports:
-            - 6379:6379
-
-    # rauth:
-    #     container_name: rauth-server
-    #     image: localhost/alvidir/rauth:1.0.0-server
-    #     restart: always
-    #     depends_on: 
-    #         - postgres
-    #         - redis
-    #     env_file:
-    #         - .env
-
-    # envoy:
-    #     container_name: rauth-envoy
-    #     image: localhost/alvidir/rauth:1.0.0-envoy
-    #     restart: always
-    #     ports:
-    #         - "8080:8080"
-    #         - "9901:9901"
-    #     volumes:
-    #         - ./envoy:/etc/envoy
-    #     security_opt:
-    #         label: disable
-    #     depends_on: 
-    #         - rauth
+            - "8080:8080"
+            - "9901:9901"
+        volumes:
+            - ./envoy:/etc/envoy
+        security_opt:
+            label: disable
+        depends_on: 
+            - rauth
 
 volumes:
     dbdata:
