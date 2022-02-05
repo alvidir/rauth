@@ -211,20 +211,13 @@ pub mod tests {
 
     #[test]
     fn login_by_email_should_not_fail() {
-        let user_repo = UserRepositoryMock::new();
         let mut secret_repo = SecretRepositoryMock::new();
         secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
             Err("overrided".into())
         });
 
-        let session_repo = SessionRepositoryMock::new();
-
-        let app = SessionApplication {
-            user_repo: Arc::new(user_repo),
-            secret_repo: Arc::new(secret_repo),
-            session_repo: Arc::new(session_repo),
-            timeout: 999,
-        };
+        let mut app = new_session_application();
+        app.secret_repo = Arc::new(secret_repo);
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let token = app.login(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD, "", &jwt_secret).unwrap();
@@ -236,20 +229,14 @@ pub mod tests {
 
     #[test]
     fn login_by_username_should_not_fail() {
-        let user_repo = UserRepositoryMock::new();
         let mut secret_repo = SecretRepositoryMock::new();
         secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
             Err("overrided".into())
         });
 
-        let session_repo = SessionRepositoryMock::new();
 
-        let app = SessionApplication {
-            user_repo: Arc::new(user_repo),
-            secret_repo: Arc::new(secret_repo),
-            session_repo: Arc::new(session_repo),
-            timeout: 999,
-        };
+        let mut app = new_session_application();
+        app.secret_repo = Arc::new(secret_repo);
         
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let token = app.login(TEST_DEFAULT_USER_NAME, TEST_DEFAULT_USER_PASSWORD, "", &jwt_secret).unwrap();
@@ -300,7 +287,6 @@ pub mod tests {
 
     #[test]
     fn logout_invalid_token_should_fail() {    
-        let user_repo = UserRepositoryMock::new();
         let mut secret_repo = SecretRepositoryMock::new();
         secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
             Err("overrided".into())
@@ -311,12 +297,9 @@ pub mod tests {
             Err("overrided".into())
         });
 
-        let app = SessionApplication {
-            user_repo: Arc::new(user_repo),
-            secret_repo: Arc::new(secret_repo),
-            session_repo: Arc::new(session_repo),
-            timeout: 999,
-        };
+        let mut app = new_session_application();
+        app.secret_repo = Arc::new(secret_repo);
+        app.session_repo = Arc::new(session_repo);
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let token = security::sign_jwt(&jwt_secret, new_session_token()).unwrap();
@@ -326,20 +309,13 @@ pub mod tests {
 
     #[test]
     fn logout_wrong_token_should_fail() {    
-        let user_repo = UserRepositoryMock::new();
         let mut secret_repo = SecretRepositoryMock::new();
         secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
             Err("overrided".into())
         });
 
-        let session_repo = SessionRepositoryMock::new();
-
-        let app = SessionApplication {
-            user_repo: Arc::new(user_repo),
-            secret_repo: Arc::new(secret_repo),
-            session_repo: Arc::new(session_repo),
-            timeout: 999,
-        };
+        let mut app = new_session_application();
+        app.secret_repo = Arc::new(secret_repo);
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let token = security::sign_jwt(&jwt_secret, new_session_token()).unwrap()

@@ -194,11 +194,14 @@ pub mod tests {
     };
     use super::{UserRepository, UserApplication};
     use super::super::domain::tests::{TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD};
-    use crate::secret::application::tests::SecretRepositoryMock;
-    use crate::{security, time};
+    use crate::secret::{
+        application::tests::SecretRepositoryMock,
+        domain::{Secret, tests::TEST_DEFAULT_SECRET_DATA},
+    };
+    use crate::{security, time, constants};
     use crate::session::{
         application::tests::SessionRepositoryMock,
-        domain::VerificationToken,
+        domain::{VerificationToken, SessionToken},
     };
     use crate::smtp::{
         tests::MailerMock,
@@ -310,17 +313,8 @@ pub mod tests {
             Err("overrided".into())
         });
 
-        let secret_repo = SecretRepositoryMock::new();
-        let mailer_mock = MailerMock::new();
-        let session_repo = SessionRepositoryMock::new();
-
-        let app = UserApplication {
-            user_repo: Arc::new(user_repo),
-            secret_repo: Arc::new(secret_repo),
-            session_repo: Arc::new(session_repo),
-            mailer: Arc::new(mailer_mock),
-            timeout: 60,
-        };
+        let mut app = new_user_application(); 
+        app.user_repo = Arc::new(user_repo);
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         app.verify_user(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD, &jwt_secret).unwrap();
@@ -340,17 +334,8 @@ pub mod tests {
             Err("overrided".into())
         });
 
-        let secret_repo = SecretRepositoryMock::new();
-        let mailer_mock = MailerMock::new();
-        let session_repo = SessionRepositoryMock::new();
-
-        let app = UserApplication {
-            user_repo: Arc::new(user_repo),
-            secret_repo: Arc::new(secret_repo),
-            session_repo: Arc::new(session_repo),
-            mailer: Arc::new(mailer_mock),
-            timeout: 60,
-        };
+        let mut app = new_user_application();
+        app.user_repo = Arc::new(user_repo);
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         assert!(app.verify_user("this is not an email", TEST_DEFAULT_USER_PASSWORD, &jwt_secret).is_err());
@@ -363,18 +348,9 @@ pub mod tests {
             Err("overrided".into())
         });
 
-        let secret_repo = SecretRepositoryMock::new();
-        let mailer_mock = MailerMock::new();
-        let session_repo = SessionRepositoryMock::new();
-
-        let app = UserApplication {
-            user_repo: Arc::new(user_repo),
-            secret_repo: Arc::new(secret_repo),
-            session_repo: Arc::new(session_repo),
-            mailer: Arc::new(mailer_mock),
-            timeout: 60,
-        };
-
+        let mut app = new_user_application();
+        app.user_repo = Arc::new(user_repo);
+        
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         assert!(app.verify_user(TEST_DEFAULT_USER_EMAIL, "bad password", &jwt_secret).is_err());
     }
@@ -386,20 +362,13 @@ pub mod tests {
             Err("overrided".into())
         });
 
-        let secret_repo = SecretRepositoryMock::new();
         let mailer_mock = MailerMock{
             force_fail: true,
         };
 
-        let session_repo = SessionRepositoryMock::new();
-
-        let app = UserApplication {
-            user_repo: Arc::new(user_repo),
-            secret_repo: Arc::new(secret_repo),
-            session_repo: Arc::new(session_repo),
-            mailer: Arc::new(mailer_mock),
-            timeout: 60,
-        };
+        let mut app = new_user_application();
+        app.user_repo = Arc::new(user_repo);
+        app.mailer = Arc::new(mailer_mock);
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         assert!(app.verify_user(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD, &jwt_secret).is_err());
@@ -407,11 +376,10 @@ pub mod tests {
 
     #[test]
     fn user_secure_signup_should_not_fail() {
-        let user_repo = UserRepositoryMock::new();
-        let secret_repo = SecretRepositoryMock::new();
-        let mailer_mock = MailerMock{
-            force_fail: true,
-        };
+        let mut user_repo = UserRepositoryMock::new();
+        user_repo.fn_find_by_email = Some(|_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
+            Err("overrided".into())
+        });
 
         let token = VerificationToken::new(
             "test",
@@ -429,16 +397,13 @@ pub mod tests {
             Ok(this.token.clone())
         });
 
-        let app = UserApplication {
-            user_repo: Arc::new(user_repo),
-            secret_repo: Arc::new(secret_repo),
-            session_repo: Arc::new(session_repo),
-            mailer: Arc::new(mailer_mock),
-            timeout: 60,
-        };
+        let mut app = new_user_application();
+        app.user_repo = Arc::new(user_repo);
+        app.session_repo = Arc::new(session_repo);
 
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();        
-        assert!(app.secure_signup(&secure_token, &jwt_public).is_ok());
+        let user_id = app.secure_signup(&secure_token, &jwt_public).unwrap();
+        assert_eq!(user_id, TEST_CREATE_ID);
     }
 
     #[test]
@@ -459,12 +424,6 @@ pub mod tests {
 
     #[test]
     fn user_secure_signup_expired_token_should_fail() {
-        let user_repo = UserRepositoryMock::new();
-        let secret_repo = SecretRepositoryMock::new();
-        let mailer_mock = MailerMock{
-            force_fail: true,
-        };
-
         let mut token = VerificationToken::new(
             "test",
             TEST_DEFAULT_USER_EMAIL,
@@ -482,13 +441,8 @@ pub mod tests {
             Ok(this.token.clone())
         });
 
-        let app = UserApplication {
-            user_repo: Arc::new(user_repo),
-            secret_repo: Arc::new(secret_repo),
-            session_repo: Arc::new(session_repo),
-            mailer: Arc::new(mailer_mock),
-            timeout: 60,
-        };
+        let mut app = new_user_application(); 
+        app.session_repo = Arc::new(session_repo);
 
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();        
         assert!(app.secure_signup(&secure_token, &jwt_public).is_err());
@@ -517,20 +471,12 @@ pub mod tests {
     fn user_signup_should_not_fail() {
         let mut user_repo = UserRepositoryMock::new();
         user_repo.fn_find_by_email = Some(|_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
-            Err("fail forced".into())
+            Err("overrided".into())
         });
 
-        let secret_repo = SecretRepositoryMock::new();
-        let mailer_mock = MailerMock::new();
-        let session_repo = SessionRepositoryMock::new();
-        
-        let app = UserApplication{
-            user_repo: Arc::new(user_repo),
-            secret_repo: Arc::new(secret_repo),
-            session_repo: Arc::new(session_repo),
-            mailer: Arc::new(mailer_mock),
-            timeout: 0,
-        };
+       
+        let mut app = new_user_application();
+        app.user_repo = Arc::new(user_repo); 
 
         let user_id = app.signup(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD).unwrap();
         assert_eq!(user_id, TEST_CREATE_ID);
@@ -556,52 +502,126 @@ pub mod tests {
 
     #[test]
     fn user_secure_delete_should_not_fail() {
+        let mut secret_repo = SecretRepositoryMock::new();
+        secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+            Err("overrided".into())
+        });
 
+        let token = SessionToken::new("test", 0, Duration::from_secs(60));
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
+
+        let mut session_repo = SessionRepositoryMock::new();
+        session_repo.token = secure_token.clone();
+        session_repo.fn_find = Some(|this: &SessionRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+            Ok(this.token.clone())
+        });
+
+        let mut app = new_user_application();
+        app.secret_repo = Arc::new(secret_repo);
+        app.session_repo = Arc::new(session_repo);
+
+        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        app.secure_delete(TEST_DEFAULT_USER_PASSWORD, "", &secure_token, &jwt_public).unwrap();
     }
 
     #[test]
     fn user_delete_should_not_fail() {
+        let mut secret_repo = SecretRepositoryMock::new();
+        secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+            Err("overrided".into())
+        });
 
+        let mut app = new_user_application();
+        app.secret_repo = Arc::new(secret_repo);
+
+        app.delete(0, TEST_DEFAULT_USER_PASSWORD, "").unwrap();
     }
 
     #[test]
     fn user_delete_totp_should_not_fail() {
-
+        let app = new_user_application();
+        let code = security::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes()).unwrap().generate();        
+        assert!(app.delete(0, TEST_DEFAULT_USER_PASSWORD, &code).is_ok());
     }
 
     #[test]
     fn user_delete_wrong_password_should_fail() {
+        let mut secret_repo = SecretRepositoryMock::new();
+        secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+            Err("overrided".into())
+        });
 
+        let mut app = new_user_application();
+        app.secret_repo = Arc::new(secret_repo);
+
+
+        assert!(app.delete(0, "bad password", "").is_err());
     }
 
     #[test]
     fn user_delete_wrong_totp_should_fail() {
-
+        let app = new_user_application();
+        assert!(app.delete(0, TEST_DEFAULT_USER_PASSWORD, "bad totp").is_err());
     }
 
     #[test]
     fn user_delete_not_found_should_fail() {
+        let mut user_repo = UserRepositoryMock::new();
+        user_repo.fn_find = Some(|_: &UserRepositoryMock, _: i32| -> Result<User, Box<dyn Error>> {
+            Err("overrided".into())
+        });
 
+        let mut secret_repo = SecretRepositoryMock::new();
+        secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+            Err("overrided".into())
+        });
+
+        let mut app = new_user_application();
+        app.user_repo = Arc::new(user_repo);
+        app.secret_repo = Arc::new(secret_repo);
+
+        assert!(app.delete(0, TEST_DEFAULT_USER_PASSWORD, "").is_err());
     }
 
     #[test]
     fn user_secure_enable_totp_should_not_fail() {
+        let mut secret_repo = SecretRepositoryMock::new();
+        secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+            Err("overrided".into())
+        });
 
-    }
+        let token = SessionToken::new("test", 0, Duration::from_secs(60));
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
-    #[test]
-    fn user_secure_enable_totp_expired_token_should_fail() {
+        let mut session_repo = SessionRepositoryMock::new();
+        session_repo.token = secure_token.clone();
+        session_repo.fn_find = Some(|this: &SessionRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+            Ok(this.token.clone())
+        });
 
-    }
+        let mut app = new_user_application();
+        app.secret_repo = Arc::new(secret_repo);
+        app.session_repo = Arc::new(session_repo);
 
-    #[test]
-    fn user_secure_enable_totp_wrong_token_should_fail() {
-
+        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        let totp = app.secure_enable_totp(TEST_DEFAULT_USER_PASSWORD, "", &secure_token, &jwt_public).unwrap();
+        assert_eq!(totp.len(), constants::TOTP_SECRET_LEN);
     }
 
     #[test]
     fn user_enable_totp_should_not_fail() {
+        let mut secret_repo = SecretRepositoryMock::new();
+        secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+            Err("overrided".into())
+        });
 
+        let mut app = new_user_application();
+        app.secret_repo = Arc::new(secret_repo);
+
+        let totp = app.enable_totp(0, TEST_DEFAULT_USER_PASSWORD, "").unwrap();
+        assert_eq!(totp.len(), constants::TOTP_SECRET_LEN);
     }
 
     #[test]
@@ -621,16 +641,6 @@ pub mod tests {
 
     #[test]
     fn user_secure_disable_totp_should_not_fail() {
-
-    }
-
-    #[test]
-    fn user_secure_disable_totp_expired_token_should_fail() {
-
-    }
-
-    #[test]
-    fn user_secure_disable_totp_wrong_token_should_fail() {
 
     }
 
