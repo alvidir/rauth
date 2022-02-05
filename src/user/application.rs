@@ -73,8 +73,10 @@ impl<U: UserRepository, E: SecretRepository, S: SessionRepository, M: Mailer> Us
         info!("got a \"signup\" request for email {} ", email);
 
         let mut user = User::new(email, &pwd)?;
-        self.user_repo.create(&mut user)?;
-        
+        if self.user_repo.find_by_email(email).is_err() {
+            self.user_repo.create(&mut user)?;
+        }
+             
         Ok(user.id)
     }
 
@@ -513,7 +515,11 @@ pub mod tests {
 
     #[test]
     fn user_signup_should_not_fail() {
-        let user_repo = UserRepositoryMock::new();
+        let mut user_repo = UserRepositoryMock::new();
+        user_repo.fn_find_by_email = Some(|_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
+            Err("fail forced".into())
+        });
+
         let secret_repo = SecretRepositoryMock::new();
         let mailer_mock = MailerMock::new();
         let session_repo = SessionRepositoryMock::new();
@@ -532,17 +538,20 @@ pub mod tests {
 
     #[test]
     fn user_signup_wrong_email_should_fail() {
-
+        let app = new_user_application();
+        assert!(app.signup("this is not an email", TEST_DEFAULT_USER_PASSWORD).is_err());
     }
 
     #[test]
     fn user_signup_wrong_password_should_fail() {
-
+        let app = new_user_application();
+        assert!(app.signup(TEST_DEFAULT_USER_EMAIL, "bad password").is_err());
     }
 
     #[test]
-    fn user_signup_already_exists_should_fail() {
-
+    fn user_signup_already_exists_should_not_fail() {        
+        let app = new_user_application();
+        assert!(app.signup(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD).is_ok());
     }
 
     #[test]
