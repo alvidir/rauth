@@ -619,6 +619,14 @@ pub mod tests {
             Err("overrided".into())
         });
 
+        secret_repo.fn_save = Some(|_: &SecretRepositoryMock, secret: &Secret| -> Result<(), Box<dyn Error>> {
+            if !secret.is_deleted() {
+                return Err("secret's deleted_at should not be None".into());
+            }
+
+            Ok(())
+        });
+
         let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
 
@@ -633,6 +641,14 @@ pub mod tests {
             let mut secret = new_secret();
             secret.set_deleted_at(Some(SystemTime::now()));
             Ok(secret)
+        });
+
+        secret_repo.fn_save = Some(|_: &SecretRepositoryMock, secret: &Secret| -> Result<(), Box<dyn Error>> {
+            if secret.is_deleted() {
+                return Err("secret's deleted_at should not be Some".into());
+            }
+
+            Ok(())
         });
 
         let mut app = new_user_application();
