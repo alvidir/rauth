@@ -289,14 +289,6 @@ pub mod tests {
     }
 
     #[test]
-    fn login_empty_totp_should_fail() {
-        let app = new_session_application();
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
-        
-        assert!(app.login(TEST_DEFAULT_USER_NAME, TEST_DEFAULT_USER_PASSWORD, "", &jwt_secret).is_err());
-    }
-
-    #[test]
     fn logout_should_not_fail() {
         let app = new_session_application();
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
