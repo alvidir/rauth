@@ -34,9 +34,13 @@ use rauth::session::{
 };
 
 const DEFAULT_NETW: &str = "127.0.0.1";
+const DEFAULT_PORT: &str = "8000";
 const DEFAULT_TEMPLATES_PATH: &str = "/etc/rauth/mailer/templates/*.html";
 const DEFAULT_EMAIL_ISSUER: &str = "rauth";
 const DEFAULT_PWD_SUFIX: &str = "::PWD::RAUTH";
+const DEFAULT_JWT_HEADER: &str = "authorization";
+const DEFAULT_TOTP_HEADER: &str = "x-totp-secret";
+const DEFAULT_TOKEN_TIMEOUT: u64 = 7200;
 
 const ENV_SERVICE_PORT: &str = "SERVICE_PORT";
 const ENV_SERVICE_NET: &str = "SERVICE_NETW";
@@ -46,7 +50,6 @@ const ENV_JWT_PUBLIC: &str = "JWT_PUBLIC";
 const ENV_JWT_HEADER: &str = "JWT_HEADER";
 const ENV_TOTP_HEADER: &str = "TOTP_HEADER";
 const ENV_REDIS_DSN: &str = "REDIS_DSN";
-const ENV_SESSION_TIMEOUT: &str = "SESSION_TIMEOUT";
 const ENV_TOKEN_TIMEOUT: &str = "TOKEN_TIMEOUT";
 const ENV_POSTGRES_POOL: &str = "POSTGRES_POOL";
 const ENV_REDIS_POOL: &str = "REDIS_POOL";
@@ -63,33 +66,60 @@ type PgPool = Pool<ConnectionManager<PgConnection>>;
 type RdPool = r2d2::Pool<RedisConnectionManager> ;
 
 lazy_static! {
-    static ref SESSION_TIMEOUT: u64 = env::var(ENV_SESSION_TIMEOUT).expect("session's timeout must be set").parse().unwrap();
-    static ref TOKEN_TIMEOUT: u64 = env::var(ENV_TOKEN_TIMEOUT).expect("token's timeout must be set").parse().unwrap();
-    static ref JWT_SECRET: Vec<u8> = base64::decode(env::var(ENV_JWT_SECRET).expect("jwt secret must be set")).unwrap();
-    static ref JWT_PUBLIC: Vec<u8> = base64::decode(env::var(ENV_JWT_PUBLIC).expect("jwt public key must be set")).unwrap();
-    static ref JWT_HEADER: String = env::var(ENV_JWT_HEADER).expect("token's header must be set");
-    static ref TOTP_HEADER: String = env::var(ENV_TOTP_HEADER).expect("totp's header must be set");
-    static ref SMTP_TRANSPORT: String = env::var(ENV_SMTP_TRANSPORT).expect("smtp transport must be set");
-    static ref SMTP_USERNAME: String = env::var(ENV_SMTP_USERNAME).expect("smtp username must be set");
-    static ref SMTP_PASSWORD: String = env::var(ENV_SMTP_PASSWORD).expect("smtp password must be set");
-    static ref SMTP_ORIGIN: String = env::var(ENV_SMTP_ORIGIN).expect("smpt origin must be set");
-    static ref SMTP_ISSUER: String = env::var(ENV_SMTP_ISSUER).unwrap_or(DEFAULT_EMAIL_ISSUER.to_string());
-    static ref SMTP_TEMPLATES: String = env::var(ENV_SMTP_TEMPLATES).unwrap_or(DEFAULT_TEMPLATES_PATH.to_string());
+    static ref TOKEN_TIMEOUT: u64 = env::var(ENV_TOKEN_TIMEOUT)
+        .map(|timeout| timeout.parse().unwrap())
+        .unwrap_or(DEFAULT_TOKEN_TIMEOUT);
+
+    static ref JWT_SECRET: Vec<u8> = env::var(ENV_JWT_SECRET)
+        .map(|secret| base64::decode(secret).unwrap())
+        .expect("jwt secret must be set");
+
+    static ref JWT_PUBLIC: Vec<u8> = env::var(ENV_JWT_PUBLIC)
+        .map(|secret| base64::decode(secret).unwrap())
+        .expect("jwt public key must be set");
+
+    static ref JWT_HEADER: String = env::var(ENV_JWT_HEADER)
+        .unwrap_or(DEFAULT_JWT_HEADER.to_string());
+
+    static ref TOTP_HEADER: String = env::var(ENV_TOTP_HEADER)
+        .unwrap_or(DEFAULT_TOTP_HEADER.to_string());
+
+    static ref SMTP_TRANSPORT: String = env::var(ENV_SMTP_TRANSPORT)
+        .expect("smtp transport must be set");
+    
+    static ref SMTP_USERNAME: String = env::var(ENV_SMTP_USERNAME)
+        .expect("smtp username must be set");
+    
+    static ref SMTP_PASSWORD: String = env::var(ENV_SMTP_PASSWORD)
+        .expect("smtp password must be set");
+    
+    static ref SMTP_ORIGIN: String = env::var(ENV_SMTP_ORIGIN)
+        .expect("smpt origin must be set");
+
+    static ref SMTP_ISSUER: String = env::var(ENV_SMTP_ISSUER)
+        .unwrap_or(DEFAULT_EMAIL_ISSUER.to_string());
+
+    static ref SMTP_TEMPLATES: String = env::var(ENV_SMTP_TEMPLATES)
+        .unwrap_or(DEFAULT_TEMPLATES_PATH.to_string());
 
     static ref PWD_SUFIX: String = env::var(ENV_PWD_SUFIX)
         .unwrap_or(DEFAULT_PWD_SUFIX.to_string());
     
     static ref ALLOW_UNVERIFIED: bool = env::var(ENV_ALLOW_UNVERIFIED)
         .map(|allow| {
-            info!("unverified actions allowness set to {}", allow);
+            info!("allow unverified signup requests set to {}", allow);
             return allow.parse().unwrap();
         })
         .unwrap_or_default();
 
-
     static ref PG_POOL: PgPool = {
-        let postgres_dsn = env::var(ENV_POSTGRES_DSN).expect("postgres url must be set");
-        let postgres_pool = env::var(ENV_POSTGRES_POOL).expect("postgres pool size must be set").parse().unwrap();
+        let postgres_dsn = env::var(ENV_POSTGRES_DSN)
+            .expect("postgres url must be set");
+
+        let postgres_pool = env::var(ENV_POSTGRES_POOL)
+            .map(|pool_size| pool_size.parse().unwrap())
+            .expect("postgres pool size must be set");
+        
         match PgPool::builder().max_size(postgres_pool).build(ConnectionManager::new(&postgres_dsn)) {
             Ok(pool) => {
                 info!("connection with postgres cluster established");
@@ -103,9 +133,15 @@ lazy_static! {
     };
 
     static ref RD_POOL: RdPool = {
-        let redis_dsn: String = env::var(ENV_REDIS_DSN).expect("redis url must be set");
-        let redis_pool = env::var(ENV_REDIS_POOL).expect("redis pool size must be set").parse().unwrap();
+        let redis_dsn: String = env::var(ENV_REDIS_DSN)
+            .expect("redis url must be set");
+        
+        let redis_pool = env::var(ENV_REDIS_POOL)
+            .map(|pool_size| pool_size.parse().unwrap())
+            .expect("redis pool size must be set");
+        
         let manager = RedisConnectionManager::new(redis_dsn.clone()).unwrap();
+        
         match r2d2::Pool::builder().max_size(redis_pool).build(manager) {
             Ok(pool) => {
                 info!("connection with redis cluster established");
@@ -162,7 +198,7 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
         session_repo: session_repo.clone(),
         user_repo: user_repo.clone(),
         secret_repo: secret_repo.clone(),
-        timeout: *SESSION_TIMEOUT,
+        timeout: *TOKEN_TIMEOUT,
     };
 
     let user_server = UserImplementation{
@@ -203,13 +239,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
         warn!("no dotenv file has been found");
     }
 
-    let netw = match env::var(ENV_SERVICE_NET) {
-        Err(_) => DEFAULT_NETW.to_string(),
-        Ok(netw)  => netw,
-    };
+    let netw = env::var(ENV_SERVICE_NET)
+        .unwrap_or(DEFAULT_NETW.to_string());
 
     let port = env::var(ENV_SERVICE_PORT)
-        .expect("service port must be set");
+        .unwrap_or(DEFAULT_PORT.to_string());
     
     let addr = format!("{}:{}", netw, port);
     start_server(addr).await

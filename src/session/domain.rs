@@ -7,11 +7,12 @@ use crate::time;
 
 #[derive(Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct SessionToken {
+    id: u64,
     pub exp: usize,          // expiration time (as UTC timestamp) - required
+    pub nbf: usize,          // not before time (as UTC timestamp) - non required
     pub iat: SystemTime,     // issued at: creation time
     pub iss: String,         // issuer
     pub sub: String,         // subject
-    id: u64,
 }
 
 impl SessionToken {
@@ -19,6 +20,7 @@ impl SessionToken {
         let mut token = SessionToken {
             id: rand::thread_rng().gen(), // noise
             exp: time::unix_timestamp(SystemTime::now() + timeout),
+            nbf: time::unix_timestamp(SystemTime::now()),
             iat: SystemTime::now(),
             iss: iss.to_string(),
             sub: sub.to_string(),
@@ -39,12 +41,13 @@ impl WithOwnedId for SessionToken {
 
 #[derive(Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct VerificationToken {
+    id: u64,
     pub exp: usize,          // expiration time (as UTC timestamp) - required
+    pub nbf: usize,          // not before time (as UTC timestamp) - non required
     pub iat: SystemTime,     // issued at: creation time
     pub iss: String,         // issuer
     pub sub: String,
     pub pwd: String,
-    id: u64,
 }
 
 impl VerificationToken {
@@ -52,6 +55,7 @@ impl VerificationToken {
         let mut token = VerificationToken {
             id: rand::thread_rng().gen(), // noise
             exp: time::unix_timestamp(SystemTime::now() + timeout),
+            nbf: time::unix_timestamp(SystemTime::now()),
             iat: SystemTime::now(),
             iss: iss.to_string(),
             sub: email.to_string(),
