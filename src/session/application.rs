@@ -132,16 +132,15 @@ pub mod util {
 #[cfg(test)]
 pub mod tests {
     use std::error::Error;
-    use std::time::{Duration, SystemTime};
     use std::sync::Arc;
+    use std::time::{Duration, SystemTime};
 
-    use crate::security;
+    use crate::{security, time};
     use crate::user::{
         application::tests::{UserRepositoryMock, TEST_FIND_BY_EMAIL_ID, TEST_FIND_BY_NAME_ID},
         domain::tests::{TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD, TEST_DEFAULT_USER_NAME}
     };
 
-    use crate::time;
     use crate::secret::domain::Secret;
     use crate::secret::domain::tests::TEST_DEFAULT_SECRET_DATA;
     use crate::secret::application::tests::SecretRepositoryMock;
@@ -335,7 +334,7 @@ pub mod tests {
         let app = new_session_application();
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let mut session_token = new_session_token();
-        session_token.exp = time::unix_timestamp(SystemTime::now() - Duration::from_secs(1));
+        session_token.exp = time::unix_timestamp(SystemTime::now() - Duration::from_secs(61));
         
         let token = security::sign_jwt(&jwt_secret, session_token).unwrap();
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();

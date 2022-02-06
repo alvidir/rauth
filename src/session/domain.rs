@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 use std::collections::hash_map::DefaultHasher;
 use rand::Rng;
 use crate::security::WithOwnedId;
-use crate::time::unix_timestamp;
+use crate::time;
 
 #[derive(Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct SessionToken {
@@ -18,7 +18,7 @@ impl SessionToken {
     pub fn new(iss: &str, sub: &str, timeout: Duration) -> Self {
         let mut token = SessionToken {
             id: rand::thread_rng().gen(), // noise
-            exp: unix_timestamp(SystemTime::now() + timeout),
+            exp: time::unix_timestamp(SystemTime::now() + timeout),
             iat: SystemTime::now(),
             iss: iss.to_string(),
             sub: sub.to_string(),
@@ -51,7 +51,7 @@ impl VerificationToken {
     pub fn new(iss: &str, email: &str, pwd: &str, timeout: Duration) -> Self {
         let mut token = VerificationToken {
             id: rand::thread_rng().gen(), // noise
-            exp: unix_timestamp(SystemTime::now() + timeout),
+            exp: time::unix_timestamp(SystemTime::now() + timeout),
             iat: SystemTime::now(),
             iss: iss.to_string(),
             sub: email.to_string(),
@@ -76,7 +76,7 @@ impl WithOwnedId for VerificationToken {
 pub mod tests {
     use std::time::{SystemTime, Duration};
     use crate::time::unix_timestamp;
-    use crate::security;
+    use crate::{security, time};
     use super::{SessionToken, VerificationToken};
 
     pub const TEST_DEFAULT_TOKEN_TIMEOUT: u64 = 60;
@@ -146,7 +146,7 @@ pub mod tests {
         use crate::security;
         
         let mut claim = new_session_token();
-        claim.exp = 0_usize;
+        claim.exp = time::unix_timestamp(SystemTime::now() - Duration::from_secs(61));
         
         let secret = base64::decode(JWT_SECRET).unwrap();
         let token = security::sign_jwt(&secret, claim).unwrap();

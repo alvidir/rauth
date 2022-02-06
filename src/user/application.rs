@@ -470,7 +470,7 @@ pub mod tests {
             Duration::from_secs(60),
         );
 
-        token.exp = time::unix_timestamp(SystemTime::now() - Duration::from_secs(1));
+        token.exp = time::unix_timestamp(SystemTime::now() - Duration::from_secs(61));
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
