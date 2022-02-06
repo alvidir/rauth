@@ -23,8 +23,6 @@ jsonwebtoken = "8.0.1"
 log = "0.4.14"
 chrono = "0.4.19"
 serde = "1.0.133" # data parser
-# lettre = "0.9.6" # mailer builder + transports
-# lettre_email = "0.9.4"
 lettre = "0.10.0-rc.4"
 tera = "1.15.0" # template engine
 
