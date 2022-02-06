@@ -23,12 +23,6 @@ build:
 	
 setup:
 	mkdir -p .ssh/
-	
-	openssl genrsa -out .ssh/rsa_key.pem 4096
-	openssl rsa -in .ssh/rsa_key.pem -pubout -out .ssh/rsa_pubkey.pem
-
-	cat .ssh/rsa_key.pem | base64 | tr -d '\n' > .ssh/rsa_key.base64
-	cat .ssh/rsa_pubkey.pem | base64 | tr -d '\n' > .ssh/rsa_pubkey.base64
 
 	openssl ecparam -name prime256v1 -genkey -noout -out .ssh/ec_key.pem
 	openssl ec -in .ssh/ec_key.pem -pubout -out .ssh/ec_pubkey.pem
