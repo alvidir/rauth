@@ -2,34 +2,54 @@
 
 import os
 import re
+import sys
 
-TARGET_DIR = ".postgres"
-TARGET_FILE = "setup.sql"
-WORKING_PATH = "migrations"
-REGEX = "up.sql"
+from dotenv import load_dotenv
+load_dotenv() 
 
-dir = os.path.join(WORKING_PATH, TARGET_DIR)
-if not os.path.exists(dir):
-    os.mkdir(dir)
+WORKDIR = os.getenv("DB_MIGRATIONS_PATH")
+TARGET = os.getenv("DB_SETUP_SCRIPT_PATH")
+REGEX = os.getenv("DB_FILE_REGEX")
 
 regex = re.compile(REGEX)
-target = open(os.path.join(dir, TARGET_FILE), "w")
 
-scripts = []
-for root, dirs, files in os.walk(WORKING_PATH):
-    for file in files:
-        if regex.match(file):
-            path = os.path.join(root, file)
-            scripts.append(path)
+def is_migration_files(filename) -> bool:
+    return regex.match(filename)
 
-for path in sorted(scripts):
-    print("Reading content from {}".format(path))
+def main() -> int:
+    print("Browsing for migration files...")
+    
+    target_dirname = os.path.dirname(TARGET)
+    if not os.path.exists(target_dirname):
+        os.mkdir(target_dirname)
 
-    fo = open(path, "r")
-    content = fo.read()
-    fo.close()
+    target = open(TARGET, "w")
+    scripts = []
+    
+    for root, _, files in os.walk(WORKDIR):
+        files = filter(is_migration_files, files)
+        
+        def make_absolute_path(filename) -> str:
+            return os.path.join(root, filename)
 
-    target.write(content)
-    target.write("\n")
+        files = map(make_absolute_path, files)
+        scripts += list(files)
 
-target.close()
+    if not scripts:
+        print("No migration files where found")
+        return 1
+
+    for path in sorted(scripts):
+        print("-\t{}".format(path))
+
+        fo = open(path, "r")
+        content = fo.read()
+        fo.close()
+
+        target.write("{}\n".format(content))
+
+    target.close()
+    return 0
+
+if __name__ == '__main__':
+    sys.exit(main())
