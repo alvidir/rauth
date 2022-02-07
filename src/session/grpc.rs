@@ -8,7 +8,7 @@ use crate::grpc;
 use crate::user::application::UserRepository;
 use crate::secret::application::SecretRepository;
 use super::{
-    application::{SessionApplication, SessionRepository},
+    application::{SessionApplication, TokenRepository},
 };
 
 // Import the generated rust code into module
@@ -24,7 +24,7 @@ pub use proto::session_server::SessionServer;
 use proto::{LoginRequest, Empty};
 
 pub struct SessionImplementation<
-    S: SessionRepository + Sync + Send,
+    S: TokenRepository + Sync + Send,
     U: UserRepository + Sync + Send,
     E: SecretRepository + Sync + Send
     > {
@@ -37,7 +37,7 @@ pub struct SessionImplementation<
 
 #[tonic::async_trait]
 impl<
-    S: 'static + SessionRepository + Sync + Send,
+    S: 'static + TokenRepository + Sync + Send,
     U: 'static + UserRepository + Sync + Send,
     E: 'static + SecretRepository + Sync + Send
     > Session for SessionImplementation<S, U, E> {

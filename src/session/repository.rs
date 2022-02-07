@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::ops::DerefMut;
 use r2d2_redis::{r2d2, redis, RedisConnectionManager};
-use super::application::SessionRepository;
+use super::application::TokenRepository;
 
 const REDIS_CMD_GET: &str = "GET";
 const REDIS_CMD_SET: &str = "SET";
@@ -10,13 +10,13 @@ const REDIS_CMD_EXPIRE: &str = "EXPIRE";
 
 type RdPool = r2d2::Pool<RedisConnectionManager> ;
 
-pub struct RedisSessionRepository<'a> {
+pub struct RedisTokenRepository<'a> {
     pub pool: &'a RdPool,
     pub jwt_secret: &'a [u8],
     pub jwt_public: &'a [u8],
 }
 
-impl<'a> SessionRepository for RedisSessionRepository<'a> {
+impl<'a> TokenRepository for RedisTokenRepository<'a> {
     fn find(&self, key: &str) -> Result<String, Box<dyn Error>> {
         info!("looking for token with id {}", key);
 

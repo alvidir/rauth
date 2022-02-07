@@ -29,7 +29,7 @@ use rauth::user::{
 
 use rauth::session::{
     grpc::{SessionServer, SessionImplementation},
-    repository::RedisSessionRepository,
+    repository::RedisTokenRepository,
     application::SessionApplication,
 };
 
@@ -170,7 +170,7 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
         metadata_repo: metadata_repo.clone(),
     });
 
-    let session_repo = Arc::new(RedisSessionRepository{
+    let token_repo = Arc::new(RedisTokenRepository{
         pool: &RD_POOL,
         jwt_secret: &JWT_SECRET,
         jwt_public: &JWT_PUBLIC,
@@ -189,13 +189,13 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
     let user_app = UserApplication{
         user_repo: user_repo.clone(),
         secret_repo: secret_repo.clone(),
-        session_repo: session_repo.clone(),
+        token_repo: token_repo.clone(),
         mailer: Arc::new(mailer),
         timeout: *TOKEN_TIMEOUT,
     };
 
     let sess_app = SessionApplication{
-        session_repo: session_repo.clone(),
+        token_repo: token_repo.clone(),
         user_repo: user_repo.clone(),
         secret_repo: secret_repo.clone(),
         timeout: *TOKEN_TIMEOUT,

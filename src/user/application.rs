@@ -2,7 +2,7 @@ use std::error::Error;
 use std::time::{SystemTime, Duration};
 use std::sync::Arc;
 use crate::session::{
-    application::{SessionRepository, util::verify_token},
+    application::{TokenRepository, util::verify_token},
     domain::{VerificationToken, SessionToken}
 };
 use crate::secret::{
@@ -25,16 +25,16 @@ pub trait UserRepository {
     fn delete(&self, user: &User) -> Result<(), Box<dyn Error>>;
 }
 
-pub struct UserApplication<U: UserRepository, E: SecretRepository, S: SessionRepository, M: Mailer> {
+pub struct UserApplication<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> {
     pub user_repo: Arc<U>,
     pub secret_repo: Arc<E>,
-    pub session_repo: Arc<S>,
+    pub token_repo: Arc<T>,
     pub mailer: Arc<M>,
     pub timeout: u64,
 }
 
-impl<U: UserRepository, E: SecretRepository, S: SessionRepository, M: Mailer> UserApplication<U, E, S, M> {
-    pub fn verify_user(&self, email: &str, pwd: &str,  jwt_secret: &[u8]) -> Result<(), Box<dyn Error>> {
+impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> UserApplication<U, E, T, M> {
+    pub fn verify_user(&self, email: &str, pwd: &str, jwt_secret: &[u8]) -> Result<(), Box<dyn Error>> {
         info!("sending a verification email to {} ", email);
         
         if self.user_repo.find_by_email(email).is_ok() {
@@ -58,7 +58,7 @@ impl<U: UserRepository, E: SecretRepository, S: SessionRepository, M: Mailer> Us
         );
         
         let token_to_store = security::sign_jwt(jwt_secret, token_to_store)?;
-        self.session_repo.save(&token_to_send.sub, &token_to_store, Some(self.timeout))?;
+        self.token_repo.save(&token_to_send.sub, &token_to_store, Some(self.timeout))?;
         
         let token_to_send = security::sign_jwt(jwt_secret, token_to_send)?;
         self.mailer.send_verification_email(email, &token_to_send)?;
@@ -72,15 +72,15 @@ impl<U: UserRepository, E: SecretRepository, S: SessionRepository, M: Mailer> Us
                 constants::ERR_VERIFY_TOKEN
             })?;
 
-        let token = self.session_repo.find(&claims.sub)
+        let token = self.token_repo.find(&claims.sub)
             .map_err(|err| {
                 warn!("{} finding verification token with id {}: {}", constants::ERR_VERIFY_TOKEN, claims.sub, err);
                 constants::ERR_VERIFY_TOKEN
             })?;
 
-        let claims: VerificationToken = verify_token(self.session_repo.clone(), &token, jwt_public)?;
+        let claims: VerificationToken = verify_token(self.token_repo.clone(), &token, jwt_public)?;
         let user_id = self.signup(&claims.sub, &claims.pwd)?;
-        if let Err(err) = self.session_repo.delete(&claims.get_id()) {
+        if let Err(err) = self.token_repo.delete(&claims.get_id()) {
             error!("{} failed to remove token with id {}: {}", constants::ERR_UNKNOWN, claims.get_id(), err);
         }
         
@@ -99,7 +99,7 @@ impl<U: UserRepository, E: SecretRepository, S: SessionRepository, M: Mailer> Us
     }
 
     pub fn secure_delete(&self, pwd: &str, totp: &str, token: &str, jwt_public: &[u8]) -> Result<(), Box<dyn Error>> {
-        let claims: SessionToken = verify_token(self.session_repo.clone(), token, jwt_public)?;
+        let claims: SessionToken = verify_token(self.token_repo.clone(), token, jwt_public)?;
         let user_id = claims.sub.parse()
             .map_err(|err| {
                 warn!("{} failed to parse str to i32: {}", constants::ERR_PARSE_TOKEN, err);
@@ -138,7 +138,7 @@ impl<U: UserRepository, E: SecretRepository, S: SessionRepository, M: Mailer> Us
     }
 
     pub fn secure_enable_totp(&self, pwd: &str, totp: &str, token: &str, jwt_public: &[u8]) -> Result<String, Box<dyn Error>> {
-        let claims: SessionToken = verify_token(self.session_repo.clone(), token, jwt_public)?;
+        let claims: SessionToken = verify_token(self.token_repo.clone(), token, jwt_public)?;
         let user_id = claims.sub.parse()
             .map_err(|err| {
                 warn!("{} failed to parse str to i32: {}", constants::ERR_PARSE_TOKEN, err);
@@ -181,7 +181,7 @@ impl<U: UserRepository, E: SecretRepository, S: SessionRepository, M: Mailer> Us
     }
 
     pub fn secure_disable_totp(&self, pwd: &str, totp: &str, token: &str, jwt_public: &[u8]) -> Result<(), Box<dyn Error>> {
-        let claims: SessionToken = verify_token(self.session_repo.clone(), token, jwt_public)?;
+        let claims: SessionToken = verify_token(self.token_repo.clone(), token, jwt_public)?;
         let user_id = claims.sub.parse()
             .map_err(|err| {
                 warn!("{} failed to parse str to i32: {}", constants::ERR_PARSE_TOKEN, err);
@@ -239,7 +239,7 @@ pub mod tests {
     };
     use crate::{security, time, constants};
     use crate::session::{
-        application::tests::SessionRepositoryMock,
+        application::tests::TokenRepositoryMock,
         domain::{VerificationToken, SessionToken},
     };
     use crate::smtp::{
@@ -329,17 +329,17 @@ pub mod tests {
     pub fn new_user_application() -> UserApplication<
             UserRepositoryMock,
             SecretRepositoryMock,
-            SessionRepositoryMock,
+            TokenRepositoryMock,
             MailerMock> {
         let user_repo = UserRepositoryMock::new();
         let secret_repo = SecretRepositoryMock::new();
         let mailer_mock = MailerMock::new();
-        let session_repo = SessionRepositoryMock::new();
+        let token_repo = TokenRepositoryMock::new();
         
         UserApplication {
             user_repo: Arc::new(user_repo),
             secret_repo: Arc::new(secret_repo),
-            session_repo: Arc::new(session_repo),
+            token_repo: Arc::new(token_repo),
             mailer: Arc::new(mailer_mock),
             timeout: 60,
         }
@@ -430,15 +430,15 @@ pub mod tests {
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
-        let mut session_repo = SessionRepositoryMock::new();
-        session_repo.token = secure_token.clone();
-        session_repo.fn_find = Some(|this: &SessionRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+        let mut token_repo = TokenRepositoryMock::new();
+        token_repo.token = secure_token.clone();
+        token_repo.fn_find = Some(|this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
             Ok(this.token.clone())
         });
 
         let mut app = new_user_application();
         app.user_repo = Arc::new(user_repo);
-        app.session_repo = Arc::new(session_repo);
+        app.token_repo = Arc::new(token_repo);
 
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();        
         let user_id = app.secure_signup(&secure_token, &jwt_public).unwrap();
@@ -474,14 +474,14 @@ pub mod tests {
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
-        let mut session_repo = SessionRepositoryMock::new();
-        session_repo.token = secure_token.clone();
-        session_repo.fn_find = Some(|this: &SessionRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+        let mut token_repo = TokenRepositoryMock::new();
+        token_repo.token = secure_token.clone();
+        token_repo.fn_find = Some(|this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
             Ok(this.token.clone())
         });
 
         let mut app = new_user_application(); 
-        app.session_repo = Arc::new(session_repo);
+        app.token_repo = Arc::new(token_repo);
 
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();        
         assert!(app.secure_signup(&secure_token, &jwt_public).is_err());
@@ -550,15 +550,15 @@ pub mod tests {
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
-        let mut session_repo = SessionRepositoryMock::new();
-        session_repo.token = secure_token.clone();
-        session_repo.fn_find = Some(|this: &SessionRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+        let mut token_repo = TokenRepositoryMock::new();
+        token_repo.token = secure_token.clone();
+        token_repo.fn_find = Some(|this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
             Ok(this.token.clone())
         });
 
         let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
-        app.session_repo = Arc::new(session_repo);
+        app.token_repo = Arc::new(token_repo);
 
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
         app.secure_delete(TEST_DEFAULT_USER_PASSWORD, "", &secure_token, &jwt_public).unwrap();
@@ -634,15 +634,15 @@ pub mod tests {
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
-        let mut session_repo = SessionRepositoryMock::new();
-        session_repo.token = secure_token.clone();
-        session_repo.fn_find = Some(|this: &SessionRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+        let mut token_repo = TokenRepositoryMock::new();
+        token_repo.token = secure_token.clone();
+        token_repo.fn_find = Some(|this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
             Ok(this.token.clone())
         });
 
         let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
-        app.session_repo = Arc::new(session_repo);
+        app.token_repo = Arc::new(token_repo);
 
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
         let totp = app.secure_enable_totp(TEST_DEFAULT_USER_PASSWORD, "", &secure_token, &jwt_public).unwrap();
@@ -725,14 +725,14 @@ pub mod tests {
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
-        let mut session_repo = SessionRepositoryMock::new();
-        session_repo.token = secure_token.clone();
-        session_repo.fn_find = Some(|this: &SessionRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+        let mut token_repo = TokenRepositoryMock::new();
+        token_repo.token = secure_token.clone();
+        token_repo.fn_find = Some(|this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
             Ok(this.token.clone())
         });
 
         let mut app = new_user_application();
-        app.session_repo = Arc::new(session_repo);
+        app.token_repo = Arc::new(token_repo);
 
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
         let code = security::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes()).unwrap().generate();

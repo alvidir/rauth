@@ -2,7 +2,7 @@ use tonic::{Request, Response, Status};
 use crate::security;
 use crate::constants;
 use crate::user::application::{UserRepository, UserApplication};
-use crate::session::application::SessionRepository;
+use crate::session::application::TokenRepository;
 use crate::secret::application::SecretRepository;
 use crate::smtp::Mailer;
 use crate::grpc;
@@ -25,7 +25,7 @@ use proto::{SignupRequest, ResetPasswordRequest, DeleteRequest, TotpRequest, Emp
 pub struct UserImplementation<
     U: UserRepository + Sync + Send,
     E:  SecretRepository + Sync + Send,
-    S: SessionRepository + Sync + Send,
+    S: TokenRepository + Sync + Send,
     M: Mailer,
     > {
     pub user_app: UserApplication<U, E, S, M>,
@@ -41,7 +41,7 @@ pub struct UserImplementation<
 impl<
     U: 'static + UserRepository + Sync + Send,
     E: 'static + SecretRepository + Sync + Send,
-    S: 'static + SessionRepository + Sync + Send,
+    S: 'static + TokenRepository + Sync + Send,
     M: 'static + Mailer + Sync + Send,
     > User for UserImplementation<U, E, S, M> {
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<Empty>, Status> {

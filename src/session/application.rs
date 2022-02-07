@@ -9,20 +9,20 @@ use crate::regex;
 use crate::constants;
 use crate::security;
 
-pub trait SessionRepository {
+pub trait TokenRepository {
     fn find(&self, key: &str) -> Result<String, Box<dyn Error>>;
     fn save(&self, key: &str, token: &str, expire: Option<u64>) -> Result<(), Box<dyn Error>>;
     fn delete(&self, key: &str) -> Result<(), Box<dyn Error>>;
 }
 
-pub struct SessionApplication<S: SessionRepository, U: UserRepository, E: SecretRepository> {
-    pub session_repo: Arc<S>,
+pub struct SessionApplication<T: TokenRepository, U: UserRepository, E: SecretRepository> {
+    pub token_repo: Arc<T>,
     pub user_repo: Arc<U>,
     pub secret_repo: Arc<E>,
     pub timeout: u64,
 }
 
-impl<S: SessionRepository, U: UserRepository, E: SecretRepository> SessionApplication<S, U, E> {
+impl<T: TokenRepository, U: UserRepository, E: SecretRepository> SessionApplication<T, U, E> {
     pub fn login(&self, ident: &str, pwd: &str, totp: &str, jwt_secret: &[u8]) -> Result<String, Box<dyn Error>> {
         info!("got a \"login\" request from email {} ", ident);        
         
@@ -58,7 +58,7 @@ impl<S: SessionRepository, U: UserRepository, E: SecretRepository> SessionApplic
 
         let key = sess.get_id();
         let token = security::sign_jwt(jwt_secret, sess)?;
-        self.session_repo.save(&key, &token, Some(self.timeout))?;
+        self.token_repo.save(&key, &token, Some(self.timeout))?;
 
         Ok(token)
     }
@@ -72,13 +72,13 @@ impl<S: SessionRepository, U: UserRepository, E: SecretRepository> SessionApplic
                 constants::ERR_VERIFY_TOKEN
             })?;
     
-        self.session_repo.find(&claims.get_id())
+        self.token_repo.find(&claims.get_id())
             .map_err(|err| {
                 warn!("{}: {}", constants::ERR_NOT_FOUND, err);
                 constants::ERR_NOT_FOUND
             })?;
 
-        self.session_repo.delete(&claims.get_id())
+        self.token_repo.delete(&claims.get_id())
             .map_err(|err| {
                 error!("{} failed to remove token with id {}: {}", constants::ERR_UNKNOWN, claims.get_id(), err);
                 constants::ERR_UNKNOWN
@@ -95,13 +95,13 @@ pub mod util {
         Serialize,
         de::DeserializeOwned
     };
-    use super::SessionRepository;
+    use super::TokenRepository;
     use crate::security::WithOwnedId;
     use crate::constants;
     use crate::security;
 
-    pub fn verify_token<S: SessionRepository, T: Serialize + DeserializeOwned + PartialEq + Eq + WithOwnedId>(repo: Arc<S>, token: &str, jwt_public: &[u8]) -> Result<T, Box<dyn Error>> {
-        let claims: T = security::verify_jwt(jwt_public, token)
+    pub fn verify_token<T: TokenRepository, S: Serialize + DeserializeOwned + PartialEq + Eq + WithOwnedId>(repo: Arc<T>, token: &str, jwt_public: &[u8]) -> Result<S, Box<dyn Error>> {
+        let claims: S = security::verify_jwt(jwt_public, token)
             .map_err(|err| {
                 warn!("{} verifying session token: {}", constants::ERR_VERIFY_TOKEN, err);
                 constants::ERR_VERIFY_TOKEN
@@ -114,7 +114,7 @@ pub mod util {
                 constants::ERR_NOT_FOUND
             })?;
 
-        let present_token: T = security::verify_jwt(jwt_public, &present_data)
+        let present_token: S = security::verify_jwt(jwt_public, &present_data)
             .map_err(|err| {
                 warn!("{} verifying found token with id {}: {}", constants::ERR_VERIFY_TOKEN, &key, err);
                 constants::ERR_VERIFY_TOKEN
@@ -144,7 +144,7 @@ pub mod tests {
     use crate::secret::domain::Secret;
     use crate::secret::domain::tests::TEST_DEFAULT_SECRET_DATA;
     use crate::secret::application::tests::SecretRepositoryMock;
-    use super::{SessionRepository, SessionApplication};
+    use super::{TokenRepository, SessionApplication};
     use super::super::domain::{
         tests::new_session_token,
         SessionToken,
@@ -153,16 +153,16 @@ pub mod tests {
     const JWT_SECRET: &[u8] = b"LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR0hBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJHMHdhd0lCQVFRZy9JMGJTbVZxL1BBN2FhRHgKN1FFSGdoTGxCVS9NcWFWMUJab3ZhM2Y5aHJxaFJBTkNBQVJXZVcwd3MydmlnWi96SzRXcGk3Rm1mK0VPb3FybQpmUlIrZjF2azZ5dnBGd0gzZllkMlllNXl4b3ZsaTROK1ZNNlRXVFErTmVFc2ZmTWY2TkFBMloxbQotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg==";
     const JWT_PUBLIC: &[u8] = b"LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFVm5sdE1MTnI0b0dmOHl1RnFZdXhabi9oRHFLcQo1bjBVZm45YjVPc3I2UmNCOTMySGRtSHVjc2FMNVl1RGZsVE9rMWswUGpYaExIM3pIK2pRQU5tZFpnPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg==";
   
-    pub struct SessionRepositoryMock {
-        pub fn_find: Option<fn (this: &SessionRepositoryMock, key: &str) -> Result<String, Box<dyn Error>>>,
-        pub fn_save: Option<fn (this: &SessionRepositoryMock, key: &str, token: &str, expire: Option<u64>) -> Result<(), Box<dyn Error>>>,
-        pub fn_delete: Option<fn (this: &SessionRepositoryMock, key: &str) -> Result<(), Box<dyn Error>>>,
+    pub struct TokenRepositoryMock {
+        pub fn_find: Option<fn (this: &TokenRepositoryMock, key: &str) -> Result<String, Box<dyn Error>>>,
+        pub fn_save: Option<fn (this: &TokenRepositoryMock, key: &str, token: &str, expire: Option<u64>) -> Result<(), Box<dyn Error>>>,
+        pub fn_delete: Option<fn (this: &TokenRepositoryMock, key: &str) -> Result<(), Box<dyn Error>>>,
         pub token: String,
     }
 
-    impl SessionRepositoryMock {
+    impl TokenRepositoryMock {
         pub fn new() -> Self {
-            SessionRepositoryMock{
+            TokenRepositoryMock{
                 fn_find: None,
                 fn_save: None,
                 fn_delete: None,
@@ -171,7 +171,7 @@ pub mod tests {
         }
     }
 
-    impl SessionRepository for SessionRepositoryMock{
+    impl TokenRepository for TokenRepositoryMock{
         fn find(&self, key: &str) -> Result<String, Box<dyn Error>> {
             if let Some(fn_find) = self.fn_find {
                 return fn_find(self, key);
@@ -198,17 +198,17 @@ pub mod tests {
     }
 
     pub fn new_session_application() -> SessionApplication<
-            SessionRepositoryMock,
+            TokenRepositoryMock,
             UserRepositoryMock,
             SecretRepositoryMock> {
         let user_repo = UserRepositoryMock::new();
         let secret_repo = SecretRepositoryMock::new();
-        let session_repo = SessionRepositoryMock::new();
+        let token_repo = TokenRepositoryMock::new();
 
         SessionApplication {
             user_repo: Arc::new(user_repo),
             secret_repo: Arc::new(secret_repo),
-            session_repo: Arc::new(session_repo),
+            token_repo: Arc::new(token_repo),
             timeout: 999,
         }
     }
@@ -296,14 +296,14 @@ pub mod tests {
             Err("overrided".into())
         });
 
-        let mut session_repo = SessionRepositoryMock::new();
-        session_repo.fn_find = Some(|_: &SessionRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+        let mut token_repo = TokenRepositoryMock::new();
+        token_repo.fn_find = Some(|_: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
             Err("overrided".into())
         });
 
         let mut app = new_session_application();
         app.secret_repo = Arc::new(secret_repo);
-        app.session_repo = Arc::new(session_repo);
+        app.token_repo = Arc::new(token_repo);
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let token = security::sign_jwt(&jwt_secret, new_session_token()).unwrap();
