@@ -32,17 +32,28 @@ services:
 
     envoy:
         container_name: rauth-envoy
-        image: localhost/alvidir/rauth:1.0.0-envoy
+        image: docker.io/envoyproxy/envoy-alpine:v1.21-latest
         restart: always
         ports:
-            - "8080:8080"
-            - "9901:9901"
+            - 8080:8080
+            - 9901:9901
         volumes:
             - ./envoy:/etc/envoy
         security_opt:
             label: disable
         depends_on: 
             - rauth
+        command: /usr/local/bin/envoy --log-level debug -c /etc/envoy/envoy.yaml
+
+    # nginx:
+    #     container_name: ingress
+    #     image: docker.io/nginx:alpine
+    #     restart: always
+    #     ports:
+    #         - 9080:80
+    #         - 9443:443
+    #     volumes:
+    #         - ./nginx:/etc/nginx
 
 volumes:
     dbdata:

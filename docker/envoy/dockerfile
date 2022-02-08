@@ -1,8 +1,0 @@
-FROM docker.io/envoyproxy/envoy-alpine:v1.21-latest
-
-LABEL maintainer="Hector Morales <hector.morales.carnice@gmail.com>"
-LABEL repo-url="https://github.com/alvidir/rauth"
-LABEL version="v1.0.0"
-
-COPY envoy/envoy.yaml /etc/envoy
-CMD ["/usr/local/bin/envoy", "--log-level", "debug", "-c", "/etc/envoy/envoy.yaml"]

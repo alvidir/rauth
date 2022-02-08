@@ -23,7 +23,6 @@ def main() -> int:
     if not os.path.exists(target_dirname):
         os.mkdir(target_dirname)
 
-    target = open(TARGET, "w")
     scripts = []
     
     for root, _, files in os.walk(WORKDIR):
@@ -39,6 +38,7 @@ def main() -> int:
         print("No migration files where found")
         return 1
 
+    target = open(TARGET, "w")
     for path in sorted(scripts):
         print("-\t{}".format(path))
 
