@@ -18,7 +18,7 @@ install:
 all: build setup deploy logs
 
 build:
-	podman build -t ${REPO}/${PROJECT}:${VERSION}-envoy -f ./docker/envoy/dockerfile .
+	podman build -t ${REPO}/${PROJECT}:${VERSION}-nginx -f ./docker/nginx/dockerfile .
 	podman build -t ${REPO}/${PROJECT}:${VERSION}-server -f ./docker/rauth/dockerfile .
 	
 setup:
@@ -35,7 +35,7 @@ setup:
 	python3 scripts/build_db_setup_script.py
 
 deploy:
-	podman-compose  -f docker-compose.yaml up --remove-orphans -d
+	podman-compose  -f docker-compose.yaml up --remove-orphans
 
 logs:
 	podman logs --follow --names rauth-server

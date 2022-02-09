@@ -1,0 +1,12 @@
+FROM docker.io/openresty/openresty:alpine
+
+RUN apk update && \
+    apk upgrade && \
+    apk add curl tar
+
+RUN curl -LO https://github.com/SkyLothar/lua-resty-jwt/releases/download/v0.1.11/lua-resty-jwt-0.1.11.tar.gz && \
+    tar -xvzf lua-resty-jwt-0.1.11.tar.gz && \
+    mv lua-resty-jwt-0.1.11 /etc/lua-resty-jwt && \
+    rm -rf lua-resty-jwt-0.1.11.tar.gz
+
+RUN apk del curl tar
