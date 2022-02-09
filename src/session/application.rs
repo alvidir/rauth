@@ -60,7 +60,7 @@ impl<T: TokenRepository, U: UserRepository, E: SecretRepository> SessionApplicat
         let token = security::sign_jwt(jwt_secret, sess)?;
         self.token_repo.save(&key, &token, Some(self.timeout))?;
 
-        Ok(token)
+        Ok(base64::encode(token))
     }
 
     pub fn logout(&self, token: &str, jwt_public: &[u8]) -> Result<(), Box<dyn Error>> {

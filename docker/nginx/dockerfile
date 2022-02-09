@@ -9,4 +9,14 @@ RUN curl -LO https://github.com/SkyLothar/lua-resty-jwt/releases/download/v0.1.1
     mv lua-resty-jwt-0.1.11 /etc/lua-resty-jwt && \
     rm -rf lua-resty-jwt-0.1.11.tar.gz
 
+RUN sed -i '1s/^/\
+env JWT_HEADER;\n\
+env JWT_PUBLIC;\n\
+env PROXY_PUBLIC_TARGET;\n\
+env PROXY_PRIVATE_REGEX;\n\
+env PROXY_PRIVATE_TARGET;\n\
+env PROXY_UNAUTHORIZED_REDIRECT;\n/' /usr/local/openresty/nginx/conf/nginx.conf
+
+RUN mkdir /var/log/nginx
+
 RUN apk del curl tar
