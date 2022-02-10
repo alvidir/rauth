@@ -4,7 +4,6 @@ use tonic::{
 
 use crate::security;
 use crate::constants;
-use crate::grpc;
 use crate::user::application::UserRepository;
 use crate::secret::application::SecretRepository;
 use super::{
@@ -46,16 +45,11 @@ impl<
         let shadowed_pwd = security::shadow(&msg_ref.pwd, self.pwd_sufix);
 
         let token = self.sess_app.login(&msg_ref.ident, &shadowed_pwd, &msg_ref.totp, self.jwt_secret)
+            .map(|token| base64::encode(token))
             .map_err(|err| Status::aborted(err.to_string()))?;
 
         let mut res = Response::new(Empty{});
-        let secure_token = security::sign_jwt(&self.jwt_secret, token)
-            .map_err(|err| {
-                error!("{}: {}", constants::ERR_SIGN_TOKEN, err);
-                Status::unknown(constants::ERR_SIGN_TOKEN)
-            })?;
-
-        let parsed_token = secure_token.parse()
+        let parsed_token = token.parse()
             .map_err(|err| {
                 error!("{}: {}", constants::ERR_PARSE_HEADER, err);
                 Status::unknown(constants::ERR_PARSE_HEADER)
@@ -66,11 +60,42 @@ impl<
     }
 
     async fn logout(&self, request: Request<Empty>) -> Result<Response<Empty>, Status> {
-        let token = grpc::get_header(&request, self.jwt_header)?;
+        let token = util::get_token(&request, self.jwt_header)?;        
         if let Err(err) = self.sess_app.logout(&token, self.jwt_public){    
             return Err(Status::aborted(err.to_string()));
         }
 
         Ok(Response::new(Empty{}))
+    }
+}
+
+pub mod util {
+    use tonic::{
+        Request, Status,
+    };
+
+    use crate::constants;
+    use crate::grpc;
+
+    pub fn get_token<T>(request: &Request<T>, header: &str) -> Result<String, Status> {
+        let token = grpc::get_header(&request, header)
+            .map_err(|err| {
+                warn!("{}: {}", constants::ERR_UNAUTHORIZED, err);
+                Status::unknown(constants::ERR_UNAUTHORIZED)
+            })?;
+    
+        let token = base64::decode(token)
+            .map_err(|err| {
+                warn!("{}: {}", constants::ERR_PARSE_HEADER, err);
+                Status::unknown(constants::ERR_PARSE_HEADER)
+            })?;
+
+        let token = String::from_utf8(token)
+            .map_err(|err| {
+                warn!("{}: {}", constants::ERR_PARSE_TOKEN, err);
+                Status::unknown(constants::ERR_PARSE_TOKEN)
+            })?;
+
+        Ok(token)
     }
 }

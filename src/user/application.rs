@@ -60,16 +60,13 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
         let token_to_store = security::sign_jwt(jwt_secret, token_to_store)?;
         self.token_repo.save(&token_to_send.sub, &token_to_store, Some(self.timeout))?;
         
-        let token_to_send = security::sign_jwt(jwt_secret, token_to_send)
-            .map(|token| base64::encode(token))?;
-
+        let token_to_send = security::sign_jwt(jwt_secret, token_to_send)?;
         self.mailer.send_verification_email(email, &token_to_send)?;
         Ok(())
     }
 
     pub fn secure_signup(&self, token: &str, jwt_public: &[u8])  -> Result<i32, Box<dyn Error>> {
-        let token = base64::decode(token)?;
-        let claims: SessionToken = security::verify_jwt(jwt_public, &String::from_utf8(token)?)
+        let claims: SessionToken = security::verify_jwt(jwt_public, token)
             .map_err(|err| {
                 warn!("{} verifying session token: {}", constants::ERR_VERIFY_TOKEN, err);
                 constants::ERR_VERIFY_TOKEN

@@ -55,7 +55,7 @@ impl<'a> Mailer for Smtp<'a> {
     fn send_verification_email(&self, email: &str, token: &str) ->  Result<(), Box<dyn Error>> {
         let mut context = Context::new();
         context.insert("name", email.split("@").collect::<Vec<&str>>()[0]);
-        context.insert("token", token);
+        context.insert("token", &base64::encode(token));
 
         const SUBJECT: &str = constants::VERIFICATION_EMAIL_SUBJECT;
         let body = self.tera.render(constants::VERIFICATION_EMAIL_TEMPLATE, &context)?;

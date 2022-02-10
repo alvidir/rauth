@@ -2,10 +2,12 @@ use tonic::{Request, Response, Status};
 use crate::security;
 use crate::constants;
 use crate::user::application::{UserRepository, UserApplication};
-use crate::session::application::TokenRepository;
 use crate::secret::application::SecretRepository;
 use crate::smtp::Mailer;
-use crate::grpc;
+use crate::session::{
+    grpc::util::get_token,
+    application::TokenRepository
+};
 
 const TOTP_ACTION_ENABLE: i32 = 0;
 const TOTP_ACTION_DISABLE: i32 = 1;
@@ -65,7 +67,7 @@ impl<
             };
         }
         
-        let token = grpc::get_header(&request, self.jwt_header)?;
+        let token = get_token(&request, self.jwt_header)?;
         match self.user_app.secure_signup(&token, self.jwt_public) {
             Err(err) => Err(Status::aborted(err.to_string())),
             Ok(_) => Ok(Response::new(Empty{})),
@@ -77,7 +79,7 @@ impl<
     }
 
     async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<Empty>, Status> {
-        let token = grpc::get_header(&request, self.jwt_header)?;
+        let token = get_token(&request, self.jwt_header)?;
         let msg_ref = request.into_inner();
         
         let shadowed_pwd = security::shadow(&msg_ref.pwd, self.pwd_sufix);
@@ -88,7 +90,7 @@ impl<
     }
 
     async fn totp(&self, request: Request<TotpRequest>) -> Result<Response<Empty>, Status> {
-        let token = grpc::get_header(&request, self.jwt_header)?;
+        let token = get_token(&request, self.jwt_header)?;
         let msg_ref = request.into_inner();
         let shadowed_pwd = security::shadow(&msg_ref.pwd, self.pwd_sufix);
 

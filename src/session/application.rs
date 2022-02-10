@@ -57,26 +57,20 @@ impl<T: TokenRepository, U: UserRepository, E: SecretRepository> SessionApplicat
         );
 
         let key = sess.get_id();
-        let token = security::sign_jwt(jwt_secret, sess)?;
-        self.token_repo.save(&key, &token, Some(self.timeout))?;
+        let token = security::sign_jwt(jwt_secret, sess)
+            .map_err(|err| {
+                error!("{}: {}", constants::ERR_SIGN_TOKEN, err);
+                constants::ERR_SIGN_TOKEN
+            })?;
 
-        Ok(base64::encode(token))
+        self.token_repo.save(&key, &token, Some(self.timeout))?;
+        Ok(token)
     }
 
     pub fn logout(&self, token: &str, jwt_public: &[u8]) -> Result<(), Box<dyn Error>> {
         info!("got a \"logout\" request for token {} ", token);  
 
-        let claims: SessionToken = security::verify_jwt(jwt_public, &token)
-            .map_err(|err| {
-                warn!("{}: {}", constants::ERR_VERIFY_TOKEN, err);
-                constants::ERR_VERIFY_TOKEN
-            })?;
-    
-        self.token_repo.find(&claims.get_id())
-            .map_err(|err| {
-                warn!("{}: {}", constants::ERR_NOT_FOUND, err);
-                constants::ERR_NOT_FOUND
-            })?;
+        let claims: SessionToken = util::verify_token(self.token_repo.clone(), token, jwt_public)?;
 
         self.token_repo.delete(&claims.get_id())
             .map_err(|err| {
@@ -177,7 +171,7 @@ pub mod tests {
                 return fn_find(self, key);
             }
 
-            Ok("".to_string())
+            Ok(self.token.clone())
         }
 
         fn save(&self, key: &str, token: &str, expire: Option<u64>) -> Result<(), Box<dyn Error>> {
@@ -280,10 +274,15 @@ pub mod tests {
     }
 
     #[test]
-    fn logout_should_not_fail() {
-        let app = new_session_application();
+    fn logout_should_not_fail() {        
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let token = security::sign_jwt(&jwt_secret, new_session_token()).unwrap();
+
+        let mut token_repo = TokenRepositoryMock::new();
+        token_repo.token = token.clone();
+
+        let mut app = new_session_application();
+        app.token_repo = Arc::new(token_repo);
         
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
         assert!(app.logout(&token, &jwt_public).is_ok())
