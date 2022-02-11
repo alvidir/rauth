@@ -12,10 +12,11 @@ RUN curl -LO https://github.com/SkyLothar/lua-resty-jwt/releases/download/v0.1.1
 RUN sed -i '1s/^/\
 env JWT_HEADER;\n\
 env JWT_PUBLIC;\n\
-env PROXY_PUBLIC_TARGET;\n\
-env PROXY_PRIVATE_REGEX;\n\
-env PROXY_PRIVATE_TARGET;\n\
-env PROXY_UNAUTHORIZED_REDIRECT;\n/' /usr/local/openresty/nginx/conf/nginx.conf
+env PROXY_PRIVATE_URI;\n\
+env PROXY_PASS_PRIVATE;\n\
+env PROXY_PASS_PUBLIC;\n\
+env PROXY_REDIRECT_UNAUTHORIZED;\n\
+env REDIS_HOSTNAME;\n/' /usr/local/openresty/nginx/conf/nginx.conf
 
 RUN mkdir /var/log/nginx
 
