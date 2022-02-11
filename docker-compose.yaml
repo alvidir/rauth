@@ -24,6 +24,12 @@ services:
         container_name: rauth-server
         image: localhost/alvidir/rauth:1.0.0-server
         restart: always
+        ports:
+            - ${SERVICE_PORT}:${SERVICE_PORT}
+        volumes:
+            - ./templates:/etc/rauth/smtp/templates:ro
+        security_opt:
+            label: disable
         depends_on: 
             - postgres
             - redis
@@ -38,7 +44,7 @@ services:
             - 8080:8080
             - 9901:9901
         volumes:
-            - ./envoy:/etc/envoy
+            - ./envoy:/etc/envoy:ro
         security_opt:
             label: disable
         depends_on: 
@@ -53,7 +59,7 @@ services:
             - 9080:80
             - 9443:443
         volumes:
-            - ./nginx:/etc/nginx/conf.d
+            - ./nginx:/etc/nginx/conf.d:ro
         security_opt:
             label: disable
         depends_on: 

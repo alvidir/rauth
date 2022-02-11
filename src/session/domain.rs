@@ -7,7 +7,7 @@ use crate::time;
 
 #[derive(Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct SessionToken {
-    id: u64,
+    pub sid: u64,
     pub exp: usize,          // expiration time (as UTC timestamp) - required
     pub nbf: usize,          // not before time (as UTC timestamp) - non required
     pub iat: SystemTime,     // issued at: creation time
@@ -18,7 +18,7 @@ pub struct SessionToken {
 impl SessionToken {
     pub fn new(iss: &str, sub: &str, timeout: Duration) -> Self {
         let mut token = SessionToken {
-            id: rand::thread_rng().gen(), // noise
+            sid: rand::thread_rng().gen(), // noise
             exp: time::unix_timestamp(SystemTime::now() + timeout),
             nbf: time::unix_timestamp(SystemTime::now()),
             iat: SystemTime::now(),
@@ -28,14 +28,14 @@ impl SessionToken {
 
         let mut hasher = DefaultHasher::new();
         token.hash(&mut hasher);
-        token.id = hasher.finish();
+        token.sid = hasher.finish();
         token
     }
 }
 
 impl WithOwnedId for SessionToken {
     fn get_id(&self) -> String {
-        self.id.to_string()
+        self.sid.to_string()
     }
 }
 

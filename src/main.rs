@@ -35,7 +35,7 @@ use rauth::session::{
 
 const DEFAULT_NETW: &str = "127.0.0.1";
 const DEFAULT_PORT: &str = "8000";
-const DEFAULT_TEMPLATES_PATH: &str = "/etc/rauth/mailer/templates/*.html";
+const DEFAULT_TEMPLATES_PATH: &str = "/etc/rauth/smtp/templates/*.html";
 const DEFAULT_EMAIL_ISSUER: &str = "rauth";
 const DEFAULT_PWD_SUFIX: &str = "::PWD::RAUTH";
 const DEFAULT_JWT_HEADER: &str = "authorization";
