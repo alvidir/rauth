@@ -7,7 +7,7 @@ use crate::time;
 
 #[derive(Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct SessionToken {
-    pub sid: u64,
+    pub tid: String,
     pub exp: usize,          // expiration time (as UTC timestamp) - required
     pub nbf: usize,          // not before time (as UTC timestamp) - non required
     pub iat: SystemTime,     // issued at: creation time
@@ -18,7 +18,7 @@ pub struct SessionToken {
 impl SessionToken {
     pub fn new(iss: &str, sub: &str, timeout: Duration) -> Self {
         let mut token = SessionToken {
-            sid: rand::thread_rng().gen(), // noise
+            tid: rand::thread_rng().gen::<u64>().to_string(), // noise
             exp: time::unix_timestamp(SystemTime::now() + timeout),
             nbf: time::unix_timestamp(SystemTime::now()),
             iat: SystemTime::now(),
@@ -28,20 +28,20 @@ impl SessionToken {
 
         let mut hasher = DefaultHasher::new();
         token.hash(&mut hasher);
-        token.sid = hasher.finish();
+        token.tid = hasher.finish().to_string();
         token
     }
 }
 
 impl WithOwnedId for SessionToken {
     fn get_id(&self) -> String {
-        self.sid.to_string()
+        self.tid.clone()
     }
 }
 
 #[derive(Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct VerificationToken {
-    id: u64,
+    tid: u64,
     pub exp: usize,          // expiration time (as UTC timestamp) - required
     pub nbf: usize,          // not before time (as UTC timestamp) - non required
     pub iat: SystemTime,     // issued at: creation time
@@ -53,7 +53,7 @@ pub struct VerificationToken {
 impl VerificationToken {
     pub fn new(iss: &str, email: &str, pwd: &str, timeout: Duration) -> Self {
         let mut token = VerificationToken {
-            id: rand::thread_rng().gen(), // noise
+            tid: rand::thread_rng().gen(), // noise
             exp: time::unix_timestamp(SystemTime::now() + timeout),
             nbf: time::unix_timestamp(SystemTime::now()),
             iat: SystemTime::now(),
@@ -64,7 +64,7 @@ impl VerificationToken {
 
         let mut hasher = DefaultHasher::new();
         token.hash(&mut hasher);
-        token.id = hasher.finish();
+        token.tid = hasher.finish();
         token
     }
 }
@@ -72,7 +72,7 @@ impl VerificationToken {
 
 impl WithOwnedId for VerificationToken {
     fn get_id(&self) -> String {
-        self.id.to_string()
+        self.tid.to_string()
     }
 }
 

@@ -238,6 +238,7 @@ pub mod tests {
         },
     };
     use crate::{security, time, constants};
+    use crate::security::WithOwnedId;
     use crate::session::{
         application::tests::TokenRepositoryMock,
         domain::{VerificationToken, SessionToken},
@@ -420,19 +421,30 @@ pub mod tests {
             Err("overrided".into())
         });
 
-        let token = VerificationToken::new(
+        let verif_token = VerificationToken::new(
             "test",
             TEST_DEFAULT_USER_EMAIL,
             TEST_DEFAULT_USER_PASSWORD,
             Duration::from_secs(60),
         );
 
+        let sess_token = SessionToken::new(
+            "test",
+            &verif_token.get_id(),
+            Duration::from_secs(60)
+        );
+
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
-        let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
+        let secure_verif_token = security::sign_jwt(&jwt_secret, verif_token).unwrap();
+        let secure_sess_token = security::sign_jwt(&jwt_secret, sess_token).unwrap();
 
         let mut token_repo = TokenRepositoryMock::new();
-        token_repo.token = secure_token.clone();
-        token_repo.fn_find = Some(|this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+        token_repo.token = secure_verif_token.clone();
+        token_repo.fn_find = Some(|this: &TokenRepositoryMock, tid: &str| -> Result<String, Box<dyn Error>> {
+            let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+            let claims: VerificationToken = security::verify_jwt(&jwt_public, &this.token)?;
+            assert_eq!(claims.get_id(), tid);
+            
             Ok(this.token.clone())
         });
 
@@ -441,7 +453,7 @@ pub mod tests {
         app.token_repo = Arc::new(token_repo);
 
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();        
-        let user_id = app.secure_signup(&secure_token, &jwt_public).unwrap();
+        let user_id = app.secure_signup(&secure_sess_token, &jwt_public).unwrap();
         assert_eq!(user_id, TEST_CREATE_ID);
     }
 

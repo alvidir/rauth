@@ -1,63 +1,63 @@
 services:
-    postgres:
-        container_name: rauth-postgres
-        image: docker.io/postgres:alpine3.15
-        restart: on-failure
-        ports:
-            - 5432:5432
-        volumes:
-            - dbdata:/data/postgres
-            - ./migrations/.postgres:/docker-entrypoint-initdb.d
-        security_opt:
-            label: disable
-        env_file:
-            - ".env"
+    # postgres:
+    #     container_name: rauth-postgres
+    #     image: docker.io/postgres:alpine3.15
+    #     restart: on-failure
+    #     # ports:
+    #     #     - 5432:5432
+    #     volumes:
+    #         - dbdata:/data/postgres
+    #         - ./migrations/.postgres:/docker-entrypoint-initdb.d
+    #     security_opt:
+    #         label: disable
+    #     env_file:
+    #         - ".env"
             
     redis:
         container_name: rauth-redis
         image: docker.io/redis:alpine3.15
         restart: always
-        ports:
-            - 6379:6379
+        # ports:
+        #     - 6379:6379
 
-    rauth:
-        container_name: rauth-server
-        image: localhost/alvidir/rauth:1.0.0-server
-        restart: always
-        ports:
-            - ${SERVICE_PORT}:${SERVICE_PORT}
-        volumes:
-            - ./templates:/etc/rauth/smtp/templates:ro
-        security_opt:
-            label: disable
-        depends_on: 
-            - postgres
-            - redis
-        env_file:
-            - .env
+    # rauth:
+    #     container_name: rauth-server
+    #     image: localhost/alvidir/rauth:1.0.0-server
+    #     restart: always
+    #     ports:
+    #         - ${SERVICE_PORT}:${SERVICE_PORT}
+    #     volumes:
+    #         - ./templates:/etc/rauth/smtp/templates:ro
+    #     security_opt:
+    #         label: disable
+    #     depends_on: 
+    #         - postgres
+    #         - redis
+    #     env_file:
+    #         - .env
 
-    envoy:
-        container_name: rauth-envoy
-        image: docker.io/envoyproxy/envoy-alpine:v1.21-latest
-        restart: always
-        ports:
-            - 8080:8080
-            - 9901:9901
-        volumes:
-            - ./envoy:/etc/envoy:ro
-        security_opt:
-            label: disable
-        depends_on: 
-            - rauth
-        command: /usr/local/bin/envoy --log-level debug -c /etc/envoy/envoy.yaml
+    # envoy:
+    #     container_name: rauth-envoy
+    #     image: docker.io/envoyproxy/envoy-alpine:v1.21-latest
+    #     restart: always
+    #     ports:
+    #         - 8081:8080
+    #         - 9901:9901
+    #     volumes:
+    #         - ./envoy:/etc/envoy:ro
+    #     security_opt:
+    #         label: disable
+    #     depends_on: 
+    #         - rauth
+    #     command: /usr/local/bin/envoy --log-level debug -c /etc/envoy/envoy.yaml
 
     nginx:
         container_name: rauth-nginx
         image: localhost/alvidir/rauth:1.0.0-nginx
         restart: always
         ports:
-            - 9080:80
-            - 9443:443
+            - 8080:80
+            - 8443:443
         volumes:
             - ./nginx:/etc/nginx/conf.d:ro
         security_opt:
