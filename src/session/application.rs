@@ -2,7 +2,7 @@ use std::time::Duration;
 use std::error::Error;
 use std::sync::Arc;
 use crate::security::WithOwnedId;
-use super::domain::SessionToken;
+use super::domain::Token;
 use crate::user::application::UserRepository;
 use crate::secret::application::SecretRepository;
 use crate::regex;
@@ -50,7 +50,7 @@ impl<T: TokenRepository, U: UserRepository, E: SecretRepository> SessionApplicat
             }
         }
 
-        let sess = SessionToken::new(
+        let sess = Token::new_session(
             constants::TOKEN_ISSUER,
             &user.get_id().to_string(),
             Duration::from_secs(self.timeout)
@@ -70,7 +70,7 @@ impl<T: TokenRepository, U: UserRepository, E: SecretRepository> SessionApplicat
     pub fn logout(&self, token: &str, jwt_public: &[u8]) -> Result<(), Box<dyn Error>> {
         info!("got a \"logout\" request for token {} ", token);  
 
-        let claims: SessionToken = util::verify_token(self.token_repo.clone(), token, jwt_public)?;
+        let claims: Token = util::verify_token(self.token_repo.clone(), token, jwt_public)?;
 
         self.token_repo.delete(&claims.get_id())
             .map_err(|err| {
@@ -141,7 +141,7 @@ pub mod tests {
     use super::{TokenRepository, SessionApplication};
     use super::super::domain::{
         tests::new_session_token,
-        SessionToken,
+        Token,
     };
 
     const JWT_SECRET: &[u8] = b"LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR0hBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJHMHdhd0lCQVFRZy9JMGJTbVZxL1BBN2FhRHgKN1FFSGdoTGxCVS9NcWFWMUJab3ZhM2Y5aHJxaFJBTkNBQVJXZVcwd3MydmlnWi96SzRXcGk3Rm1mK0VPb3FybQpmUlIrZjF2azZ5dnBGd0gzZllkMlllNXl4b3ZsaTROK1ZNNlRXVFErTmVFc2ZmTWY2TkFBMloxbQotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg==";
@@ -220,7 +220,7 @@ pub mod tests {
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let token = app.login(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD, "", &jwt_secret).unwrap();
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
-        let session: SessionToken = security::verify_jwt(&jwt_public, &token).unwrap();
+        let session: Token = security::verify_jwt(&jwt_public, &token).unwrap();
 
         assert_eq!(session.sub, TEST_FIND_BY_EMAIL_ID.to_string());
     }
@@ -239,7 +239,7 @@ pub mod tests {
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let token = app.login(TEST_DEFAULT_USER_NAME, TEST_DEFAULT_USER_PASSWORD, "", &jwt_secret).unwrap();
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
-        let session: SessionToken = security::verify_jwt(&jwt_public, &token).unwrap();
+        let session: Token = security::verify_jwt(&jwt_public, &token).unwrap();
         
         assert_eq!(session.sub, TEST_FIND_BY_NAME_ID.to_string());
     }
@@ -251,7 +251,7 @@ pub mod tests {
         let code = security::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes()).unwrap().generate();
         let token = app.login(TEST_DEFAULT_USER_NAME, TEST_DEFAULT_USER_PASSWORD, &code, &jwt_secret).unwrap();
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
-        let session: SessionToken = security::verify_jwt(&jwt_public, &token).unwrap();
+        let session: Token = security::verify_jwt(&jwt_public, &token).unwrap();
         
         assert_eq!(session.sub, TEST_FIND_BY_NAME_ID.to_string());
     }

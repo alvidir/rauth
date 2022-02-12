@@ -3,7 +3,7 @@ use std::time::{SystemTime, Duration};
 use std::sync::Arc;
 use crate::session::{
     application::{TokenRepository, util::verify_token},
-    domain::{VerificationToken, SessionToken}
+    domain::Token
 };
 use crate::secret::{
     application::SecretRepository,
@@ -44,14 +44,14 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
         }
 
         User::new(email, pwd)?;
-        let token_to_store = VerificationToken::new(
+        let token_to_store = Token::new_verification(
             constants::TOKEN_ISSUER,
             email,
             pwd,
             Duration::from_secs(self.timeout)
         );
 
-        let token_to_send = SessionToken::new(
+        let token_to_send = Token::new_session(
             constants::TOKEN_ISSUER,
             &token_to_store.get_id(),
             Duration::from_secs(self.timeout)
@@ -66,7 +66,7 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
     }
 
     pub fn secure_signup(&self, token: &str, jwt_public: &[u8])  -> Result<i32, Box<dyn Error>> {
-        let claims: SessionToken = security::verify_jwt(jwt_public, token)
+        let claims: Token = security::verify_jwt(jwt_public, token)
             .map_err(|err| {
                 warn!("{} verifying session token: {}", constants::ERR_VERIFY_TOKEN, err);
                 constants::ERR_VERIFY_TOKEN
@@ -78,10 +78,12 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
                 constants::ERR_VERIFY_TOKEN
             })?;
 
-        let claims: VerificationToken = verify_token(self.token_repo.clone(), &token, jwt_public)?;
-        let user_id = self.signup(&claims.sub, &claims.pwd)?;
-        if let Err(err) = self.token_repo.delete(&claims.get_id()) {
-            error!("{} failed to remove token with id {}: {}", constants::ERR_UNKNOWN, claims.get_id(), err);
+        let claims: Token = verify_token(self.token_repo.clone(), &token, jwt_public)?;
+        let token_id = claims.get_id();
+        let password = &claims.pwd.ok_or(constants::ERR_MALFORMED_TOKEN)?;
+        let user_id = self.signup(&claims.sub, password)?;
+        if let Err(err) = self.token_repo.delete(&token_id) {
+            error!("{} failed to remove token with id {}: {}", constants::ERR_UNKNOWN, token_id, err);
         }
         
         Ok(user_id)
@@ -99,7 +101,7 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
     }
 
     pub fn secure_delete(&self, pwd: &str, totp: &str, token: &str, jwt_public: &[u8]) -> Result<(), Box<dyn Error>> {
-        let claims: SessionToken = verify_token(self.token_repo.clone(), token, jwt_public)?;
+        let claims: Token = verify_token(self.token_repo.clone(), token, jwt_public)?;
         let user_id = claims.sub.parse()
             .map_err(|err| {
                 warn!("{} failed to parse str to i32: {}", constants::ERR_PARSE_TOKEN, err);
@@ -138,7 +140,7 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
     }
 
     pub fn secure_enable_totp(&self, pwd: &str, totp: &str, token: &str, jwt_public: &[u8]) -> Result<String, Box<dyn Error>> {
-        let claims: SessionToken = verify_token(self.token_repo.clone(), token, jwt_public)?;
+        let claims: Token = verify_token(self.token_repo.clone(), token, jwt_public)?;
         let user_id = claims.sub.parse()
             .map_err(|err| {
                 warn!("{} failed to parse str to i32: {}", constants::ERR_PARSE_TOKEN, err);
@@ -181,7 +183,7 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
     }
 
     pub fn secure_disable_totp(&self, pwd: &str, totp: &str, token: &str, jwt_public: &[u8]) -> Result<(), Box<dyn Error>> {
-        let claims: SessionToken = verify_token(self.token_repo.clone(), token, jwt_public)?;
+        let claims: Token = verify_token(self.token_repo.clone(), token, jwt_public)?;
         let user_id = claims.sub.parse()
             .map_err(|err| {
                 warn!("{} failed to parse str to i32: {}", constants::ERR_PARSE_TOKEN, err);
@@ -241,7 +243,7 @@ pub mod tests {
     use crate::security::WithOwnedId;
     use crate::session::{
         application::tests::TokenRepositoryMock,
-        domain::{VerificationToken, SessionToken},
+        domain::Token,
     };
     use crate::smtp::{
         tests::MailerMock,
@@ -421,14 +423,14 @@ pub mod tests {
             Err("overrided".into())
         });
 
-        let verif_token = VerificationToken::new(
+        let verif_token = Token::new_verification(
             "test",
             TEST_DEFAULT_USER_EMAIL,
             TEST_DEFAULT_USER_PASSWORD,
             Duration::from_secs(60),
         );
 
-        let sess_token = SessionToken::new(
+        let sess_token = Token::new_session(
             "test",
             &verif_token.get_id(),
             Duration::from_secs(60)
@@ -442,7 +444,7 @@ pub mod tests {
         token_repo.token = secure_verif_token.clone();
         token_repo.fn_find = Some(|this: &TokenRepositoryMock, tid: &str| -> Result<String, Box<dyn Error>> {
             let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
-            let claims: VerificationToken = security::verify_jwt(&jwt_public, &this.token)?;
+            let claims: Token = security::verify_jwt(&jwt_public, &this.token)?;
             assert_eq!(claims.get_id(), tid);
             
             Ok(this.token.clone())
@@ -458,10 +460,40 @@ pub mod tests {
     }
 
     #[test]
+    fn user_secure_signup_malformed_token_should_fail() {
+        let mut user_repo = UserRepositoryMock::new();
+        user_repo.fn_find_by_email = Some(|_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
+            Err("overrided".into())
+        });
+
+        let token = Token::new_session(
+            "test",
+            "test",
+            Duration::from_secs(60)
+        );
+
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
+
+        let mut token_repo = TokenRepositoryMock::new();
+        token_repo.token = secure_token.clone();
+        token_repo.fn_find = Some(|this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {        
+            Ok(this.token.clone())
+        });
+
+        let mut app = new_user_application();
+        app.user_repo = Arc::new(user_repo);
+        app.token_repo = Arc::new(token_repo);
+
+        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();        
+        assert!(app.secure_signup(&secure_token, &jwt_public).is_err());
+    }
+
+    #[test]
     fn user_secure_signup_invalid_token_should_fail() {
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
-        let token = VerificationToken::new(
+        let token = Token::new_verification(
             "test",
             TEST_DEFAULT_USER_EMAIL,
             TEST_DEFAULT_USER_PASSWORD,
@@ -475,7 +507,7 @@ pub mod tests {
 
     #[test]
     fn user_secure_signup_expired_token_should_fail() {
-        let mut token = VerificationToken::new(
+        let mut token = Token::new_verification(
             "test",
             TEST_DEFAULT_USER_EMAIL,
             TEST_DEFAULT_USER_PASSWORD,
@@ -501,7 +533,7 @@ pub mod tests {
 
     #[test]
     fn user_secure_signup_wrong_token_should_fail() {
-        let mut token = VerificationToken::new(
+        let mut token = Token::new_verification(
             "test",
             TEST_DEFAULT_USER_EMAIL,
             TEST_DEFAULT_USER_PASSWORD,
@@ -558,7 +590,7 @@ pub mod tests {
             Err("overrided".into())
         });
 
-        let token = SessionToken::new("test", "0", Duration::from_secs(60));
+        let token = Token::new_session("test", "0", Duration::from_secs(60));
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
@@ -642,7 +674,7 @@ pub mod tests {
             Err("overrided".into())
         });
 
-        let token = SessionToken::new("test", "0", Duration::from_secs(60));
+        let token = Token::new_session("test", "0", Duration::from_secs(60));
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
@@ -733,7 +765,7 @@ pub mod tests {
 
     #[test]
     fn user_secure_disable_totp_should_not_fail() {
-        let token = SessionToken::new("test", "0", Duration::from_secs(60));
+        let token = Token::new_session("test", "0", Duration::from_secs(60));
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
