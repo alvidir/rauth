@@ -219,6 +219,36 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
 
         Err(constants::ERR_NOT_FOUND.into())
     }
+
+    pub fn reset_password(&self, user_id: i32, new_pwd: &str, totp: &str) -> Result<(), Box<dyn Error>> {
+        info!("got a \"reset password\" request for user_id {} ", user_id);        
+        
+        let mut user = self.user_repo.find(user_id)?;
+        if user.match_password(new_pwd) {
+            return Err(constants::ERR_INVALID_OPTION.into());
+        }
+
+        // if, and only if, the user has activated the totp
+        if let Ok(secret) = self.secret_repo.find_by_user_and_name(user.get_id(), constants::TOTP_SECRET_NAME) {
+            if !secret.is_deleted() {                
+                if totp.len() == 0 {
+                    return Err(constants::ERR_UNAUTHORIZED.into());
+                }
+    
+                let data = secret.get_data();
+                if !security::verify_totp(data, totp)? {
+                    return Err(constants::ERR_UNAUTHORIZED.into());
+                }
+            }
+        }
+
+        user.password = new_pwd.to_string();
+        self.user_repo.save(&user)
+            .map_err(|err| {
+                error!("{} failed to save user with id {}: {}", constants::ERR_UNKNOWN, user_id, err);
+                constants::ERR_UNKNOWN.into()
+            })
+    }
 }
 
 #[cfg(test)]

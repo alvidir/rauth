@@ -100,7 +100,7 @@ impl<'a, M: MetadataRepository> UserRepository for PostgresUserRepository<'a, M>
         };
 
         if results.len() == 0 {
-            return Err(Box::new(NotFound));
+            return Err(NotFound.into());
         }
     
         self.build(&results[0]) // another connection consumed here
@@ -116,7 +116,7 @@ impl<'a, M: MetadataRepository> UserRepository for PostgresUserRepository<'a, M>
         };
 
         if results.len() == 0 {
-            return Err(Box::new(NotFound));
+            return Err(NotFound.into());
         }
     
         self.build(&results[0]) // another connection consumed here
@@ -132,7 +132,7 @@ impl<'a, M: MetadataRepository> UserRepository for PostgresUserRepository<'a, M>
         };
 
         if results.len() == 0 {
-            return Err(Box::new(NotFound));
+            return Err(NotFound.into());
         }
     
         self.build(&results[0]) // another connection consumed here

@@ -7,6 +7,7 @@ use crate::constants;
 
 pub trait Mailer {
     fn send_verification_email(&self, to: &str, token: &str) ->  Result<(), Box<dyn Error>>;
+    fn send_reset_password(&self, to: &str, token: &str) ->  Result<(), Box<dyn Error>>;
 }
 
 pub struct Smtp<'a> {
@@ -57,8 +58,18 @@ impl<'a> Mailer for Smtp<'a> {
         context.insert("name", email.split("@").collect::<Vec<&str>>()[0]);
         context.insert("token", &base64::encode(token));
 
-        const SUBJECT: &str = constants::VERIFICATION_EMAIL_SUBJECT;
-        let body = self.tera.render(constants::VERIFICATION_EMAIL_TEMPLATE, &context)?;
+        const SUBJECT: &str = constants::EMAIL_VERIFICATION_SUBJECT;
+        let body = self.tera.render(constants::EMAIL_VERIFICATION_TEMPLATE, &context)?;
+        self.send_email(email, &SUBJECT, body)
+    }
+
+    fn send_reset_password(&self, email: &str, token: &str) ->  Result<(), Box<dyn Error>> {
+        let mut context = Context::new();
+        context.insert("name", email.split("@").collect::<Vec<&str>>()[0]);
+        context.insert("token", &base64::encode(token));
+
+        const SUBJECT: &str = constants::EMAIL_RESET_PASSWORD_SUBJECT;
+        let body = self.tera.render(constants::EMAIL_RESET_PASSWORD_TEMPLATE, &context)?;
         self.send_email(email, &SUBJECT, body)
     }
 }
@@ -82,6 +93,14 @@ pub mod tests {
 
     impl Mailer for MailerMock {
         fn send_verification_email(&self, _: &str, _: &str) -> Result<(), Box<dyn Error>> {
+            if self.force_fail {
+                return Err("fail forced".into());
+            }
+
+            Ok(())
+        }
+
+        fn send_reset_password(&self, _: &str, _: &str) ->  Result<(), Box<dyn Error>> {
             if self.force_fail {
                 return Err("fail forced".into());
             }
