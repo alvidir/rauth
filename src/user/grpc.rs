@@ -6,9 +6,10 @@ use crate::secret::application::SecretRepository;
 use crate::smtp::Mailer;
 use crate::session::{
     grpc::util::get_token,
-    application::TokenRepository,
-    domain::TokenKind
+    application::TokenRepository
 };
+
+const RESET_ACTION_PWD: i32 = 0;
 
 const TOTP_ACTION_ENABLE: i32 = 0;
 const TOTP_ACTION_DISABLE: i32 = 1;
@@ -23,7 +24,7 @@ use proto::user_server::User;
 pub use proto::user_server::UserServer;
 
 // Proto message structs
-use proto::{SignupRequest, ResetPasswordRequest, DeleteRequest, TotpRequest, Empty};
+use proto::{SignupRequest, ResetRequest, DeleteRequest, TotpRequest, Empty};
 
 pub struct UserImplementation<
     U: UserRepository + Sync + Send,
@@ -53,7 +54,7 @@ impl<
             let shadowed_pwd = security::shadow(&msg_ref.pwd, self.pwd_sufix);
 
             if !self.allow_unverified {
-                self.user_app.verify_request(TokenKind::Verification, &msg_ref.email, &shadowed_pwd, self.jwt_secret)
+                self.user_app.verify_signup_email(&msg_ref.email, &shadowed_pwd, self.jwt_secret)
                     .map_err(|err| {
                         error!("{}: {}", constants::ERR_SEND_EMAIL, err);
                         Status::aborted(constants::ERR_SEND_EMAIL)
@@ -75,8 +76,34 @@ impl<
         }
     }
 
-    async fn reset_password(&self, _: Request<ResetPasswordRequest>) -> Result<Response<Empty>, Status> {
-        return Err(Status::unimplemented("not implemented".to_string()));
+    async fn reset(&self, request: Request<ResetRequest>) -> Result<Response<Empty>, Status> {
+        if request.metadata().get(self.jwt_header).is_none() {
+            // only 'reset password' requests may have no token
+            let msg_ref = request.into_inner();
+            if msg_ref.action != RESET_ACTION_PWD {
+                return Err(Status::aborted(constants::ERR_UNAUTHORIZED));
+            }
+
+            self.user_app.verify_reset_pwd_email(&msg_ref.email, self.jwt_secret)
+                .map_err(|err| {
+                    error!("{}: {}", constants::ERR_SEND_EMAIL, err);
+                    Status::aborted(constants::ERR_SEND_EMAIL)
+                })?;
+            
+            return Err(Status::failed_precondition(constants::ERR_UNVERIFIED))
+        }
+
+        let token = get_token(&request, self.jwt_header)?;
+        let msg_ref = request.into_inner();
+        if msg_ref.action == RESET_ACTION_PWD {
+            let shadowed_pwd = security::shadow(&msg_ref.pwd, self.pwd_sufix);
+            match self.user_app.secure_reset_pwd(&shadowed_pwd, &msg_ref.totp, &token, self.jwt_public) {
+                Err(err) => return Err(Status::aborted(err.to_string())),
+                Ok(_) => return Ok(Response::new(Empty{})),
+            }
+        }
+
+        Err(Status::invalid_argument(constants::ERR_INVALID_OPTION))
     }
 
     async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<Empty>, Status> {

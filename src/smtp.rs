@@ -7,7 +7,7 @@ use crate::constants;
 
 pub trait Mailer {
     fn send_verification_email(&self, to: &str, token: &str) ->  Result<(), Box<dyn Error>>;
-    fn send_reset_password(&self, to: &str, token: &str) ->  Result<(), Box<dyn Error>>;
+    fn send_reset_pwd_email(&self, to: &str, token: &str) ->  Result<(), Box<dyn Error>>;
 }
 
 pub struct Smtp<'a> {
@@ -63,7 +63,7 @@ impl<'a> Mailer for Smtp<'a> {
         self.send_email(email, &SUBJECT, body)
     }
 
-    fn send_reset_password(&self, email: &str, token: &str) ->  Result<(), Box<dyn Error>> {
+    fn send_reset_pwd_email(&self, email: &str, token: &str) ->  Result<(), Box<dyn Error>> {
         let mut context = Context::new();
         context.insert("name", email.split("@").collect::<Vec<&str>>()[0]);
         context.insert("token", &base64::encode(token));
@@ -100,7 +100,7 @@ pub mod tests {
             Ok(())
         }
 
-        fn send_reset_password(&self, _: &str, _: &str) ->  Result<(), Box<dyn Error>> {
+        fn send_reset_pwd_email(&self, _: &str, _: &str) ->  Result<(), Box<dyn Error>> {
             if self.force_fail {
                 return Err("fail forced".into());
             }

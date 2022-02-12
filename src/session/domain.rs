@@ -9,7 +9,7 @@ use crate::time;
 pub enum TokenKind {
     Session = 0,
     Verification = 1,
-    ResetPwd = 2
+    Reset = 2,
 }
 
 #[derive(Serialize, Deserialize, Hash, PartialEq, Eq)]
@@ -63,7 +63,7 @@ impl Token {
         token
     }
 
-    pub fn new_reset_password(iss: &str, sub: &str, timeout: Duration) -> Self {
+    pub fn new_reset(iss: &str, sub: &str, timeout: Duration) -> Self {
         let mut token = Token {
             jti: rand::thread_rng().gen::<u64>().to_string(), // noise
             exp: time::unix_timestamp(SystemTime::now() + timeout),
@@ -71,7 +71,7 @@ impl Token {
             iat: SystemTime::now(),
             iss: iss.to_string(),
             sub: sub.to_string(),
-            knd: TokenKind::ResetPwd,
+            knd: TokenKind::Reset,
             pwd: None,
         };
 
@@ -166,8 +166,8 @@ pub mod tests {
 
         let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
 
-        let claim = Token::new_reset_password(ISS, &SUB.to_string(), timeout);
-        assert_eq!(claim.knd, TokenKind::ResetPwd);
+        let claim = Token::new_reset(ISS, &SUB.to_string(), timeout);
+        assert_eq!(claim.knd, TokenKind::Reset);
     }
 
     #[test]

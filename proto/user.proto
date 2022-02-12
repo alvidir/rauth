@@ -7,9 +7,15 @@ message SignupRequest {
   string pwd = 2;
 }
 
-message ResetPasswordRequest {
-  string old = 1;
-  string new = 2;
+message ResetRequest {
+  enum actions {
+    PWD = 0;
+  };
+
+  actions action = 1;
+  string email = 2;
+  string pwd = 3;
+  string totp = 4;
 }
 
 message DeleteRequest {
@@ -32,7 +38,7 @@ message Empty {}
 
 service User {
   rpc Signup(user.SignupRequest) returns (Empty);
-  rpc ResetPassword(user.ResetPasswordRequest) returns (Empty);
+  rpc Reset(user.ResetRequest) returns (Empty);
   rpc Delete(user.DeleteRequest) returns (Empty);
   rpc Totp(user.TotpRequest) returns (Empty);
 }

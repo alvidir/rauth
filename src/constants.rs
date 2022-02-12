@@ -4,7 +4,7 @@ pub const TOKEN_ISSUER: &str = "rauth.alvidir.com";
 pub const EMAIL_VERIFICATION_SUBJECT: &str = "Email verification";
 pub const EMAIL_VERIFICATION_TEMPLATE: &str = "verification_email.html";
 pub const EMAIL_RESET_PASSWORD_SUBJECT: &str = "Reset password";
-pub const EMAIL_RESET_PASSWORD_TEMPLATE: &str = "reset_password_email.html";
+pub const EMAIL_RESET_PASSWORD_TEMPLATE: &str = "reset_pwd_email.html";
 
 pub const ERR_NOT_FOUND: &str = "E-001";
 pub const ERR_UNAUTHORIZED: &str = "E-002";
