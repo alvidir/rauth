@@ -33,7 +33,7 @@ setup:
 	python3 scripts/build_db_setup_script.py
 
 deploy:
-	podman-compose  -f docker-compose.yaml up -d
+	podman-compose  -f docker-compose.yaml up --remove-orphans -d
 
 logs:
 	podman logs --follow --names rauth-server

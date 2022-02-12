@@ -48,9 +48,7 @@ static_resources:
         - lb_endpoints:
             - endpoint:
                 address:
-                  socket_address:
-                    address: rauth-server
-                    port_value: 8000
+                  socket_address: {address: rauth-server, port_value: 8000}
 
 layered_runtime:
   layers:

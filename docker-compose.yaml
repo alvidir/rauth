@@ -13,12 +13,17 @@ services:
     #     env_file:
     #         - ".env"
             
-    redis:
-        container_name: rauth-redis
-        image: docker.io/redis:alpine3.15
-        restart: always
-        # ports:
-        #     - 6379:6379
+    # redis:
+    #     container_name: rauth-redis
+    #     image: docker.io/redis:alpine3.15
+    #     restart: always
+    #     # ports:
+    #     #     - 6379:6379
+    #     volumes:
+    #         - ./redis:/usr/local/etc/redis:ro
+    #     security_opt:
+    #         label: disable
+    #     command: "redis-server /usr/local/etc/redis/redis.conf"
 
     # rauth:
     #     container_name: rauth-server
