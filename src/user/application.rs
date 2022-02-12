@@ -218,7 +218,7 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
         Err(constants::ERR_NOT_FOUND.into())
     }
 
-    pub fn verify_reset_pwd_email(&self, email: &str, jwt_secret: &[u8]) -> Result<(), Box<dyn Error>> {
+    pub fn verify_reset_email(&self, email: &str, jwt_secret: &[u8]) -> Result<(), Box<dyn Error>> {
         let user = self.user_repo.find_by_email(email)?;
         let token = Token::new_reset(
             constants::TOKEN_ISSUER,
@@ -233,7 +233,7 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
         Ok(())
     }
 
-    pub fn secure_reset_pwd(&self, new_pwd: &str, totp: &str, token: &str, jwt_public: &[u8])  -> Result<(), Box<dyn Error>> {
+    pub fn secure_reset(&self, new_pwd: &str, totp: &str, token: &str, jwt_public: &[u8])  -> Result<(), Box<dyn Error>> {
         let claims: Token = verify_token(self.token_repo.clone(), token, jwt_public)?;
         let user_id = claims.sub.parse()
             .map_err(|err| {
@@ -241,7 +241,7 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
                 constants::ERR_PARSE_TOKEN
             })?;
 
-        self.reset_pwd(user_id, new_pwd, totp)?;
+        self.reset(user_id, new_pwd, totp)?;
         if let Err(err) = self.token_repo.delete(&claims.get_id()) {
             error!("{} failed to remove token with id {}: {}", constants::ERR_UNKNOWN, claims.get_id(), err);
         }
@@ -249,7 +249,7 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
         Ok(())
     }
 
-    pub fn reset_pwd(&self, user_id: i32, new_pwd: &str, totp: &str) -> Result<(), Box<dyn Error>> {
+    pub fn reset(&self, user_id: i32, new_pwd: &str, totp: &str) -> Result<(), Box<dyn Error>> {
         info!("got a \"reset password\" request for user_id {} ", user_id);        
         
         let mut user = self.user_repo.find(user_id)?;

@@ -8,14 +8,9 @@ message SignupRequest {
 }
 
 message ResetRequest {
-  enum actions {
-    PWD = 0;
-  };
-
-  actions action = 1;
-  string email = 2;
-  string pwd = 3;
-  string totp = 4;
+  string email = 1;
+  string pwd = 2;
+  string totp = 3;
 }
 
 message DeleteRequest {
