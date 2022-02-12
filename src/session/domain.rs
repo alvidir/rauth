@@ -7,9 +7,9 @@ use crate::time;
 
 #[derive(Serialize, Deserialize, Hash, PartialEq, Eq, Debug)]
 pub enum TokenKind {
-    SESSION = 0,
-    VERIFICATION = 1,
-    RESET = 2
+    Session = 0,
+    Verification = 1,
+    ResetPwd = 2
 }
 
 #[derive(Serialize, Deserialize, Hash, PartialEq, Eq)]
@@ -33,7 +33,7 @@ impl Token {
             iat: SystemTime::now(),
             iss: iss.to_string(),
             sub: sub.to_string(),
-            knd: TokenKind::SESSION,
+            knd: TokenKind::Session,
             pwd: None,
         };
 
@@ -53,7 +53,7 @@ impl Token {
             iat: SystemTime::now(),
             iss: iss.to_string(),
             sub: email.to_string(),
-            knd: TokenKind::VERIFICATION,
+            knd: TokenKind::Verification,
             pwd: Some(pwd.to_string()),
         };
 
@@ -63,7 +63,7 @@ impl Token {
         token
     }
 
-    pub fn new_reset(iss: &str, sub: &str, timeout: Duration) -> Self {
+    pub fn new_reset_password(iss: &str, sub: &str, timeout: Duration) -> Self {
         let mut token = Token {
             jti: rand::thread_rng().gen::<u64>().to_string(), // noise
             exp: time::unix_timestamp(SystemTime::now() + timeout),
@@ -71,7 +71,7 @@ impl Token {
             iat: SystemTime::now(),
             iss: iss.to_string(),
             sub: sub.to_string(),
-            knd: TokenKind::RESET,
+            knd: TokenKind::ResetPwd,
             pwd: None,
         };
 
@@ -144,7 +144,7 @@ pub mod tests {
         let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
 
         let claim = Token::new_session(ISS, &SUB.to_string(), timeout);
-        assert_eq!(claim.knd, TokenKind::SESSION);
+        assert_eq!(claim.knd, TokenKind::Session);
     }
 
     #[test]
@@ -156,7 +156,7 @@ pub mod tests {
         let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
 
         let claim = Token::new_verification(ISS, &SUB.to_string(), PWD, timeout);
-        assert_eq!(claim.knd, TokenKind::VERIFICATION);
+        assert_eq!(claim.knd, TokenKind::Verification);
     }
 
     #[test]
@@ -166,8 +166,8 @@ pub mod tests {
 
         let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
 
-        let claim = Token::new_reset(ISS, &SUB.to_string(), timeout);
-        assert_eq!(claim.knd, TokenKind::RESET);
+        let claim = Token::new_reset_password(ISS, &SUB.to_string(), timeout);
+        assert_eq!(claim.knd, TokenKind::ResetPwd);
     }
 
     #[test]

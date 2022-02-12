@@ -3,7 +3,7 @@ use std::time::{SystemTime, Duration};
 use std::sync::Arc;
 use crate::session::{
     application::{TokenRepository, util::verify_token},
-    domain::Token
+    domain::{Token, TokenKind}
 };
 use crate::secret::{
     application::SecretRepository,
@@ -34,9 +34,7 @@ pub struct UserApplication<U: UserRepository, E: SecretRepository, T: TokenRepos
 }
 
 impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> UserApplication<U, E, T, M> {
-    pub fn verify_user(&self, email: &str, pwd: &str, jwt_secret: &[u8]) -> Result<(), Box<dyn Error>> {
-        info!("sending a verification email to {} ", email);
-        
+    fn verify_user_email(&self, email: &str, pwd: &str, jwt_secret: &[u8]) -> Result<(), Box<dyn Error>> {
         if self.user_repo.find_by_email(email).is_ok() {
             // returns Ok to not provide information about users
             info!("user with email {} already exists, no email sent", email);
@@ -63,6 +61,31 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
         let token_to_send = security::sign_jwt(jwt_secret, token_to_send)?;
         self.mailer.send_verification_email(email, &token_to_send)?;
         Ok(())
+    }
+
+    fn verify_reset_password(&self, email: &str, jwt_secret: &[u8]) -> Result<(), Box<dyn Error>> {
+        let user = self.user_repo.find_by_email(email)?;
+        let token = Token::new_reset_password(
+            constants::TOKEN_ISSUER,
+            &user.get_id().to_string(),
+            Duration::from_secs(self.timeout)
+        );
+
+        let key = token.get_id();
+        let secure_token = security::sign_jwt(jwt_secret, token)?;
+        self.token_repo.save(&key, &secure_token, Some(self.timeout))?;
+        self.mailer.send_reset_password(email, &secure_token)?;
+        Ok(())
+    }
+
+    pub fn verify_request(&self, kind: TokenKind, email: &str, pwd: &str, jwt_secret: &[u8]) -> Result<(), Box<dyn Error>> {
+        info!("sending a verification email to {} ", email);
+    
+        match kind {
+            TokenKind::Session => Err(constants::ERR_INVALID_OPTION.into()),
+            TokenKind::Verification => self.verify_user_email(email, pwd, jwt_secret),
+            TokenKind::ResetPwd => self.verify_reset_password(email, jwt_secret),
+        }
     }
 
     pub fn secure_signup(&self, token: &str, jwt_public: &[u8])  -> Result<i32, Box<dyn Error>> {
@@ -220,6 +243,17 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
         Err(constants::ERR_NOT_FOUND.into())
     }
 
+    pub fn secure_reset_password(&self, new_pwd: &str, totp: &str, token: &str, jwt_public: &[u8])  -> Result<(), Box<dyn Error>> {
+        let claims: Token = verify_token(self.token_repo.clone(), token, jwt_public)?;
+        let user_id = claims.sub.parse()
+            .map_err(|err| {
+                warn!("{} failed to parse str to i32: {}", constants::ERR_PARSE_TOKEN, err);
+                constants::ERR_PARSE_TOKEN
+            })?;
+
+        self.reset_password(user_id, new_pwd, totp)
+    }
+
     pub fn reset_password(&self, user_id: i32, new_pwd: &str, totp: &str) -> Result<(), Box<dyn Error>> {
         info!("got a \"reset password\" request for user_id {} ", user_id);        
         
@@ -273,7 +307,7 @@ pub mod tests {
     use crate::security::WithOwnedId;
     use crate::session::{
         application::tests::TokenRepositoryMock,
-        domain::Token,
+        domain::{Token, TokenKind},
     };
     use crate::smtp::{
         tests::MailerMock,
@@ -389,14 +423,14 @@ pub mod tests {
         app.user_repo = Arc::new(user_repo);
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
-        app.verify_user(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD, &jwt_secret).unwrap();
+        app.verify_request(TokenKind::Verification, TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD, &jwt_secret).unwrap();
     }
 
     #[test]
     fn user_verify_already_exists_should_not_fail() {
         let app = new_user_application();
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
-        app.verify_user(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD, &jwt_secret).unwrap();
+        app.verify_request(TokenKind::Verification, TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD, &jwt_secret).unwrap();
     }
 
     #[test]
@@ -410,7 +444,7 @@ pub mod tests {
         app.user_repo = Arc::new(user_repo);
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
-        assert!(app.verify_user("this is not an email", TEST_DEFAULT_USER_PASSWORD, &jwt_secret).is_err());
+        assert!(app.verify_request(TokenKind::Verification, "this is not an email", TEST_DEFAULT_USER_PASSWORD, &jwt_secret).is_err());
     }
 
     #[test]
@@ -424,7 +458,7 @@ pub mod tests {
         app.user_repo = Arc::new(user_repo);
         
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
-        assert!(app.verify_user(TEST_DEFAULT_USER_EMAIL, "bad password", &jwt_secret).is_err());
+        assert!(app.verify_request(TokenKind::Verification, TEST_DEFAULT_USER_EMAIL, "bad password", &jwt_secret).is_err());
     }
 
     #[test]
@@ -443,7 +477,7 @@ pub mod tests {
         app.mailer = Arc::new(mailer_mock);
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
-        assert!(app.verify_user(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD, &jwt_secret).is_err());
+        assert!(app.verify_request(TokenKind::Verification, TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD, &jwt_secret).is_err());
     }
 
     #[test]

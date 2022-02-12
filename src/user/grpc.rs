@@ -6,7 +6,8 @@ use crate::secret::application::SecretRepository;
 use crate::smtp::Mailer;
 use crate::session::{
     grpc::util::get_token,
-    application::TokenRepository
+    application::TokenRepository,
+    domain::TokenKind
 };
 
 const TOTP_ACTION_ENABLE: i32 = 0;
@@ -52,7 +53,7 @@ impl<
             let shadowed_pwd = security::shadow(&msg_ref.pwd, self.pwd_sufix);
 
             if !self.allow_unverified {
-                self.user_app.verify_user(&msg_ref.email, &shadowed_pwd, self.jwt_secret)
+                self.user_app.verify_request(TokenKind::Verification, &msg_ref.email, &shadowed_pwd, self.jwt_secret)
                     .map_err(|err| {
                         error!("{}: {}", constants::ERR_SEND_EMAIL, err);
                         Status::aborted(constants::ERR_SEND_EMAIL)
