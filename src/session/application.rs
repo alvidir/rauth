@@ -1,13 +1,13 @@
 use std::time::Duration;
 use std::error::Error;
 use std::sync::Arc;
-use crate::security::WithOwnedId;
-use super::domain::Token;
+use super::domain::{Token, TokenKind};
 use crate::user::application::UserRepository;
 use crate::secret::application::SecretRepository;
 use crate::regex;
 use crate::constants;
 use crate::security;
+use util::WithDefinition;
 
 pub trait TokenRepository {
     fn find(&self, key: &str) -> Result<String, Box<dyn Error>>;
@@ -24,7 +24,7 @@ pub struct SessionApplication<T: TokenRepository, U: UserRepository, E: SecretRe
 
 impl<T: TokenRepository, U: UserRepository, E: SecretRepository> SessionApplication<T, U, E> {
     pub fn login(&self, ident: &str, pwd: &str, totp: &str, jwt_secret: &[u8]) -> Result<String, Box<dyn Error>> {
-        info!("got a \"login\" request from email {} ", ident);        
+        info!("got a \"login\" request from identity {} ", ident);        
         
         let user = if regex::match_regex(regex::EMAIL, ident).is_ok() {
             self.user_repo.find_by_email(ident)?
@@ -33,16 +33,12 @@ impl<T: TokenRepository, U: UserRepository, E: SecretRepository> SessionApplicat
         };
 
         if !user.match_password(pwd) {
-            return Err(constants::ERR_NOT_FOUND.into());
+            return Err(constants::ERR_WRONG_CREDENTIALS.into());
         }
 
         // if, and only if, the user has activated the totp
         if let Ok(secret) = self.secret_repo.find_by_user_and_name(user.get_id(), constants::TOTP_SECRET_NAME) {
             if !secret.is_deleted() {                
-                if totp.len() == 0 {
-                    return Err(constants::ERR_UNAUTHORIZED.into());
-                }
-    
                 let data = secret.get_data();
                 if !security::verify_totp(data, totp)? {
                     return Err(constants::ERR_UNAUTHORIZED.into());
@@ -57,11 +53,7 @@ impl<T: TokenRepository, U: UserRepository, E: SecretRepository> SessionApplicat
         );
 
         let key = sess.get_id();
-        let token = security::sign_jwt(jwt_secret, sess)
-            .map_err(|err| {
-                error!("{}: {}", constants::ERR_SIGN_TOKEN, err);
-                constants::ERR_SIGN_TOKEN
-            })?;
+        let token = security::sign_jwt(jwt_secret, sess)?;
 
         self.token_repo.save(&key, &token, Some(self.timeout))?;
         Ok(token)
@@ -70,11 +62,11 @@ impl<T: TokenRepository, U: UserRepository, E: SecretRepository> SessionApplicat
     pub fn logout(&self, token: &str, jwt_public: &[u8]) -> Result<(), Box<dyn Error>> {
         info!("got a \"logout\" request for token {} ", token);  
 
-        let claims: Token = util::verify_token(self.token_repo.clone(), token, jwt_public)?;
+        let claims: Token = util::verify_token(self.token_repo.clone(), TokenKind::Session, token, jwt_public)?;
 
         self.token_repo.delete(&claims.get_id())
             .map_err(|err| {
-                error!("{} failed to remove token with id {}: {}", constants::ERR_UNKNOWN, claims.get_id(), err);
+                error!("{} removing token with id {}: {}", constants::ERR_UNKNOWN, claims.get_id(), err);
                 constants::ERR_UNKNOWN
             })?;
         
@@ -90,22 +82,32 @@ pub mod util {
         de::DeserializeOwned
     };
     use super::TokenRepository;
-    use crate::security::WithOwnedId;
+    use super::super::domain::TokenKind;
     use crate::constants;
     use crate::security;
 
-    pub fn verify_token<T: TokenRepository, S: Serialize + DeserializeOwned + PartialEq + Eq + WithOwnedId>(repo: Arc<T>, token: &str, jwt_public: &[u8]) -> Result<S, Box<dyn Error>> {
+    pub trait WithDefinition {
+        fn get_id(&self) -> String;
+        fn get_kind(&self) -> TokenKind;
+    }
+
+    pub fn verify_token<T: TokenRepository, S: Serialize + DeserializeOwned + PartialEq + Eq + WithDefinition>(repo: Arc<T>, kind: TokenKind, token: &str, jwt_public: &[u8]) -> Result<S, Box<dyn Error>> {
         let claims: S = security::verify_jwt(jwt_public, token)
             .map_err(|err| {
                 warn!("{} verifying session token: {}", constants::ERR_VERIFY_TOKEN, err);
                 constants::ERR_VERIFY_TOKEN
             })?;
+
+        if claims.get_kind() != kind {
+            warn!("{} checking token's kind with id {}, got {:?} want {:?}", constants::ERR_VERIFY_TOKEN, claims.get_id(), claims.get_kind(), kind);
+            return Err(constants::ERR_VERIFY_TOKEN.into())
+        }
     
         let key = claims.get_id(); 
         let present_data = repo.find(&key)
             .map_err(|err| {
-                warn!("{} finding token with id {}: {}", constants::ERR_NOT_FOUND, &key, err);
-                constants::ERR_NOT_FOUND
+                warn!("{} finding token with id {}: {}", constants::ERR_VERIFY_TOKEN, &key, err);
+                constants::ERR_VERIFY_TOKEN
             })?;
 
         let present_token: S = security::verify_jwt(jwt_public, &present_data)
@@ -115,8 +117,8 @@ pub mod util {
             })?;
     
         if present_token != claims {
-            error!("{}: got and want token for id {} do not match", constants::ERR_NOT_FOUND, &key);
-            return Err(constants::ERR_NOT_FOUND.into());
+            error!("{}: got and want token for id {} do not match", constants::ERR_VERIFY_TOKEN, &key);
+            return Err(constants::ERR_VERIFY_TOKEN.into());
         }
     
         Ok(claims)
@@ -129,10 +131,11 @@ pub mod tests {
     use std::sync::Arc;
     use std::time::{Duration, SystemTime};
 
-    use crate::{security, time};
+    use crate::{security, time, constants};
     use crate::user::{
         application::tests::{UserRepositoryMock, TEST_FIND_BY_EMAIL_ID, TEST_FIND_BY_NAME_ID},
-        domain::tests::{TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD, TEST_DEFAULT_USER_NAME}
+        domain::tests::{TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD, TEST_DEFAULT_USER_NAME},
+        domain::User,
     };
 
     use crate::secret::domain::Secret;
@@ -218,7 +221,10 @@ pub mod tests {
         app.secret_repo = Arc::new(secret_repo);
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
-        let token = app.login(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD, "", &jwt_secret).unwrap();
+        let token = app.login(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD, "", &jwt_secret)
+            .map_err(|err| println!("-\tlogin_by_email_should_not_fail has failed with error {}", err))
+            .unwrap();
+        
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
         let session: Token = security::verify_jwt(&jwt_public, &token).unwrap();
 
@@ -237,7 +243,10 @@ pub mod tests {
         app.secret_repo = Arc::new(secret_repo);
         
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
-        let token = app.login(TEST_DEFAULT_USER_NAME, TEST_DEFAULT_USER_PASSWORD, "", &jwt_secret).unwrap();
+        let token = app.login(TEST_DEFAULT_USER_NAME, TEST_DEFAULT_USER_PASSWORD, "", &jwt_secret)
+            .map_err(|err| println!("-\tlogin_by_username_should_not_fail has failed with error {}", err))
+            .unwrap();
+        
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
         let session: Token = security::verify_jwt(&jwt_public, &token).unwrap();
         
@@ -249,11 +258,32 @@ pub mod tests {
         let app = new_session_application();
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let code = security::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes()).unwrap().generate();
-        let token = app.login(TEST_DEFAULT_USER_NAME, TEST_DEFAULT_USER_PASSWORD, &code, &jwt_secret).unwrap();
+        let token = app.login(TEST_DEFAULT_USER_NAME, TEST_DEFAULT_USER_PASSWORD, &code, &jwt_secret)
+            .map_err(|err| println!("-\tlogin_with_totp_should_not_fail has failed with error {}", err))
+            .unwrap();
+        
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
         let session: Token = security::verify_jwt(&jwt_public, &token).unwrap();
         
         assert_eq!(session.sub, TEST_FIND_BY_NAME_ID.to_string());
+    }
+
+    #[test]
+    fn login_user_not_found_should_fail() {
+        let mut user_repo = UserRepositoryMock::new();
+        user_repo.fn_find_by_email = Some(|_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
+            Err(constants::ERR_WRONG_CREDENTIALS.into())
+        });
+
+        let mut app = new_session_application();
+        app.user_repo = Arc::new(user_repo);
+
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let code = security::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes()).unwrap().generate();
+        
+        app.login(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD, &code, &jwt_secret)
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_WRONG_CREDENTIALS))
+            .unwrap_err();
     }
 
     #[test]
@@ -262,7 +292,9 @@ pub mod tests {
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let code = security::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes()).unwrap().generate();
         
-        assert!(app.login(TEST_DEFAULT_USER_NAME, "fake_password", &code, &jwt_secret).is_err());
+        app.login(TEST_DEFAULT_USER_NAME, "fake_password", &code, &jwt_secret)
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_WRONG_CREDENTIALS))
+            .unwrap_err();
     }
 
     #[test]
@@ -270,7 +302,9 @@ pub mod tests {
         let app = new_session_application();
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         
-        assert!(app.login(TEST_DEFAULT_USER_NAME, TEST_DEFAULT_USER_PASSWORD, "fake_totp", &jwt_secret).is_err());
+        app.login(TEST_DEFAULT_USER_NAME, TEST_DEFAULT_USER_PASSWORD, "fake_totp", &jwt_secret)
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_UNAUTHORIZED))
+            .unwrap_err();
     }
 
     #[test]
@@ -285,7 +319,9 @@ pub mod tests {
         app.token_repo = Arc::new(token_repo);
         
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
-        assert!(app.logout(&token, &jwt_public).is_ok())
+        app.logout(&token, &jwt_public)
+            .map_err(|err| println!("-\tlogout_should_not_fail has failed with error {}", err))
+            .unwrap();
     }
 
     #[test]
@@ -307,7 +343,9 @@ pub mod tests {
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let token = security::sign_jwt(&jwt_secret, new_session_token()).unwrap();
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
-        assert!(app.logout(&token, &jwt_public).is_err())
+        app.logout(&token, &jwt_public)
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_VERIFY_TOKEN))
+            .unwrap_err();
     }
 
     #[test]
@@ -325,7 +363,9 @@ pub mod tests {
             .replace('A', "a");
         
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
-        assert!(app.logout(&token, &jwt_public).is_err())
+        app.logout(&token, &jwt_public)
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_VERIFY_TOKEN))
+            .unwrap_err();
     }
 
     #[test]
@@ -337,6 +377,8 @@ pub mod tests {
         
         let token = security::sign_jwt(&jwt_secret, session_token).unwrap();
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
-        assert!(app.logout(&token, &jwt_public).is_err())
+        app.logout(&token, &jwt_public)
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_VERIFY_TOKEN))
+            .unwrap_err();
     }
 }

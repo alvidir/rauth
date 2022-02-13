@@ -2,7 +2,6 @@ use std::error::Error;
 use std::sync::Arc;
 use diesel::{
     r2d2::{Pool, ConnectionManager},
-    result::Error as PgError,
     pg::PgConnection,
     NotFound
 };
@@ -10,6 +9,7 @@ use diesel::{
 use crate::diesel::prelude::*;
 use crate::schema::users;
 use crate::schema::users::dsl::*;
+use crate::constants;
 
 use crate::metadata::{
     application::MetadataRepository
@@ -52,7 +52,7 @@ pub struct PostgresUserRepository<'a, M: MetadataRepository> {
 }
 
 impl<'a, M: MetadataRepository> PostgresUserRepository<'a, M> {
-    fn tx_create(&self, conn: &PgConnection, user: &mut User) -> Result<(), PgError>  {
+    fn tx_create(&self, conn: &PgConnection, user: &mut User) -> Result<(), Box<dyn Error>>  {
         let new_user = NewPostgresUser {
             email: &user.email,
             name: &user.name,
@@ -62,16 +62,23 @@ impl<'a, M: MetadataRepository> PostgresUserRepository<'a, M> {
 
         let result = diesel::insert_into(users::table)
             .values(&new_user)
-            .get_result::<PostgresUser>(conn)?;
+            .get_result::<PostgresUser>(conn)
+            .map_err(|err| {
+                error!("{} performing insert query on postgres: {}", constants::ERR_UNKNOWN, err);
+                constants::ERR_UNKNOWN
+            })?;
 
         user.id = result.id;
         Ok(())
     }
 
-    fn tx_delete(&self, conn: &PgConnection, user: &User) -> Result<(), PgError>  {
-        let _result = diesel::delete(
-            users.filter(id.eq(user.id))
-        ).execute(conn)?;
+    fn tx_delete(&self, conn: &PgConnection, user: &User) -> Result<(), Box<dyn Error>>  {
+        diesel::delete(users.filter(id.eq(user.id)))
+            .execute(conn)
+            .map_err(|err| {
+                error!("{} performing delete query on postgres: {}", constants::ERR_UNKNOWN, err);
+                constants::ERR_UNKNOWN
+            })?;
 
         Ok(())
    }
@@ -94,14 +101,24 @@ impl<'a, M: MetadataRepository> UserRepository for PostgresUserRepository<'a, M>
         use crate::schema::users::dsl::*;
         
         let results = { // block is required because of connection release
-            let connection = self.pool.get()?;
+            let connection = self.pool.get()
+                .map_err(|err| {
+                    error!("{} pulling connection for postgres: {}", constants::ERR_UNKNOWN, err);
+                    constants::ERR_UNKNOWN
+                })?;
+
             users.filter(id.eq(target))
-                 .load::<PostgresUser>(&connection)?
+                 .load::<PostgresUser>(&connection)
+                 .map_err(|err| {
+                    error!("{} performing select by id query on postgres: {}", constants::ERR_UNKNOWN, err);
+                    constants::ERR_UNKNOWN
+                })?
         };
 
         if results.len() == 0 {
             return Err(NotFound.into());
         }
+
     
         self.build(&results[0]) // another connection consumed here
     }
@@ -110,9 +127,18 @@ impl<'a, M: MetadataRepository> UserRepository for PostgresUserRepository<'a, M>
         use crate::schema::users::dsl::*;
         
         let results = { // block is required because of connection release
-            let connection = self.pool.get()?;
+            let connection = self.pool.get()
+                .map_err(|err| {
+                    error!("{} pulling connection for postgres: {}", constants::ERR_UNKNOWN, err);
+                    constants::ERR_UNKNOWN
+                })?;
+
             users.filter(email.eq(target))
-                 .load::<PostgresUser>(&connection)?
+                 .load::<PostgresUser>(&connection)
+                 .map_err(|err| {
+                    error!("{} performing select by email query on postgres: {}", constants::ERR_UNKNOWN, err);
+                    constants::ERR_UNKNOWN
+                })?
         };
 
         if results.len() == 0 {
@@ -126,9 +152,18 @@ impl<'a, M: MetadataRepository> UserRepository for PostgresUserRepository<'a, M>
         use crate::schema::users::dsl::*;
         
         let results = { // block is required because of connection release
-            let connection = self.pool.get()?;
+            let connection = self.pool.get()
+                .map_err(|err| {
+                    error!("{} pulling connection for postgres: {}", constants::ERR_UNKNOWN, err);
+                    constants::ERR_UNKNOWN
+                })?;
+
             users.filter(name.eq(target))
-                 .load::<PostgresUser>(&connection)?
+                 .load::<PostgresUser>(&connection)
+                 .map_err(|err| {
+                    error!("{} performing select by name query on postgres: {}", constants::ERR_UNKNOWN, err);
+                    constants::ERR_UNKNOWN
+                })?
         };
 
         if results.len() == 0 {
@@ -141,8 +176,13 @@ impl<'a, M: MetadataRepository> UserRepository for PostgresUserRepository<'a, M>
     fn create(&self, user: &mut User) -> Result<(), Box<dyn Error>> {
         self.metadata_repo.create(&mut user.meta)?;
 
-        let conn = self.pool.get()?;
-        conn.transaction::<_, PgError, _>(|| self.tx_create(&conn, user))?;
+        let conn = self.pool.get()
+            .map_err(|err| {
+                error!("{} pulling connection for postgres: {}", constants::ERR_UNKNOWN, err);
+                constants::ERR_UNKNOWN
+            })?;
+
+        conn.transaction::<_, Box<dyn Error>, _>(|| self.tx_create(&conn, user))?;
         Ok(())
     }
 
@@ -155,19 +195,33 @@ impl<'a, M: MetadataRepository> UserRepository for PostgresUserRepository<'a, M>
             meta_id: user.meta.get_id(),
         };
         
-        let connection = self.pool.get()?;
+        let connection = self.pool.get()
+            .map_err(|err| {
+                error!("{} pulling connection for postgres: {}", constants::ERR_UNKNOWN, err);
+                constants::ERR_UNKNOWN
+            })?;
+
         diesel::update(users)
             .filter(id.eq(user.id))
             .set(&pg_user)
-            .execute(&connection)?;
+            .execute(&connection)
+            .map_err(|err| {
+                error!("{} performing update query on postgres: {}", constants::ERR_UNKNOWN, err);
+                constants::ERR_UNKNOWN
+            })?;
 
         Ok(())
     }
 
     fn delete(&self, user: &User) -> Result<(), Box<dyn Error>> {
         { // block is required because of connection release
-            let conn = self.pool.get()?;
-            conn.transaction::<_, PgError, _>(|| self.tx_delete(&conn, user))?;
+            let conn = self.pool.get()
+                .map_err(|err| {
+                    error!("{} pulling connection for postgres: {}", constants::ERR_UNKNOWN, err);
+                    constants::ERR_UNKNOWN
+                })?;
+
+            conn.transaction::<_, Box<dyn Error>, _>(|| self.tx_delete(&conn, user))?;
         }
 
         self.metadata_repo.delete(&user.meta)?; // another connection consumed here

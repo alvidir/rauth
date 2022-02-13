@@ -6,8 +6,8 @@ use tera::{Tera, Context};
 use crate::constants;
 
 pub trait Mailer {
-    fn send_verification_email(&self, to: &str, token: &str) ->  Result<(), Box<dyn Error>>;
-    fn send_reset_pwd_email(&self, to: &str, token: &str) ->  Result<(), Box<dyn Error>>;
+    fn send_verification_signup_email(&self, to: &str, token: &str) ->  Result<(), Box<dyn Error>>;
+    fn send_verification_reset_email(&self, to: &str, token: &str) ->  Result<(), Box<dyn Error>>;
 }
 
 pub struct Smtp<'a> {
@@ -45,31 +45,50 @@ impl<'a> Smtp<'a> {
             .from(self.origin.parse()?)
             .to(to.parse()?)
             .subject(formated_subject)
-            .singlepart(SinglePart::html(body))?;
+            .singlepart(SinglePart::html(body))
+            .map_err(|err| {
+                error!("{} building email: {}", constants::ERR_UNKNOWN, err);
+                constants::ERR_UNKNOWN
+            })?;
     
-        self.mailer.send(&email)?;
+        self.mailer.send(&email)
+            .map_err(|err| {
+                error!("{} sending email: {}", constants::ERR_UNKNOWN, err);
+                constants::ERR_UNKNOWN
+            })?;
+
         Ok(())
     }
 }
 
 impl<'a> Mailer for Smtp<'a> {
-    fn send_verification_email(&self, email: &str, token: &str) ->  Result<(), Box<dyn Error>> {
+    fn send_verification_signup_email(&self, email: &str, token: &str) ->  Result<(), Box<dyn Error>> {
         let mut context = Context::new();
         context.insert("name", email.split("@").collect::<Vec<&str>>()[0]);
         context.insert("token", &base64::encode(token));
 
         const SUBJECT: &str = constants::EMAIL_VERIFICATION_SUBJECT;
-        let body = self.tera.render(constants::EMAIL_VERIFICATION_TEMPLATE, &context)?;
+        let body = self.tera.render(constants::EMAIL_VERIFICATION_TEMPLATE, &context)
+            .map_err(|err| {
+                error!("{} rendering verification signup email template: {}", constants::ERR_UNKNOWN, err);
+                constants::ERR_UNKNOWN
+            })?;
+
         self.send_email(email, &SUBJECT, body)
     }
 
-    fn send_reset_pwd_email(&self, email: &str, token: &str) ->  Result<(), Box<dyn Error>> {
+    fn send_verification_reset_email(&self, email: &str, token: &str) ->  Result<(), Box<dyn Error>> {
         let mut context = Context::new();
         context.insert("name", email.split("@").collect::<Vec<&str>>()[0]);
         context.insert("token", &base64::encode(token));
 
         const SUBJECT: &str = constants::EMAIL_RESET_PASSWORD_SUBJECT;
-        let body = self.tera.render(constants::EMAIL_RESET_PASSWORD_TEMPLATE, &context)?;
+        let body = self.tera.render(constants::EMAIL_RESET_PASSWORD_TEMPLATE, &context)
+            .map_err(|err| {
+                error!("{} rendering verification reset email template: {}", constants::ERR_UNKNOWN, err);
+                constants::ERR_UNKNOWN
+            })?;
+
         self.send_email(email, &SUBJECT, body)
     }
 }
@@ -92,7 +111,7 @@ pub mod tests {
     }
 
     impl Mailer for MailerMock {
-        fn send_verification_email(&self, _: &str, _: &str) -> Result<(), Box<dyn Error>> {
+        fn send_verification_signup_email(&self, _: &str, _: &str) -> Result<(), Box<dyn Error>> {
             if self.force_fail {
                 return Err("fail forced".into());
             }
@@ -100,7 +119,7 @@ pub mod tests {
             Ok(())
         }
 
-        fn send_reset_pwd_email(&self, _: &str, _: &str) ->  Result<(), Box<dyn Error>> {
+        fn send_verification_reset_email(&self, _: &str, _: &str) ->  Result<(), Box<dyn Error>> {
             if self.force_fail {
                 return Err("fail forced".into());
             }

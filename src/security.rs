@@ -19,27 +19,44 @@ use libreauth::{
 use jsonwebtoken::{Header, EncodingKey, DecodingKey, Validation, Algorithm};
 use rand::prelude::*;
 use sha256;
+use crate::constants;
 
 const SECURE_CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
                                 abcdefghijklmnopqrstuvwxyz\
                                 0123456789";
 
 
-pub trait WithOwnedId {
-    fn get_id(&self) -> String;
-}
-
 pub fn sign_jwt<S: Serialize>(secret: &[u8], payload: S) -> Result<String, Box<dyn Error>> {
     let header = Header::new(Algorithm::ES256);
-    let key = EncodingKey::from_ec_pem(&secret)?;
-    let token = jsonwebtoken::encode(&header, &payload, &key)?;
+    let key = EncodingKey::from_ec_pem(&secret)
+        .map_err(|err| {
+            error!("{} encoding elliptic curve keypair: {}", constants::ERR_UNKNOWN, err);
+            constants::ERR_UNKNOWN
+        })?;
+
+    let token = jsonwebtoken::encode(&header, &payload, &key)
+        .map_err(|err| {
+            error!("{} signing json web token: {}", constants::ERR_UNKNOWN, err);
+            constants::ERR_UNKNOWN
+        })?;
+
     Ok(token)
 }
 
 pub fn verify_jwt<T: DeserializeOwned>(public: &[u8], token: &str) -> Result<T, Box<dyn Error>> {
     let validation = Validation::new(Algorithm::ES256);
-    let key = DecodingKey::from_ec_pem(public)?;
-    let token = jsonwebtoken::decode::<T>(token, &key, &validation)?;
+    let key = DecodingKey::from_ec_pem(public)
+        .map_err(|err| {
+            error!("{} decoding elliptic curve keypair: {}", constants::ERR_UNKNOWN, err);
+            constants::ERR_UNKNOWN
+        })?;
+
+    let token = jsonwebtoken::decode::<T>(token, &key, &validation)
+        .map_err(|err| {
+            error!("{} checking token's signature: {}", constants::ERR_UNKNOWN, err);
+            constants::ERR_UNKNOWN
+        })?;
+
     Ok(token.claims)
 }
 
@@ -57,7 +74,10 @@ pub fn get_random_string(size: usize) -> String {
 
 pub fn generate_totp(secret: &[u8]) -> Result<TOTP, Box<dyn Error>> {
     TOTPBuilder::new().key(secret).hash_function(Sha256).finalize()
-        .map_err(|err| format!("{:?}", err).into())
+        .map_err(|err| {
+            error!("{} genereting time-based one time password: {:?}", constants::ERR_UNKNOWN, err);
+            constants::ERR_UNKNOWN.into()
+        })
 }
 
 pub fn verify_totp(secret: &[u8], pwd: &str) -> Result<bool, Box<dyn Error>> {
@@ -101,7 +121,7 @@ pub mod tests {
     use super::{verify_totp, generate_totp};
 
     #[test]
-    fn verify_totp_ok() {
+    fn verify_totp_ok_should_not_fail() {
         const SECRET: &[u8] = "hello world".as_bytes();
 
         let code = generate_totp(SECRET)
@@ -113,7 +133,7 @@ pub mod tests {
     }
 
     #[test]
-    fn verify_totp_ko() {
+    fn verify_totp_ko_should_not_fail() {
         const SECRET: &[u8] = "hello world".as_bytes();
         assert!(!verify_totp(&SECRET, "tester").unwrap());
     }

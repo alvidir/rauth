@@ -2,10 +2,10 @@ use std::time::{SystemTime, Duration};
 use std::hash::{Hash, Hasher};
 use std::collections::hash_map::DefaultHasher;
 use rand::Rng;
-use crate::security::WithOwnedId;
+use super::application::util::WithDefinition;
 use crate::time;
 
-#[derive(Serialize, Deserialize, Hash, PartialEq, Eq, Debug)]
+#[derive(Serialize, Deserialize, Hash, PartialEq, Eq, Debug, Clone)]
 pub enum TokenKind {
     Session = 0,
     Verification = 1,
@@ -84,9 +84,13 @@ impl Token {
     }
 }
 
-impl WithOwnedId for Token {
+impl WithDefinition for Token {
     fn get_id(&self) -> String {
         format!("{:?}::{}", self.knd, self.jti)
+    }
+
+    fn get_kind(&self) -> TokenKind {
+        self.knd.clone()
     }
 }
 
@@ -119,7 +123,7 @@ pub mod tests {
     }
 
     #[test]
-    fn token_should_not_fail() {
+    fn token_session_should_not_fail() {
         const ISS: &str = "test";
         const SUB: i32 = 999;
 
@@ -131,20 +135,10 @@ pub mod tests {
 
         assert!(claim.iat >= before && claim.iat <= after);     
         assert!(claim.exp >= unix_timestamp(before + timeout));
-        assert!(claim.exp <= unix_timestamp(after + timeout));       
+        assert!(claim.exp <= unix_timestamp(after + timeout));    
+        assert_eq!(claim.knd, TokenKind::Session);   
         assert_eq!(ISS, claim.iss);
         assert_eq!(SUB.to_string(), claim.sub);
-    }
-
-    #[test]
-    fn token_session_should_not_fail() {
-        const ISS: &str = "test";
-        const SUB: i32 = 999;
-
-        let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
-
-        let claim = Token::new_session(ISS, &SUB.to_string(), timeout);
-        assert_eq!(claim.knd, TokenKind::Session);
     }
 
     #[test]
@@ -155,8 +149,16 @@ pub mod tests {
 
         let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
 
+        let before = SystemTime::now();
         let claim = Token::new_verification(ISS, &SUB.to_string(), PWD, timeout);
+        let after = SystemTime::now();
+
+        assert!(claim.iat >= before && claim.iat <= after);     
+        assert!(claim.exp >= unix_timestamp(before + timeout));
+        assert!(claim.exp <= unix_timestamp(after + timeout));    
         assert_eq!(claim.knd, TokenKind::Verification);
+        assert_eq!(ISS, claim.iss);
+        assert_eq!(SUB.to_string(), claim.sub);
     }
 
     #[test]
@@ -166,8 +168,16 @@ pub mod tests {
 
         let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
 
+        let before = SystemTime::now();
         let claim = Token::new_reset(ISS, &SUB.to_string(), timeout);
+        let after = SystemTime::now();
+
+        assert!(claim.iat >= before && claim.iat <= after);     
+        assert!(claim.exp >= unix_timestamp(before + timeout));
+        assert!(claim.exp <= unix_timestamp(after + timeout));    
         assert_eq!(claim.knd, TokenKind::Reset);
+        assert_eq!(ISS, claim.iss);
+        assert_eq!(SUB.to_string(), claim.sub);
     }
 
     #[test]
@@ -194,7 +204,7 @@ pub mod tests {
     }
 
     #[test]
-    fn token_expired_should_fail() {
+    fn expired_token_verification_should_fail() {
         use crate::security;
         
         let mut claim = new_session_token();

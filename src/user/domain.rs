@@ -1,5 +1,5 @@
 use std::error::Error;
-use crate::regex;
+use crate::{regex, constants};
 use crate::metadata::domain::Metadata;
 
 pub struct User {
@@ -14,8 +14,17 @@ impl User {
     pub fn new(email: &str,
                password: &str) -> Result<Self, Box<dyn Error>> {
         
-        regex::match_regex(regex::EMAIL, email)?;
-        regex::match_regex(regex::BASE64, password)?;
+        regex::match_regex(regex::EMAIL, email)
+            .map_err(|err| {
+                info!("{} validating email's format: {}", constants::ERR_INVALID_EMAIL_FORMAT, err);
+                constants::ERR_INVALID_EMAIL_FORMAT
+            })?;
+
+        regex::match_regex(regex::BASE64, password)
+            .map_err(|err| {
+                info!("{} validating password's format: {}", constants::ERR_INVALID_PWD_FORMAT, err);
+                constants::ERR_INVALID_PWD_FORMAT
+            })?;
         
         let user = User {
             id: 0,
@@ -45,6 +54,7 @@ impl User {
 
 #[cfg(test)]
 pub mod tests {
+    use crate::constants;
     use crate::metadata::domain::tests::new_metadata;
     use super::User;
 
@@ -88,16 +98,20 @@ pub mod tests {
     fn user_new_wrong_email_should_fail() {
         const EMAIL: &str = "not_an_email";
 
-        let user = User::new(EMAIL, TEST_DEFAULT_USER_PASSWORD);
-        assert!(user.is_err());
+        let result = User::new(EMAIL, TEST_DEFAULT_USER_PASSWORD)
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_EMAIL_FORMAT));
+        
+        assert!(result.is_err());
     }
 
     #[test]
     fn user_new_wrong_password_should_fail() {
         const PWD: &str = "ABCDEFG1234567890";
 
-        let user = User::new(TEST_DEFAULT_USER_EMAIL, PWD);
-        assert!(user.is_err());
+        let result = User::new(TEST_DEFAULT_USER_EMAIL, PWD)
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_PWD_FORMAT));
+    
+        assert!(result.is_err());
     }
 
     #[test]
@@ -109,6 +123,6 @@ pub mod tests {
     #[test]
     fn user_match_password_should_fail() {
         let user = new_user();
-        assert!(!user.match_password("wrong password"));
+        assert_eq!(user.match_password("wrong password"), false);
     }
 }
