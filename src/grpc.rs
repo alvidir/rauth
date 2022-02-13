@@ -3,16 +3,13 @@ use tonic::Status;
 use crate::constants;
 
 pub fn get_header<T>(req: &Request<T>, header: &str) -> Result<String, Status> {
-    match req.metadata().get(header) {
-        Some(data) => data.to_str()
-            .map(|jwt| jwt.to_string())
-            .map_err(|err| {
-                error!("{}: {}", constants::ERR_PARSE_HEADER, err);
-                Status::aborted(constants::ERR_PARSE_HEADER)
-            }),
+    let data = req.metadata().get(header)
+        .ok_or(Status::aborted(constants::ERR_NOT_AVAILABLE))
+        .map(|data| data.to_str())?;
 
-        None => Err(
-            Status::unauthenticated(constants::ERR_HEADER_REQUIRED)
-        ),
-    }    
+    data.map(|data| data.to_string())
+        .map_err(|err| {
+            warn!("{} parsing header data to str: {}", constants::ERR_INVALID_TOKEN, err);
+            Status::aborted(constants::ERR_INVALID_TOKEN)
+        })
 }

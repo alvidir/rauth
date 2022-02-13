@@ -3,7 +3,6 @@ use std::sync::Arc;
 use diesel::{
     r2d2::{Pool, ConnectionManager},
     pg::PgConnection,
-    NotFound
 };
 
 use crate::diesel::prelude::*;
@@ -116,7 +115,7 @@ impl<'a, M: MetadataRepository> UserRepository for PostgresUserRepository<'a, M>
         };
 
         if results.len() == 0 {
-            return Err(NotFound.into());
+            return Err(constants::ERR_NOT_FOUND.into());
         }
 
     
@@ -142,7 +141,7 @@ impl<'a, M: MetadataRepository> UserRepository for PostgresUserRepository<'a, M>
         };
 
         if results.len() == 0 {
-            return Err(NotFound.into());
+            return Err(constants::ERR_NOT_FOUND.into());
         }
     
         self.build(&results[0]) // another connection consumed here
@@ -167,7 +166,7 @@ impl<'a, M: MetadataRepository> UserRepository for PostgresUserRepository<'a, M>
         };
 
         if results.len() == 0 {
-            return Err(NotFound.into());
+            return Err(constants::ERR_NOT_FOUND.into());
         }
     
         self.build(&results[0]) // another connection consumed here

@@ -49,13 +49,13 @@ impl<
             .map_err(|err| Status::aborted(err.to_string()))?;
 
         let mut res = Response::new(Empty{});
-        let parsed_token = token.parse()
+        let token = token.parse()
             .map_err(|err| {
-                error!("{}: {}", constants::ERR_PARSE_HEADER, err);
-                Status::unknown(constants::ERR_PARSE_HEADER)
+                error!("{} parsing token to header: {}", constants::ERR_UNKNOWN, err);
+                Status::unknown(constants::ERR_UNKNOWN)
             })?;
 
-        res.metadata_mut().append(self.jwt_header, parsed_token);
+        res.metadata_mut().append(self.jwt_header, token);
         Ok(res)
     }
 
@@ -80,20 +80,20 @@ pub mod util {
     pub fn get_token<T>(request: &Request<T>, header: &str) -> Result<String, Status> {
         let token = grpc::get_header(&request, header)
             .map_err(|err| {
-                warn!("{}: {}", constants::ERR_UNAUTHORIZED, err);
-                Status::unknown(constants::ERR_UNAUTHORIZED)
+                warn!("{} getting token from headers: {}", constants::ERR_NOT_AVAILABLE, err);
+                Status::unknown(constants::ERR_NOT_AVAILABLE)
             })?;
     
         let token = base64::decode(token)
             .map_err(|err| {
-                warn!("{}: {}", constants::ERR_PARSE_HEADER, err);
-                Status::unknown(constants::ERR_PARSE_HEADER)
+                warn!("{} decoding token from base64: {}", constants::ERR_INVALID_TOKEN, err);
+                Status::unknown(constants::ERR_INVALID_TOKEN)
             })?;
 
         let token = String::from_utf8(token)
             .map_err(|err| {
-                warn!("{}: {}", constants::ERR_PARSE_TOKEN, err);
-                Status::unknown(constants::ERR_PARSE_TOKEN)
+                warn!("{} parsing token to str: {}", constants::ERR_INVALID_TOKEN, err);
+                Status::unknown(constants::ERR_INVALID_TOKEN)
             })?;
 
         Ok(token)

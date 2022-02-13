@@ -2,8 +2,7 @@ use std::error::Error;
 use std::sync::Arc;
 use diesel::{
     r2d2::{Pool, ConnectionManager},
-    pg::PgConnection,
-    NotFound
+    pg::PgConnection
 };
 
 use crate::diesel::prelude::*;
@@ -117,7 +116,7 @@ impl<'a, M: MetadataRepository> SecretRepository for PostgresSecretRepository<'a
         };
     
         if results.len() == 0 {
-            return Err(Box::new(NotFound));
+            return Err(constants::ERR_NOT_FOUND.into());
         }
 
         self.build(&results[0])
@@ -143,7 +142,7 @@ impl<'a, M: MetadataRepository> SecretRepository for PostgresSecretRepository<'a
         };
     
         if results.len() == 0 {
-            return Err(Box::new(NotFound));
+            return Err(constants::ERR_NOT_FOUND.into());
         }
 
         self.build(&results[0])

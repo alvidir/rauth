@@ -53,8 +53,8 @@ pub fn verify_jwt<T: DeserializeOwned>(public: &[u8], token: &str) -> Result<T, 
 
     let token = jsonwebtoken::decode::<T>(token, &key, &validation)
         .map_err(|err| {
-            error!("{} checking token's signature: {}", constants::ERR_UNKNOWN, err);
-            constants::ERR_UNKNOWN
+            error!("{} checking token's signature: {}", constants::ERR_INVALID_TOKEN, err);
+            constants::ERR_INVALID_TOKEN
         })?;
 
     Ok(token.claims)

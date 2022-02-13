@@ -3,7 +3,6 @@ use std::time::SystemTime;
 use diesel::{
     r2d2::{Pool, ConnectionManager},
     pg::PgConnection,
-    NotFound
 };
 
 use crate::diesel::prelude::*;
@@ -93,7 +92,7 @@ impl<'a> MetadataRepository for PostgresMetadataRepository<'a> {
         };
     
         if results.len() == 0 {
-            return Err(Box::new(NotFound));
+            return Err(constants::ERR_NOT_FOUND.into());
         }
 
         Ok(Metadata{

@@ -45,7 +45,6 @@ impl User {
         &self.email
     }
 
-    // checks the provided password matches the user's one
     pub fn match_password(&self, password: &str) -> bool {
         password == self.password
     }

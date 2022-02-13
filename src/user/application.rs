@@ -42,7 +42,6 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
     pub fn verify_signup_email(&self, email: &str, pwd: &str, jwt_secret: &[u8]) -> Result<(), Box<dyn Error>> {
         if self.user_repo.find_by_email(email).is_ok() {
             // returns Ok to not provide information about users
-            info!("user with email {} already exists, no email sent", email);
             return Ok(());
         }
 
@@ -61,7 +60,6 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
         );
         
         let token_to_store = security::sign_jwt(jwt_secret, token_to_store)?;
-
         self.token_repo.save(&token_to_send.sub, &token_to_store, Some(self.timeout))?;
         
         token_to_send.knd = TokenKind::Verification;
@@ -72,31 +70,22 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
     }
 
     pub fn secure_signup(&self, token: &str, jwt_public: &[u8])  -> Result<i32, Box<dyn Error>> {
-        let claims: Token = security::verify_jwt(jwt_public, token)
-            .map_err(|err| {
-                warn!("{} verifying session token: {}", constants::ERR_VERIFY_TOKEN, err);
-                constants::ERR_VERIFY_TOKEN
-            })?;
+        let claims: Token = security::verify_jwt(jwt_public, token)?;
 
         if claims.knd != TokenKind::Verification {
-            warn!("{} checking token's kind with id {}, got {:?} want {:?}", constants::ERR_VERIFY_TOKEN, claims.jti, claims.knd, TokenKind::Verification);
-            return Err(constants::ERR_VERIFY_TOKEN.into())
+            warn!("{} checking token's kind with id {}: got {:?} want {:?}", constants::ERR_INVALID_TOKEN, claims.jti, claims.knd, TokenKind::Verification);
+            return Err(constants::ERR_INVALID_TOKEN.into())
         }
 
         let token = self.token_repo.find(&claims.sub)
-            .map_err(|err| {
-                warn!("{} finding verification token with id {}: {}", constants::ERR_VERIFY_TOKEN, claims.sub, err);
-                constants::ERR_VERIFY_TOKEN
-            })?;
+            .map_err(|_| constants::ERR_INVALID_TOKEN)?;
 
         let claims: Token = verify_token(self.token_repo.clone(), TokenKind::Verification, &token, jwt_public)?;
         let token_id = claims.get_id();
-        let password = &claims.pwd.ok_or(constants::ERR_MALFORMED_TOKEN)?;
+        let password = &claims.pwd.ok_or(constants::ERR_INVALID_TOKEN)?;
         let user_id = self.signup(&claims.sub, password)?;
-        if let Err(err) = self.token_repo.delete(&token_id) {
-            error!("{} failed to remove token with id {}: {}", constants::ERR_UNKNOWN, token_id, err);
-        }
         
+        self.token_repo.delete(&token_id)?;
         Ok(user_id)
     }
 
@@ -104,10 +93,7 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
         info!("got a \"signup\" request for email {} ", email);
 
         let mut user = User::new(email, &pwd)?;
-        if self.user_repo.find_by_email(email).is_err() {
-            self.user_repo.create(&mut user)?;
-        }
-             
+        self.user_repo.create(&mut user)?;
         Ok(user.id)
     }
 
@@ -115,8 +101,8 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
         let claims: Token = verify_token(self.token_repo.clone(), TokenKind::Session, token, jwt_public)?;
         let user_id = claims.sub.parse()
             .map_err(|err| {
-                warn!("{} failed to parse str to i32: {}", constants::ERR_PARSE_TOKEN, err);
-                constants::ERR_PARSE_TOKEN
+                warn!("{} parsing str to i32: {}", constants::ERR_INVALID_TOKEN, err);
+                constants::ERR_INVALID_TOKEN
             })?;
 
         self.delete(user_id, pwd, totp)
@@ -124,19 +110,17 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
 
     pub fn delete(&self, user_id: i32, pwd: &str, totp: &str) -> Result<(), Box<dyn Error>> {
         info!("got a \"delete\" request for user id {} ", user_id);
-        
-        let user = self.user_repo.find(user_id)?;
+
+        let user = self.user_repo.find(user_id)
+            .map_err(|_| constants::ERR_WRONG_CREDENTIALS)?;
+
         if !user.match_password(pwd) {
-            return Err(constants::ERR_NOT_FOUND.into());
+            return Err(constants::ERR_WRONG_CREDENTIALS.into());
         }
 
         // if, and only if, the user has activated the totp
         if let Ok(secret) = self.secret_repo.find_by_user_and_name(user.id, constants::TOTP_SECRET_NAME) {
-            if !secret.is_deleted() {
-                if totp.len() == 0 {
-                    return Err(constants::ERR_UNAUTHORIZED.into());
-                }
-    
+            if !secret.is_deleted() {    
                 let data = secret.get_data();
                 if !security::verify_totp(data, totp)? {
                     return Err(constants::ERR_UNAUTHORIZED.into());
@@ -150,30 +134,32 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
         Ok(())
     }
 
-    pub fn secure_enable_totp(&self, pwd: &str, totp: &str, token: &str, jwt_public: &[u8]) -> Result<String, Box<dyn Error>> {
+    pub fn secure_enable_totp(&self, pwd: &str, totp: &str, token: &str, jwt_public: &[u8]) -> Result<Option<String>, Box<dyn Error>> {
         let claims: Token = verify_token(self.token_repo.clone(), TokenKind::Session, token, jwt_public)?;
         let user_id = claims.sub.parse()
             .map_err(|err| {
-                warn!("{} failed to parse str to i32: {}", constants::ERR_PARSE_TOKEN, err);
-                constants::ERR_PARSE_TOKEN
+                warn!("{} parsing str to i32: {}", constants::ERR_INVALID_TOKEN, err);
+                constants::ERR_INVALID_TOKEN
             })?;
 
         self.enable_totp(user_id, pwd, totp)
     }
 
-    pub fn enable_totp(&self, user_id: i32, pwd: &str, totp: &str) -> Result<String, Box<dyn Error>> {
+    pub fn enable_totp(&self, user_id: i32, pwd: &str, totp: &str) -> Result<Option<String>, Box<dyn Error>> {
         info!("got an \"enable totp\" request for user id {} ", user_id);
 
-        let user = self.user_repo.find(user_id)?;
+        let user = self.user_repo.find(user_id)
+            .map_err(|_| constants::ERR_WRONG_CREDENTIALS)?;
+
         if !user.match_password(pwd) {
-            return Err(constants::ERR_NOT_FOUND.into());
+            return Err(constants::ERR_WRONG_CREDENTIALS.into());
         }
 
         // if, and only if, the user has activated the totp
         if let Ok(secret) = &mut self.secret_repo.find_by_user_and_name(user.id, constants::TOTP_SECRET_NAME) {
             if !secret.is_deleted() {
                 // the totp is already enabled
-                return Err(constants::ERR_UNAUTHORIZED.into())
+                return Err(constants::ERR_NOT_AVAILABLE.into())
             }
 
             let data = secret.get_data();
@@ -183,22 +169,22 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
 
             secret.set_deleted_at(None);
             self.secret_repo.save(&secret)?;
-            return Ok("".to_string());
+            return Ok(None);
         }
         
         let token = security::get_random_string(constants::TOTP_SECRET_LEN);
         let mut secret = Secret::new(constants::TOTP_SECRET_NAME, token.as_bytes());
         secret.set_deleted_at(Some(SystemTime::now())); // unavailable till confirmed
         self.secret_repo.create(&mut secret)?;
-        Ok(token)
+        Ok(Some(token))
     }
 
     pub fn secure_disable_totp(&self, pwd: &str, totp: &str, token: &str, jwt_public: &[u8]) -> Result<(), Box<dyn Error>> {
         let claims: Token = verify_token(self.token_repo.clone(), TokenKind::Session, token, jwt_public)?;
         let user_id = claims.sub.parse()
             .map_err(|err| {
-                warn!("{} failed to parse str to i32: {}", constants::ERR_PARSE_TOKEN, err);
-                constants::ERR_PARSE_TOKEN
+                warn!("{} parsing str to i32: {}", constants::ERR_INVALID_TOKEN, err);
+                constants::ERR_INVALID_TOKEN
             })?;
 
         self.disable_totp(user_id, pwd, totp)
@@ -207,16 +193,18 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
     pub fn disable_totp(&self, user_id: i32, pwd: &str, totp: &str) -> Result<(), Box<dyn Error>> {
         info!("got an \"disable totp\" request for user id {} ", user_id);
         
-        let user = self.user_repo.find(user_id)?;
+        let user = self.user_repo.find(user_id)
+            .map_err(|_| constants::ERR_WRONG_CREDENTIALS)?;
+
         if !user.match_password(pwd) {
-            return Err(constants::ERR_NOT_FOUND.into());
+            return Err(constants::ERR_WRONG_CREDENTIALS.into());
         }
 
         // if, and only if, the user has activated the totp
         if let Ok(secret) = &mut self.secret_repo.find_by_user_and_name(user.id, constants::TOTP_SECRET_NAME) {
             if secret.is_deleted() {
                 // the totp is not enabled yet
-                return Err(constants::ERR_UNAUTHORIZED.into())
+                return Err(constants::ERR_NOT_AVAILABLE.into())
             }
 
             let data = secret.get_data();
@@ -228,11 +216,15 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
             return Ok(());
         }
 
-        Err(constants::ERR_NOT_FOUND.into())
+        Err(constants::ERR_NOT_AVAILABLE.into())
     }
 
     pub fn verify_reset_email(&self, email: &str, jwt_secret: &[u8]) -> Result<(), Box<dyn Error>> {
-        let user = self.user_repo.find_by_email(email)?;
+        let user = match self.user_repo.find_by_email(email) {
+            Err(_) => return Ok(()), // returns Ok to not provide information about users
+            Ok(user) => user,
+        };
+
         let token = Token::new_reset(
             constants::TOKEN_ISSUER,
             &user.get_id().to_string(),
@@ -250,33 +242,28 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
         let claims: Token = verify_token(self.token_repo.clone(), TokenKind::Reset, token, jwt_public)?;
         let user_id = claims.sub.parse()
             .map_err(|err| {
-                warn!("{} failed to parse str to i32: {}", constants::ERR_PARSE_TOKEN, err);
-                constants::ERR_PARSE_TOKEN
+                warn!("{} parsing str to i32: {}", constants::ERR_INVALID_TOKEN, err);
+                constants::ERR_INVALID_TOKEN
             })?;
 
         self.reset(user_id, new_pwd, totp)?;
-        if let Err(err) = self.token_repo.delete(&claims.get_id()) {
-            error!("{} failed to remove token with id {}: {}", constants::ERR_UNKNOWN, claims.get_id(), err);
-        }
-
+        self.token_repo.delete(&claims.get_id())?;
         Ok(())
     }
 
     pub fn reset(&self, user_id: i32, new_pwd: &str, totp: &str) -> Result<(), Box<dyn Error>> {
         info!("got a \"reset password\" request for user_id {} ", user_id);        
         
-        let mut user = self.user_repo.find(user_id)?;
+        let mut user = self.user_repo.find(user_id)
+            .map_err(|_| constants::ERR_WRONG_CREDENTIALS)?;
+
         if user.match_password(new_pwd) {
-            return Err(constants::ERR_INVALID_OPTION.into());
+            return Err(constants::ERR_WRONG_CREDENTIALS.into());
         }
 
         // if, and only if, the user has activated the totp
         if let Ok(secret) = self.secret_repo.find_by_user_and_name(user.get_id(), constants::TOTP_SECRET_NAME) {
-            if !secret.is_deleted() {                
-                if totp.len() == 0 {
-                    return Err(constants::ERR_UNAUTHORIZED.into());
-                }
-    
+            if !secret.is_deleted() {                    
                 let data = secret.get_data();
                 if !security::verify_totp(data, totp)? {
                     return Err(constants::ERR_UNAUTHORIZED.into());
@@ -286,10 +273,6 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
 
         user.password = new_pwd.to_string();
         self.user_repo.save(&user)
-            .map_err(|err| {
-                error!("{} failed to update user with id {}: {}", constants::ERR_UNKNOWN, user_id, err);
-                constants::ERR_UNKNOWN.into()
-            })
     }
 }
 
@@ -800,7 +783,8 @@ pub mod tests {
 
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
         let totp = app.secure_enable_totp(TEST_DEFAULT_USER_PASSWORD, "", &secure_token, &jwt_public).unwrap();
-        assert_eq!(totp.len(), constants::TOTP_SECRET_LEN);
+        assert!(totp.is_some());
+        assert_eq!(totp.unwrap().len(), constants::TOTP_SECRET_LEN);
     }
 
     #[test]
@@ -822,7 +806,8 @@ pub mod tests {
         app.secret_repo = Arc::new(secret_repo);
 
         let totp = app.enable_totp(0, TEST_DEFAULT_USER_PASSWORD, "").unwrap();
-        assert_eq!(totp.len(), constants::TOTP_SECRET_LEN);
+        assert!(totp.is_some());
+        assert_eq!(totp.unwrap().len(), constants::TOTP_SECRET_LEN);
     }
 
     #[test]
@@ -847,7 +832,7 @@ pub mod tests {
 
         let code = security::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes()).unwrap().generate();
         let totp = app.enable_totp(0, TEST_DEFAULT_USER_PASSWORD, &code).unwrap();
-        assert_eq!(totp.len(), 0);
+        assert_eq!(totp, None);
     }
 
     #[test]

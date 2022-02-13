@@ -26,11 +26,10 @@ impl<T: TokenRepository, U: UserRepository, E: SecretRepository> SessionApplicat
     pub fn login(&self, ident: &str, pwd: &str, totp: &str, jwt_secret: &[u8]) -> Result<String, Box<dyn Error>> {
         info!("got a \"login\" request from identity {} ", ident);        
         
-        let user = if regex::match_regex(regex::EMAIL, ident).is_ok() {
-            self.user_repo.find_by_email(ident)?
-        } else {
-            self.user_repo.find_by_name(ident)?
-        };
+        let user = regex::match_regex(regex::EMAIL, ident)
+            .map(|_| self.user_repo.find_by_email(ident))
+            .unwrap_or(self.user_repo.find_by_name(ident))
+            .map_err(|_| constants::ERR_WRONG_CREDENTIALS)?;
 
         if !user.match_password(pwd) {
             return Err(constants::ERR_WRONG_CREDENTIALS.into());
@@ -92,33 +91,29 @@ pub mod util {
     }
 
     pub fn verify_token<T: TokenRepository, S: Serialize + DeserializeOwned + PartialEq + Eq + WithDefinition>(repo: Arc<T>, kind: TokenKind, token: &str, jwt_public: &[u8]) -> Result<S, Box<dyn Error>> {
-        let claims: S = security::verify_jwt(jwt_public, token)
-            .map_err(|err| {
-                warn!("{} verifying session token: {}", constants::ERR_VERIFY_TOKEN, err);
-                constants::ERR_VERIFY_TOKEN
-            })?;
+        let claims: S = security::verify_jwt(jwt_public, token)?;
 
         if claims.get_kind() != kind {
-            warn!("{} checking token's kind with id {}, got {:?} want {:?}", constants::ERR_VERIFY_TOKEN, claims.get_id(), claims.get_kind(), kind);
-            return Err(constants::ERR_VERIFY_TOKEN.into())
+            warn!("{} checking token's kind with id {}, got {:?} want {:?}", constants::ERR_INVALID_TOKEN, claims.get_id(), claims.get_kind(), kind);
+            return Err(constants::ERR_INVALID_TOKEN.into())
         }
     
         let key = claims.get_id(); 
         let present_data = repo.find(&key)
             .map_err(|err| {
-                warn!("{} finding token with id {}: {}", constants::ERR_VERIFY_TOKEN, &key, err);
-                constants::ERR_VERIFY_TOKEN
+                warn!("{} finding token with id {}: {}", constants::ERR_INVALID_TOKEN, &key, err);
+                constants::ERR_INVALID_TOKEN
             })?;
 
         let present_token: S = security::verify_jwt(jwt_public, &present_data)
             .map_err(|err| {
-                warn!("{} verifying found token with id {}: {}", constants::ERR_VERIFY_TOKEN, &key, err);
-                constants::ERR_VERIFY_TOKEN
+                warn!("{} verifying found token with id {}: {}", constants::ERR_INVALID_TOKEN, &key, err);
+                constants::ERR_INVALID_TOKEN
             })?;
     
         if present_token != claims {
-            error!("{}: got and want token for id {} do not match", constants::ERR_VERIFY_TOKEN, &key);
-            return Err(constants::ERR_VERIFY_TOKEN.into());
+            error!("{} comparing tokens with id {}: do not match", constants::ERR_INVALID_TOKEN, &key);
+            return Err(constants::ERR_INVALID_TOKEN.into());
         }
     
         Ok(claims)
@@ -344,7 +339,7 @@ pub mod tests {
         let token = security::sign_jwt(&jwt_secret, new_session_token()).unwrap();
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
         app.logout(&token, &jwt_public)
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_VERIFY_TOKEN))
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
             .unwrap_err();
     }
 
@@ -364,7 +359,7 @@ pub mod tests {
         
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
         app.logout(&token, &jwt_public)
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_VERIFY_TOKEN))
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
             .unwrap_err();
     }
 
@@ -378,7 +373,7 @@ pub mod tests {
         let token = security::sign_jwt(&jwt_secret, session_token).unwrap();
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
         app.logout(&token, &jwt_public)
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_VERIFY_TOKEN))
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
             .unwrap_err();
     }
 }

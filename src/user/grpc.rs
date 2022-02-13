@@ -47,52 +47,43 @@ impl<
     M: 'static + Mailer + Sync + Send,
     > User for UserImplementation<U, E, S, M> {
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<Empty>, Status> {
-        if request.metadata().get(self.jwt_header).is_none() {
-            let msg_ref = request.into_inner();
-            let shadowed_pwd = security::shadow(&msg_ref.pwd, self.pwd_sufix);
-
-            if !self.allow_unverified {
-                self.user_app.verify_signup_email(&msg_ref.email, &shadowed_pwd, self.jwt_secret)
-                    .map_err(|err| {
-                        error!("{}: {}", constants::ERR_SEND_EMAIL, err);
-                        Status::aborted(constants::ERR_SEND_EMAIL)
-                    })?;
-                
-                return Err(Status::failed_precondition(constants::ERR_UNVERIFIED))
-            }
-
-            match self.user_app.signup(&msg_ref.email, &shadowed_pwd) {
-                Err(err) => return Err(Status::aborted(err.to_string())),
-                Ok(_) => return Ok(Response::new(Empty{})),
-            };
+        if request.metadata().get(self.jwt_header).is_some() {
+            let token = get_token(&request, self.jwt_header)?;
+            return self.user_app.secure_signup(&token, self.jwt_public)
+                .map(|_| Response::new(Empty{}))
+                .map_err(|err| Status::aborted(err.to_string()));
         }
         
-        let token = get_token(&request, self.jwt_header)?;
-        match self.user_app.secure_signup(&token, self.jwt_public) {
-            Err(err) => Err(Status::aborted(err.to_string())),
-            Ok(_) => Ok(Response::new(Empty{})),
+        let msg_ref = request.into_inner();
+        let shadowed_pwd = security::shadow(&msg_ref.pwd, self.pwd_sufix);
+
+        if self.allow_unverified {
+            return self.user_app.signup(&msg_ref.email, &shadowed_pwd)
+                .map(|_| Response::new(Empty{}))
+                .map_err(|err| Status::aborted(err.to_string()));
         }
+
+        self.user_app.verify_signup_email(&msg_ref.email, &shadowed_pwd, self.jwt_secret)
+            .map_err(|err| Status::aborted(err.to_string()))?;
+        
+        Err(Status::failed_precondition(constants::ERR_NOT_AVAILABLE))
     }
 
     async fn reset(&self, request: Request<ResetRequest>) -> Result<Response<Empty>, Status> {
-        if request.metadata().get(self.jwt_header).is_none() {
+        if request.metadata().get(self.jwt_header).is_some() {
+            let token = get_token(&request, self.jwt_header)?;
             let msg_ref = request.into_inner();
-            self.user_app.verify_reset_email(&msg_ref.email, self.jwt_secret)
-                .map_err(|err| {
-                    error!("{}: {}", constants::ERR_SEND_EMAIL, err);
-                    Status::aborted(constants::ERR_SEND_EMAIL)
-                })?;
-            
-            return Err(Status::failed_precondition(constants::ERR_UNVERIFIED))
+            let shadowed_pwd = security::shadow(&msg_ref.pwd, self.pwd_sufix);
+            return self.user_app.secure_reset(&shadowed_pwd, &msg_ref.totp, &token, self.jwt_public)
+                .map(|_| Response::new(Empty{}))
+                .map_err(|err| Status::aborted(err.to_string()));
         }
 
-        let token = get_token(&request, self.jwt_header)?;
         let msg_ref = request.into_inner();
-        let shadowed_pwd = security::shadow(&msg_ref.pwd, self.pwd_sufix);
-        match self.user_app.secure_reset(&shadowed_pwd, &msg_ref.totp, &token, self.jwt_public) {
-            Err(err) => return Err(Status::aborted(err.to_string())),
-            Ok(_) => return Ok(Response::new(Empty{})),
-        }
+        self.user_app.verify_reset_email(&msg_ref.email, self.jwt_secret)
+            .map_err(|err| Status::aborted(err.to_string()))?;
+        
+        Err(Status::failed_precondition(constants::ERR_NOT_AVAILABLE))
     }
 
     async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<Empty>, Status> {
@@ -100,10 +91,9 @@ impl<
         let msg_ref = request.into_inner();
         
         let shadowed_pwd = security::shadow(&msg_ref.pwd, self.pwd_sufix);
-        match self.user_app.secure_delete(&shadowed_pwd, &msg_ref.totp, &token, self.jwt_public) {
-            Err(err) => Err(Status::aborted(err.to_string())),
-            Ok(()) => Ok(Response::new(Empty{})),
-        }
+        self.user_app.secure_delete(&shadowed_pwd, &msg_ref.totp, &token, self.jwt_public)
+            .map(|_| Response::new(Empty{}))
+            .map_err(|err| Status::aborted(err.to_string()))
     }
 
     async fn totp(&self, request: Request<TotpRequest>) -> Result<Response<Empty>, Status> {
@@ -112,23 +102,26 @@ impl<
         let shadowed_pwd = security::shadow(&msg_ref.pwd, self.pwd_sufix);
 
         if msg_ref.action == TOTP_ACTION_ENABLE {
-            match self.user_app.secure_enable_totp(&shadowed_pwd, &msg_ref.totp, &token, self.jwt_public) {
-                Err(err) => return Err(Status::unknown(err.to_string())),
-                Ok(token) => {
-                    let mut response = Response::new(Empty{});
-                    response.metadata_mut().insert(self.totp_header, token.parse().unwrap());
-                    return Ok(response);
-                }
+            let token = self.user_app.secure_enable_totp(&shadowed_pwd, &msg_ref.totp, &token, self.jwt_public)
+                .map_err(|err| Status::aborted(err.to_string()))?;
+
+            let mut response = Response::new(Empty{});
+            if let Some(token) = token {
+                let token = token.parse().map_err(|err| {
+                    error!("{} parsing str to metadata: {}", constants::ERR_UNKNOWN, err);
+                    Status::aborted(constants::ERR_UNKNOWN.to_string())
+                })?;
+
+                response.metadata_mut().insert(self.totp_header, token);
             }
         }
 
         if msg_ref.action == TOTP_ACTION_DISABLE {
-            match self.user_app.secure_disable_totp(&shadowed_pwd, &msg_ref.totp, &token, self.jwt_public) {
-                Ok(_) => return Ok(Response::new(Empty{})),
-                Err(err) => return Err(Status::unknown(err.to_string())),
-            }
+            return self.user_app.secure_disable_totp(&shadowed_pwd, &msg_ref.totp, &token, self.jwt_public)
+                .map(|_| Response::new(Empty{}))
+                .map_err(|err| Status::unknown(err.to_string()));
         }
 
-        Err(Status::invalid_argument(constants::ERR_INVALID_OPTION))
+        Err(Status::invalid_argument(constants::ERR_NOT_AVAILABLE))
     }
 }
