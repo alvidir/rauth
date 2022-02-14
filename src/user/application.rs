@@ -10,7 +10,7 @@ use crate::session::{
         TokenRepository,
         util::{
             verify_token,
-            WithDefinition
+            TokenDefinition
         }
     },
     domain::{Token, TokenKind}
@@ -294,11 +294,11 @@ pub mod tests {
             tests::{TEST_DEFAULT_SECRET_DATA, new_secret},
         },
     };
-    use crate::{security, time, constants};
+    use crate::{security, constants};
     use crate::session::{
         application::{
             tests::TokenRepositoryMock,
-            util::WithDefinition,
+            util::TokenDefinition,
         },
         domain::{Token, TokenKind},
     };
@@ -487,7 +487,7 @@ pub mod tests {
     }
 
     #[test]
-    fn user_secure_signup_wrong_token_kind_should_fail() {
+    fn user_secure_signup_verification_token_kind_should_fail() {
         let mut user_repo = UserRepositoryMock::new();
         user_repo.fn_find_by_email = Some(|_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
             Err(constants::ERR_NOT_FOUND.into())
@@ -501,10 +501,10 @@ pub mod tests {
 
         token.knd = TokenKind::Verification;
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
-        let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
+        let token = security::sign_jwt(&jwt_secret, token).unwrap();
 
         let mut token_repo = TokenRepositoryMock::new();
-        token_repo.token = secure_token.clone();
+        token_repo.token = token.clone();
         token_repo.fn_find = Some(|this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {        
             Ok(this.token.clone())
         });
@@ -514,110 +514,40 @@ pub mod tests {
         app.token_repo = Arc::new(token_repo);
 
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();        
-        app.secure_signup(&secure_token, &jwt_public)
+        app.secure_signup(&token, &jwt_public)
             .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
             .unwrap_err();
     }
 
     #[test]
-    fn user_secure_signup_invalid_token_should_fail() {
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
-        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
-        let token = Token::new_verification(
-            "test",
-            TEST_DEFAULT_USER_EMAIL,
-            TEST_DEFAULT_USER_PASSWORD,
-            Duration::from_secs(60),
-        );
+    fn user_secure_signup_reset_token_kind_should_fail() {
+        let mut user_repo = UserRepositoryMock::new();
+        user_repo.fn_find_by_email = Some(|_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
+            Err(constants::ERR_NOT_FOUND.into())
+        });
 
-        let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
-        let app = new_user_application();
-        app.secure_signup(&secure_token, &jwt_public)
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
-            .unwrap_err();
-    }
-
-    #[test]
-    fn user_secure_signup_expired_external_token_should_fail() {
         let mut token = Token::new_session(
             "test",
-            TEST_DEFAULT_USER_EMAIL,
-            Duration::from_secs(60),
+            "test",
+            Duration::from_secs(60)
         );
 
-        token.knd = TokenKind::Verification;
-        token.exp = time::unix_timestamp(SystemTime::now() - Duration::from_secs(61));
+        token.knd = TokenKind::Reset;
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
-        let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
+        let token = security::sign_jwt(&jwt_secret, token).unwrap();
 
         let mut token_repo = TokenRepositoryMock::new();
-        token_repo.token = secure_token.clone();
-        token_repo.fn_find = Some(|this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+        token_repo.token = token.clone();
+        token_repo.fn_find = Some(|this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {        
             Ok(this.token.clone())
         });
 
-        let mut app = new_user_application(); 
+        let mut app = new_user_application();
+        app.user_repo = Arc::new(user_repo);
         app.token_repo = Arc::new(token_repo);
 
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();        
-        app.secure_signup(&secure_token, &jwt_public)
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
-            .unwrap_err();
-    }
-
-    #[test]
-    fn user_secure_signup_expired_internal_token_should_fail() {
-        let mut sess_token = Token::new_session(
-            "test",
-            TEST_DEFAULT_USER_EMAIL,
-            Duration::from_secs(60),
-        );
-
-        sess_token.knd = TokenKind::Verification;
-
-        let mut token = Token::new_verification(
-            "test",
-            TEST_DEFAULT_USER_EMAIL,
-            TEST_DEFAULT_USER_PASSWORD,
-            Duration::from_secs(60),
-        );
-
-        token.exp = time::unix_timestamp(SystemTime::now() - Duration::from_secs(61));
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
-        let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
-
-        let mut token_repo = TokenRepositoryMock::new();
-        token_repo.token = secure_token.clone();
-        token_repo.fn_find = Some(|this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
-            Ok(this.token.clone())
-        });
-
-        let mut app = new_user_application(); 
-        app.token_repo = Arc::new(token_repo);
-
-        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();        
-        app.secure_signup(&secure_token, &jwt_public)
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
-            .unwrap_err();
-    }
-
-    #[test]
-    fn user_secure_signup_wrong_token_should_fail() {
-        let mut token = Token::new_verification(
-            "test",
-            TEST_DEFAULT_USER_EMAIL,
-            TEST_DEFAULT_USER_PASSWORD,
-            Duration::from_secs(60),
-        );
-
-        token.exp = time::unix_timestamp(SystemTime::now() - Duration::from_secs(1));
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
-        let secure_token = security::sign_jwt(&jwt_secret, token).unwrap()
-            .replace('A', "a");
-
-        let app = new_user_application();
-        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
-        app.secure_signup(&secure_token, &jwt_public)
+        app.secure_signup(&token, &jwt_public)
             .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
             .unwrap_err();
     }
@@ -685,6 +615,62 @@ pub mod tests {
     }
 
     #[test]
+    fn user_secure_delete_verification_token_kind_should_fail() {
+        let mut secret_repo = SecretRepositoryMock::new();
+        secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+            Err(constants::ERR_NOT_FOUND.into())
+        });
+
+        let mut token = Token::new_session("test", "0", Duration::from_secs(60));
+        token.knd = TokenKind::Verification;
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
+
+        let mut token_repo = TokenRepositoryMock::new();
+        token_repo.token = secure_token.clone();
+        token_repo.fn_find = Some(|this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+            Ok(this.token.clone())
+        });
+
+        let mut app = new_user_application();
+        app.secret_repo = Arc::new(secret_repo);
+        app.token_repo = Arc::new(token_repo);
+
+        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        app.secure_delete(TEST_DEFAULT_USER_PASSWORD, "", &secure_token, &jwt_public)
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
+            .unwrap_err();
+    }
+
+    #[test]
+    fn user_secure_delete_reset_token_kind_should_fail() {
+        let mut secret_repo = SecretRepositoryMock::new();
+        secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+            Err(constants::ERR_NOT_FOUND.into())
+        });
+
+        let mut token = Token::new_session("test", "0", Duration::from_secs(60));
+        token.knd = TokenKind::Reset;
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
+
+        let mut token_repo = TokenRepositoryMock::new();
+        token_repo.token = secure_token.clone();
+        token_repo.fn_find = Some(|this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+            Ok(this.token.clone())
+        });
+
+        let mut app = new_user_application();
+        app.secret_repo = Arc::new(secret_repo);
+        app.token_repo = Arc::new(token_repo);
+
+        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        app.secure_delete(TEST_DEFAULT_USER_PASSWORD, "", &secure_token, &jwt_public)
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
+            .unwrap_err();
+    }
+
+    #[test]
     fn user_delete_should_not_fail() {
         let mut secret_repo = SecretRepositoryMock::new();
         secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
@@ -701,27 +687,7 @@ pub mod tests {
     fn user_delete_totp_should_not_fail() {
         let app = new_user_application();
         let code = security::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes()).unwrap().generate();        
-        assert!(app.delete(0, TEST_DEFAULT_USER_PASSWORD, &code).is_ok());
-    }
-
-    #[test]
-    fn user_delete_wrong_password_should_fail() {
-        let mut secret_repo = SecretRepositoryMock::new();
-        secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-            Err(constants::ERR_NOT_FOUND.into())
-        });
-
-        let mut app = new_user_application();
-        app.secret_repo = Arc::new(secret_repo);
-
-
-        assert!(app.delete(0, "bad password", "").is_err());
-    }
-
-    #[test]
-    fn user_delete_wrong_totp_should_fail() {
-        let app = new_user_application();
-        assert!(app.delete(0, TEST_DEFAULT_USER_PASSWORD, "bad totp").is_err());
+        app.delete(0, TEST_DEFAULT_USER_PASSWORD, &code).unwrap();
     }
 
     #[test]
@@ -740,7 +706,33 @@ pub mod tests {
         app.user_repo = Arc::new(user_repo);
         app.secret_repo = Arc::new(secret_repo);
 
-        assert!(app.delete(0, TEST_DEFAULT_USER_PASSWORD, "").is_err());
+        app.delete(0, TEST_DEFAULT_USER_PASSWORD, "")
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_WRONG_CREDENTIALS))
+            .unwrap_err();
+    }
+
+    #[test]
+    fn user_delete_wrong_password_should_fail() {
+        let mut secret_repo = SecretRepositoryMock::new();
+        secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+            Err(constants::ERR_NOT_FOUND.into())
+        });
+
+        let mut app = new_user_application();
+        app.secret_repo = Arc::new(secret_repo);
+
+
+        app.delete(0, "bad password", "")
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_WRONG_CREDENTIALS))
+            .unwrap_err();
+    }
+
+    #[test]
+    fn user_delete_wrong_totp_should_fail() {
+        let app = new_user_application();
+        app.delete(0, TEST_DEFAULT_USER_PASSWORD, "bad totp")
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_UNAUTHORIZED))
+            .unwrap_err();
     }
 
     #[test]
@@ -766,8 +758,67 @@ pub mod tests {
 
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
         let totp = app.secure_enable_totp(TEST_DEFAULT_USER_PASSWORD, "", &secure_token, &jwt_public).unwrap();
+        
         assert!(totp.is_some());
         assert_eq!(totp.unwrap().len(), constants::TOTP_SECRET_LEN);
+    }
+
+    #[test]
+    fn user_secure_enable_totp_verification_token_kind_should_fail() {
+        let mut secret_repo = SecretRepositoryMock::new();
+        secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+            Err(constants::ERR_NOT_FOUND.into())
+        });
+
+        let mut token = Token::new_session("test", "0", Duration::from_secs(60));
+        token.knd = TokenKind::Verification;
+
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
+
+        let mut token_repo = TokenRepositoryMock::new();
+        token_repo.token = secure_token.clone();
+        token_repo.fn_find = Some(|this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+            Ok(this.token.clone())
+        });
+
+        let mut app = new_user_application();
+        app.secret_repo = Arc::new(secret_repo);
+        app.token_repo = Arc::new(token_repo);
+
+        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        app.secure_enable_totp(TEST_DEFAULT_USER_PASSWORD, "", &secure_token, &jwt_public)
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
+            .unwrap_err();
+    }
+
+    #[test]
+    fn user_secure_enable_totp_reset_token_kind_should_fail() {
+        let mut secret_repo = SecretRepositoryMock::new();
+        secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+            Err(constants::ERR_NOT_FOUND.into())
+        });
+
+        let mut token = Token::new_session("test", "0", Duration::from_secs(60));
+        token.knd = TokenKind::Reset;
+
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
+
+        let mut token_repo = TokenRepositoryMock::new();
+        token_repo.token = secure_token.clone();
+        token_repo.fn_find = Some(|this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+            Ok(this.token.clone())
+        });
+
+        let mut app = new_user_application();
+        app.secret_repo = Arc::new(secret_repo);
+        app.token_repo = Arc::new(token_repo);
+
+        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        app.secure_enable_totp(TEST_DEFAULT_USER_PASSWORD, "", &secure_token, &jwt_public)
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
+            .unwrap_err();
     }
 
     #[test]
@@ -831,14 +882,18 @@ pub mod tests {
         app.secret_repo = Arc::new(secret_repo);
 
         let code = security::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes()).unwrap().generate();
-        assert!(app.enable_totp(0, "bad password", &code).is_err());
+        app.enable_totp(0, "bad password", &code)
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_WRONG_CREDENTIALS))
+            .unwrap_err();
     }
 
     #[test]
     fn user_enable_totp_already_enabled_should_fail() {
         let app = new_user_application();
         let code = security::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes()).unwrap().generate();
-        assert!(app.enable_totp(0, TEST_DEFAULT_USER_PASSWORD, &code).is_err());
+        app.enable_totp(0, TEST_DEFAULT_USER_PASSWORD, &code)
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_NOT_AVAILABLE))
+            .unwrap_err();
     }
 
     #[test]
@@ -862,6 +917,55 @@ pub mod tests {
     }
 
     #[test]
+    fn user_secure_disable_totp_verification_token_kind_should_fail() {
+        let mut token = Token::new_session("test", "0", Duration::from_secs(60));
+        token.knd = TokenKind::Verification;
+
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
+
+        let mut token_repo = TokenRepositoryMock::new();
+        token_repo.token = secure_token.clone();
+        token_repo.fn_find = Some(|this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+            Ok(this.token.clone())
+        });
+
+        let mut app = new_user_application();
+        app.token_repo = Arc::new(token_repo);
+
+        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        let code = security::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes()).unwrap().generate();
+        app.secure_disable_totp(TEST_DEFAULT_USER_PASSWORD, &code, &secure_token, &jwt_public)
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
+            .unwrap_err();
+    }
+
+
+    #[test]
+    fn user_secure_disable_totp_reset_token_kind_should_fail() {
+        let mut token = Token::new_session("test", "0", Duration::from_secs(60));
+        token.knd = TokenKind::Reset;
+
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
+
+        let mut token_repo = TokenRepositoryMock::new();
+        token_repo.token = secure_token.clone();
+        token_repo.fn_find = Some(|this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+            Ok(this.token.clone())
+        });
+
+        let mut app = new_user_application();
+        app.token_repo = Arc::new(token_repo);
+
+        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        let code = security::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes()).unwrap().generate();
+        app.secure_disable_totp(TEST_DEFAULT_USER_PASSWORD, &code, &secure_token, &jwt_public)
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
+            .unwrap_err();
+    }
+
+    #[test]
     fn user_disable_totp_should_not_fail() {
         let app = new_user_application();
         let code = security::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes()).unwrap().generate();
@@ -872,13 +976,17 @@ pub mod tests {
     fn user_disable_totp_wrong_password_should_fail() {
         let app = new_user_application();
         let code = security::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes()).unwrap().generate();
-        assert!(app.disable_totp(0, "bad password", &code).is_err());
+        app.disable_totp(0, "bad password", &code)
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_WRONG_CREDENTIALS))
+            .unwrap_err();
     }
 
     #[test]
     fn user_disable_totp_wrong_totp_should_fail() {
         let app = new_user_application();
-        assert!(app.disable_totp(0, TEST_DEFAULT_USER_PASSWORD, "bad totp").is_err());
+        app.disable_totp(0, TEST_DEFAULT_USER_PASSWORD, "bad totp")
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_UNAUTHORIZED))
+            .unwrap_err();
     }
 
     #[test]
@@ -892,7 +1000,9 @@ pub mod tests {
         app.secret_repo = Arc::new(secret_repo);
 
         let code = security::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes()).unwrap().generate();
-        assert!(app.disable_totp(0, TEST_DEFAULT_USER_PASSWORD, &code).is_err());
+        app.disable_totp(0, TEST_DEFAULT_USER_PASSWORD, &code)
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_NOT_AVAILABLE))
+            .unwrap_err();
     }
 
     #[test]
@@ -908,7 +1018,9 @@ pub mod tests {
         app.secret_repo = Arc::new(secret_repo);
 
         let code = security::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes()).unwrap().generate();
-        assert!(app.disable_totp(0, TEST_DEFAULT_USER_PASSWORD, &code).is_err());
+        app.disable_totp(0, TEST_DEFAULT_USER_PASSWORD, &code)
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_NOT_AVAILABLE))
+            .unwrap_err();
     }
 
     #[test]
@@ -939,6 +1051,64 @@ pub mod tests {
     }
 
     #[test]
+    fn user_secure_reset_verification_token_kind_should_fail() {
+        let mut secret_repo = SecretRepositoryMock::new();
+        secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+            Err(constants::ERR_NOT_FOUND.into())
+        });
+
+        let mut token = Token::new_session("test", "0", Duration::from_secs(60));
+        token.knd = TokenKind::Verification;
+
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
+
+        let mut token_repo = TokenRepositoryMock::new();
+        token_repo.token = secure_token.clone();
+        token_repo.fn_find = Some(|this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+            Ok(this.token.clone())
+        });
+
+        let mut app = new_user_application();
+        app.secret_repo = Arc::new(secret_repo);
+        app.token_repo = Arc::new(token_repo);
+
+        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        app.secure_reset("another password", "", &secure_token, &jwt_public)
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
+            .unwrap_err();
+    }
+
+    #[test]
+    fn user_secure_reset_session_token_kind_should_fail() {
+        let mut secret_repo = SecretRepositoryMock::new();
+        secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+            Err(constants::ERR_NOT_FOUND.into())
+        });
+
+        let mut token = Token::new_session("test", "0", Duration::from_secs(60));
+        token.knd = TokenKind::Session;
+
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
+
+        let mut token_repo = TokenRepositoryMock::new();
+        token_repo.token = secure_token.clone();
+        token_repo.fn_find = Some(|this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+            Ok(this.token.clone())
+        });
+
+        let mut app = new_user_application();
+        app.secret_repo = Arc::new(secret_repo);
+        app.token_repo = Arc::new(token_repo);
+
+        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        app.secure_reset("another password", "", &secure_token, &jwt_public)
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
+            .unwrap_err();
+    }
+
+    #[test]
     fn user_reset_should_not_fail() {
         let mut secret_repo = SecretRepositoryMock::new();
         secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
@@ -961,6 +1131,8 @@ pub mod tests {
         let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
 
-        assert!(app.reset(0, TEST_DEFAULT_USER_PASSWORD, "").is_err());
+        app.reset(0, TEST_DEFAULT_USER_PASSWORD, "")
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_WRONG_CREDENTIALS))
+            .unwrap_err();
     }
 }

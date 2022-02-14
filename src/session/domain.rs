@@ -2,17 +2,19 @@ use std::time::{SystemTime, Duration};
 use std::hash::{Hash, Hasher};
 use std::collections::hash_map::DefaultHasher;
 use rand::Rng;
-use super::application::util::WithDefinition;
+use super::application::util::TokenDefinition;
 use crate::time;
 
-#[derive(Serialize, Deserialize, Hash, PartialEq, Eq, Debug, Clone)]
+#[derive(Serialize, Deserialize)]
+#[derive(Hash, PartialEq, Debug, Clone)]
 pub enum TokenKind {
     Session = 0,
     Verification = 1,
     Reset = 2,
 }
 
-#[derive(Serialize, Deserialize, Hash, PartialEq, Eq)]
+#[derive(Serialize, Deserialize)]
+#[derive(Hash, Debug)]
 pub struct Token {
     pub jti: String,            // JWT ID
     pub exp: usize,             // expiration time (as UTC timestamp) - required
@@ -84,7 +86,7 @@ impl Token {
     }
 }
 
-impl WithDefinition for Token {
+impl TokenDefinition for Token {
     fn get_id(&self) -> String {
         format!("{:?}::{}", self.knd, self.jti)
     }
@@ -115,11 +117,19 @@ pub mod tests {
 
     pub fn new_verification_token() -> Token {
         const ISS: &str = "test";
-        const EMAIL: &str = "test@dummy.com ";
+        const EMAIL: &str = "test@dummy.com";
         const PWD: &str = "ABCabc123";
 
         let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
         Token::new_verification(ISS, EMAIL, PWD, timeout)
+    }
+
+    pub fn new_reset_token() -> Token {
+        const ISS: &str = "test";
+        const SUB: &str = "0";
+
+        let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
+        Token::new_reset(ISS, SUB, timeout)
     }
 
     #[test]

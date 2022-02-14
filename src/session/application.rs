@@ -7,7 +7,7 @@ use crate::secret::application::SecretRepository;
 use crate::regex;
 use crate::constants;
 use crate::security;
-use util::WithDefinition;
+use util::TokenDefinition;
 
 pub trait TokenRepository {
     fn find(&self, key: &str) -> Result<String, Box<dyn Error>>;
@@ -85,12 +85,12 @@ pub mod util {
     use crate::constants;
     use crate::security;
 
-    pub trait WithDefinition {
+    pub trait TokenDefinition {
         fn get_id(&self) -> String;
         fn get_kind(&self) -> TokenKind;
     }
 
-    pub fn verify_token<T: TokenRepository, S: Serialize + DeserializeOwned + PartialEq + Eq + WithDefinition>(repo: Arc<T>, kind: TokenKind, token: &str, jwt_public: &[u8]) -> Result<S, Box<dyn Error>> {
+    pub fn verify_token<T: TokenRepository, S: Serialize + DeserializeOwned + TokenDefinition>(repo: Arc<T>, kind: TokenKind, token: &str, jwt_public: &[u8]) -> Result<S, Box<dyn Error>> {
         let claims: S = security::verify_jwt(jwt_public, token)?;
 
         if claims.get_kind() != kind {
@@ -104,14 +104,8 @@ pub mod util {
                 warn!("{} finding token with id {}: {}", constants::ERR_INVALID_TOKEN, &key, err);
                 constants::ERR_INVALID_TOKEN
             })?;
-
-        let present_token: S = security::verify_jwt(jwt_public, &present_data)
-            .map_err(|err| {
-                warn!("{} verifying found token with id {}: {}", constants::ERR_INVALID_TOKEN, &key, err);
-                constants::ERR_INVALID_TOKEN
-            })?;
     
-        if present_token != claims {
+        if present_data != token {
             error!("{} comparing tokens with id {}: do not match", constants::ERR_INVALID_TOKEN, &key);
             return Err(constants::ERR_INVALID_TOKEN.into());
         }
@@ -121,38 +115,115 @@ pub mod util {
 
     #[cfg(test)]
     pub mod tests {
+        use std::error::Error;
+        use std::sync::Arc;
+        use std::time::{SystemTime, Duration};
+        use crate::{time, security, constants};
+        use super::verify_token;
+        use super::super::tests::{TokenRepositoryMock, JWT_SECRET, JWT_PUBLIC};
+        use super::super::super::domain::{
+            tests::new_session_token,
+            Token, TokenKind,
+        };
 
-        // const JWT_SECRET: &[u8] = b"LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR0hBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJHMHdhd0lCQVFRZy9JMGJTbVZxL1BBN2FhRHgKN1FFSGdoTGxCVS9NcWFWMUJab3ZhM2Y5aHJxaFJBTkNBQVJXZVcwd3MydmlnWi96SzRXcGk3Rm1mK0VPb3FybQpmUlIrZjF2azZ5dnBGd0gzZllkMlllNXl4b3ZsaTROK1ZNNlRXVFErTmVFc2ZmTWY2TkFBMloxbQotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg==";
-        // const JWT_PUBLIC: &[u8] = b"LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFVm5sdE1MTnI0b0dmOHl1RnFZdXhabi9oRHFLcQo1bjBVZm45YjVPc3I2UmNCOTMySGRtSHVjc2FMNVl1RGZsVE9rMWswUGpYaExIM3pIK2pRQU5tZFpnPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg==";
-      
         #[test]
         fn verify_token_should_not_fail() {
-
+            let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+            let token = security::sign_jwt(&jwt_secret, new_session_token()).unwrap();
+            
+            let mut token_repo = TokenRepositoryMock::new();
+            token_repo.token = token.clone();
+            token_repo.fn_find = Some(|this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+                Ok(this.token.clone())
+            });
+    
+            let public = base64::decode(JWT_PUBLIC).unwrap();
+            verify_token::<TokenRepositoryMock, Token>(Arc::new(token_repo), TokenKind::Session, &token, &public)
+                .unwrap();
         }
-
+    
+        #[test]
+        fn verif_token_expired_should_fail() {
+            let mut claim = new_session_token();
+            claim.exp = time::unix_timestamp(SystemTime::now() - Duration::from_secs(61));
+            
+            let secret = base64::decode(JWT_SECRET).unwrap();
+            let token = security::sign_jwt(&secret, claim).unwrap();
+            let public = base64::decode(JWT_PUBLIC).unwrap();
+    
+            let token_repo = TokenRepositoryMock::new();
+            verify_token::<TokenRepositoryMock, Token>(Arc::new(token_repo), TokenKind::Session, &token, &public)
+                .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
+                .unwrap_err();
+        }
+    
         #[test]
         fn verify_token_invalid_should_fail() {
-
+            let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+            let token = security::sign_jwt(&jwt_secret, new_session_token()).unwrap()
+                .replace('A', "a");
+            
+            let mut token_repo = TokenRepositoryMock::new();
+            token_repo.token = token.clone();
+            token_repo.fn_find = Some(|this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+                Ok(this.token.clone())
+            });
+    
+            let public = base64::decode(JWT_PUBLIC).unwrap();
+            verify_token::<TokenRepositoryMock, Token>(Arc::new(token_repo), TokenKind::Session, &token, &public)
+                .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
+                .unwrap_err();
         }
-
+    
         #[test]
         fn verify_token_wrong_kind_should_fail() {
-
+            let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+            let token = security::sign_jwt(&jwt_secret, new_session_token()).unwrap();
+            
+            let mut token_repo = TokenRepositoryMock::new();
+            token_repo.token = token.clone();
+            token_repo.fn_find = Some(|this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+                Ok(this.token.clone())
+            });
+    
+            let public = base64::decode(JWT_PUBLIC).unwrap();
+            verify_token::<TokenRepositoryMock, Token>(Arc::new(token_repo), TokenKind::Verification, &token, &public)
+                .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
+                .unwrap_err();
         }
-
+    
         #[test]
         fn verify_token_not_present_should_fail() {
-
+            let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+            let token = security::sign_jwt(&jwt_secret, new_session_token()).unwrap();
+            
+            let mut token_repo = TokenRepositoryMock::new();
+            token_repo.token = token.clone();
+            token_repo.fn_find = Some(|_: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+                Err(constants::ERR_NOT_FOUND.into())
+            });
+    
+            let public = base64::decode(JWT_PUBLIC).unwrap();
+            verify_token::<TokenRepositoryMock, Token>(Arc::new(token_repo), TokenKind::Verification, &token, &public)
+                .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
+                .unwrap_err();
         }
-
-        #[test]
-        fn verify_token_present_invalid_should_fail() {
-
-        }
-
+    
         #[test]
         fn verify_token_mismatch_should_fail() {
-
+            let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+            let token = security::sign_jwt(&jwt_secret, new_session_token()).unwrap();
+            
+            let mut token_repo = TokenRepositoryMock::new();
+            token_repo.token = token.clone();
+            token_repo.fn_find = Some(|_: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+                Ok("hello world".to_string())
+            });
+    
+            let public = base64::decode(JWT_PUBLIC).unwrap();
+            verify_token::<TokenRepositoryMock, Token>(Arc::new(token_repo), TokenKind::Verification, &token, &public)
+                .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
+                .unwrap_err();
         }
     }
 }
@@ -161,9 +232,8 @@ pub mod util {
 pub mod tests {
     use std::error::Error;
     use std::sync::Arc;
-    use std::time::{Duration, SystemTime};
 
-    use crate::{security, time, constants};
+    use crate::{security, constants};
     use crate::user::{
         application::tests::{UserRepositoryMock, TEST_FIND_BY_EMAIL_ID, TEST_FIND_BY_NAME_ID},
         domain::tests::{TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD, TEST_DEFAULT_USER_NAME},
@@ -176,11 +246,11 @@ pub mod tests {
     use super::{TokenRepository, SessionApplication};
     use super::super::domain::{
         tests::new_session_token,
-        Token,
+        Token, TokenKind
     };
 
-    const JWT_SECRET: &[u8] = b"LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR0hBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJHMHdhd0lCQVFRZy9JMGJTbVZxL1BBN2FhRHgKN1FFSGdoTGxCVS9NcWFWMUJab3ZhM2Y5aHJxaFJBTkNBQVJXZVcwd3MydmlnWi96SzRXcGk3Rm1mK0VPb3FybQpmUlIrZjF2azZ5dnBGd0gzZllkMlllNXl4b3ZsaTROK1ZNNlRXVFErTmVFc2ZmTWY2TkFBMloxbQotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg==";
-    const JWT_PUBLIC: &[u8] = b"LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFVm5sdE1MTnI0b0dmOHl1RnFZdXhabi9oRHFLcQo1bjBVZm45YjVPc3I2UmNCOTMySGRtSHVjc2FMNVl1RGZsVE9rMWswUGpYaExIM3pIK2pRQU5tZFpnPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg==";
+    pub(super) const JWT_SECRET: &[u8] = b"LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR0hBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJHMHdhd0lCQVFRZy9JMGJTbVZxL1BBN2FhRHgKN1FFSGdoTGxCVS9NcWFWMUJab3ZhM2Y5aHJxaFJBTkNBQVJXZVcwd3MydmlnWi96SzRXcGk3Rm1mK0VPb3FybQpmUlIrZjF2azZ5dnBGd0gzZllkMlllNXl4b3ZsaTROK1ZNNlRXVFErTmVFc2ZmTWY2TkFBMloxbQotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg==";
+    pub(super) const JWT_PUBLIC: &[u8] = b"LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFVm5sdE1MTnI0b0dmOHl1RnFZdXhabi9oRHFLcQo1bjBVZm45YjVPc3I2UmNCOTMySGRtSHVjc2FMNVl1RGZsVE9rMWswUGpYaExIM3pIK2pRQU5tZFpnPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg==";
   
     pub struct TokenRepositoryMock {
         pub fn_find: Option<fn (this: &TokenRepositoryMock, key: &str) -> Result<String, Box<dyn Error>>>,
@@ -357,23 +427,20 @@ pub mod tests {
     }
 
     #[test]
-    fn logout_invalid_token_should_fail() {    
-        let mut secret_repo = SecretRepositoryMock::new();
-        secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-            Err(constants::ERR_NOT_FOUND.into())
-        });
+    fn logout_verification_token_kind_should_fail() {        
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let mut token = new_session_token();
+        token.knd = TokenKind::Verification;
+
+        let token = security::sign_jwt(&jwt_secret, token).unwrap();
+        
 
         let mut token_repo = TokenRepositoryMock::new();
-        token_repo.fn_find = Some(|_: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
-            Err(constants::ERR_NOT_FOUND.into())
-        });
+        token_repo.token = token.clone();
 
         let mut app = new_session_application();
-        app.secret_repo = Arc::new(secret_repo);
         app.token_repo = Arc::new(token_repo);
-
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
-        let token = security::sign_jwt(&jwt_secret, new_session_token()).unwrap();
+        
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
         app.logout(&token, &jwt_public)
             .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
@@ -381,33 +448,20 @@ pub mod tests {
     }
 
     #[test]
-    fn logout_wrong_token_should_fail() {    
-        let mut secret_repo = SecretRepositoryMock::new();
-        secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-            Err(constants::ERR_NOT_FOUND.into())
-        });
+    fn logout_reset_token_kind_should_fail() {        
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let mut token = new_session_token();
+        token.knd = TokenKind::Reset;
+
+        let token = security::sign_jwt(&jwt_secret, token).unwrap();
+        
+
+        let mut token_repo = TokenRepositoryMock::new();
+        token_repo.token = token.clone();
 
         let mut app = new_session_application();
-        app.secret_repo = Arc::new(secret_repo);
-
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
-        let token = security::sign_jwt(&jwt_secret, new_session_token()).unwrap()
-            .replace('A', "a");
+        app.token_repo = Arc::new(token_repo);
         
-        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
-        app.logout(&token, &jwt_public)
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
-            .unwrap_err();
-    }
-
-    #[test]
-    fn logout_expired_token_should_fail() {
-        let app = new_session_application();
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
-        let mut session_token = new_session_token();
-        session_token.exp = time::unix_timestamp(SystemTime::now() - Duration::from_secs(61));
-        
-        let token = security::sign_jwt(&jwt_secret, session_token).unwrap();
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
         app.logout(&token, &jwt_public)
             .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
