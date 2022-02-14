@@ -118,6 +118,43 @@ pub mod util {
     
         Ok(claims)
     }
+
+    #[cfg(test)]
+    pub mod tests {
+
+        // const JWT_SECRET: &[u8] = b"LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR0hBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJHMHdhd0lCQVFRZy9JMGJTbVZxL1BBN2FhRHgKN1FFSGdoTGxCVS9NcWFWMUJab3ZhM2Y5aHJxaFJBTkNBQVJXZVcwd3MydmlnWi96SzRXcGk3Rm1mK0VPb3FybQpmUlIrZjF2azZ5dnBGd0gzZllkMlllNXl4b3ZsaTROK1ZNNlRXVFErTmVFc2ZmTWY2TkFBMloxbQotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg==";
+        // const JWT_PUBLIC: &[u8] = b"LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFVm5sdE1MTnI0b0dmOHl1RnFZdXhabi9oRHFLcQo1bjBVZm45YjVPc3I2UmNCOTMySGRtSHVjc2FMNVl1RGZsVE9rMWswUGpYaExIM3pIK2pRQU5tZFpnPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg==";
+      
+        #[test]
+        fn verify_token_should_not_fail() {
+
+        }
+
+        #[test]
+        fn verify_token_invalid_should_fail() {
+
+        }
+
+        #[test]
+        fn verify_token_wrong_kind_should_fail() {
+
+        }
+
+        #[test]
+        fn verify_token_not_present_should_fail() {
+
+        }
+
+        #[test]
+        fn verify_token_present_invalid_should_fail() {
+
+        }
+
+        #[test]
+        fn verify_token_mismatch_should_fail() {
+
+        }
+    }
 }
 
 #[cfg(test)]
@@ -209,7 +246,7 @@ pub mod tests {
     fn login_by_email_should_not_fail() {
         let mut secret_repo = SecretRepositoryMock::new();
         secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-            Err("overrided".into())
+            Err(constants::ERR_NOT_FOUND.into())
         });
 
         let mut app = new_session_application();
@@ -230,7 +267,7 @@ pub mod tests {
     fn login_by_username_should_not_fail() {
         let mut secret_repo = SecretRepositoryMock::new();
         secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-            Err("overrided".into())
+            Err(constants::ERR_NOT_FOUND.into())
         });
 
 
@@ -323,12 +360,12 @@ pub mod tests {
     fn logout_invalid_token_should_fail() {    
         let mut secret_repo = SecretRepositoryMock::new();
         secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-            Err("overrided".into())
+            Err(constants::ERR_NOT_FOUND.into())
         });
 
         let mut token_repo = TokenRepositoryMock::new();
         token_repo.fn_find = Some(|_: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
-            Err("overrided".into())
+            Err(constants::ERR_NOT_FOUND.into())
         });
 
         let mut app = new_session_application();
@@ -347,7 +384,7 @@ pub mod tests {
     fn logout_wrong_token_should_fail() {    
         let mut secret_repo = SecretRepositoryMock::new();
         secret_repo.fn_find_by_user_and_name = Some(|_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-            Err("overrided".into())
+            Err(constants::ERR_NOT_FOUND.into())
         });
 
         let mut app = new_session_application();

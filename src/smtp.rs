@@ -97,6 +97,7 @@ impl<'a> Mailer for Smtp<'a> {
 pub mod tests {
     use std::error::Error;
     use super::Mailer;
+    use crate::constants;
 
     pub struct MailerMock {
         pub force_fail: bool,
@@ -113,7 +114,7 @@ pub mod tests {
     impl Mailer for MailerMock {
         fn send_verification_signup_email(&self, _: &str, _: &str) -> Result<(), Box<dyn Error>> {
             if self.force_fail {
-                return Err("fail forced".into());
+                return Err(constants::ERR_UNKNOWN.into());
             }
 
             Ok(())
@@ -121,7 +122,7 @@ pub mod tests {
 
         fn send_verification_reset_email(&self, _: &str, _: &str) ->  Result<(), Box<dyn Error>> {
             if self.force_fail {
-                return Err("fail forced".into());
+                return Err(constants::ERR_UNKNOWN.into());
             }
 
             Ok(())
