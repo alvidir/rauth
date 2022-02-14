@@ -9,11 +9,11 @@ pub mod metadata;
 pub mod secret;
 pub mod session;
 pub mod user;
-pub mod regex;
 pub mod smtp;
 
 mod constants;
 mod security;
 mod schema;
+mod regex;
 mod time;
 mod grpc;
