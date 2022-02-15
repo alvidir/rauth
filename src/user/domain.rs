@@ -16,14 +16,14 @@ impl User {
         
         regex::match_regex(regex::EMAIL, email)
             .map_err(|err| {
-                info!("{} validating email's format: {}", constants::ERR_INVALID_EMAIL_FORMAT, err);
-                constants::ERR_INVALID_EMAIL_FORMAT
+                info!("{} validating email's format: {}", constants::ERR_INVALID_FORMAT, err);
+                constants::ERR_INVALID_FORMAT
             })?;
 
         regex::match_regex(regex::BASE64, password)
             .map_err(|err| {
-                info!("{} validating password's format: {}", constants::ERR_INVALID_PWD_FORMAT, err);
-                constants::ERR_INVALID_PWD_FORMAT
+                info!("{} validating password's format: {}", constants::ERR_INVALID_FORMAT, err);
+                constants::ERR_INVALID_FORMAT
             })?;
         
         let user = User {
@@ -98,7 +98,7 @@ pub mod tests {
         const EMAIL: &str = "not_an_email";
 
         let result = User::new(EMAIL, TEST_DEFAULT_USER_PASSWORD)
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_EMAIL_FORMAT));
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_FORMAT));
         
         assert!(result.is_err());
     }
@@ -108,7 +108,7 @@ pub mod tests {
         const PWD: &str = "ABCDEFG1234567890";
 
         let result = User::new(TEST_DEFAULT_USER_EMAIL, PWD)
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_PWD_FORMAT));
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_FORMAT));
     
         assert!(result.is_err());
     }

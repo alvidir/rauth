@@ -438,7 +438,7 @@ pub mod tests {
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         app.verify_signup_email("this is not an email", TEST_DEFAULT_USER_PASSWORD, &jwt_secret)
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_EMAIL_FORMAT))
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_FORMAT))
             .unwrap_err();
     }
 
@@ -571,7 +571,7 @@ pub mod tests {
     fn user_signup_wrong_email_should_fail() {
         let app = new_user_application();
         app.signup("this is not an email", TEST_DEFAULT_USER_PASSWORD)
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_EMAIL_FORMAT))
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_FORMAT))
             .unwrap_err();
     }
 
@@ -579,7 +579,7 @@ pub mod tests {
     fn user_signup_wrong_password_should_fail() {
         let app = new_user_application();
         app.signup(TEST_DEFAULT_USER_EMAIL, "bad password")
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_PWD_FORMAT))
+            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_FORMAT))
             .unwrap_err();
     }
 

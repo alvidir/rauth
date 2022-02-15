@@ -82,8 +82,8 @@ impl<'a> Mailer for Smtp<'a> {
         context.insert("name", email.split("@").collect::<Vec<&str>>()[0]);
         context.insert("token", &base64::encode(token));
 
-        const SUBJECT: &str = constants::EMAIL_RESET_PASSWORD_SUBJECT;
-        let body = self.tera.render(constants::EMAIL_RESET_PASSWORD_TEMPLATE, &context)
+        const SUBJECT: &str = constants::EMAIL_RESET_SUBJECT;
+        let body = self.tera.render(constants::EMAIL_RESET_TEMPLATE, &context)
             .map_err(|err| {
                 error!("{} rendering verification reset email template: {}", constants::ERR_UNKNOWN, err);
                 constants::ERR_UNKNOWN
