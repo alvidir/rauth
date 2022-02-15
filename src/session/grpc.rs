@@ -2,8 +2,7 @@ use tonic::{
     Request, Response, Status,
 };
 
-use crate::security;
-use crate::constants;
+use crate::{security, constants, grpc};
 use crate::user::application::UserRepository;
 use crate::secret::application::SecretRepository;
 use super::{
@@ -60,42 +59,11 @@ impl<
     }
 
     async fn logout(&self, request: Request<Empty>) -> Result<Response<Empty>, Status> {
-        let token = util::get_token(&request, self.jwt_header)?;        
+        let token = grpc::get_encoded_header(&request, self.jwt_header)?;        
         if let Err(err) = self.sess_app.logout(&token, self.jwt_public){    
             return Err(Status::aborted(err.to_string()));
         }
 
         Ok(Response::new(Empty{}))
-    }
-}
-
-pub mod util {
-    use tonic::{
-        Request, Status,
-    };
-
-    use crate::constants;
-    use crate::grpc;
-
-    pub fn get_token<T>(request: &Request<T>, header: &str) -> Result<String, Status> {
-        let token = grpc::get_header(&request, header)
-            .map_err(|err| {
-                warn!("{} getting token from headers: {}", constants::ERR_NOT_AVAILABLE, err);
-                Status::unknown(constants::ERR_NOT_AVAILABLE)
-            })?;
-    
-        let token = base64::decode(token)
-            .map_err(|err| {
-                warn!("{} decoding token from base64: {}", constants::ERR_INVALID_TOKEN, err);
-                Status::unknown(constants::ERR_INVALID_TOKEN)
-            })?;
-
-        let token = String::from_utf8(token)
-            .map_err(|err| {
-                warn!("{} parsing token to str: {}", constants::ERR_INVALID_TOKEN, err);
-                Status::unknown(constants::ERR_INVALID_TOKEN)
-            })?;
-
-        Ok(token)
     }
 }

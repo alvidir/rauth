@@ -1,5 +1,7 @@
-use tonic::Request;
-use tonic::Status;
+use tonic::{
+    Request, Status,
+};
+
 use crate::constants;
 
 pub fn get_header<T>(req: &Request<T>, header: &str) -> Result<String, Status> {
@@ -12,4 +14,26 @@ pub fn get_header<T>(req: &Request<T>, header: &str) -> Result<String, Status> {
             warn!("{} parsing header data to str: {}", constants::ERR_INVALID_TOKEN, err);
             Status::aborted(constants::ERR_INVALID_TOKEN)
         })
+}
+
+pub fn get_encoded_header<T>(request: &Request<T>, header: &str) -> Result<String, Status> {
+    let header = get_header(&request, header)
+        .map_err(|err| {
+            warn!("{} getting header {}: {}", constants::ERR_NOT_AVAILABLE, header, err);
+            Status::unknown(constants::ERR_NOT_AVAILABLE)
+        })?;
+
+    let header = base64::decode(header)
+        .map_err(|err| {
+            warn!("{} decoding header from base64: {}", constants::ERR_INVALID_TOKEN, err);
+            Status::unknown(constants::ERR_INVALID_TOKEN)
+        })?;
+
+    let header = String::from_utf8(header)
+        .map_err(|err| {
+            warn!("{} parsing header to str: {}", constants::ERR_INVALID_TOKEN, err);
+            Status::unknown(constants::ERR_INVALID_TOKEN)
+        })?;
+
+    Ok(header)
 }

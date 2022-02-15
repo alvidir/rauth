@@ -1,13 +1,9 @@
 use tonic::{Request, Response, Status};
-use crate::security;
-use crate::constants;
+use crate::{security, constants, grpc};
 use crate::user::application::{UserRepository, UserApplication};
 use crate::secret::application::SecretRepository;
 use crate::smtp::Mailer;
-use crate::session::{
-    grpc::util::get_token,
-    application::TokenRepository
-};
+use crate::session::application::TokenRepository;
 
 const TOTP_ACTION_ENABLE: i32 = 0;
 const TOTP_ACTION_DISABLE: i32 = 1;
@@ -48,7 +44,7 @@ impl<
     > User for UserImplementation<U, E, S, M> {
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<Empty>, Status> {
         if request.metadata().get(self.jwt_header).is_some() {
-            let token = get_token(&request, self.jwt_header)?;
+            let token = grpc::get_encoded_header(&request, self.jwt_header)?;
             return self.user_app.secure_signup(&token, self.jwt_public)
                 .map(|_| Response::new(Empty{}))
                 .map_err(|err| Status::aborted(err.to_string()));
@@ -71,7 +67,7 @@ impl<
 
     async fn reset(&self, request: Request<ResetRequest>) -> Result<Response<Empty>, Status> {
         if request.metadata().get(self.jwt_header).is_some() {
-            let token = get_token(&request, self.jwt_header)?;
+            let token = grpc::get_encoded_header(&request, self.jwt_header)?;
             let msg_ref = request.into_inner();
             let shadowed_pwd = security::shadow(&msg_ref.pwd, self.pwd_sufix);
             return self.user_app.secure_reset(&shadowed_pwd, &msg_ref.totp, &token, self.jwt_public)
@@ -87,7 +83,7 @@ impl<
     }
 
     async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<Empty>, Status> {
-        let token = get_token(&request, self.jwt_header)?;
+        let token = grpc::get_encoded_header(&request, self.jwt_header)?;
         let msg_ref = request.into_inner();
         
         let shadowed_pwd = security::shadow(&msg_ref.pwd, self.pwd_sufix);
@@ -97,7 +93,7 @@ impl<
     }
 
     async fn totp(&self, request: Request<TotpRequest>) -> Result<Response<Empty>, Status> {
-        let token = get_token(&request, self.jwt_header)?;
+        let token = grpc::get_encoded_header(&request, self.jwt_header)?;
         let msg_ref = request.into_inner();
         let shadowed_pwd = security::shadow(&msg_ref.pwd, self.pwd_sufix);
 
