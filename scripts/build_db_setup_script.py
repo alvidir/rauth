@@ -13,9 +13,6 @@ REGEX = os.getenv("DB_FILE_REGEX")
 
 regex = re.compile(REGEX)
 
-def is_migration_files(filename) -> bool:
-    return regex.match(filename)
-
 def main() -> int:
     print("Browsing for migration files...")
     
@@ -26,12 +23,9 @@ def main() -> int:
     scripts = []
     
     for root, _, files in os.walk(WORKDIR):
-        files = filter(is_migration_files, files)
-        
-        def make_absolute_path(filename) -> str:
-            return os.path.join(root, filename)
+        files = filter(lambda filename: regex.match(filename), files)
 
-        files = map(make_absolute_path, files)
+        files = map(lambda filename: os.path.join(root, filename), files)
         scripts += list(files)
 
     if not scripts:
