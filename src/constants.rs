@@ -12,4 +12,6 @@ pub const ERR_NOT_AVAILABLE: &str = "E-003";
 pub const ERR_UNAUTHORIZED: &str = "E-004";
 pub const ERR_INVALID_TOKEN: &str = "E-005";
 pub const ERR_INVALID_FORMAT: &str = "E-006";
-pub const ERR_WRONG_CREDENTIALS: &str = "E-007";
+pub const ERR_INVALID_HEADER: &str = "E-007";
+pub const ERR_WRONG_CREDENTIALS: &str = "E-008";
+pub const ERR_REGEX_NOT_MATCH: &str = "E-009";
