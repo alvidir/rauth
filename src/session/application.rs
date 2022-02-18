@@ -1,4 +1,3 @@
-use std::time::Duration;
 use std::error::Error;
 use std::sync::Arc;
 use super::domain::{Token, TokenKind};
@@ -45,17 +44,12 @@ impl<T: TokenRepository, U: UserRepository, E: SecretRepository> SessionApplicat
             }
         }
 
-        let sess = Token::new_session(
-            constants::TOKEN_ISSUER,
-            &user.get_id().to_string(),
-            Duration::from_secs(self.timeout)
-        );
-
-        let key = sess.get_id();
-        let token = security::sign_jwt(jwt_secret, sess)?;
-
-        self.token_repo.save(&key, &token, Some(self.timeout))?;
-        Ok(token)
+        util::generate_token(
+            self.token_repo.clone(),
+            self.timeout,
+            &user,
+            jwt_secret
+        )
     }
 
     pub fn logout(&self, token: &str, jwt_public: &[u8]) -> Result<(), Box<dyn Error>> {
@@ -76,18 +70,34 @@ impl<T: TokenRepository, U: UserRepository, E: SecretRepository> SessionApplicat
 pub mod util {
     use std::error::Error;
     use std::sync::Arc;
+    use std::time::Duration;
     use serde::{
         Serialize,
         de::DeserializeOwned
     };
     use super::TokenRepository;
-    use super::super::domain::TokenKind;
+    use super::super::domain::{Token, TokenKind};
+    use crate::user::domain::User;
     use crate::constants;
     use crate::security;
 
     pub trait TokenDefinition {
         fn get_id(&self) -> String;
         fn get_kind(&self) -> TokenKind;
+    }
+
+    pub fn generate_token<T: TokenRepository>(repo: Arc<T>, timeout: u64, user: &User, jwt_secret: &[u8]) -> Result<String, Box<dyn Error>> {
+        let sess = Token::new_session(
+            constants::TOKEN_ISSUER,
+            &user.get_id().to_string(),
+            Duration::from_secs(timeout)
+        );
+
+        let key = sess.get_id();
+        let token = security::sign_jwt(jwt_secret, sess)?;
+
+        repo.save(&key, &token, Some(timeout))?;
+        Ok(token)
     }
 
     pub fn verify_token<T: TokenRepository, S: Serialize + DeserializeOwned + TokenDefinition>(repo: Arc<T>, kind: TokenKind, token: &str, jwt_public: &[u8]) -> Result<S, Box<dyn Error>> {

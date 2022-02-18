@@ -10,6 +10,7 @@ use crate::session::{
         TokenRepository,
         util::{
             verify_token,
+            generate_token,
             TokenDefinition
         }
     },
@@ -69,7 +70,7 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
         Ok(())
     }
 
-    pub fn secure_signup(&self, token: &str, jwt_public: &[u8])  -> Result<i32, Box<dyn Error>> {
+    pub fn secure_signup(&self, token: &str, jwt_public: &[u8], jwt_secret: &[u8])  -> Result<String, Box<dyn Error>> {
         let claims: Token = security::verify_jwt(jwt_public, token)?;
 
         if claims.knd != TokenKind::Verification {
@@ -83,18 +84,23 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
         let claims: Token = verify_token(self.token_repo.clone(), TokenKind::Verification, &token, jwt_public)?;
         let token_id = claims.get_id();
         let password = &claims.pwd.ok_or(constants::ERR_INVALID_TOKEN)?;
-        let user_id = self.signup(&claims.sub, password)?;
+        let token = self.signup(&claims.sub, password, jwt_secret)?;
         
         self.token_repo.delete(&token_id)?;
-        Ok(user_id)
+        Ok(token)
     }
 
-    pub fn signup(&self, email: &str, pwd: &str) -> Result<i32, Box<dyn Error>> {
+    pub fn signup(&self, email: &str, pwd: &str, jwt_secret: &[u8]) -> Result<String, Box<dyn Error>> {
         info!("got a \"signup\" request for email {} ", email);
 
         let mut user = User::new(email, &pwd)?;
         self.user_repo.create(&mut user)?;
-        Ok(user.id)
+        generate_token(
+            self.token_repo.clone(),
+            self.timeout,
+            &user,
+            jwt_secret
+        )
     }
 
     pub fn secure_delete(&self, pwd: &str, totp: &str, token: &str, jwt_public: &[u8]) -> Result<(), Box<dyn Error>> {
@@ -482,8 +488,10 @@ pub mod tests {
         app.token_repo = Arc::new(token_repo);
 
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();        
-        let user_id = app.secure_signup(&secure_sess_token, &jwt_public).unwrap();
-        assert_eq!(user_id, TEST_CREATE_ID);
+        let token = app.secure_signup(&secure_sess_token, &jwt_public, &jwt_secret).unwrap();
+        let claims: Token = security::verify_jwt(&jwt_public, &token).unwrap();
+        
+        assert_eq!(claims.sub, TEST_CREATE_ID.to_string());
     }
 
     #[test]
@@ -514,7 +522,7 @@ pub mod tests {
         app.token_repo = Arc::new(token_repo);
 
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();        
-        app.secure_signup(&token, &jwt_public)
+        app.secure_signup(&token, &jwt_public, &jwt_secret)
             .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
             .unwrap_err();
     }
@@ -547,7 +555,7 @@ pub mod tests {
         app.token_repo = Arc::new(token_repo);
 
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();        
-        app.secure_signup(&token, &jwt_public)
+        app.secure_signup(&token, &jwt_public, &jwt_secret)
             .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
             .unwrap_err();
     }
@@ -563,14 +571,19 @@ pub mod tests {
         let mut app = new_user_application();
         app.user_repo = Arc::new(user_repo); 
 
-        let user_id = app.signup(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD).unwrap();
-        assert_eq!(user_id, TEST_CREATE_ID);
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        let token = app.signup(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD, &jwt_secret).unwrap();
+        let claims: Token = security::verify_jwt(&jwt_public, &token).unwrap();
+        
+        assert_eq!(claims.sub, TEST_CREATE_ID.to_string());
     }
 
     #[test]
     fn user_signup_wrong_email_should_fail() {
         let app = new_user_application();
-        app.signup("this is not an email", TEST_DEFAULT_USER_PASSWORD)
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        app.signup("this is not an email", TEST_DEFAULT_USER_PASSWORD, &jwt_secret)
             .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_FORMAT))
             .unwrap_err();
     }
@@ -578,7 +591,8 @@ pub mod tests {
     #[test]
     fn user_signup_wrong_password_should_fail() {
         let app = new_user_application();
-        app.signup(TEST_DEFAULT_USER_EMAIL, "bad password")
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        app.signup(TEST_DEFAULT_USER_EMAIL, "bad password", &jwt_secret)
             .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_FORMAT))
             .unwrap_err();
     }
@@ -586,7 +600,8 @@ pub mod tests {
     #[test]
     fn user_signup_already_exists_should_not_fail() {        
         let app = new_user_application();
-        app.signup(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD).unwrap();
+        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        app.signup(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD, &jwt_secret).unwrap();
     }
 
     #[test]

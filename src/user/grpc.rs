@@ -45,7 +45,7 @@ impl<
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<Empty>, Status> {
         if request.metadata().get(self.jwt_header).is_some() {
             let token = grpc::get_encoded_header(&request, self.jwt_header)?;
-            return self.user_app.secure_signup(&token, self.jwt_public)
+            return self.user_app.secure_signup(&token, self.jwt_public, self.jwt_secret)
                 .map(|_| Response::new(Empty{}))
                 .map_err(|err| Status::aborted(err.to_string()));
         }
@@ -54,7 +54,7 @@ impl<
         let shadowed_pwd = security::shadow(&msg_ref.pwd, self.pwd_sufix);
 
         if self.allow_unverified {
-            return self.user_app.signup(&msg_ref.email, &shadowed_pwd)
+            return self.user_app.signup(&msg_ref.email, &shadowed_pwd, self.jwt_secret)
                 .map(|_| Response::new(Empty{}))
                 .map_err(|err| Status::aborted(err.to_string()));
         }
