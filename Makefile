@@ -16,7 +16,6 @@ install:
 	cargo install diesel_cli --no-default-features --features postgres
 
 build:
-	podman build -t ${REPO}/${PROJECT}:${VERSION}-nginx -f ./docker/nginx/dockerfile .
 	podman build -t ${REPO}/${PROJECT}:${VERSION}-server -f ./docker/rauth/dockerfile .
 	
 setup:

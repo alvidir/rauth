@@ -88,10 +88,10 @@ lazy_static! {
         .expect("smtp transport must be set");
     
     static ref SMTP_USERNAME: String = env::var(ENV_SMTP_USERNAME)
-        .expect("smtp username must be set");
+        .unwrap_or_default();
     
     static ref SMTP_PASSWORD: String = env::var(ENV_SMTP_PASSWORD)
-        .expect("smtp password must be set");
+        .unwrap_or_default();
     
     static ref SMTP_ORIGIN: String = env::var(ENV_SMTP_ORIGIN)
         .expect("smpt origin must be set");

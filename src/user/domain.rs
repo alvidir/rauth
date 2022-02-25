@@ -48,6 +48,17 @@ impl User {
     pub fn match_password(&self, password: &str) -> bool {
         password == self.password
     }
+
+    pub fn set_password(&mut self, password: &str) -> Result<(), Box<dyn Error>> {
+        regex::match_regex(regex::BASE64, password)
+            .map_err(|err| {
+                info!("{} validating password's format: {}", constants::ERR_INVALID_FORMAT, err);
+                constants::ERR_INVALID_FORMAT
+            })?;
+            
+        self.password = password.to_string();
+        Ok(())
+    }
 }
 
 

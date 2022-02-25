@@ -277,7 +277,7 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
             }
         }
 
-        user.password = new_pwd.to_string();
+        user.set_password(new_pwd)?;
         self.user_repo.save(&user)
     }
 }
