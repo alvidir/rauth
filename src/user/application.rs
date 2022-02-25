@@ -1062,7 +1062,7 @@ pub mod tests {
         app.token_repo = Arc::new(token_repo);
 
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
-        app.secure_reset("another password", "", &secure_token, &jwt_public).unwrap();
+        app.secure_reset("ABCDEF1234567891", "", &secure_token, &jwt_public).unwrap();
     }
 
     #[test]
@@ -1133,7 +1133,7 @@ pub mod tests {
         let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
 
-        app.reset(0, "another password", "").unwrap();
+        app.reset(0, "ABCDEF12345678901", "").unwrap();
     }
 
     #[test]
