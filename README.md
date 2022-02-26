@@ -7,12 +7,29 @@ A simple SSO implementation in Rust
 
 ## About
 
-The Rauth project provides a **SSO** (Single Sign On) implementation that can be consumed as any of both, a [Rust](https://www.rust-lang.org/) library or a [gRPC](https://grpc.io/) service. Currently, the project includes all regular session-related actions as singup, login, logout, an so on. Plus **TOTP**(Time-based One Time Password) and email verification support.
+The RAuth project provides a **SSO** (Single Sign On) implementation that can be consumed as any of both, a [Rust](https://www.rust-lang.org/) library or a [gRPC](https://grpc.io/) service. Currently, the project includes all regular session-related actions as signup, login, logout, and so on. Plus **TOTP**(Time-based One Time Password) and email verification support.
 
+Listed below are all those methods exposed by the **RAuth** `gRPC` service.
 
-## Endpoints
+## Signup
 
-### Signup
+Allows a new user to get registered into the system if, and only if, `email` and `password` are both valid. The latter does not only refer to format, but also the `email` is verifiable.
+
+### Request
+
+The **signup** transaction requires of two steps to get completed: the _signup request_, and the _email verification_. Both of them use the exact same endpoint to get performed, nonetheless, the _signup request_ is the only one that must all fields. The _email verification_ instead, must provide the verification token in the corresponding header.
+
+``` yaml
+# An example of a gRPC message for signup
+
+{
+    "email": "dummy@test.com" # an string containing the user's email,
+    "pwd": "1234567890ABCDEF" # an string containing the user's password encoded in base64
+}
+```
+> If, and only if, the email verification completed successfully, an Empty response is sent with the session token in the corresponding header 
+
+### Errors
 
 | **Code** | Name | Description |
 |:---------|:-----|:------------|
