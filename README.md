@@ -92,8 +92,8 @@ $ make deploy
 ```
 
 This command will deploy a pod with all those services described in the [compose file](./docker-compose.yaml) of this project. Once completed, the application endpoints will be reachable in two different ways:
-- via grpc messaging on port `8000`
-- via grpc-web requests on port `8080`
+- via `grpc` messaging on port `8000`
+- via `grpc-web` requests on port `8080`
 
 ## Logs
 
@@ -107,7 +107,7 @@ $ make follow
 
 Allows a new user to get registered into the system if, and only if, `email` and `password` are both valid. The latter does not only refer to format, but also the `email` is verifiable.
 
-### Request
+#### Request
 
 The **signup** transaction requires of two steps to get completed: the _signup request_, and the _email verification_. Both of them use the exact same endpoint to get performed, nonetheless, the _signup request_ is the only one that must all fields. The _email verification_ instead, must provide the verification token in the corresponding header.
 
@@ -121,7 +121,7 @@ The **signup** transaction requires of two steps to get completed: the _signup r
 ```
 > If, and only if, the email verification completed successfully, an Empty response is sent with the session token in the corresponding header 
 
-### Errors
+#### Errors
 
 | **Code** | Name | Description |
 |:---------|:-----|:------------|
