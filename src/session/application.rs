@@ -23,7 +23,7 @@ pub struct SessionApplication<T: TokenRepository, U: UserRepository, E: SecretRe
 
 impl<T: TokenRepository, U: UserRepository, E: SecretRepository> SessionApplication<T, U, E> {
     pub fn login(&self, ident: &str, pwd: &str, totp: &str, jwt_secret: &[u8]) -> Result<String, Box<dyn Error>> {
-        info!("got a \"login\" request from identity {} ", ident);        
+        info!("processing a \"login\" request for user identified by {} ", ident);        
         
         let user = regex::match_regex(regex::EMAIL, ident)
             .map(|_| self.user_repo.find_by_email(ident))
@@ -53,7 +53,7 @@ impl<T: TokenRepository, U: UserRepository, E: SecretRepository> SessionApplicat
     }
 
     pub fn logout(&self, token: &str, jwt_public: &[u8]) -> Result<(), Box<dyn Error>> {
-        info!("got a \"logout\" request for token {} ", token);  
+        info!("processing a \"logout\" request for token {} ", token);  
 
         let claims: Token = util::verify_token(self.token_repo.clone(), TokenKind::Session, token, jwt_public)?;
 

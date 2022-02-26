@@ -91,7 +91,7 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
     }
 
     pub fn signup(&self, email: &str, pwd: &str, jwt_secret: &[u8]) -> Result<String, Box<dyn Error>> {
-        info!("got a \"signup\" request for email {} ", email);
+        info!("processing a \"signup\" request for user with email {} ", email);
 
         let mut user = User::new(email, &pwd)?;
         self.user_repo.create(&mut user)?;
@@ -115,7 +115,7 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
     }
 
     pub fn delete(&self, user_id: i32, pwd: &str, totp: &str) -> Result<(), Box<dyn Error>> {
-        info!("got a \"delete\" request for user id {} ", user_id);
+        info!("processing a \"delete\" request for user with id {} ", user_id);
 
         let user = self.user_repo.find(user_id)
             .map_err(|_| constants::ERR_WRONG_CREDENTIALS)?;
@@ -152,7 +152,7 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
     }
 
     pub fn enable_totp(&self, user_id: i32, pwd: &str, totp: &str) -> Result<Option<String>, Box<dyn Error>> {
-        info!("got an \"enable totp\" request for user id {} ", user_id);
+        info!("processing an \"enable totp\" request for user with id {} ", user_id);
 
         let user = self.user_repo.find(user_id)
             .map_err(|_| constants::ERR_WRONG_CREDENTIALS)?;
@@ -197,7 +197,7 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
     }
 
     pub fn disable_totp(&self, user_id: i32, pwd: &str, totp: &str) -> Result<(), Box<dyn Error>> {
-        info!("got an \"disable totp\" request for user id {} ", user_id);
+        info!("processing an \"disable totp\" request for user with id {} ", user_id);
         
         let user = self.user_repo.find(user_id)
             .map_err(|_| constants::ERR_WRONG_CREDENTIALS)?;
@@ -258,7 +258,7 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, M: Mailer> User
     }
 
     pub fn reset(&self, user_id: i32, new_pwd: &str, totp: &str) -> Result<(), Box<dyn Error>> {
-        info!("got a \"reset password\" request for user_id {} ", user_id);        
+        info!("processing a \"reset password\" request for user with id {} ", user_id);        
         
         let mut user = self.user_repo.find(user_id)
             .map_err(|_| constants::ERR_WRONG_CREDENTIALS)?;

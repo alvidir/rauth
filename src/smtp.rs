@@ -35,6 +35,8 @@ impl<'a> Smtp<'a> {
     }
 
     pub fn send_email(&self, to: &str, subject: &str, body: String) -> Result<(), Box<dyn Error>> {
+        info!("sending a verification email to {}", to);
+        
         let formated_subject = if self.issuer.len() > 0 {
             format!("[{}] {}", self.issuer, subject)
         } else {
