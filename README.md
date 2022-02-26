@@ -81,8 +81,7 @@ SMTP_TEMPLATES=./templates
 # SMTP_USERNAME=<your username>
 # SMTP_PASSWORD=<the application password>
 
-# in order to use google gmail as smtp, it is required to create an application password on
-# our account. See: https://support.google.com/accounts/answer/185833
+# in order to use google gmail as smtp, it is required to create an application password on your account. See: https://support.google.com/accounts/answer/185833
 ```
 
 ## Deployment
