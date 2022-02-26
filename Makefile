@@ -34,7 +34,7 @@ setup:
 deploy:
 	podman-compose  -f docker-compose.yaml up --remove-orphans -d
 
-logs:
+follow:
 	podman logs --follow --names rauth-server
 	
 undeploy:
