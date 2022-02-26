@@ -24,8 +24,9 @@ Running the following command in your terminal will be created an sql setup scri
 ``` bash
 $ make setup
 ```
+> This command requires python3 and openssl to be installed
 
-If you also expect to deploy the application using `podman` build the rauth image by executing:
+Since is expected to deploy the application using [podman](https://podman.io/), build the rauth image:
 ``` bash
 $ make build
 ```
@@ -86,7 +87,7 @@ SMTP_TEMPLATES=./templates
 
 ## Deployment
 
-Since the application needs some external services to be launched, the easiest way to deploy them all is by using `podman-compose` as following:
+Since the application needs some external services to be launched, the easiest way to deploy them all is by using [podman-compose](https://github.com/containers/podman-compose) as following:
 ```bash
 $ make deploy
 ```
