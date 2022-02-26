@@ -28,7 +28,7 @@ impl User {
         
         let user = User {
             id: 0,
-            name: email.split("@").collect::<Vec<&str>>()[0].to_string(),
+            name: email.to_string(),
             email: email.to_string(),
             password: password.to_string(),
             meta: Metadata::new(),
@@ -95,11 +95,10 @@ pub mod tests {
 
     #[test]
     fn user_new_should_not_fail() {
-        const NAME: &str = "dummy";
         let user = User::new(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD).unwrap();
 
         assert_eq!(user.id, 0); 
-        assert_eq!(user.name, NAME);
+        assert_eq!(user.name, TEST_DEFAULT_USER_EMAIL);
         assert_eq!(user.email, TEST_DEFAULT_USER_EMAIL);
         assert_eq!(user.password, TEST_DEFAULT_USER_PASSWORD);
     }

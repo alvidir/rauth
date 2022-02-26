@@ -41,6 +41,7 @@ const DEFAULT_PWD_SUFIX: &str = "::PWD::RAUTH";
 const DEFAULT_JWT_HEADER: &str = "authorization";
 const DEFAULT_TOTP_HEADER: &str = "x-totp-secret";
 const DEFAULT_TOKEN_TIMEOUT: u64 = 7200;
+const DEFAULT_POOL_SIZE: u32 = 10;
 
 const ENV_SERVICE_PORT: &str = "SERVICE_PORT";
 const ENV_SERVICE_NET: &str = "SERVICE_NETW";
@@ -53,7 +54,6 @@ const ENV_REDIS_DSN: &str = "REDIS_DSN";
 const ENV_TOKEN_TIMEOUT: &str = "TOKEN_TIMEOUT";
 const ENV_POSTGRES_POOL: &str = "POSTGRES_POOL";
 const ENV_REDIS_POOL: &str = "REDIS_POOL";
-const ENV_ALLOW_UNVERIFIED: &str = "ALLOW_UNVERIFIED";
 const ENV_SMTP_TRANSPORT: &str = "SMTP_TRANSPORT";
 const ENV_SMTP_USERNAME: &str = "SMTP_USERNAME";
 const ENV_SMTP_PASSWORD: &str = "SMTP_PASSWORD";
@@ -104,13 +104,6 @@ lazy_static! {
 
     static ref PWD_SUFIX: String = env::var(ENV_PWD_SUFIX)
         .unwrap_or(DEFAULT_PWD_SUFIX.to_string());
-    
-    static ref ALLOW_UNVERIFIED: bool = env::var(ENV_ALLOW_UNVERIFIED)
-        .map(|allow| {
-            info!("allow unverified signup requests set to {}", allow);
-            return allow.parse().unwrap();
-        })
-        .unwrap_or_default();
 
     static ref PG_POOL: PgPool = {
         let postgres_dsn = env::var(ENV_POSTGRES_DSN)
@@ -118,18 +111,17 @@ lazy_static! {
 
         let postgres_pool = env::var(ENV_POSTGRES_POOL)
             .map(|pool_size| pool_size.parse().unwrap())
-            .expect("postgres pool size must be set");
+            .unwrap_or(DEFAULT_POOL_SIZE);
         
-        match PgPool::builder().max_size(postgres_pool).build(ConnectionManager::new(&postgres_dsn)) {
-            Ok(pool) => {
+        PgPool::builder().max_size(postgres_pool).build(ConnectionManager::new(&postgres_dsn))
+            .map(|pool| {
                 info!("connection with postgres cluster established");
                 pool
-            },
-            Err(err) => {
-                error!("{}", err);
-                panic!("cannot establish connection with {}", postgres_dsn);
-            }
-        }
+            })
+            .map_err(|err| {
+                format!("establishing connection with {}: {}", postgres_dsn, err)
+            })
+            .unwrap()
     };
 
     static ref RD_POOL: RdPool = {
@@ -138,20 +130,19 @@ lazy_static! {
         
         let redis_pool = env::var(ENV_REDIS_POOL)
             .map(|pool_size| pool_size.parse().unwrap())
-            .expect("redis pool size must be set");
+            .unwrap_or(DEFAULT_POOL_SIZE);
         
         let manager = RedisConnectionManager::new(redis_dsn.clone()).unwrap();
         
-        match r2d2::Pool::builder().max_size(redis_pool).build(manager) {
-            Ok(pool) => {
+        r2d2::Pool::builder().max_size(redis_pool).build(manager) 
+            .map(|pool| {
                 info!("connection with redis cluster established");
                 pool
-            },
-            Err(err) => {
-                error!("{}", err);
-                panic!("cannot establish connection with {}", redis_dsn);
-            }
-        }
+            })
+            .map_err(|err| {
+                format!("establishing connection with {}: {}", redis_dsn, err)
+            })
+            .unwrap()
     };
 }
 
@@ -180,7 +171,7 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
         Some((SMTP_USERNAME.to_string(), SMTP_PASSWORD.to_string()))
     } else {
         None
-    };
+    };    
 
     let mut mailer = Smtp::new(&SMTP_TEMPLATES, &SMTP_TRANSPORT, credentials)?;
     mailer.issuer = &*SMTP_ISSUER;
@@ -208,7 +199,6 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
         jwt_header: &JWT_HEADER,
         totp_header: &TOTP_HEADER,
         pwd_sufix: &PWD_SUFIX,
-        allow_unverified: *ALLOW_UNVERIFIED,
     };
 
     let sess_server = SessionImplementation {

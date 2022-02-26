@@ -32,7 +32,6 @@ pub struct UserImplementation<
     pub jwt_header: &'static str,
     pub totp_header: &'static str,
     pub pwd_sufix: &'static str,
-    pub allow_unverified: bool,
 }
 
 #[tonic::async_trait]
@@ -52,12 +51,6 @@ impl<
         
         let msg_ref = request.into_inner();
         let shadowed_pwd = security::shadow(&msg_ref.pwd, self.pwd_sufix);
-
-        if self.allow_unverified {
-            return self.user_app.signup(&msg_ref.email, &shadowed_pwd, self.jwt_secret)
-                .map(|_| Response::new(Empty{}))
-                .map_err(|err| Status::aborted(err.to_string()));
-        }
 
         self.user_app.verify_signup_email(&msg_ref.email, &shadowed_pwd, self.jwt_secret)
             .map_err(|err| Status::aborted(err.to_string()))?;

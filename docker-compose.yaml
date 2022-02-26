@@ -52,6 +52,15 @@ services:
             - rauth
         command: /usr/local/bin/envoy --log-level debug -c /etc/envoy/envoy.yaml
 
+    mailhog:
+        container_name: mailhog
+        image: mailhog/mailhog:latest
+        restart: always
+        ports:
+            - 8025:8025
+        security_opt:
+            label: disable
+
 volumes:
     dbdata:
     pgdata:

@@ -1,5 +1,6 @@
 use std::error::Error;
 use lettre::transport::smtp::authentication::Credentials;
+use lettre::transport::smtp::client::Tls;
 use lettre::{SmtpTransport, Message, Transport};
 use lettre::message::SinglePart;
 use tera::{Tera, Context};
@@ -20,10 +21,26 @@ pub struct Smtp<'a> {
 impl<'a> Smtp<'a> {
     pub fn new(templates_path: &str, smtp_transport: &str, smtp_credentials: Option<(String, String)>) -> Result<Self, Box<dyn Error>> {
         let tera = Tera::new(templates_path)?;
-        let mut mailer = SmtpTransport::relay(&smtp_transport)?;
+        
+        let transport_attrs: Vec<&str> = smtp_transport.split(":").collect();
+        if transport_attrs.len() == 0 || transport_attrs[0].len() == 0 {
+            return Err("smtp transport is not valid".into());
+        }
+
+        info!("smtp transport set as {}", transport_attrs[0]);
+
+        let mut mailer = SmtpTransport::relay(transport_attrs[0])?;
+        if transport_attrs.len() > 1 && transport_attrs[1].len() > 0{
+            warn!("smtp transport port set as {}", transport_attrs[1]);
+            mailer = mailer.port(transport_attrs[1].parse().unwrap());
+        }
+
         if let Some(credentials) = smtp_credentials {
             let creds = Credentials::new(credentials.0, credentials.1);
             mailer = mailer.credentials(creds);
+        } else {
+            warn!("transport layer security for smtp disabled");
+            mailer = mailer.tls(Tls::None);
         }
 
         Ok(Smtp {
