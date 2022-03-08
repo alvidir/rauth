@@ -9,7 +9,7 @@ services:
         security_opt:
             label: disable
         env_file:
-            - ".env"
+            - .env
             
     redis:
         container_name: rauth-redis
