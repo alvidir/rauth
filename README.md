@@ -225,7 +225,7 @@ The **logout** transaction requires the user to be logged in, so its session tok
 
 To get the environment ready for the application to run, several steps have to be completed. Luckily all commands are in the [Makefile](./Makefile) of this project, so don't panic ;)
 
-Running the following command in your terminal will be created an sql setup script at `migrations/.postgres` as well as a `.ssh` directory where to find the JWT keypair required by the server:
+Running the following command in your terminal will create an sql setup script at `migrations/.postgres` as well as a `.ssh` directory where to find the JWT keypair required by the server:
 ``` bash
 $ make setup
 ```
