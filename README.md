@@ -247,7 +247,7 @@ Last but not least, the service will expect a directory (`templates` by default)
 
 ## Server configuration
 
-The server expects a set of environment variables to work properly. Although some of them are optional, it is recommended to assign a value to all of them to have absolute awareness about how the service will behave.
+The server expects a set of environment variables to work properly. Although some of them has a default value, it is recommended to set all of them to have absolute awareness about how the service will behave.
 
 | Environment variable | Default value | Description |
 |:---------------------|:-------------:|:------------|
