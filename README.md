@@ -268,8 +268,8 @@ JWT_HEADER | authorization | Header where to find/store all JWT
 TOTP_HEADER | x-totp-secret | Header where to set the TOTP secret
 SMTP_ISSUER | rauth | Name to identify where the emails are sent from
 SMTP_ORIGIN | | Email to set as the `from` for all sent emails 
-SMTP_TRANSPORT | Smtp transporter URL (ex.: smtp.gmail.com) |
-SMTP_TEMPLATES | /etc/rauth/smtp/templates/*.html |
+SMTP_TRANSPORT | | Smtp transporter URL (ex.: smtp.gmail.com)
+SMTP_TEMPLATES | /etc/rauth/smtp/templates/*.html | Path where to find all email's templates
 SMTP_USERNAME | | If required, a username to enable the application to send emails
 SMTP_PASSWORD | | If required, an application password to enable the application to send emails
 PWD_SUFIX | ::PWD::RAUTH | A suffix to append to all passwords before hashing and storing them
