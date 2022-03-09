@@ -30,94 +30,200 @@ Allows a new user to get registered into the system if, and only if, `email` and
 
 #### Request
 
-The **signup** transaction requires of **two steps** to get completed: the _signup request_, and the _email verification_. Both of them use the exact same endpoint to get performed, nonetheless, the _signup request_ is the only one that must all fields. The _email verification_ instead, shall provide the verification token in the corresponding header.
+The **signup** transaction requires of **two steps** to get completed: the _signup request_, and the _email verification_. Both of them use the same endpoint to get performed, nonetheless, the _signup request_ is the only one that must all fields. The _email verification_ instead, shall provide the **verification token** in the corresponding header.
 
 ``` yaml
-# An example of a gRPC message for signup
+# Example of a gRPC message for the signup endpoint
 
 {
     "email": "dummy@test.com" # an string containing the user's email,
     "pwd": "1234567890ABCDEF" # an string containing the user's password encoded in base64
 }
 ```
-> If, and only if, the email verification completed successfully, an Empty response is sent with the session token in the corresponding header 
+
+#### Response
+- If, and only if, the first step of the signup transaction completed successfully, Rauth will respond with the error `E003` (require email verification).
+- If, and only if, the email verification completed successfully, is sent an Empty response with the session token in the corresponding header.
+- Otherwise, is provided one of the errors down below.
 
 #### Error codes
 
 | **Code** | Name | Description |
 |:---------|:-----|:------------|
-**E-001**|ERR_UNKNOWN| Unprevisible errors
-**E-002**|ERR_NOT_FOUND| Token header not found
-**E-003**|ERR_NOT_AVAILABLE| Require email verification
-**E-005**|ERR_INVALID_TOKEN| Token is invalid because of any of the following reasons: bad format, `exp` time exceeded, bad signature, `nbf` not satisfied, wrong `knd` or not catched.
-**E-006**|ERR_INVALID_FORMAT| Invalid format for `email` or `password`
-**E-007**|ERR_INVALID_HEADER| Token header must be encoded in base64
+**E001**|ERR_UNKNOWN| Unprevisible errors
+**E002**|ERR_NOT_FOUND| Token header not found
+**E005**|ERR_INVALID_TOKEN| Token is invalid because of any of the following reasons: bad format, `exp` time exceeded, bad signature, `nbf` not satisfied, wrong `knd` or not catched.
+**E006**|ERR_INVALID_FORMAT| Invalid format for `email` or `password`
+**E007**|ERR_INVALID_HEADER| Token header must be encoded in base64
 
 ### **Reset**
+
+Allows an existing user to reset its password.
+
+#### Request
+
+The **reset** transaction requires of **two steps** to get completed: the _email verification_, and the _password reset_. Both of them use the same endpoint to get performed, nonetheless, they do differ in which fields are mandatory. 
+
+``` yaml
+# Example of a gRPC message for the first step of the reset endpoint
+
+{
+    "email": "dummy@test.com" # an string containing the user's email,
+    "pwd": "" # not required
+    "totp": "" # not required
+}
+
+# Example of a gRPC message for the second step of the reset endpoint
+{
+    "email": "" # not required
+    "pwd": "1234567890ABCDEF" # an string containing the user's password encoded in base64
+    "totp": "123456" # the TOTP of the user, if enabled
+}
+```
+
+> The second step must provide in the corresponding header the token that the verification email gave to ensure the legitimacy of the action.
+
+#### Response
+- If, and only if, the first step of the reset transaction completed successfully, Rauth will respond with the error `E003` (require email verification).
+- If, and only if, the password reset completed successfully, is sent an Empty response with no errors.
+- Otherwise, is provided one of the errors down below.
+
 #### Error codes
 | **Code** | Name | Description |
 |:---------|:-----|:------------|
-**E-001**|ERR_UNKNOWN| Unprevisible errors
-**E-002**|ERR_NOT_FOUND| Token header not found
-**E-003**|ERR_NOT_AVAILABLE| Require email verification
-**E-004**|ERR_UNAUTHORIZED| Totp required
-**E-005**|ERR_INVALID_TOKEN| Token is invalid because of any of the following reasons: bad format, `exp` time exceeded, bad signature, `nbf` not satisfied, wrong `knd` or not catched.
-**E-006**|ERR_INVALID_FORMAT| Password must be encoded in base64
-**E-007**|ERR_INVALID_HEADER| Token header must be encoded in base64
-**E-008**|ERR_WRONG_CREDENTIALS| The new password cannot match the old one or invalid `user id`.
+**E001**|ERR_UNKNOWN| Unprevisible errors
+**E002**|ERR_NOT_FOUND| Token header not found
+**E004**|ERR_UNAUTHORIZED| Totp required
+**E005**|ERR_INVALID_TOKEN| Token is invalid because of any of the following reasons: bad format, `exp` time exceeded, bad signature, `nbf` not satisfied, wrong `knd` or not catched.
+**E006**|ERR_INVALID_FORMAT| Password must be encoded in base64
+**E007**|ERR_INVALID_HEADER| Token header must be encoded in base64
+**E008**|ERR_WRONG_CREDENTIALS| The new password cannot match the old one or invalid `user id`.
 
 
 ### **Delete**
+
+Allows an existing user to delete its account.
+
+#### Request
+
+The **delete** transaction requires the user to be logged in, so its session token must be provided in the corresponding header of the request.
+
+``` yaml
+# Example of a gRPC message for the delete endpoint
+
+{
+    "pwd": "1234567890ABCDEF" # an string containing the user's password encoded in base64
+    "totp": "123456" # the TOTP of the user, if enabled
+}
+```
+
+#### Response
+- If, and only if, the deletion completed successfully, is sent an Empty response with no errors.
+- Otherwise, is provided one of the errors down below.
+
 #### Error codes
 | **Code** | Name | Description |
 |:---------|:-----|:------------|
-**E-001**|ERR_UNKNOWN| Unprevisible errors
-**E-002**|ERR_NOT_FOUND| Token header not found
-**E-004**|ERR_UNAUTHORIZED| Totp required
-**E-005**|ERR_INVALID_TOKEN| Token is invalid because of any of the following reasons: bad format, `exp` time exceeded, bad signature, `nbf` not satisfied, wrong `knd` or not catched.
-**E-007**|ERR_INVALID_HEADER| Token header must be encoded in base64
-**E-008**|ERR_WRONG_CREDENTIALS| Password does not match or invalid `user id`.
+**E001**|ERR_UNKNOWN| Unprevisible errors
+**E002**|ERR_NOT_FOUND| Token header not found
+**E004**|ERR_UNAUTHORIZED| Totp required
+**E005**|ERR_INVALID_TOKEN| Token is invalid because of any of the following reasons: bad format, `exp` time exceeded, bad signature, `nbf` not satisfied, wrong `knd` or not catched.
+**E007**|ERR_INVALID_HEADER| Token header must be encoded in base64
+**E008**|ERR_WRONG_CREDENTIALS| Password does not match or invalid `user id`.
 
 ### **Totp**
+
+Allows an existing user to enable or disable the time-based one time password
+
+#### Request
+
+The **totp** transaction requires the user to be logged in, so its session token must be provided in the corresponding header of the request. Besides, the enabling option requires of **two steps** to get completed: the action itself, and the totp verification. In any case, the same endpoint is consumed.
+
+``` yaml
+# Example of a gRPC message for the totp endpoint
+
+{
+    "action": x, # where x may be 0 or 1 for enabling or disabling totp respectively
+    "pwd": "1234567890ABCDEF" # an string containing the user's password encoded in base64
+    "totp": "" # not required if, and only if, is the first step of enabling totp
+}
+
+# Example of a gRPC message for the second step of enabling the totp
+
+{
+    "action": 0, # 0: enable totp action
+    "pwd": "1234567890ABCDEF" # an string containing the user's password encoded in base64
+    "totp": "123456" # the correct totp for the given secret
+}
+```
+
+#### Response
+- If, and only if, the first step of enabling the TOTP completed successfully, is provided the TOTP's secret in the corresponding header.
+- If, and only if, the second step of enabling the TOTP completed successfully, is sent an Empty response with no errors.
+- If, and only if, disabling TOTP completed successfully, is sent an Empty response with no errors.
+- Otherwise, is provided one of the errors down below.
+
 #### Error codes
 | **Code** | Name | Description |
 |:---------|:-----|:------------|
-**E-001**|ERR_UNKNOWN| Unprevisible errors
-**E-002**|ERR_NOT_FOUND| Token header not found
-**E-003**|ERR_NOT_AVAILABLE| The action cannot be performed
-**E-004**|ERR_UNAUTHORIZED| Invalid `totp` value
-**E-005**|ERR_INVALID_TOKEN| Token is invalid because of any of the following reasons: bad format, `exp` time exceeded, bad signature, `nbf` not satisfied, wrong `knd` or not catched.
-**E-007**|ERR_INVALID_HEADER| Token header must be encoded in base64
-**E-008**|ERR_WRONG_CREDENTIALS| Password does not match or invalid `user id`.
+**E001**|ERR_UNKNOWN| Unprevisible errors
+**E002**|ERR_NOT_FOUND| Token header not found
+**E003**|ERR_NOT_AVAILABLE| The action cannot be performed
+**E004**|ERR_UNAUTHORIZED| Invalid `totp` value
+**E005**|ERR_INVALID_TOKEN| Token is invalid because of any of the following reasons: bad format, `exp` time exceeded, bad signature, `nbf` not satisfied, wrong `knd` or not catched.
+**E007**|ERR_INVALID_HEADER| Token header must be encoded in base64
+**E008**|ERR_WRONG_CREDENTIALS| Password does not match or invalid `user id`.
 
 ### **Login**
+
+Allows an existing user to log in.
+
+#### Request
+
+``` yaml
+# Example of a gRPC message for the login endpoint
+
+{
+    "ident": "dummy" # username or password
+    "pwd": "1234567890ABCDEF" # an string containing the user's password encoded in base64
+    "totp": "123456" # the TOTP of the user, if enabled
+}
+```
+
+#### Response
+- If, and only if, the login completed successfully, is sent an Empty response with the session token in the corresponding header.
+- Otherwise, is provided one of the errors down below.
+
 #### Error codes
 | **Code** | Name | Description |
 |:---------|:-----|:------------|
-**E-001**|ERR_UNKNOWN| Unprevisible errors
-**E-004**|ERR_UNAUTHORIZED| Totp required
-**E-008**|ERR_WRONG_CREDENTIALS| Invalid `username` or `password`
+**E001**|ERR_UNKNOWN| Unprevisible errors
+**E004**|ERR_UNAUTHORIZED| Totp required
+**E008**|ERR_WRONG_CREDENTIALS| Invalid `username` or `password`
 
 ### **Logout**
+
+Allows an existing user to log out.
+
+#### Request
+
+The **logout** transaction requires the user to be logged in, so its session token must be provided in the corresponding header of the `Empty` request.
+
+#### Response
+- If, and only if, the logout completed successfully, is sent an Empty response with no errors.
+- Otherwise, is provided one of the errors down below.
+
 #### Error codes
 | **Code** | Name | Description |
 |:---------|:-----|:------------|
-**E-001**|ERR_UNKNOWN| Unprevisible errors
-**E-002**|ERR_NOT_FOUND| Token header not found
-**E-005**|ERR_INVALID_TOKEN| Token is invalid because of any of the following reasons: bad format, `exp` time exceeded, bad signature, `nbf` not satisfied, wrong `knd` or not catched.
-**E-007**|ERR_INVALID_HEADER| Token header must be encoded in base64
-**E-008**|ERR_WRONG_CREDENTIALS| Invalid `username` or `password`
+**E001**|ERR_UNKNOWN| Unprevisible errors
+**E002**|ERR_NOT_FOUND| Token header not found
+**E005**|ERR_INVALID_TOKEN| Token is invalid because of any of the following reasons: bad format, `exp` time exceeded, bad signature, `nbf` not satisfied, wrong `knd` or not catched.
+**E007**|ERR_INVALID_HEADER| Token header must be encoded in base64
 
 ## Setup environment
 
 To get the environment ready for the application to run, several steps have to be completed. Luckily all commands are in the [Makefile](./Makefile) of this project, so don't panic ;)
-
-It is required to include in a `.env` file the following environment variables, since the [db setupt script](./scripts/build_db_setup_script.py) requires them.
-``` bash
-DB_MIGRATIONS_PATH=./migrations
-DB_SETUP_SCRIPT_PATH=./migrations/.postgres/setup.sql
-DB_FILE_REGEX=up.sql
-```
 
 Running the following command in your terminal will be created an sql setup script at `migrations/.postgres` as well as a `.ssh` directory where to find the JWT keypair required by the server:
 ``` bash
@@ -143,45 +249,32 @@ Last but not least, the service will expect a directory (`templates` by default)
 
 The server expects a set of environment variables to work properly. Although some of them are optional, it is recommended to assign a value to all of them to have absolute awareness about how the service will behave.
 
-This is an example of a `.env` that can be used in a deployment:
-```bash
-# service settings
-SERVICE_PORT=8000
-SERVICE_NETW=0.0.0.0
+| Environment variable | Default value | Description |
+|:---------------------|:-------------:|:------------|
+SERVICE_PORT | 8000 | Port where to expose the gRPC service
+SERVICE_NETW | 127.0.0.1 | Network where to expose the gRPC service
+POSTGRES_DB |  | `Postgres` database name
+POSTGRES_USER |  | `Postgres` username
+POSTGRES_PASSWORD |  | `Postgres` user password
+POSTGRES_POOL | 10 | `Postgres` connection pool size 
+DATABASE_URL | | `Postgres` DSN
+REDIS_HOSTNAME | | `Redis` container name
+REDIS_DSN | | `Redis` DSN
+REDIS_POOL | 10 | `Redis` connection pool size 
+TOKEN_TIMEOUT | 7200 | The timeout any token should have
+JWT_SECRET | | The JWT secret to sign with all generated tokens (tip: it could be the content of the .ssh/pkcs8_key.base64 file generated on the setup step)
+JWT_PUBLIC | | The JWT public key to verify with all comming tokens (tip: it could be the content of the .ssh/pkcs8_pubkey.base64 file generated on the setup step)
+JWT_HEADER | authorization | Header where to find/store all JWT
+TOTP_HEADER | x-totp-secret | Header where to set the TOTP secret
+SMTP_ISSUER | rauth | Name to identify where the emails are sent from
+SMTP_ORIGIN | | Email to set as the `from` for all sent emails 
+SMTP_TRANSPORT | Smtp transporter URL (ex.: smtp.gmail.com) |
+SMTP_TEMPLATES | /etc/rauth/smtp/templates/*.html |
+SMTP_USERNAME | | If required, a username to enable the application to send emails
+SMTP_PASSWORD | | If required, an application password to enable the application to send emails
+PWD_SUFIX | ::PWD::RAUTH | A suffix to append to all passwords before hashing and storing them
 
-# postgres settings
-POSTGRES_DB=rauth
-POSTGRES_USER=admin
-POSTGRES_PASSWORD=adminpwd
-POSTGRES_POOL=1
-
-# postgres dsn
-DATABASE_URL=postgres://admin:adminpwd@rauth-postgres/rauth?sslmode=disable&connect_timeout=1
-
-# redis settings
-REDIS_HOSTNAME=rauth-redis
-REDIS_DSN=redis://rauth-redis:6379/?
-REDIS_POOL=1
-
-# security settings
-TOKEN_TIMEOUT=7200
-JWT_SECRET=<content of .ssh/pkcs8_key.base64 file generated on the setup step>
-JWT_PUBLIC=<content of .ssh/pkcs8_pubkey.base64 file generated on the setup step>
-JWT_HEADER=authorization
-TOTP_HEADER=x-totp-secret
-
-# email settings
-SMTP_ISSUER=rauth
-SMTP_ORIGIN=no-reply@alvidir.com
-SMTP_TRANSPORT=mailhog:1025
-SMTP_TEMPLATES=./templates
-
-# [i] not setting a username nor password for smtp means disabling the TLS for the smtp transport
-# SMTP_USERNAME=<your username>
-# SMTP_PASSWORD=<the application password>
-
-# in order to use google gmail as smtp, it is required to create an application password on your account. See: https://support.google.com/accounts/answer/185833
-```
+> All these environment variables can be set in a .env file, since Rauth uses dotenv to set up the environment
 
 ## Deployment
 

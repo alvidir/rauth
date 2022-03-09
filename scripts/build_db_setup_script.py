@@ -7,14 +7,14 @@ import sys
 from dotenv import load_dotenv
 load_dotenv() 
 
-WORKDIR = os.getenv("DB_MIGRATIONS_PATH")
-TARGET = os.getenv("DB_SETUP_SCRIPT_PATH")
-REGEX = os.getenv("DB_FILE_REGEX")
+WORKDIR = os.getenv("DB_MIGRATIONS_PATH") or "./migrations"
+TARGET = os.getenv("DB_SETUP_SCRIPT_PATH") or "./migrations/.postgres/setup.sql"
+REGEX = os.getenv("DB_FILE_REGEX") or "up.sql"
 
 regex = re.compile(REGEX)
 
 def main() -> int:
-    print("Browsing for migration files...")
+    print("Browsing for migration files at ...")
     
     target_dirname = os.path.dirname(TARGET)
     if not os.path.exists(target_dirname):
