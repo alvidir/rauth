@@ -5,13 +5,112 @@
 
 A simple SSO implementation in Rust 
 
+## Table of contents
+1. [About](#about)
+1. [Endpoints](#example2)
+    1. [Signup](#signup)
+    1. [Reset](#reset)
+    1. [Delete](#delete)
+    1. [Totp](#totp)
+    1. [Login](#login)
+    1. [Logout](#logout)
+1. [Setup environment](#setup-environment)
+1. [Server configuration](#server-configuration)
+1. [Deployment](#deployment)
+1. [Debugging](#debugging)
+
 ## About
 
 The rauth project provides a **SSO** (Single Sign On) implementation that can be consumed as any of both, a [Rust](https://www.rust-lang.org/) library or a [gRPC](https://grpc.io/) service. Currently, the project includes all regular session-related actions as signup, login, logout, and so on. Plus **TOTP**(Time-based One Time Password) and email verification support.
 
-## Setup
+## Endpoints
+### **Signup**
 
-To get the environment ready for the application to run, several steps have to be completed. Luckily all commands are in the [Makefile](./Makefile) of this project, so don't panic :P
+Allows a new user to get registered into the system if, and only if, `email` and `password` are both valid.
+
+#### Request
+
+The **signup** transaction requires of **two steps** to get completed: the _signup request_, and the _email verification_. Both of them use the exact same endpoint to get performed, nonetheless, the _signup request_ is the only one that must all fields. The _email verification_ instead, shall provide the verification token in the corresponding header.
+
+``` yaml
+# An example of a gRPC message for signup
+
+{
+    "email": "dummy@test.com" # an string containing the user's email,
+    "pwd": "1234567890ABCDEF" # an string containing the user's password encoded in base64
+}
+```
+> If, and only if, the email verification completed successfully, an Empty response is sent with the session token in the corresponding header 
+
+#### Error codes
+
+| **Code** | Name | Description |
+|:---------|:-----|:------------|
+**E-001**|ERR_UNKNOWN| Unprevisible errors
+**E-002**|ERR_NOT_FOUND| Token header not found
+**E-003**|ERR_NOT_AVAILABLE| Require email verification
+**E-005**|ERR_INVALID_TOKEN| Token is invalid because of any of the following reasons: bad format, `exp` time exceeded, bad signature, `nbf` not satisfied, wrong `knd` or not catched.
+**E-006**|ERR_INVALID_FORMAT| Invalid format for `email` or `password`
+**E-007**|ERR_INVALID_HEADER| Token header must be encoded in base64
+
+### **Reset**
+#### Error codes
+| **Code** | Name | Description |
+|:---------|:-----|:------------|
+**E-001**|ERR_UNKNOWN| Unprevisible errors
+**E-002**|ERR_NOT_FOUND| Token header not found
+**E-003**|ERR_NOT_AVAILABLE| Require email verification
+**E-004**|ERR_UNAUTHORIZED| Totp required
+**E-005**|ERR_INVALID_TOKEN| Token is invalid because of any of the following reasons: bad format, `exp` time exceeded, bad signature, `nbf` not satisfied, wrong `knd` or not catched.
+**E-006**|ERR_INVALID_FORMAT| Password must be encoded in base64
+**E-007**|ERR_INVALID_HEADER| Token header must be encoded in base64
+**E-008**|ERR_WRONG_CREDENTIALS| The new password cannot match the old one or invalid `user id`.
+
+
+### **Delete**
+#### Error codes
+| **Code** | Name | Description |
+|:---------|:-----|:------------|
+**E-001**|ERR_UNKNOWN| Unprevisible errors
+**E-002**|ERR_NOT_FOUND| Token header not found
+**E-004**|ERR_UNAUTHORIZED| Totp required
+**E-005**|ERR_INVALID_TOKEN| Token is invalid because of any of the following reasons: bad format, `exp` time exceeded, bad signature, `nbf` not satisfied, wrong `knd` or not catched.
+**E-007**|ERR_INVALID_HEADER| Token header must be encoded in base64
+**E-008**|ERR_WRONG_CREDENTIALS| Password does not match or invalid `user id`.
+
+### **Totp**
+#### Error codes
+| **Code** | Name | Description |
+|:---------|:-----|:------------|
+**E-001**|ERR_UNKNOWN| Unprevisible errors
+**E-002**|ERR_NOT_FOUND| Token header not found
+**E-003**|ERR_NOT_AVAILABLE| The action cannot be performed
+**E-004**|ERR_UNAUTHORIZED| Invalid `totp` value
+**E-005**|ERR_INVALID_TOKEN| Token is invalid because of any of the following reasons: bad format, `exp` time exceeded, bad signature, `nbf` not satisfied, wrong `knd` or not catched.
+**E-007**|ERR_INVALID_HEADER| Token header must be encoded in base64
+**E-008**|ERR_WRONG_CREDENTIALS| Password does not match or invalid `user id`.
+
+### **Login**
+#### Error codes
+| **Code** | Name | Description |
+|:---------|:-----|:------------|
+**E-001**|ERR_UNKNOWN| Unprevisible errors
+**E-004**|ERR_UNAUTHORIZED| Totp required
+**E-008**|ERR_WRONG_CREDENTIALS| Invalid `username` or `password`
+
+### **Logout**
+#### Error codes
+| **Code** | Name | Description |
+|:---------|:-----|:------------|
+**E-001**|ERR_UNKNOWN| Unprevisible errors
+**E-002**|ERR_NOT_FOUND| Token header not found
+**E-005**|ERR_INVALID_TOKEN| Token is invalid because of any of the following reasons: bad format, `exp` time exceeded, bad signature, `nbf` not satisfied, wrong `knd` or not catched.
+**E-007**|ERR_INVALID_HEADER| Token header must be encoded in base64
+**E-008**|ERR_WRONG_CREDENTIALS| Invalid `username` or `password`
+
+## Setup environment
+
+To get the environment ready for the application to run, several steps have to be completed. Luckily all commands are in the [Makefile](./Makefile) of this project, so don't panic ;)
 
 It is required to include in a `.env` file the following environment variables, since the [db setupt script](./scripts/build_db_setup_script.py) requires them.
 ``` bash
@@ -40,7 +139,7 @@ Last but not least, the service will expect a directory (`templates` by default)
 
 > Both templates may consume the same variables: `name` and `token`, provided by the server while rendering. 
 
-## Configuration
+## Server configuration
 
 The server expects a set of environment variables to work properly. Although some of them are optional, it is recommended to assign a value to all of them to have absolute awareness about how the service will behave.
 
@@ -95,94 +194,9 @@ This command will deploy a pod with all those services described in the [compose
 - via `grpc` messaging on port `8000`
 - via `grpc-web` requests on port `8080`
 
-## Logs
+## Debugging
 
 By default, the deployment command has the `-d` flag enabled, so no logs are displayed. If you really want to see them, you have two options: removing the `-d` flag from the `deploy` command of the [Makefile](./Makefile), which will display all logs of all services, or running the following command to display only those coming from the `rauth-server`:
 ```bash
 $ make follow
 ```
-
-## Endpoints
-### **Signup**
-
-Allows a new user to get registered into the system if, and only if, `email` and `password` are both valid. The latter does not only refer to format, but also the `email` is verifiable.
-
-#### Request
-
-The **signup** transaction requires of two steps to get completed: the _signup request_, and the _email verification_. Both of them use the exact same endpoint to get performed, nonetheless, the _signup request_ is the only one that must all fields. The _email verification_ instead, must provide the verification token in the corresponding header.
-
-``` yaml
-# An example of a gRPC message for signup
-
-{
-    "email": "dummy@test.com" # an string containing the user's email,
-    "pwd": "1234567890ABCDEF" # an string containing the user's password encoded in base64
-}
-```
-> If, and only if, the email verification completed successfully, an Empty response is sent with the session token in the corresponding header 
-
-#### Errors
-
-| **Code** | Name | Description |
-|:---------|:-----|:------------|
-**E-001**|ERR_UNKNOWN| Unprevisible errors
-**E-002**|ERR_NOT_FOUND| Token header not found
-**E-003**|ERR_NOT_AVAILABLE| Require email verification
-**E-005**|ERR_INVALID_TOKEN| Token is invalid because of any of the following reasons: bad format, `exp` time exceeded, bad signature, `nbf` not satisfied, wrong `knd` or not catched.
-**E-006**|ERR_INVALID_FORMAT| Invalid format for `email` or `password`
-**E-007**|ERR_INVALID_HEADER| Token header must be encoded in base64
-
-### **Reset**
-
-| **Code** | Name | Description |
-|:---------|:-----|:------------|
-**E-001**|ERR_UNKNOWN| Unprevisible errors
-**E-002**|ERR_NOT_FOUND| Token header not found
-**E-003**|ERR_NOT_AVAILABLE| Require email verification
-**E-004**|ERR_UNAUTHORIZED| Totp required
-**E-005**|ERR_INVALID_TOKEN| Token is invalid because of any of the following reasons: bad format, `exp` time exceeded, bad signature, `nbf` not satisfied, wrong `knd` or not catched.
-**E-006**|ERR_INVALID_FORMAT| Password must be encoded in base64
-**E-007**|ERR_INVALID_HEADER| Token header must be encoded in base64
-**E-008**|ERR_WRONG_CREDENTIALS| The new password cannot match the old one or invalid `user id`.
-
-
-### **Delete**
-
-| **Code** | Name | Description |
-|:---------|:-----|:------------|
-**E-001**|ERR_UNKNOWN| Unprevisible errors
-**E-002**|ERR_NOT_FOUND| Token header not found
-**E-004**|ERR_UNAUTHORIZED| Totp required
-**E-005**|ERR_INVALID_TOKEN| Token is invalid because of any of the following reasons: bad format, `exp` time exceeded, bad signature, `nbf` not satisfied, wrong `knd` or not catched.
-**E-007**|ERR_INVALID_HEADER| Token header must be encoded in base64
-**E-008**|ERR_WRONG_CREDENTIALS| Password does not match or invalid `user id`.
-
-### **Totp**
-
-| **Code** | Name | Description |
-|:---------|:-----|:------------|
-**E-001**|ERR_UNKNOWN| Unprevisible errors
-**E-002**|ERR_NOT_FOUND| Token header not found
-**E-003**|ERR_NOT_AVAILABLE| The action cannot be performed
-**E-004**|ERR_UNAUTHORIZED| Invalid `totp` value
-**E-005**|ERR_INVALID_TOKEN| Token is invalid because of any of the following reasons: bad format, `exp` time exceeded, bad signature, `nbf` not satisfied, wrong `knd` or not catched.
-**E-007**|ERR_INVALID_HEADER| Token header must be encoded in base64
-**E-008**|ERR_WRONG_CREDENTIALS| Password does not match or invalid `user id`.
-
-### **Login**
-
-| **Code** | Name | Description |
-|:---------|:-----|:------------|
-**E-001**|ERR_UNKNOWN| Unprevisible errors
-**E-004**|ERR_UNAUTHORIZED| Totp required
-**E-008**|ERR_WRONG_CREDENTIALS| Invalid `username` or `password`
-
-### **Logout**
-
-| **Code** | Name | Description |
-|:---------|:-----|:------------|
-**E-001**|ERR_UNKNOWN| Unprevisible errors
-**E-002**|ERR_NOT_FOUND| Token header not found
-**E-005**|ERR_INVALID_TOKEN| Token is invalid because of any of the following reasons: bad format, `exp` time exceeded, bad signature, `nbf` not satisfied, wrong `knd` or not catched.
-**E-007**|ERR_INVALID_HEADER| Token header must be encoded in base64
-**E-008**|ERR_WRONG_CREDENTIALS| Invalid `username` or `password`
