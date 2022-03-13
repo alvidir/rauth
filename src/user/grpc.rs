@@ -44,9 +44,18 @@ impl<
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<Empty>, Status> {
         if request.metadata().get(self.jwt_header).is_some() {
             let token = grpc::get_encoded_header(&request, self.jwt_header)?;
-            return self.user_app.secure_signup(&token, self.jwt_public, self.jwt_secret)
-                .map(|_| Response::new(Empty{}))
-                .map_err(|err| Status::aborted(err.to_string()));
+            let token = self.user_app.secure_signup(&token, self.jwt_public, self.jwt_secret)
+                .map_err(|err| Status::aborted(err.to_string()))?;
+            
+            let mut res = Response::new(Empty{});
+            let token = token.parse()
+                .map_err(|err| {
+                    error!("{} parsing token to header: {}", constants::ERR_UNKNOWN, err);
+                    Status::unknown(constants::ERR_UNKNOWN)
+                })?;
+
+            res.metadata_mut().append(self.jwt_header, token);
+            return Ok(res);
         }
         
         let msg_ref = request.into_inner();
