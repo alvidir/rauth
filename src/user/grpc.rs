@@ -45,6 +45,7 @@ impl<
         if request.metadata().get(self.jwt_header).is_some() {
             let token = grpc::get_encoded_header(&request, self.jwt_header)?;
             let token = self.user_app.secure_signup(&token, self.jwt_public, self.jwt_secret)
+                .map(|token| base64::encode(token))
                 .map_err(|err| Status::aborted(err.to_string()))?;
             
             let mut res = Response::new(Empty{});
