@@ -2,6 +2,7 @@
 VERSION=1.0.0
 REPO=alvidir
 PROJECT=rauth
+REMOTE=docker.io
 
 install:
 	### ubuntu ###
@@ -48,3 +49,7 @@ test:
 
 integration-test:
 	RUST_BACKTRACE=full cargo test --features integration-test -- --nocapture
+
+push:
+	podman tag localhost/${REPO}/${PROJECT}:${VERSION} ${REMOTE}/${REPO}/${PROJECT}:${VERSION}
+	podman push ${REMOTE}/${REPO}/${PROJECT}:${VERSION}
