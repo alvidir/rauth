@@ -17,7 +17,7 @@ install:
 	cargo install diesel_cli --no-default-features --features postgres
 
 build:
-	podman build -t ${REPO}/${PROJECT}:${VERSION} -f ./docker/rauth/dockerfile .
+	podman build -t ${REPO}/${PROJECT}:${VERSION} -f ./container/rauth/containerfile .
 	
 setup:
 	mkdir -p .ssh/
@@ -33,13 +33,13 @@ setup:
 	python3 scripts/build_db_setup_script.py
 
 deploy:
-	podman-compose  -f docker-compose.yaml up --remove-orphans -d
+	podman-compose  -f compose.yaml up --remove-orphans -d
 
 follow:
 	podman logs --follow --names rauth-server
 	
 undeploy:
-	podman-compose -f docker-compose.yaml down
+	podman-compose -f compose.yaml down
 
 run:
 	RUST_LOG=INFO cargo run

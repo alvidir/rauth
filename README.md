@@ -283,7 +283,7 @@ Since the application needs some external services to be launched, the easiest w
 $ make deploy
 ```
 
-This command will deploy a pod with all those services described in the [compose file](./docker-compose.yaml) of this project. Once completed, the application endpoints will be reachable in two different ways:
+This command will deploy a pod with all those services described in the [compose file](./compose.yaml) of this project. Once completed, the application endpoints will be reachable in two different ways:
 - via `grpc` messaging on port `8000`
 - via `grpc-web` requests on port `8080`
 
