@@ -7,8 +7,8 @@ edition = "2021"
 [dependencies]
 diesel = { version = "1.4.8", features = ["postgres", "chrono", "r2d2"] } # postgres client
 r2d2_redis = "0.14.0" # sync redis connection pool
-tonic = "0.6.2" # gRPC
-prost = "0.9.0" # protobuf
+tonic = "0.7.2" # gRPC
+prost = "0.10.4" # protobuf
 tokio = { version = "1.15.0", features = ["full"] }
 regex = "1.5.4"
 dotenv = "0.15.0"
@@ -16,7 +16,7 @@ env_logger = "0.9.0"
 base64 = "0.13.0"
 sha256 = "1.0.2"
 openssl = "0.10.35"
-libreauth = "0.14.1"
+libreauth = "0.15.0"
 rand = "0.8.4"
 lazy_static = "1.4.0"
 jsonwebtoken = "8.0.1"
@@ -25,9 +25,13 @@ chrono = "0.4.19"
 serde = "1.0.133" # data parser
 lettre = "0.10.0-rc.4"
 tera = "1.15.0" # template engine
+#futures-lite = { version = "1.11.2", optional = true }
+#lapin = { version = "2.1.1", optional = true }
+futures-lite = "1.11.2"
+lapin = "2.1.1"
 
 [build-dependencies]
-tonic-build = "0.6.2"
+tonic-build = "0.7.2"
 
 [lib]
 name = "rauth"
@@ -37,5 +41,5 @@ path = "src/lib.rs"
 name = "rauth"
 path = "src/main.rs"
 
-[features]
-integration-test = []
+#[features]
+#emit = ["dep:futures-lite", "dep:lapin"]
