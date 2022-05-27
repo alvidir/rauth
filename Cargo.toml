@@ -23,12 +23,12 @@ jsonwebtoken = "8.0.1"
 log = "0.4.14"
 chrono = "0.4.19"
 serde = "1.0.133" # data parser
+serde_json = "1.0.81"
 lettre = "0.10.0-rc.4"
 tera = "1.15.0" # template engine
-#futures-lite = { version = "1.11.2", optional = true }
-#lapin = { version = "2.1.1", optional = true }
 futures-lite = "1.11.2"
 lapin = "2.1.1"
+async-trait = "0.1.53"
 
 [build-dependencies]
 tonic-build = "0.7.2"
@@ -40,6 +40,3 @@ path = "src/lib.rs"
 [[bin]]
 name = "rauth"
 path = "src/main.rs"
-
-#[features]
-#emit = ["dep:futures-lite", "dep:lapin"]

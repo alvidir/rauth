@@ -26,6 +26,7 @@ use rauth::user::{
     application::UserApplication,
     grpc::{UserImplementation, UserServer},
     repository::PostgresUserRepository,
+    bus::RabbitMqUserBus,
 };
 
 use rauth::session::{
@@ -43,6 +44,7 @@ const DEFAULT_JWT_HEADER: &str = "authorization";
 const DEFAULT_TOTP_HEADER: &str = "x-totp-secret";
 const DEFAULT_TOKEN_TIMEOUT: u64 = 7200;
 const DEFAULT_POOL_SIZE: u32 = 10;
+const DEFAULT_BUS: &str = "rauth";
 
 const ENV_SERVICE_PORT: &str = "SERVICE_PORT";
 const ENV_SERVICE_NET: &str = "SERVICE_NETW";
@@ -62,7 +64,7 @@ const ENV_SMTP_ISSUER: &str = "SMTP_ISSUER";
 const ENV_SMTP_TEMPLATES: &str = "SMTP_TEMPLATES";
 const ENV_SMTP_ORIGIN: &str = "SMTP_ORIGIN";
 const ENV_PWD_SUFIX: &str = "PWD_SUFIX";
-const ENV_RABBITMQ_EXCHANGE: &str = "RABBITMQ_EXCHANGE";
+const ENV_RABBITMQ_BUS: &str = "RABBITMQ_BUS";
 const ENV_RABBITMQ_DSN: &str = "RABBITMQ_URL";
 
 type PgPool = Pool<ConnectionManager<PgConnection>>;
@@ -126,11 +128,10 @@ lazy_static! {
             .map_err(|err| format!("establishing connection with {}: {}", redis_dsn, err))
             .unwrap()
     };
+    static ref RABBITMQ_BUS: String =
+        env::var(ENV_RABBITMQ_BUS).unwrap_or(DEFAULT_BUS.to_string());
     static ref RABBITMQ_CONN: Channel = {
         let rabbitmq_dsn = env::var(ENV_RABBITMQ_DSN).expect("rabbitmq url must be set");
-
-        let rabbitmq_exchange =
-            env::var(ENV_RABBITMQ_EXCHANGE).expect("rabbitmq exchange must be set");
 
         tokio::runtime::Runtime::new().unwrap().block_on(async {
             let conn = Connection::connect(&rabbitmq_dsn, ConnectionProperties::default())
@@ -158,13 +159,13 @@ lazy_static! {
 
             channel
                 .exchange_declare(
-                    &rabbitmq_exchange,
+                    &RABBITMQ_BUS,
                     ExchangeKind::Fanout,
                     exchange_options,
                     FieldTable::default(),
                 )
                 .await
-                .map_err(|err| format!("creating rabbitmq exchange {}: {}", rabbitmq_exchange, err))
+                .map_err(|err| format!("creating rabbitmq exchange {}: {}", &*RABBITMQ_BUS, err))
                 .unwrap();
 
             channel
@@ -183,6 +184,11 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
     let user_repo = Arc::new(PostgresUserRepository {
         pool: &PG_POOL,
         metadata_repo: metadata_repo.clone(),
+    });
+
+    let user_event_bus = Arc::new(RabbitMqUserBus{
+        channel: &RABBITMQ_CONN,
+        bus: &*RABBITMQ_BUS,
     });
 
     let token_repo = Arc::new(RedisTokenRepository {
@@ -205,6 +211,7 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
         user_repo: user_repo.clone(),
         secret_repo: secret_repo.clone(),
         token_repo: token_repo.clone(),
+        bus: user_event_bus.clone(),
         mailer: Arc::new(mailer),
         timeout: *TOKEN_TIMEOUT,
     };

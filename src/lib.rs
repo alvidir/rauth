@@ -8,12 +8,12 @@ extern crate serde;
 pub mod metadata;
 pub mod secret;
 pub mod session;
-pub mod user;
 pub mod smtp;
+pub mod user;
 
 mod constants;
-mod security;
-mod schema;
-mod regex;
-mod time;
 mod grpc;
+mod regex;
+mod schema;
+mod security;
+mod time;

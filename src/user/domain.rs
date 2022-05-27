@@ -45,6 +45,10 @@ impl User {
         &self.email
     }
 
+    pub fn get_name(&self) -> &str {
+        &self.name
+    }
+
     pub fn match_password(&self, password: &str) -> bool {
         password == self.password
     }
