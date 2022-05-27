@@ -5,8 +5,9 @@ authors = ["Hèctor Morales <hector.morales.carnice@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-diesel = { version = "1.4.8", features = ["postgres", "chrono", "r2d2"] } # postgres client
-r2d2_redis = "0.14.0" # sync redis connection pool
+sqlx = { version = "0.5.13", features = [ "runtime-tokio-rustls", "postgres"] }
+redis = { version = "0.21.5", features = ["tokio-comp"] }
+reool = "0.30.0"
 tonic = "0.7.2" # gRPC
 prost = "0.10.4" # protobuf
 tokio = { version = "1.15.0", features = ["full"] }
@@ -20,7 +21,7 @@ libreauth = "0.15.0"
 rand = "0.8.4"
 lazy_static = "1.4.0"
 jsonwebtoken = "8.0.1"
-log = "0.4.14"
+log = "0.4.17"
 chrono = "0.4.19"
 serde = "1.0.133" # data parser
 serde_json = "1.0.81"

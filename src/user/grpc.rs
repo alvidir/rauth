@@ -71,6 +71,7 @@ impl<
 
         self.user_app
             .verify_signup_email(&msg_ref.email, &shadowed_pwd, self.jwt_secret)
+            .await
             .map_err(|err| Status::aborted(err.to_string()))?;
         Err(Status::failed_precondition(constants::ERR_NOT_AVAILABLE))
     }
@@ -83,6 +84,7 @@ impl<
             return self
                 .user_app
                 .secure_reset(&shadowed_pwd, &msg_ref.totp, &token, self.jwt_public)
+                .await
                 .map(|_| Response::new(Empty {}))
                 .map_err(|err| Status::aborted(err.to_string()));
         }
@@ -90,6 +92,7 @@ impl<
         let msg_ref = request.into_inner();
         self.user_app
             .verify_reset_email(&msg_ref.email, self.jwt_secret)
+            .await
             .map_err(|err| Status::aborted(err.to_string()))?;
         Err(Status::failed_precondition(constants::ERR_NOT_AVAILABLE))
     }
@@ -100,6 +103,7 @@ impl<
         let shadowed_pwd = security::shadow(&msg_ref.pwd, self.pwd_sufix);
         self.user_app
             .secure_delete(&shadowed_pwd, &msg_ref.totp, &token, self.jwt_public)
+            .await
             .map(|_| Response::new(Empty {}))
             .map_err(|err| Status::aborted(err.to_string()))
     }
@@ -113,6 +117,7 @@ impl<
             let token = self
                 .user_app
                 .secure_enable_totp(&shadowed_pwd, &msg_ref.totp, &token, self.jwt_public)
+                .await
                 .map_err(|err| Status::aborted(err.to_string()))?;
 
             let mut response = Response::new(Empty {});
@@ -134,6 +139,7 @@ impl<
             return self
                 .user_app
                 .secure_disable_totp(&shadowed_pwd, &msg_ref.totp, &token, self.jwt_public)
+                .await
                 .map(|_| Response::new(Empty {}))
                 .map_err(|err| Status::unknown(err.to_string()));
         }

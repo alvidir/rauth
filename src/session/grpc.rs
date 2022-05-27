@@ -44,6 +44,7 @@ impl<
         let shadowed_pwd = security::shadow(&msg_ref.pwd, self.pwd_sufix);
 
         let token = self.sess_app.login(&msg_ref.ident, &shadowed_pwd, &msg_ref.totp, self.jwt_secret)
+            .await
             .map(|token| base64::encode(token))
             .map_err(|err| Status::aborted(err.to_string()))?;
 
@@ -60,7 +61,7 @@ impl<
 
     async fn logout(&self, request: Request<Empty>) -> Result<Response<Empty>, Status> {
         let token = grpc::get_encoded_header(&request, self.jwt_header)?;        
-        if let Err(err) = self.sess_app.logout(&token, self.jwt_public){    
+        if let Err(err) = self.sess_app.logout(&token, self.jwt_public).await{    
             return Err(Status::aborted(err.to_string()));
         }
 

@@ -1,45 +1,26 @@
 use std::error::Error;
 use std::sync::Arc;
-use diesel::{
-    r2d2::{Pool, ConnectionManager},
-    pg::PgConnection
-};
-
-use crate::diesel::prelude::*;
-use crate::schema::secrets;
-use crate::schema::secrets::dsl::*;
 use crate::metadata::application::MetadataRepository;
 use crate::constants;
-
 use super::{
     application::SecretRepository,
     domain::Secret,
 };
+use sqlx::postgres::PgPool;
 
-#[derive(Queryable, Insertable, Associations)]
-#[derive(Identifiable)]
-#[derive(AsChangeset)]
-#[derive(Clone)]
-#[table_name = "secrets"]
-struct PostgresSecret {
-    pub id: i32,
-    pub name: String,
-    pub data: String,
-    pub user_id: i32,
-    pub meta_id: i32,
-}
+const QUERY_INSERT_SECRET: &str =
+    "INSERT INTO secrets (name, data, user_id, meta_id) VALUES ($1, $2, $3, $4) RETURNING id";
+const QUERY_FIND_SECRET: &str = "SELECT id, name, data, user_id, meta_id FROM secrets WHERE id = $1";
+const QUERY_FIND_SECRET_BY_USER_AND_NAME: &str =
+    "SELECT id, name, data, user_id, meta_id FROM secrets WHERE user_id = $1 AND name = $2";
+const QUERY_FIND_SECRET_BY_NAME: &str =
+    "SELECT id, name, data, user_id, meta_id FROM secrets WHERE name = $1";
+const QUERY_UPDATE_SECRET: &str =
+    "UPDATE secrets SET name = $2, data = $3, user_id = $4, meta_id = $5, password = $4 FROM secrets WHERE id = $1";
+const QUERY_DELETE_SECRET: &str = "DELETE FROM secrets WHERE id = $1";
 
-#[derive(Insertable)]
-#[derive(Clone)]
-#[table_name = "secrets"]
-struct NewPostgresSecret<'a> {
-    pub name: &'a str,
-    pub data: &'a str,
-    pub user_id: i32,
-    pub meta_id: i32,
-}
 
-type PgPool = Pool<ConnectionManager<PgConnection>>;
+type PostgresSecretRow = (i32, String, String, String, i32);
 
 pub struct PostgresSecretRepository<'a, M: MetadataRepository> {
     pub pool: &'a PgPool,
@@ -47,44 +28,7 @@ pub struct PostgresSecretRepository<'a, M: MetadataRepository> {
 }
 
 impl<'a, M: MetadataRepository> PostgresSecretRepository<'a, M> {
-    pub fn tx_create(&self, conn: &PgConnection, secret: &mut Secret) -> Result<(), Box<dyn Error>>  {
-        let data_as_str = String::from_utf8(secret.data.clone())
-            .map_err(|err| {
-                error!("{} parsing secret to string: {}", constants::ERR_UNKNOWN, err);
-                constants::ERR_UNKNOWN
-            })?;
-        
-        let new_secret = NewPostgresSecret {
-            name: &secret.name,
-            data: &data_as_str,
-            user_id: 0,
-            meta_id: secret.meta.get_id(),
-        };
-        
-        let result = diesel::insert_into(secrets::table)
-            .values(new_secret)
-            .get_result::<PostgresSecret>(conn)
-            .map_err(|err| {
-                error!("{} performing insert query on postgres: {}", constants::ERR_UNKNOWN, err);
-                constants::ERR_UNKNOWN
-            })?;
-
-        secret.id = result.id;
-        Ok(())
-    }
-
-    pub fn tx_delete(&self, conn: &PgConnection, secret: &Secret) -> Result<(), Box<dyn Error>>  {
-        diesel::delete(secrets.filter(id.eq(secret.id)))
-            .execute(conn)
-            .map_err(|err| {
-                error!("{} performing delete query on postgres: {}", constants::ERR_UNKNOWN, err);
-                constants::ERR_UNKNOWN
-            })?;
-
-        Ok(())
-    }
-
-    fn build(&self, pg_secret: &PostgresSecret) -> Result<Secret, Box<dyn Error>> {
+    fn build(&self, secret_row: &PostgresSecretRow) -> Result<Secret, Box<dyn Error>> {
         let meta = self.metadata_repo.find(pg_secret.meta_id)?;
 
         Ok(Secret{
@@ -149,13 +93,25 @@ impl<'a, M: MetadataRepository> SecretRepository for PostgresSecretRepository<'a
     }
 
     fn create(&self, secret: &mut Secret) -> Result<(), Box<dyn Error>> {
-        let conn = self.pool.get()
+        self.metadata_repo.create(&mut secret.meta)?;
+
+        let row: (i32,) = sqlx::query_as(QUERY_INSERT_SECRET)
+            .bind(&secret.name)
+            .bind(&secret.data)
+            .bind(&secret.user_id)
+            .bind(secret.meta.get_id())
+            .fetch_one(self.pool)
+            .await
             .map_err(|err| {
-                error!("{} pulling connection for postgres: {}", constants::ERR_UNKNOWN, err);
+                error!(
+                    "{} performing insert query on postgres: {:?}",
+                    constants::ERR_UNKNOWN,
+                    err
+                );
                 constants::ERR_UNKNOWN
             })?;
-            
-        conn.transaction::<_, Box<dyn Error>, _>(|| self.tx_create(&conn, secret))?;
+
+        user.id = row.0;
         Ok(())
     }
 

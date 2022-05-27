@@ -1,83 +1,119 @@
-use std::error::Error;
-use std::ops::DerefMut;
-use r2d2_redis::{r2d2, redis, RedisConnectionManager};
 use super::application::TokenRepository;
 use crate::constants;
-
-const REDIS_CMD_GET: &str = "GET";
-const REDIS_CMD_SET: &str = "SET";
-const REDIS_CMD_DELETE: &str = "DEL";
-const REDIS_CMD_EXPIRE: &str = "EXPIRE";
-
-type RdPool = r2d2::Pool<RedisConnectionManager> ;
+use async_trait::async_trait;
+use reool::AsyncCommands;
+use reool::*;
+use std::error::Error;
 
 pub struct RedisTokenRepository<'a> {
-    pub pool: &'a RdPool,
+    pub pool: &'a RedisPool,
     pub jwt_secret: &'a [u8],
     pub jwt_public: &'a [u8],
 }
 
+#[async_trait]
 impl<'a> TokenRepository for RedisTokenRepository<'a> {
-    fn find(&self, key: &str) -> Result<String, Box<dyn Error>> {
+    async fn find(&self, key: &str) -> Result<String, Box<dyn Error>> {
         info!("looking for token with id {}", key);
 
-        let mut conn = self.pool.get()
-            .map_err(|err| {
-                error!("{} pulling connection for redis: {}", constants::ERR_UNKNOWN, err);
-                constants::ERR_UNKNOWN
-            })?;
-        
-        let token: String = redis::cmd(REDIS_CMD_GET).arg(key).query(conn.deref_mut())
-            .map_err(|err| {
-                error!("{} performing GET command on redis: {}", constants::ERR_UNKNOWN, err);
-                constants::ERR_UNKNOWN
-            })?;
-       
+        let mut conn = self.pool.check_out(PoolDefault).await.map_err(|err| {
+            error!(
+                "{} pulling connection for redis: {}",
+                constants::ERR_UNKNOWN,
+                err
+            );
+            constants::ERR_UNKNOWN
+        })?;
+
+        let token: Vec<u8> = conn.get(key).await.map_err(|err| {
+            error!(
+                "{} performing GET command on redis: {}",
+                constants::ERR_UNKNOWN,
+                err
+            );
+            constants::ERR_UNKNOWN
+        })?;
+
+        let token: String = String::from_utf8(token).map_err(|err| {
+            error!(
+                "{} parsing token to string: {}",
+                constants::ERR_UNKNOWN,
+                err
+            );
+            constants::ERR_UNKNOWN
+        })?;
         Ok(token)
     }
 
-    fn save(&self, key: &str, token: &str, expire: Option<u64>) -> Result<(), Box<dyn Error>> {
+    async fn save(
+        &self,
+        key: &str,
+        token: &str,
+        expire: Option<u64>,
+    ) -> Result<(), Box<dyn Error>> {
         info!("storing token with id {}", key);
-        
-        let mut conn = self.pool.get()
-            .map_err(|err| {
-                error!("{} pulling connection for redis: {}", constants::ERR_UNKNOWN, err);
-                constants::ERR_UNKNOWN
-            })?;
 
-        redis::cmd(REDIS_CMD_SET).arg(key).arg(token).query(conn.deref_mut())
-            .map_err(|err| {
-                error!("{} performing SET command on redis: {}", constants::ERR_UNKNOWN, err);
-                constants::ERR_UNKNOWN
-            })?;
+        let mut conn = self.pool.check_out(PoolDefault).await.map_err(|err| {
+            error!(
+                "{} pulling connection for redis: {}",
+                constants::ERR_UNKNOWN,
+                err
+            );
+            constants::ERR_UNKNOWN
+        })?;
+
+        conn.set(key, token).await.map_err(|err| {
+            error!(
+                "{} performing SET command on redis: {}",
+                constants::ERR_UNKNOWN,
+                err
+            );
+            constants::ERR_UNKNOWN
+        })?;
 
         if let Some(expire) = expire {
-            redis::cmd(REDIS_CMD_EXPIRE).arg(key).arg(expire).query(conn.deref_mut())
-                .map_err(|err| {
-                    error!("{} performing EXPIRE command on redis: {}", constants::ERR_UNKNOWN, err);
-                    constants::ERR_UNKNOWN
-                })?;
+            let expire = expire.try_into().map_err(|err| {
+                error!(
+                    "{} parsing expiration time to usize: {}",
+                    constants::ERR_UNKNOWN,
+                    err
+                );
+                constants::ERR_UNKNOWN
+            })?;
+
+            conn.expire(key, expire).await.map_err(|err| {
+                error!(
+                    "{} performing EXPIRE command on redis: {}",
+                    constants::ERR_UNKNOWN,
+                    err
+                );
+                constants::ERR_UNKNOWN
+            })?;
         }
-        
         Ok(())
     }
 
-    fn delete(&self, key: &str) -> Result<(), Box<dyn Error>> {
+    async fn delete(&self, key: &str) -> Result<(), Box<dyn Error>> {
         info!("removing token with id {}", key);
 
-        let mut conn = self.pool.get()
-            .map_err(|err| {
-                error!("{} pulling connection for redis: {}", constants::ERR_UNKNOWN, err);
-                constants::ERR_UNKNOWN
-            })?;
-        
-        redis::cmd(REDIS_CMD_DELETE).arg(key).query(conn.deref_mut())
-            .map_err(|err| {
-                error!("{} performing DELETE command on redis: {}", constants::ERR_UNKNOWN, err);
-                constants::ERR_UNKNOWN
-            })?;
-        
-            Ok(())
-    }
+        let mut conn = self.pool.check_out(PoolDefault).await.map_err(|err| {
+            error!(
+                "{} pulling connection for redis: {}",
+                constants::ERR_UNKNOWN,
+                err
+            );
+            constants::ERR_UNKNOWN
+        })?;
 
+        conn.del(key).await.map_err(|err| {
+            error!(
+                "{} performing DELETE command on redis: {}",
+                constants::ERR_UNKNOWN,
+                err
+            );
+            constants::ERR_UNKNOWN
+        })?;
+
+        Ok(())
+    }
 }

@@ -3,18 +3,16 @@ extern crate log;
 #[macro_use]
 extern crate lazy_static;
 
-use diesel::{
-    pg::PgConnection,
-    r2d2::{ConnectionManager, Pool},
-};
 use dotenv;
 use lapin::{
     options::*, types::FieldTable, Channel, Connection, ConnectionProperties, ExchangeKind,
 };
-use r2d2_redis::{r2d2, RedisConnectionManager};
+use reool::RedisPool;
+use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::env;
 use std::error::Error;
 use std::sync::Arc;
+use tokio::runtime::Handle;
 use tonic::transport::Server;
 
 use rauth::metadata::repository::PostgresMetadataRepository;
@@ -24,9 +22,9 @@ use rauth::secret::repository::PostgresSecretRepository;
 
 use rauth::user::{
     application::UserApplication,
+    bus::RabbitMqUserBus,
     grpc::{UserImplementation, UserServer},
     repository::PostgresUserRepository,
-    bus::RabbitMqUserBus,
 };
 
 use rauth::session::{
@@ -67,9 +65,6 @@ const ENV_PWD_SUFIX: &str = "PWD_SUFIX";
 const ENV_RABBITMQ_BUS: &str = "RABBITMQ_BUS";
 const ENV_RABBITMQ_DSN: &str = "RABBITMQ_URL";
 
-type PgPool = Pool<ConnectionManager<PgConnection>>;
-type RdPool = r2d2::Pool<RedisConnectionManager>;
-
 lazy_static! {
     static ref TOKEN_TIMEOUT: u64 = env::var(ENV_TOKEN_TIMEOUT)
         .map(|timeout| timeout.parse().unwrap())
@@ -101,35 +96,33 @@ lazy_static! {
             .map(|pool_size| pool_size.parse().unwrap())
             .unwrap_or(DEFAULT_POOL_SIZE);
 
-        PgPool::builder()
-            .max_size(postgres_pool)
-            .build(ConnectionManager::new(&postgres_dsn))
-            .map(|pool| {
-                info!("connection with postgres cluster established");
-                pool
-            })
-            .map_err(|err| format!("establishing connection with {}: {}", postgres_dsn, err))
-            .unwrap()
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            PgPoolOptions::new()
+                .max_connections(postgres_pool)
+                .connect(&postgres_dsn)
+                .await
+                .map(|pool| {
+                    info!("connection with postgres cluster established");
+                    pool
+                })
+                .map_err(|err| format!("establishing connection with {}: {}", postgres_dsn, err))
+                .unwrap()
+        })
     };
-    static ref RD_POOL: RdPool = {
+    static ref RD_POOL: RedisPool = {
         let redis_dsn: String = env::var(ENV_REDIS_DSN).expect("redis url must be set");
-        let redis_pool = env::var(ENV_REDIS_POOL)
+        let redis_pool: usize = env::var(ENV_REDIS_POOL)
             .map(|pool_size| pool_size.parse().unwrap())
-            .unwrap_or(DEFAULT_POOL_SIZE);
-        let manager = RedisConnectionManager::new(redis_dsn.clone()).unwrap();
+            .unwrap_or(DEFAULT_POOL_SIZE.try_into().unwrap());
 
-        r2d2::Pool::builder()
-            .max_size(redis_pool)
-            .build(manager)
-            .map(|pool| {
-                info!("connection with redis cluster established");
-                pool
-            })
-            .map_err(|err| format!("establishing connection with {}: {}", redis_dsn, err))
+        RedisPool::builder()
+            .connect_to_node(redis_dsn)
+            .desired_pool_size(redis_pool)
+            .task_executor(Handle::current())
+            .finish_redis_rs()
             .unwrap()
     };
-    static ref RABBITMQ_BUS: String =
-        env::var(ENV_RABBITMQ_BUS).unwrap_or(DEFAULT_BUS.to_string());
+    static ref RABBITMQ_BUS: String = env::var(ENV_RABBITMQ_BUS).unwrap_or(DEFAULT_BUS.to_string());
     static ref RABBITMQ_CONN: Channel = {
         let rabbitmq_dsn = env::var(ENV_RABBITMQ_DSN).expect("rabbitmq url must be set");
 
@@ -186,7 +179,7 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
         metadata_repo: metadata_repo.clone(),
     });
 
-    let user_event_bus = Arc::new(RabbitMqUserBus{
+    let user_event_bus = Arc::new(RabbitMqUserBus {
         channel: &RABBITMQ_CONN,
         bus: &*RABBITMQ_BUS,
     });
