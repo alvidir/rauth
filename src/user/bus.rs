@@ -6,10 +6,16 @@ use serde_json;
 use std::error::Error;
 
 #[derive(Serialize, Deserialize)]
-struct EventUserCreated<'a> {
+enum EventKind {
+    CREATED = 0,
+}
+
+#[derive(Serialize, Deserialize)]
+struct UserEvent<'a> {
     pub id: i32,
     pub name: &'a str,
     pub email: &'a str,
+    pub kind: EventKind
 }
 
 pub struct RabbitMqUserBus<'a> {
@@ -20,10 +26,11 @@ pub struct RabbitMqUserBus<'a> {
 #[async_trait]
 impl<'a> EventBus for RabbitMqUserBus<'a> {
     async fn emit_user_created(&self, user: &User) -> Result<(), Box<dyn Error>> {
-        let event = EventUserCreated {
+        let event = UserEvent {
             id: user.get_id(),
             name: user.get_name(),
             email: user.get_email(),
+            kind: EventKind::CREATED
         };
 
         let payload = serde_json::to_string(&event)
