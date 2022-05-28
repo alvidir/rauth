@@ -23,7 +23,7 @@ services:
 
     rauth:
         container_name: rauth-server
-        image: localhost/alvidir/rauth:1.0.0
+        image: localhost/alvidir/rauth:1.2.0
         restart: always
         ports:
             - 8000:8000

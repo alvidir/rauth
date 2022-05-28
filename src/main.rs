@@ -3,9 +3,24 @@ extern crate log;
 #[macro_use]
 extern crate lazy_static;
 
+use async_once::AsyncOnce;
 use dotenv;
 use lapin::{
     options::*, types::FieldTable, Channel, Connection, ConnectionProperties, ExchangeKind,
+};
+use rauth::metadata::repository::PostgresMetadataRepository;
+use rauth::secret::repository::PostgresSecretRepository;
+use rauth::session::{
+    application::SessionApplication,
+    grpc::{SessionImplementation, SessionServer},
+    repository::RedisTokenRepository,
+};
+use rauth::smtp::Smtp;
+use rauth::user::{
+    application::UserApplication,
+    bus::RabbitMqUserBus,
+    grpc::{UserImplementation, UserServer},
+    repository::PostgresUserRepository,
 };
 use reool::RedisPool;
 use sqlx::postgres::{PgPool, PgPoolOptions};
@@ -14,24 +29,6 @@ use std::error::Error;
 use std::sync::Arc;
 use tokio::runtime::Handle;
 use tonic::transport::Server;
-
-use rauth::metadata::repository::PostgresMetadataRepository;
-use rauth::smtp::Smtp;
-
-use rauth::secret::repository::PostgresSecretRepository;
-
-use rauth::user::{
-    application::UserApplication,
-    bus::RabbitMqUserBus,
-    grpc::{UserImplementation, UserServer},
-    repository::PostgresUserRepository,
-};
-
-use rauth::session::{
-    application::SessionApplication,
-    grpc::{SessionImplementation, SessionServer},
-    repository::RedisTokenRepository,
-};
 
 const DEFAULT_NETW: &str = "127.0.0.1";
 const DEFAULT_PORT: &str = "8000";
@@ -89,26 +86,24 @@ lazy_static! {
     static ref SMTP_TEMPLATES: String =
         env::var(ENV_SMTP_TEMPLATES).unwrap_or(DEFAULT_TEMPLATES_PATH.to_string());
     static ref PWD_SUFIX: String = env::var(ENV_PWD_SUFIX).unwrap_or(DEFAULT_PWD_SUFIX.to_string());
-    static ref PG_POOL: PgPool = {
+    static ref PG_POOL: AsyncOnce<PgPool> = AsyncOnce::new(async {
         let postgres_dsn = env::var(ENV_POSTGRES_DSN).expect("postgres url must be set");
 
         let postgres_pool = env::var(ENV_POSTGRES_POOL)
             .map(|pool_size| pool_size.parse().unwrap())
             .unwrap_or(DEFAULT_POOL_SIZE);
 
-        tokio::runtime::Runtime::new().unwrap().block_on(async {
-            PgPoolOptions::new()
-                .max_connections(postgres_pool)
-                .connect(&postgres_dsn)
-                .await
-                .map(|pool| {
-                    info!("connection with postgres cluster established");
-                    pool
-                })
-                .map_err(|err| format!("establishing connection with {}: {}", postgres_dsn, err))
-                .unwrap()
-        })
-    };
+        PgPoolOptions::new()
+            .max_connections(postgres_pool)
+            .connect(&postgres_dsn)
+            .await
+            .map(|pool| {
+                info!("connection with postgres cluster established");
+                pool
+            })
+            .map_err(|err| format!("establishing connection with {}: {}", postgres_dsn, err))
+            .unwrap()
+    });
     static ref RD_POOL: RedisPool = {
         let redis_dsn: String = env::var(ENV_REDIS_DSN).expect("redis url must be set");
         let redis_pool: usize = env::var(ENV_REDIS_POOL)
@@ -123,64 +118,63 @@ lazy_static! {
             .unwrap()
     };
     static ref RABBITMQ_BUS: String = env::var(ENV_RABBITMQ_BUS).unwrap_or(DEFAULT_BUS.to_string());
-    static ref RABBITMQ_CONN: Channel = {
+    static ref RABBITMQ_CONN: AsyncOnce<Channel> = AsyncOnce::new(async {
         let rabbitmq_dsn = env::var(ENV_RABBITMQ_DSN).expect("rabbitmq url must be set");
+        let conn = Connection::connect(&rabbitmq_dsn, ConnectionProperties::default())
+            .await
+            .map(|pool| {
+                info!("connection with rabbitmq cluster established");
+                pool
+            })
+            .map_err(|err| format!("establishing connection with {}: {}", rabbitmq_dsn, err))
+            .unwrap();
 
-        tokio::runtime::Runtime::new().unwrap().block_on(async {
-            let conn = Connection::connect(&rabbitmq_dsn, ConnectionProperties::default())
-                .await
-                .map(|pool| {
-                    info!("connection with rabbitmq cluster established");
-                    pool
-                })
-                .map_err(|err| format!("establishing connection with {}: {}", rabbitmq_dsn, err))
-                .unwrap();
+        let channel = conn
+            .create_channel()
+            .await
+            .map_err(|err| format!("creating rabbitmq channel: {}", err))
+            .unwrap();
 
-            let channel = conn
-                .create_channel()
-                .await
-                .map_err(|err| format!("creating rabbitmq channel: {}", err))
-                .unwrap();
+        let exchange_options = ExchangeDeclareOptions {
+            durable: true,
+            auto_delete: false,
+            internal: false,
+            nowait: false,
+            passive: false,
+        };
 
-            let exchange_options = ExchangeDeclareOptions {
-                durable: true,
-                auto_delete: false,
-                internal: false,
-                nowait: false,
-                passive: false,
-            };
+        channel
+            .exchange_declare(
+                &RABBITMQ_BUS,
+                ExchangeKind::Fanout,
+                exchange_options,
+                FieldTable::default(),
+            )
+            .await
+            .map_err(|err| format!("creating rabbitmq exchange {}: {}", &*RABBITMQ_BUS, err))
+            .unwrap();
 
-            channel
-                .exchange_declare(
-                    &RABBITMQ_BUS,
-                    ExchangeKind::Fanout,
-                    exchange_options,
-                    FieldTable::default(),
-                )
-                .await
-                .map_err(|err| format!("creating rabbitmq exchange {}: {}", &*RABBITMQ_BUS, err))
-                .unwrap();
-
-            channel
-        })
-    };
+        channel
+    });
 }
 
 pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
-    let metadata_repo = Arc::new(PostgresMetadataRepository { pool: &PG_POOL });
+    let metadata_repo = Arc::new(PostgresMetadataRepository {
+        pool: PG_POOL.get().await,
+    });
 
     let secret_repo = Arc::new(PostgresSecretRepository {
-        pool: &PG_POOL,
+        pool: PG_POOL.get().await,
         metadata_repo: metadata_repo.clone(),
     });
 
     let user_repo = Arc::new(PostgresUserRepository {
-        pool: &PG_POOL,
+        pool: PG_POOL.get().await,
         metadata_repo: metadata_repo.clone(),
     });
 
     let user_event_bus = Arc::new(RabbitMqUserBus {
-        channel: &RABBITMQ_CONN,
+        channel: RABBITMQ_CONN.get().await,
         bus: &*RABBITMQ_BUS,
     });
 

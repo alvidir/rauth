@@ -1,5 +1,5 @@
 # Global about the project
-VERSION=1.0.0
+VERSION=1.2.0
 REPO=alvidir
 PROJECT=rauth
 REMOTE=docker.io
@@ -12,9 +12,6 @@ install:
 	### fedora ###
 	sudo dnf install postgresql-devel
 	sudo dnf install pkg-config openssl-devel
-
-	### global ###
-	cargo install diesel_cli --no-default-features --features postgres
 
 build:
 	podman build -t ${REPO}/${PROJECT}:${VERSION} -f ./container/rauth/containerfile .
