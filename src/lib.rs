@@ -14,6 +14,5 @@ pub mod user;
 mod constants;
 mod grpc;
 mod regex;
-mod schema;
 mod security;
 mod time;

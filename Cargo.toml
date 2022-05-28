@@ -5,7 +5,7 @@ authors = ["Hèctor Morales <hector.morales.carnice@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-sqlx = { version = "0.5.13", features = [ "runtime-tokio-rustls", "postgres"] }
+sqlx = { version = "0.5.13", features = [ "runtime-tokio-rustls", "postgres", "chrono"] }
 redis = { version = "0.21.5", features = ["tokio-comp"] }
 reool = "0.30.0"
 tonic = "0.7.2" # gRPC

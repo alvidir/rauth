@@ -1,18 +1,21 @@
-use std::time::{SystemTime};
 use crate::metadata::domain::Metadata;
+use crate::user::domain::User;
+use chrono::{DateTime, Utc};
 
 #[derive(Clone)]
 pub struct Secret {
     pub(super) id: i32,
+    pub(super) owner: i32,
     pub(super) name: String,
     pub(super) data: Vec<u8>,
     pub(super) meta: Metadata,
 }
 
 impl Secret {
-    pub fn new(name: &str, data: &[u8]) -> Self {
+    pub fn new(user: &User, name: &str, data: &[u8]) -> Self {
         Secret {
             id: 0,
+            owner: user.get_id(),
             name: name.to_string(),
             data: data.to_vec(),
             meta: Metadata::new(),
@@ -31,16 +34,16 @@ impl Secret {
         self.meta.deleted_at.is_some()
     }
 
-    pub fn set_deleted_at(&mut self, deleted_at: Option<SystemTime>) {
+    pub fn set_deleted_at(&mut self, deleted_at: Option<DateTime<Utc>>) {
         self.meta.deleted_at = deleted_at;
     }
 }
 
-
 #[cfg(test)]
 pub mod tests {
-    use crate::metadata::domain::Metadata;
     use super::Secret;
+    use crate::metadata::domain::Metadata;
+    use crate::user::domain::tests::new_user;
 
     pub const TEST_DEFAULT_SECRET_NAME: &str = "dummysecret";
     pub const TEST_DEFAULT_SECRET_DATA: &str = "this is a secret";
@@ -49,7 +52,8 @@ pub mod tests {
         let inner_meta = Metadata::new();
 
         Secret {
-            id: 999,
+            id: 999_i32,
+            owner: 0_i32,
             name: TEST_DEFAULT_SECRET_NAME.to_string(),
             data: TEST_DEFAULT_SECRET_DATA.as_bytes().to_vec(),
             meta: inner_meta,
@@ -60,10 +64,11 @@ pub mod tests {
     fn secret_new_should_not_fail() {
         let name = "dummy secret";
         let data = "secret_new_should_success".as_bytes();
-        let secret = Secret::new(name.clone(), data.clone());
+        let user = new_user();
+        let secret = Secret::new(&user, name.clone(), data.clone());
 
-        assert_eq!(0, secret.id); 
-        assert_eq!(name, secret.name); 
+        assert_eq!(0, secret.id);
+        assert_eq!(name, secret.name);
         assert_eq!(data, secret.data);
     }
 }

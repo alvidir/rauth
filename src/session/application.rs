@@ -36,11 +36,14 @@ impl<T: TokenRepository, U: UserRepository, E: SecretRepository> SessionApplicat
             "processing a \"login\" request for user identified by {} ",
             ident
         );
-        let user = regex::match_regex(regex::EMAIL, ident)
-            .map(|_| self.user_repo.find_by_email(ident))
-            .unwrap_or(self.user_repo.find_by_name(ident))
-            .await
-            .map_err(|_| constants::ERR_WRONG_CREDENTIALS)?;
+        let user = {
+            if regex::match_regex(regex::EMAIL, ident).is_ok() {
+                self.user_repo.find_by_email(ident).await
+            } else {
+                self.user_repo.find_by_name(ident).await
+            }
+        }
+        .map_err(|_| constants::ERR_WRONG_CREDENTIALS)?;
 
         if !user.match_password(pwd) {
             return Err(constants::ERR_WRONG_CREDENTIALS.into());
@@ -50,6 +53,7 @@ impl<T: TokenRepository, U: UserRepository, E: SecretRepository> SessionApplicat
         if let Ok(secret) = self
             .secret_repo
             .find_by_user_and_name(user.get_id(), constants::TOTP_SECRET_NAME)
+            .await
         {
             if !secret.is_deleted() {
                 let data = secret.get_data();

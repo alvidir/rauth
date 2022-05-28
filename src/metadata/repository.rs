@@ -1,154 +1,109 @@
-use std::error::Error;
-use std::time::SystemTime;
-use diesel::{
-    r2d2::{Pool, ConnectionManager},
-    pg::PgConnection,
-};
-
-use crate::diesel::prelude::*;
-use crate::schema::metadata::dsl::*;
-use crate::schema::metadata;
+use super::{application::MetadataRepository, domain::Metadata};
 use crate::constants;
+use async_trait::async_trait;
+use chrono::{DateTime, Utc};
+use sqlx::postgres::PgPool;
+use std::error::Error;
 
-use super::{
-    domain::Metadata,
-    application::MetadataRepository
-};
+const QUERY_INSERT_METADATA: &str =
+    "INSERT INTO metadata (created_at, updated_at, deleted_at) VALUES ($1, $2, $3) RETURNING id";
+const QUERY_FIND_METADATA: &str =
+    "SELECT id, created_at, updated_at, deleted_at FROM metadata WHERE id = $1";
+const QUERY_UPDATE_METADATA: &str =
+    "UPDATE metadata SET created_at = $2, updated_at = $3, deleted_at = $4 FROM metadata WHERE id = $1";
+const QUERY_DELETE_METADATA: &str = "DELETE FROM metadata WHERE id = $1";
 
-#[derive(Queryable, Insertable, Associations)]
-#[derive(Identifiable)]
-#[derive(AsChangeset)]
-#[derive(Clone)]
-#[table_name = "metadata"]
-struct PostgresMetadata {
-    pub id: i32,
-    pub created_at: SystemTime,
-    pub updated_at: SystemTime,
-    pub deleted_at: Option<SystemTime>
-}
-
-#[derive(Insertable)]
-#[derive(Clone)]
-#[table_name = "metadata"]
-struct NewPostgresMetadata {
-    pub created_at: SystemTime,
-    pub updated_at: SystemTime,
-    pub deleted_at: Option<SystemTime>
-}
-
-type PgPool = Pool<ConnectionManager<PgConnection>>;
+type PostgresSecretRow = (i32, DateTime<Utc>, DateTime<Utc>, Option<DateTime<Utc>>); // id, created_at, updated_at, deleted_at
 
 pub struct PostgresMetadataRepository<'a> {
     pub pool: &'a PgPool,
 }
 
-impl<'a> PostgresMetadataRepository<'a> {
-    pub fn tx_create(conn: &PgConnection, meta: &mut Metadata) -> Result<(), Box<dyn Error>>  {
-        let new_meta = NewPostgresMetadata {
-            created_at: meta.created_at,
-            updated_at: meta.updated_at,
-            deleted_at: None,
-        };
-        
-        let result = diesel::insert_into(metadata::table)
-            .values(new_meta)
-            .get_result::<PostgresMetadata>(conn)
-            .map_err(|err| {
-                error!("{} performing insert query on postgres: {}", constants::ERR_UNKNOWN, err);
-                constants::ERR_UNKNOWN
-            })?;
-
-        meta.id = result.id;
-        Ok(())
-    }
-
-    pub fn tx_delete(conn: &PgConnection, meta: &Metadata) -> Result<(), Box<dyn Error>>  {
-        diesel::delete(metadata.filter(id.eq(meta.id)))
-            .execute(conn)
-            .map_err(|err| {
-                error!("{} performing delete query on postgres: {}", constants::ERR_UNKNOWN, err);
-                constants::ERR_UNKNOWN
-            })?;
-
-        Ok(())
-    }
-}
-
+#[async_trait]
 impl<'a> MetadataRepository for PostgresMetadataRepository<'a> {
-    fn find(&self, target: i32) -> Result<Metadata, Box<dyn Error>>  {       
-        let results = { // block is required because of connection release
-            let connection = self.pool.get()
+    async fn find(&self, target: i32) -> Result<Metadata, Box<dyn Error>> {
+        let row: PostgresSecretRow = {
+            // block is required because of connection release
+            sqlx::query_as(QUERY_FIND_METADATA)
+                .bind(target)
+                .fetch_one(self.pool)
+                .await
                 .map_err(|err| {
-                    error!("{} pulling connection for postgres: {}", constants::ERR_UNKNOWN, err);
+                    error!(
+                        "{} performing select by id query on postgres: {:?}",
+                        constants::ERR_UNKNOWN,
+                        err
+                    );
                     constants::ERR_UNKNOWN
-                })?;
-
-            metadata.filter(id.eq(target))
-                    .load::<PostgresMetadata>(&connection)
-                    .map_err(|err| {
-                        error!("{} performing select by id query on postgres: {}", constants::ERR_UNKNOWN, err);
-                        constants::ERR_UNKNOWN
-                    })?
+                })?
         };
-    
-        if results.len() == 0 {
+
+        if row.0 == 0 {
             return Err(constants::ERR_NOT_FOUND.into());
         }
 
-        Ok(Metadata{
-            id: results[0].id,
-            created_at: results[0].created_at,
-            updated_at: results[0].updated_at,
-            deleted_at: results[0].deleted_at,
+        Ok(Metadata {
+            id: row.0,
+            created_at: row.1,
+            updated_at: row.2,
+            deleted_at: row.3,
         })
     }
 
-    fn create(&self, meta: &mut Metadata) -> Result<(), Box<dyn Error>> {
-        let conn = self.pool.get()
+    async fn create(&self, meta: &mut Metadata) -> Result<(), Box<dyn Error>> {
+        let row: (i32,) = sqlx::query_as(QUERY_INSERT_METADATA)
+            .bind(&meta.created_at)
+            .bind(&meta.updated_at)
+            .bind(&meta.deleted_at)
+            .fetch_one(self.pool)
+            .await
             .map_err(|err| {
-                error!("{} pulling connection for postgres: {}", constants::ERR_UNKNOWN, err);
+                error!(
+                    "{} performing insert query on postgres: {:?}",
+                    constants::ERR_UNKNOWN,
+                    err
+                );
                 constants::ERR_UNKNOWN
             })?;
 
-        PostgresMetadataRepository::tx_create(&conn, meta)?;
+        meta.id = row.0;
         Ok(())
     }
 
-    fn save(&self, meta: &Metadata) -> Result<(), Box<dyn Error>> {
-        let pg_meta = PostgresMetadata {
-            id: meta.id,
-            created_at: meta.created_at,
-            updated_at: meta.updated_at,
-            deleted_at: meta.deleted_at,
-        };
-                 
-        let connection = self.pool.get()
+    async fn save(&self, meta: &Metadata) -> Result<(), Box<dyn Error>> {
+        sqlx::query(QUERY_UPDATE_METADATA)
+            .bind(&meta.id)
+            .bind(&meta.created_at)
+            .bind(&meta.updated_at)
+            .bind(&meta.deleted_at)
+            .fetch_one(self.pool)
+            .await
             .map_err(|err| {
-                error!("{} pulling connection for postgres: {}", constants::ERR_UNKNOWN, err);
-                constants::ERR_UNKNOWN
-            })?;
-        
-        diesel::update(metadata)
-            .filter(id.eq(meta.id))
-            .set(&pg_meta)
-            .execute(&connection)
-            .map_err(|err| {
-                error!("{} performing update query on postgres: {}", constants::ERR_UNKNOWN, err);
+                error!(
+                    "{} performing update query on postgres: {:?}",
+                    constants::ERR_UNKNOWN,
+                    err
+                );
                 constants::ERR_UNKNOWN
             })?;
 
         Ok(())
     }
 
-    fn delete(&self, meta: &Metadata) -> Result<(), Box<dyn Error>> {
-        let conn = self.pool.get()
+    async fn delete(&self, meta: &Metadata) -> Result<(), Box<dyn Error>> {
+        sqlx::query(QUERY_DELETE_METADATA)
+            .bind(&meta.id)
+            .fetch_one(self.pool)
+            .await
             .map_err(|err| {
-                error!("{} pulling connection for postgres: {}", constants::ERR_UNKNOWN, err);
+                error!(
+                    "{} performing delete query on postgres: {:?}",
+                    constants::ERR_UNKNOWN,
+                    err
+                );
                 constants::ERR_UNKNOWN
             })?;
-        
-        PostgresMetadataRepository::tx_delete(&conn, meta)?;
+
         Ok(())
     }
-
 }

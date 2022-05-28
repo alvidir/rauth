@@ -17,7 +17,7 @@ const QUERY_UPDATE_USER: &str =
     "UPDATE users SET name = $2, email = $3, password = $4 FROM users WHERE id = $1";
 const QUERY_DELETE_USER: &str = "DELETE FROM users WHERE id = $1";
 
-type PostgresUserRow = (i32, String, String, String, i32);
+type PostgresUserRow = (i32, String, String, String, i32); // id, name, email, password, meta_id
 
 pub struct PostgresUserRepository<'a, M: MetadataRepository> {
     pub pool: &'a PgPool,
@@ -25,8 +25,8 @@ pub struct PostgresUserRepository<'a, M: MetadataRepository> {
 }
 
 impl<'a, M: MetadataRepository> PostgresUserRepository<'a, M> {
-    fn build(&self, user_raw: &PostgresUserRow) -> Result<User, Box<dyn Error>> {
-        let meta = self.metadata_repo.find(user_raw.4)?;
+    async fn build(&self, user_raw: &PostgresUserRow) -> Result<User, Box<dyn Error>> {
+        let meta = self.metadata_repo.find(user_raw.4).await?;
 
         Ok(User {
             id: user_raw.0,
@@ -63,7 +63,7 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> UserRepo
             return Err(constants::ERR_NOT_FOUND.into());
         }
 
-        self.build(&row) // another connection consumed here
+        self.build(&row).await // another connection consumed here
     }
 
     async fn find_by_email(&self, target: &str) -> Result<User, Box<dyn Error>> {
@@ -86,7 +86,7 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> UserRepo
         if row.0 == 0 {
             return Err(constants::ERR_NOT_FOUND.into());
         }
-        self.build(&row) // another connection consumed here
+        self.build(&row).await // another connection consumed here
     }
 
     async fn find_by_name(&self, target: &str) -> Result<User, Box<dyn Error>> {
@@ -109,11 +109,11 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> UserRepo
         if row.0 == 0 {
             return Err(constants::ERR_NOT_FOUND.into());
         }
-        self.build(&row) // another connection consumed here
+        self.build(&row).await // another connection consumed here
     }
 
     async fn create(&self, user: &mut User) -> Result<(), Box<dyn Error>> {
-        self.metadata_repo.create(&mut user.meta)?;
+        self.metadata_repo.create(&mut user.meta).await?;
 
         let row: (i32,) = sqlx::query_as(QUERY_INSERT_USER)
             .bind(&user.name)
@@ -136,7 +136,7 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> UserRepo
     }
 
     async fn save(&self, user: &User) -> Result<(), Box<dyn Error>> {
-        let row: (i32,) = sqlx::query_as(QUERY_UPDATE_USER)
+        sqlx::query(QUERY_UPDATE_USER)
             .bind(&user.id)
             .bind(&user.name)
             .bind(&user.email)
@@ -159,7 +159,7 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> UserRepo
     async fn delete(&self, user: &User) -> Result<(), Box<dyn Error>> {
         {
             // block is required because of connection release
-            let row: (i32,) = sqlx::query_as(QUERY_DELETE_USER)
+            sqlx::query(QUERY_DELETE_USER)
                 .bind(&user.id)
                 .fetch_one(self.pool)
                 .await
@@ -173,7 +173,7 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> UserRepo
                 })?;
         }
 
-        self.metadata_repo.delete(&user.meta)?; // another connection consumed here
+        self.metadata_repo.delete(&user.meta).await?; // another connection consumed here
         Ok(())
     }
 }

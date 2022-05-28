@@ -1,19 +1,19 @@
-use std::time::{SystemTime};
+use chrono::{DateTime, Utc};
 
 #[derive(Clone)]
 pub struct Metadata {
     pub id: i32,
-    pub created_at: SystemTime,
-    pub updated_at: SystemTime,
-    pub deleted_at: Option<SystemTime>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 impl Metadata {
     pub fn new() -> Self {
         Metadata {
             id: 0,
-            created_at: SystemTime::now(),
-            updated_at: SystemTime::now(),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
             deleted_at: None,
         }
     }
@@ -23,30 +23,29 @@ impl Metadata {
     }
 
     pub fn touch(&mut self) {
-        self.updated_at = SystemTime::now();
+        self.updated_at = Utc::now();
     }
 }
 
-
 #[cfg(test)]
 pub mod tests {
-    use std::time::SystemTime;
     use super::Metadata;
+    use chrono::Utc;
 
     pub fn new_metadata() -> Metadata {
-        Metadata{
+        Metadata {
             id: 999,
-            created_at: SystemTime::now(),
-            updated_at: SystemTime::now(),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
             deleted_at: None,
         }
     }
 
     #[test]
     fn metadata_new_should_not_fail() {
-        let before = SystemTime::now();
+        let before = Utc::now();
         let meta = Metadata::new();
-        let after = SystemTime::now();
+        let after = Utc::now();
 
         assert_eq!(meta.id, 0);
         assert!(meta.created_at >= before && meta.created_at <= after);

@@ -11,9 +11,10 @@ use crate::session::{
 };
 use crate::smtp::Mailer;
 use async_trait::async_trait;
+use chrono::Utc;
 use std::error::Error;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 #[async_trait]
 pub trait UserRepository {
@@ -183,16 +184,19 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M:
         }
 
         // if, and only if, the user has activated the totp
-        if let Ok(secret) = self
+        let secret_lookup = self
             .secret_repo
             .find_by_user_and_name(user.id, constants::TOTP_SECRET_NAME)
-        {
+            .await
+            .ok();
+
+        if let Some(secret) = secret_lookup {
             if !secret.is_deleted() {
                 let data = secret.get_data();
                 if !security::verify_totp(data, totp)? {
                     return Err(constants::ERR_UNAUTHORIZED.into());
                 }
-                self.secret_repo.delete(&secret)?;
+                self.secret_repo.delete(&secret).await?;
             }
         }
 
@@ -248,10 +252,13 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M:
         }
 
         // if, and only if, the user has activated the totp
-        if let Ok(secret) = &mut self
+        let mut secret_lookup = self
             .secret_repo
             .find_by_user_and_name(user.id, constants::TOTP_SECRET_NAME)
-        {
+            .await
+            .ok();
+
+        if let Some(secret) = &mut secret_lookup {
             if !secret.is_deleted() {
                 // the totp is already enabled
                 return Err(constants::ERR_NOT_AVAILABLE.into());
@@ -263,13 +270,14 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M:
             }
 
             secret.set_deleted_at(None);
-            self.secret_repo.save(&secret)?;
+            self.secret_repo.save(&secret).await?;
             return Ok(None);
         }
+
         let token = security::get_random_string(constants::TOTP_SECRET_LEN);
-        let mut secret = Secret::new(constants::TOTP_SECRET_NAME, token.as_bytes());
-        secret.set_deleted_at(Some(SystemTime::now())); // unavailable till confirmed
-        self.secret_repo.create(&mut secret)?;
+        let mut secret = Secret::new(&user, constants::TOTP_SECRET_NAME, token.as_bytes());
+        secret.set_deleted_at(Some(Utc::now())); // unavailable till confirmed
+        self.secret_repo.create(&mut secret).await?;
         Ok(Some(token))
     }
 
@@ -321,10 +329,13 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M:
         }
 
         // if, and only if, the user has activated the totp
-        if let Ok(secret) = &mut self
+        let mut secret_lookup = self
             .secret_repo
             .find_by_user_and_name(user.id, constants::TOTP_SECRET_NAME)
-        {
+            .await
+            .ok();
+
+        if let Some(secret) = &mut secret_lookup {
             if secret.is_deleted() {
                 // the totp is not enabled yet
                 return Err(constants::ERR_NOT_AVAILABLE.into());
@@ -335,7 +346,7 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M:
                 return Err(constants::ERR_UNAUTHORIZED.into());
             }
 
-            self.secret_repo.delete(&secret)?;
+            self.secret_repo.delete(&secret).await?;
             return Ok(());
         }
 
@@ -416,6 +427,7 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M:
         if let Ok(secret) = self
             .secret_repo
             .find_by_user_and_name(user.get_id(), constants::TOTP_SECRET_NAME)
+            .await
         {
             if !secret.is_deleted() {
                 let data = secret.get_data();
@@ -449,9 +461,10 @@ pub mod tests {
     use crate::smtp::tests::MailerMock;
     use crate::{constants, security};
     use async_trait::async_trait;
+    use chrono::Utc;
     use std::error::Error;
     use std::sync::Arc;
-    use std::time::{Duration, SystemTime};
+    use std::time::Duration;
 
     pub const TEST_CREATE_ID: i32 = 999;
     pub const TEST_FIND_BY_EMAIL_ID: i32 = 888;
@@ -1134,7 +1147,7 @@ pub mod tests {
         secret_repo.fn_find_by_user_and_name = Some(
             |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
                 let mut secret = new_secret();
-                secret.set_deleted_at(Some(SystemTime::now()));
+                secret.set_deleted_at(Some(Utc::now()));
                 Ok(secret)
             },
         );
@@ -1168,7 +1181,7 @@ pub mod tests {
         secret_repo.fn_find_by_user_and_name = Some(
             |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
                 let mut secret = new_secret();
-                secret.set_deleted_at(Some(SystemTime::now()));
+                secret.set_deleted_at(Some(Utc::now()));
                 Ok(secret)
             },
         );
@@ -1355,7 +1368,7 @@ pub mod tests {
         secret_repo.fn_find_by_user_and_name = Some(
             |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
                 let mut secret = new_secret();
-                secret.set_deleted_at(Some(SystemTime::now()));
+                secret.set_deleted_at(Some(Utc::now()));
                 Ok(secret)
             },
         );
