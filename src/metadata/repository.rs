@@ -1,7 +1,7 @@
 use super::{application::MetadataRepository, domain::Metadata};
 use crate::constants;
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::naive::NaiveDateTime;
 use sqlx::postgres::PgPool;
 use std::error::Error;
 
@@ -13,7 +13,7 @@ const QUERY_UPDATE_METADATA: &str =
     "UPDATE metadata SET created_at = $2, updated_at = $3, deleted_at = $4 FROM metadata WHERE id = $1";
 const QUERY_DELETE_METADATA: &str = "DELETE FROM metadata WHERE id = $1";
 
-type PostgresSecretRow = (i32, DateTime<Utc>, DateTime<Utc>, Option<DateTime<Utc>>); // id, created_at, updated_at, deleted_at
+type PostgresSecretRow = (i32, NaiveDateTime, NaiveDateTime, Option<NaiveDateTime>); // id, created_at, updated_at, deleted_at
 
 pub struct PostgresMetadataRepository<'a> {
     pub pool: &'a PgPool,

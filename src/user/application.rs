@@ -276,7 +276,7 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M:
 
         let token = security::get_random_string(constants::TOTP_SECRET_LEN);
         let mut secret = Secret::new(&user, constants::TOTP_SECRET_NAME, token.as_bytes());
-        secret.set_deleted_at(Some(Utc::now())); // unavailable till confirmed
+        secret.set_deleted_at(Some(Utc::now().naive_utc())); // unavailable till confirmed
         self.secret_repo.create(&mut secret).await?;
         Ok(Some(token))
     }
@@ -1147,7 +1147,7 @@ pub mod tests {
         secret_repo.fn_find_by_user_and_name = Some(
             |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
                 let mut secret = new_secret();
-                secret.set_deleted_at(Some(Utc::now()));
+                secret.set_deleted_at(Some(Utc::now().naive_utc()));
                 Ok(secret)
             },
         );
@@ -1181,7 +1181,7 @@ pub mod tests {
         secret_repo.fn_find_by_user_and_name = Some(
             |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
                 let mut secret = new_secret();
-                secret.set_deleted_at(Some(Utc::now()));
+                secret.set_deleted_at(Some(Utc::now().naive_utc()));
                 Ok(secret)
             },
         );
@@ -1368,7 +1368,7 @@ pub mod tests {
         secret_repo.fn_find_by_user_and_name = Some(
             |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
                 let mut secret = new_secret();
-                secret.set_deleted_at(Some(Utc::now()));
+                secret.set_deleted_at(Some(Utc::now().naive_utc()));
                 Ok(secret)
             },
         );

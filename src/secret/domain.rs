@@ -1,6 +1,6 @@
 use crate::metadata::domain::Metadata;
 use crate::user::domain::User;
-use chrono::{DateTime, Utc};
+use chrono::naive::NaiveDateTime;
 
 #[derive(Clone)]
 pub struct Secret {
@@ -34,7 +34,7 @@ impl Secret {
         self.meta.deleted_at.is_some()
     }
 
-    pub fn set_deleted_at(&mut self, deleted_at: Option<DateTime<Utc>>) {
+    pub fn set_deleted_at(&mut self, deleted_at: Option<NaiveDateTime>) {
         self.meta.deleted_at = deleted_at;
     }
 }
