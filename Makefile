@@ -16,6 +16,11 @@ install:
 build:
 	podman build -t ${REPO}/${PROJECT}:${VERSION} -f ./container/rauth/containerfile .
 	
+
+push:
+	podman tag localhost/${REPO}/${PROJECT}:${VERSION} ${REMOTE}/${REPO}/${PROJECT}:${VERSION}
+	podman push ${REMOTE}/${REPO}/${PROJECT}:${VERSION}
+
 setup:
 	mkdir -p .ssh/
 
@@ -43,7 +48,3 @@ run:
 
 test:
 	RUST_BACKTRACE=full cargo test -- --nocapture
-
-push:
-	podman tag localhost/${REPO}/${PROJECT}:${VERSION} ${REMOTE}/${REPO}/${PROJECT}:${VERSION}
-	podman push ${REMOTE}/${REPO}/${PROJECT}:${VERSION}
