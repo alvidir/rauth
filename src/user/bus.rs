@@ -7,7 +7,7 @@ use std::error::Error;
 
 #[derive(Serialize, Deserialize)]
 enum EventKind {
-    CREATED = 0,
+    CREATED,
 }
 
 #[derive(Serialize, Deserialize)]
