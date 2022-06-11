@@ -28,7 +28,7 @@ impl<'a> EventBus for RabbitMqUserBus<'a> {
     async fn emit_user_created(&self, user: &User) -> Result<(), Box<dyn Error>> {
         let event = UserEvent {
             id: user.get_id(),
-            name: user.get_name(),
+            name: user.get_name().split("@").collect::<Vec<&str>>()[0],
             email: user.get_email(),
             kind: EventKind::CREATED
         };

@@ -13,6 +13,8 @@ install:
 	sudo dnf install postgresql-devel
 	sudo dnf install pkg-config openssl-devel
 
+release: build push
+
 build:
 	podman build -t ${REPO}/${PROJECT}:${VERSION} -f ./container/rauth/containerfile .
 	
