@@ -22,12 +22,12 @@ pub struct Token {
     pub iat: SystemTime,        // issued at: creation time
     pub iss: String,            // issuer
     pub sub: String,            // subject
+    pub scr: Option<String>,    // secret
     pub knd: TokenKind,         // kind - required
-    pub pwd: Option<String>,    // password - only required on verification
 }
 
 impl Token {
-    pub fn new_session(iss: &str, sub: &str, timeout: Duration) -> Self {
+    pub fn new(iss: &str, sub: &str, timeout: Duration, kind: TokenKind) -> Self {
         let mut token = Token {
             jti: rand::thread_rng().gen::<u64>().to_string(), // noise
             exp: time::unix_timestamp(SystemTime::now() + timeout),
@@ -35,8 +35,8 @@ impl Token {
             iat: SystemTime::now(),
             iss: iss.to_string(),
             sub: sub.to_string(),
-            knd: TokenKind::Session,
-            pwd: None,
+            scr: None,
+            knd: kind
         };
 
         let mut hasher = DefaultHasher::new();
@@ -47,25 +47,7 @@ impl Token {
         token
     }
 
-    pub fn new_verification(iss: &str, email: &str, pwd: &str, timeout: Duration) -> Self {
-        let mut token = Token {
-            jti: rand::thread_rng().gen::<u64>().to_string(), // noise
-            exp: time::unix_timestamp(SystemTime::now() + timeout),
-            nbf: time::unix_timestamp(SystemTime::now()),
-            iat: SystemTime::now(),
-            iss: iss.to_string(),
-            sub: email.to_string(),
-            knd: TokenKind::Verification,
-            pwd: Some(pwd.to_string()),
-        };
-
-        let mut hasher = DefaultHasher::new();
-        token.hash(&mut hasher);
-        token.jti = hasher.finish().to_string();
-        token
-    }
-
-    pub fn new_reset(iss: &str, sub: &str, timeout: Duration) -> Self {
+    pub fn new_secret(iss: &str, sub: &str, secret: &str, timeout: Duration, kind: TokenKind) -> Self {
         let mut token = Token {
             jti: rand::thread_rng().gen::<u64>().to_string(), // noise
             exp: time::unix_timestamp(SystemTime::now() + timeout),
@@ -73,8 +55,8 @@ impl Token {
             iat: SystemTime::now(),
             iss: iss.to_string(),
             sub: sub.to_string(),
-            knd: TokenKind::Reset,
-            pwd: None,
+            scr: Some(secret.to_string()),
+            knd: kind,
         };
 
         let mut hasher = DefaultHasher::new();
@@ -112,35 +94,23 @@ pub mod tests {
         const SUB: i32 = 999;
 
         let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
-        Token::new_session(ISS, &SUB.to_string(), timeout)
-    }
-
-    pub fn new_verification_token() -> Token {
-        const ISS: &str = "test";
-        const EMAIL: &str = "test@dummy.com";
-        const PWD: &str = "ABCabc123";
-
-        let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
-        Token::new_verification(ISS, EMAIL, PWD, timeout)
-    }
-
-    pub fn new_reset_token() -> Token {
-        const ISS: &str = "test";
-        const SUB: &str = "0";
-
-        let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
-        Token::new_reset(ISS, SUB, timeout)
+        Token::new(
+            ISS,
+            &SUB.to_string(),
+            timeout,
+            TokenKind::Session
+        )
     }
 
     #[test]
-    fn token_session_should_not_fail() {
+    fn token_new_should_not_fail() {
         const ISS: &str = "test";
         const SUB: i32 = 999;
 
         let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
 
         let before = SystemTime::now();
-        let claim = Token::new_session(ISS, &SUB.to_string(), timeout);
+        let claim = Token::new(ISS, &SUB.to_string(), timeout, TokenKind::Session);
         let after = SystemTime::now();
 
         assert!(claim.iat >= before && claim.iat <= after);     
@@ -152,52 +122,19 @@ pub mod tests {
     }
 
     #[test]
-    fn token_verification_should_not_fail() {
-        const ISS: &str = "test";
-        const SUB: i32 = 999;
-        const PWD: &str = "test";
-
-        let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
-
-        let before = SystemTime::now();
-        let claim = Token::new_verification(ISS, &SUB.to_string(), PWD, timeout);
-        let after = SystemTime::now();
-
-        assert!(claim.iat >= before && claim.iat <= after);     
-        assert!(claim.exp >= unix_timestamp(before + timeout));
-        assert!(claim.exp <= unix_timestamp(after + timeout));    
-        assert_eq!(claim.knd, TokenKind::Verification);
-        assert_eq!(ISS, claim.iss);
-        assert_eq!(SUB.to_string(), claim.sub);
-    }
-
-    #[test]
-    fn token_reset_should_not_fail() {
-        const ISS: &str = "test";
-        const SUB: i32 = 999;
-
-        let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
-
-        let before = SystemTime::now();
-        let claim = Token::new_reset(ISS, &SUB.to_string(), timeout);
-        let after = SystemTime::now();
-
-        assert!(claim.iat >= before && claim.iat <= after);     
-        assert!(claim.exp >= unix_timestamp(before + timeout));
-        assert!(claim.exp <= unix_timestamp(after + timeout));    
-        assert_eq!(claim.knd, TokenKind::Reset);
-        assert_eq!(ISS, claim.iss);
-        assert_eq!(SUB.to_string(), claim.sub);
-    }
-
-    #[test]
     fn token_encode_should_not_fail() {
         const ISS: &str = "test";
         const SUB: i32 = 999;
         let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
 
         let before = SystemTime::now();
-        let claim = Token::new_session(ISS, &SUB.to_string(), timeout);
+        let claim = Token::new(
+            ISS,
+            &SUB.to_string(),
+            timeout,
+            TokenKind::Session
+        );
+
         let after = SystemTime::now();
         
         let secret = base64::decode(JWT_SECRET).unwrap();

@@ -115,10 +115,11 @@ pub mod util {
         user: &User,
         jwt_secret: &[u8],
     ) -> Result<String, Box<dyn Error>> {
-        let sess = Token::new_session(
+        let sess = Token::new(
             constants::TOKEN_ISSUER,
             &user.get_id().to_string(),
             Duration::from_secs(timeout),
+            TokenKind::Session
         );
 
         let key = sess.get_id();
