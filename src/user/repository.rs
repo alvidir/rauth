@@ -14,7 +14,7 @@ const QUERY_FIND_USER_BY_EMAIL: &str =
 const QUERY_FIND_USER_BY_NAME: &str =
     "SELECT id, name, email, password, meta_id FROM users WHERE name = $1";
 const QUERY_UPDATE_USER: &str =
-    "UPDATE users SET name = $1, email = $2, password = $3 WHERE id = $4 RETURNING id";
+    "UPDATE users SET name = $1, email = $2, password = $3 WHERE id = $4";
 const QUERY_DELETE_USER: &str = "DELETE FROM users WHERE id = $1";
 
 type PostgresUserRow = (i32, String, String, String, i32); // id, name, email, password, meta_id
@@ -141,7 +141,7 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> UserRepo
             .bind(&user.email)
             .bind(&user.password)
             .bind(&user.id)
-            .fetch_one(self.pool)
+            .execute(self.pool)
             .await
             .map_err(|err| {
                 error!(
@@ -160,7 +160,7 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> UserRepo
             // block is required because of connection release
             sqlx::query(QUERY_DELETE_USER)
                 .bind(&user.id)
-                .fetch_one(self.pool)
+                .execute(self.pool)
                 .await
                 .map_err(|err| {
                     error!(
