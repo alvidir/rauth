@@ -59,7 +59,7 @@ const ENV_SMTP_ISSUER: &str = "SMTP_ISSUER";
 const ENV_SMTP_TEMPLATES: &str = "SMTP_TEMPLATES";
 const ENV_SMTP_ORIGIN: &str = "SMTP_ORIGIN";
 const ENV_PWD_SUFIX: &str = "PWD_SUFIX";
-const ENV_RABBITMQ_BUS: &str = "RABBITMQ_BUS";
+const ENV_RABBITMQ_USERS_BUS: &str = "RABBITMQ_USERS_BUS";
 const ENV_RABBITMQ_DSN: &str = "RABBITMQ_URL";
 
 lazy_static! {
@@ -117,7 +117,7 @@ lazy_static! {
             .finish_redis_rs()
             .unwrap()
     };
-    static ref RABBITMQ_BUS: String = env::var(ENV_RABBITMQ_BUS).unwrap_or(DEFAULT_BUS.to_string());
+    static ref RABBITMQ_BUS: String = env::var(ENV_RABBITMQ_USERS_BUS).unwrap_or(DEFAULT_BUS.to_string());
     static ref RABBITMQ_CONN: AsyncOnce<Channel> = AsyncOnce::new(async {
         let rabbitmq_dsn = env::var(ENV_RABBITMQ_DSN).expect("rabbitmq url must be set");
         let conn = Connection::connect(&rabbitmq_dsn, ConnectionProperties::default())
