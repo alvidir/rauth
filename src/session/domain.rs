@@ -24,10 +24,15 @@ pub struct Token {
     pub sub: String,            // subject
     pub knd: TokenKind,         // kind - required
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default = "Token::default_secret_value")]
     pub scr: Option<String>,    // secret data
 }
 
 impl Token {
+    fn default_secret_value() -> Option<String> {
+        None
+    }
+
     pub fn new(iss: &str, sub: &str, timeout: Duration, kind: TokenKind) -> Self {
         let mut token = Token {
             jti: rand::thread_rng().gen::<u64>().to_string(), // noise
