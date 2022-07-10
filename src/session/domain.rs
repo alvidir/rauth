@@ -49,7 +49,6 @@ impl Token {
         token.hash(&mut hasher);
         token.jti = hasher.finish().to_string();
         
-        
         token
     }
 
@@ -68,7 +67,6 @@ impl Token {
         let mut hasher = DefaultHasher::new();
         token.hash(&mut hasher);
         token.jti = hasher.finish().to_string();
-        
         
         token
     }
