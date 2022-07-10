@@ -22,8 +22,9 @@ pub struct Token {
     pub iat: SystemTime,        // issued at: creation time
     pub iss: String,            // issuer
     pub sub: String,            // subject
-    pub scr: Option<String>,    // secret
     pub knd: TokenKind,         // kind - required
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scr: Option<String>,    // secret data
 }
 
 impl Token {
@@ -35,8 +36,8 @@ impl Token {
             iat: SystemTime::now(),
             iss: iss.to_string(),
             sub: sub.to_string(),
+            knd: kind,
             scr: None,
-            knd: kind
         };
 
         let mut hasher = DefaultHasher::new();
@@ -55,8 +56,8 @@ impl Token {
             iat: SystemTime::now(),
             iss: iss.to_string(),
             sub: sub.to_string(),
-            scr: Some(secret.to_string()),
             knd: kind,
+            scr: Some(secret.to_string()),
         };
 
         let mut hasher = DefaultHasher::new();
