@@ -273,6 +273,8 @@ SMTP_TEMPLATES | /etc/rauth/smtp/templates/*.html | Path where to find all email
 SMTP_USERNAME | | If required, a username to enable the application to send emails
 SMTP_PASSWORD | | If required, an application password to enable the application to send emails
 PWD_SUFIX | ::PWD::RAUTH | A suffix to append to all passwords before hashing and storing them
+RABBITMQ_USERS_BUS | | The RabbitMQ exchange to emit user related events
+RABBITMQ_DSN | | `RabbitMQ` DSN
 
 > All these environment variables can be set in a .env file, since Rauth uses dotenv to set up the environment
 
