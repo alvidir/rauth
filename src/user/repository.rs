@@ -14,7 +14,7 @@ const QUERY_FIND_USER_BY_EMAIL: &str =
 const QUERY_FIND_USER_BY_NAME: &str =
     "SELECT id, name, email, password, meta_id FROM users WHERE name = $1";
 const QUERY_UPDATE_USER: &str =
-    "UPDATE users SET name = $2, email = $3, password = $4 FROM users WHERE id = $1";
+    "UPDATE users SET name = $1, email = $2, password = $3 WHERE id = $4 RETURNING id";
 const QUERY_DELETE_USER: &str = "DELETE FROM users WHERE id = $1";
 
 type PostgresUserRow = (i32, String, String, String, i32); // id, name, email, password, meta_id
@@ -137,11 +137,10 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> UserRepo
 
     async fn save(&self, user: &User) -> Result<(), Box<dyn Error>> {
         sqlx::query(QUERY_UPDATE_USER)
-            .bind(&user.id)
             .bind(&user.name)
             .bind(&user.email)
             .bind(&user.password)
-            .bind(user.meta.get_id())
+            .bind(&user.id)
             .fetch_one(self.pool)
             .await
             .map_err(|err| {
