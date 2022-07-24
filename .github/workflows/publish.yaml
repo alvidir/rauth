@@ -1,0 +1,43 @@
+name: Publish images
+
+on:
+  release:
+    types: [published]
+
+  workflow_dispatch:
+
+env:
+  IMAGE_REGISTRY: docker.io
+  IMAGE_NAME: alvidir/rauth
+
+jobs:
+  push_to_registry:
+    name: Push image to registry
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Build image
+        id: build-image
+        uses: redhat-actions/buildah-build@v2
+        with:
+          image: ${{ env.IMAGE_NAME }}
+          tags: latest ${{ github.event.release.tag_name }}
+          containerfiles: |
+            ./container/rauth/containerfile
+
+      - name: Log in to registry
+        uses: redhat-actions/podman-login@v1
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          registry: ${{ env.IMAGE_REGISTRY }}
+
+      - name: Push image
+        uses: redhat-actions/push-to-registry@v2
+        with:
+          image: ${{ steps.build-image.outputs.image }}
+          tags: ${{ steps.build-image.outputs.tags }}
+          registry: ${{ env.IMAGE_REGISTRY }}
