@@ -1,13 +1,8 @@
 name: Release version
 
 on:
-  workflow_run:
-    workflows: ["Run tests"]
-    branches: [main]
-    types: 
-      - completed
-
-  workflow_dispatch:
+  push:
+    branches: [ main ]
 
 jobs:
   release_version:
