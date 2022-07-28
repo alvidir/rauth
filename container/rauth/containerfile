@@ -1,4 +1,4 @@
-FROM docker.io/rust:1.61.0 as builder
+FROM docker.io/rust:1.62.0 as builder
 
 RUN USER=root cargo new --bin rauth
 RUN apt-get update && \
