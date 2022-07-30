@@ -43,7 +43,7 @@ const DEFAULT_BUS: &str = "rauth";
 
 const ENV_SERVICE_PORT: &str = "SERVICE_PORT";
 const ENV_SERVICE_NET: &str = "SERVICE_NETW";
-const ENV_POSTGRES_DSN: &str = "DATABASE_URL";
+const ENV_POSTGRES_DSN: &str = "POSTGRES_DSN";
 const ENV_JWT_SECRET: &str = "JWT_SECRET";
 const ENV_JWT_PUBLIC: &str = "JWT_PUBLIC";
 const ENV_JWT_HEADER: &str = "JWT_HEADER";

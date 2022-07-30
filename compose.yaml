@@ -31,7 +31,7 @@ services:
 
     rauth:
         container_name: rauth-server
-        image: localhost/alvidir/rauth:1.2.2
+        image: localhost/alvidir/rauth:latest
         restart: always
         ports:
             - 8000:8000
@@ -63,7 +63,7 @@ services:
 
     mailhog:
         container_name: mailhog
-        image: mailhog/mailhog:latest
+        image: docker.io/mailhog/mailhog:v1.0.1
         restart: always
         ports:
             - 8025:8025

@@ -1,26 +1,14 @@
-# Global about the project
-VERSION=1.2.2
-REPO=alvidir
-PROJECT=rauth
-REMOTE=docker.io
-
 install:
-	### ubuntu ###
-	# sudo apt install libpq-dev
-	# sudo apt install pkg-config libssl-dev
-	
 	### fedora ###
 	sudo dnf install postgresql-devel
 	sudo dnf install pkg-config openssl-devel
 
-release: build push
+	### debian ###
+	# sudo apt install libpq-dev
+	# sudo apt install pkg-config libssl-dev
 
 build:
-	podman build -t ${REPO}/${PROJECT}:${VERSION} -f ./container/rauth/containerfile .
-	
-push:
-	podman tag localhost/${REPO}/${PROJECT}:${VERSION} ${REMOTE}/${REPO}/${PROJECT}:${VERSION}
-	podman push ${REMOTE}/${REPO}/${PROJECT}:${VERSION}
+	podman build -t alvidir/rauth:latest -f ./container/rauth/containerfile .
 
 setup:
 	mkdir -p .ssh/
@@ -36,7 +24,7 @@ setup:
 	python3 scripts/build_db_setup_script.py
 
 deploy:
-	podman-compose  -f compose.yaml up --remove-orphans -d
+	podman-compose  -f compose.yaml up --remove-orphans
 
 follow:
 	podman logs --follow --names rauth-server
