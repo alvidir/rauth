@@ -253,11 +253,11 @@ The server expects a set of environment variables to work properly. Although som
 |:---------------------|:-------------:|:------------|
 SERVICE_PORT | 8000 | Port where to expose the gRPC service
 SERVICE_NETW | 127.0.0.1 | Network where to expose the gRPC service
+POSTGRES_DSN | | `Postgres` DSN
 POSTGRES_DB |  | `Postgres` database name
 POSTGRES_USER |  | `Postgres` username
 POSTGRES_PASSWORD |  | `Postgres` user password
 POSTGRES_POOL | 10 | `Postgres` connection pool size 
-DATABASE_URL | | `Postgres` DSN
 REDIS_HOSTNAME | | `Redis` container name
 REDIS_DSN | | `Redis` DSN
 REDIS_POOL | 10 | `Redis` connection pool size 
