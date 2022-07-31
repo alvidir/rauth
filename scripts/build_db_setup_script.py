@@ -34,13 +34,13 @@ def main() -> int:
 
     target = open(TARGET, "w")
     for path in sorted(scripts):
-        print("-\t{}".format(path))
+        print(f"-\t{path}")
 
         fo = open(path, "r")
         content = fo.read()
         fo.close()
 
-        target.write("{}\n".format(content))
+        target.write(f"{content}\n")
 
     target.close()
     return 0
