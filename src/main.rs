@@ -42,7 +42,7 @@ const DEFAULT_POOL_SIZE: u32 = 10;
 const DEFAULT_BUS: &str = "rauth";
 
 const ENV_SERVICE_PORT: &str = "SERVICE_PORT";
-const ENV_SERVICE_NET: &str = "SERVICE_NETW";
+const ENV_SERVICE_NETW: &str = "SERVICE_NETW";
 const ENV_POSTGRES_DSN: &str = "POSTGRES_DSN";
 const ENV_JWT_SECRET: &str = "JWT_SECRET";
 const ENV_JWT_PUBLIC: &str = "JWT_PUBLIC";
@@ -244,7 +244,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         warn!("no dotenv file has been found");
     }
 
-    let netw = env::var(ENV_SERVICE_NET).unwrap_or(DEFAULT_NETW.to_string());
+    let netw = env::var(ENV_SERVICE_NETW).unwrap_or(DEFAULT_NETW.to_string());
 
     let port = env::var(ENV_SERVICE_PORT).unwrap_or(DEFAULT_PORT.to_string());
     let addr = format!("{}:{}", netw, port);
