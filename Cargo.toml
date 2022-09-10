@@ -14,7 +14,7 @@ sqlx = { version = "0.6.0", features = [
 ] }
 redis = { version = "0.21.5", features = ["tokio-comp"] }
 reool = "0.30.0"
-tonic = "0.7.2" # gRPC
+tonic = "0.8.1" # gRPC
 prost = "0.10.4" # protobuf
 tokio = { version = "1.21.0", features = ["macros"] }
 regex = "1.6.0"
