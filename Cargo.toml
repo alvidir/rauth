@@ -12,7 +12,7 @@ sqlx = { version = "0.6.0", features = [
     "postgres",
     "chrono",
 ] }
-redis = { version = "0.21.5", features = ["tokio-comp"] }
+redis = { version = "0.21.6", features = ["tokio-comp"] }
 reool = "0.30.0"
 tonic = "0.7.2" # gRPC
 prost = "0.10.4" # protobuf
