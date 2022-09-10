@@ -1,10 +1,11 @@
-FROM docker.io/rust:1.62.0 as builder
+FROM docker.io/rust:1.63.0 as builder
 
 RUN USER=root cargo new --bin rauth
 RUN apt-get update && \
     apt-get install -y software-properties-common && \
     add-apt-repository ppa:george-edison55/cmake-3.x && \
     apt-get install -y pkg-config libssl-dev libpq-dev cmake && \
+    apt-get install -y protobuf-compiler && \
     apt-get upgrade -y
 
 WORKDIR /rauth
@@ -12,7 +13,7 @@ WORKDIR /rauth
 # RUN cargo build --release
 # RUN rm src/*.rs
 
-RUN rustup component add rustfmt --toolchain 1.62.0-x86_64-unknown-linux-gnu
+RUN rustup component add rustfmt --toolchain 1.63.0-x86_64-unknown-linux-gnu
 ADD . ./
 
 # RUN rm ./target/release/deps/rauth*

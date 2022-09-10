@@ -15,7 +15,7 @@ struct UserEvent<'a> {
     pub id: i32,
     pub name: &'a str,
     pub email: &'a str,
-    pub kind: EventKind
+    pub kind: EventKind,
 }
 
 pub struct RabbitMqUserBus<'a> {
@@ -30,7 +30,7 @@ impl<'a> EventBus for RabbitMqUserBus<'a> {
             id: user.get_id(),
             name: user.get_name().split("@").collect::<Vec<&str>>()[0],
             email: user.get_email(),
-            kind: EventKind::CREATED
+            kind: EventKind::CREATED,
         };
 
         let payload = serde_json::to_string(&event)

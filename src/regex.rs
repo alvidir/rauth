@@ -1,6 +1,6 @@
+use crate::constants;
 use regex::Regex;
 use std::error::Error;
-use crate::constants;
 
 // include '+' into charset before '@' in order to allow sufixed emails
 pub const EMAIL: &str = r"^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,63}$";

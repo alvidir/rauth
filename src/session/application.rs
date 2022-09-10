@@ -119,7 +119,7 @@ pub mod util {
             constants::TOKEN_ISSUER,
             &user.get_id().to_string(),
             Duration::from_secs(timeout),
-            TokenKind::Session
+            TokenKind::Session,
         );
 
         let key = sess.get_id();

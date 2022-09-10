@@ -1,4 +1,4 @@
-name: Publish images
+name: Continuous delivery
 
 on:
   release:
@@ -14,14 +14,22 @@ jobs:
   push_to_registry:
     name: Push image to registry
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set configuration
+        run: |
+          target="[machine]"
+          want="#[machine]"
+          cat /usr/share/containers/containers.conf | sed "s/$target/$want/" > /usr/share/containers/containers.conf
 
       - name: Build image
         id: build-image
-        uses: redhat-actions/buildah-build@v2
+        uses: redhat-actions/buildah-build@v2.10
         with:
           image: ${{ env.IMAGE_NAME }}
           tags: latest ${{ github.event.release.tag_name }}

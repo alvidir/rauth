@@ -66,14 +66,14 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M:
             email,
             pwd,
             Duration::from_secs(self.timeout),
-            TokenKind::Verification
+            TokenKind::Verification,
         );
 
         let token_to_send = Token::new(
             constants::TOKEN_ISSUER,
             &token_to_keep.get_id(),
             Duration::from_secs(self.timeout),
-            TokenKind::Verification
+            TokenKind::Verification,
         );
         let token_to_keep = security::sign_jwt(jwt_secret, token_to_keep)?;
         self.token_repo
@@ -369,7 +369,7 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M:
             constants::TOKEN_ISSUER,
             &user.get_id().to_string(),
             Duration::from_secs(self.timeout),
-            TokenKind::Reset
+            TokenKind::Reset,
         );
 
         let key = token.get_id();
@@ -454,7 +454,7 @@ pub mod tests {
         application::tests::SecretRepositoryMock,
         domain::{
             tests::{new_secret, TEST_DEFAULT_SECRET_DATA},
-            Secret
+            Secret,
         },
     };
     use crate::session::{
@@ -673,14 +673,14 @@ pub mod tests {
             TEST_DEFAULT_USER_EMAIL,
             TEST_DEFAULT_USER_PASSWORD,
             Duration::from_secs(60),
-            TokenKind::Verification
+            TokenKind::Verification,
         );
 
         let sess_token = Token::new(
             "test",
             &verif_token.get_id(),
             Duration::from_secs(60),
-            TokenKind::Verification
+            TokenKind::Verification,
         );
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
@@ -724,7 +724,7 @@ pub mod tests {
             "test",
             "test",
             Duration::from_secs(60),
-            TokenKind::Verification
+            TokenKind::Verification,
         );
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
@@ -758,12 +758,7 @@ pub mod tests {
             },
         );
 
-        let token = Token::new(
-            "test",
-            "test",
-            Duration::from_secs(60),
-            TokenKind::Reset
-        );
+        let token = Token::new("test", "test", Duration::from_secs(60), TokenKind::Reset);
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let token = security::sign_jwt(&jwt_secret, token).unwrap();
@@ -859,12 +854,7 @@ pub mod tests {
             },
         );
 
-        let token = Token::new(
-            "test",
-            "0",
-            Duration::from_secs(60),
-            TokenKind::Session
-        );
+        let token = Token::new("test", "0", Duration::from_secs(60), TokenKind::Session);
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
@@ -900,7 +890,7 @@ pub mod tests {
             "test",
             "0",
             Duration::from_secs(60),
-            TokenKind::Verification
+            TokenKind::Verification,
         );
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
@@ -934,12 +924,7 @@ pub mod tests {
             },
         );
 
-        let token = Token::new(
-            "test",
-            "0",
-            Duration::from_secs(60),
-            TokenKind::Reset
-        );
+        let token = Token::new("test", "0", Duration::from_secs(60), TokenKind::Reset);
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
@@ -1051,12 +1036,7 @@ pub mod tests {
             },
         );
 
-        let token = Token::new(
-            "test",
-            "0",
-            Duration::from_secs(60),
-            TokenKind::Session
-        );
+        let token = Token::new("test", "0", Duration::from_secs(60), TokenKind::Session);
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
@@ -1095,7 +1075,7 @@ pub mod tests {
             "test",
             "0",
             Duration::from_secs(60),
-            TokenKind::Verification
+            TokenKind::Verification,
         );
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
@@ -1129,12 +1109,7 @@ pub mod tests {
             },
         );
 
-        let token = Token::new(
-            "test",
-            "0",
-            Duration::from_secs(60),
-            TokenKind::Reset
-        );
+        let token = Token::new("test", "0", Duration::from_secs(60), TokenKind::Reset);
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
@@ -1259,12 +1234,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_secure_disable_totp_should_not_fail() {
-        let token = Token::new(
-            "test",
-            "0",
-            Duration::from_secs(60),
-            TokenKind::Session
-        );
+        let token = Token::new("test", "0", Duration::from_secs(60), TokenKind::Session);
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
@@ -1300,7 +1270,7 @@ pub mod tests {
             "test",
             "0",
             Duration::from_secs(60),
-            TokenKind::Verification
+            TokenKind::Verification,
         );
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
@@ -1334,12 +1304,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_secure_disable_totp_reset_token_kind_should_fail() {
-        let token = Token::new(
-            "test",
-            "0",
-            Duration::from_secs(60),
-            TokenKind::Reset
-        );
+        let token = Token::new("test", "0", Duration::from_secs(60), TokenKind::Reset);
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
@@ -1455,12 +1420,7 @@ pub mod tests {
             },
         );
 
-        let token = Token::new(
-            "test",
-            "0",
-            Duration::from_secs(60),
-            TokenKind::Reset
-        );
+        let token = Token::new("test", "0", Duration::from_secs(60), TokenKind::Reset);
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
@@ -1496,7 +1456,7 @@ pub mod tests {
             "test",
             "0",
             Duration::from_secs(60),
-            TokenKind::Verification
+            TokenKind::Verification,
         );
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
@@ -1530,12 +1490,7 @@ pub mod tests {
             },
         );
 
-        let token = Token::new(
-            "test",
-            "0",
-            Duration::from_secs(60),
-            TokenKind::Session
-        );
+        let token = Token::new("test", "0", Duration::from_secs(60), TokenKind::Session);
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
