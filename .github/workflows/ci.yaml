@@ -5,9 +5,30 @@ on:
   - pull_request
 
 jobs:
+  changelog:
+    name: Changelog
+    runs-on: ubuntu-latest
+
+    outputs:
+      changelog: ${{ steps.changed-files.outputs.all_changed_files }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v29.0.4
+
   run_unitary_tests:
     name: Run unitary tests
     runs-on: ubuntu-latest
+
+    needs: [changelog]
+    if: contains(needs.changelog.outputs.changelog, 'src') ||
+      contains(needs.changelog.outputs.changelog, 'proto')
 
     steps:
       - name: Checkout code
@@ -38,7 +59,7 @@ jobs:
     needs:
       - run_unitary_tests
 
-    if: ${{ github.ref == 'refs/heads/main' && !contains(join(needs.*.conclusion), 'failure') }}
+    if: ${{ github.ref == 'refs/heads/main' }}
 
     steps:
       - name: Checkout code
