@@ -18,7 +18,7 @@ impl Secret {
             owner: user.get_id(),
             name: name.to_string(),
             data: data.to_vec(),
-            meta: Metadata::new(),
+            meta: Metadata::default(),
         }
     }
 
@@ -49,7 +49,7 @@ pub mod tests {
     pub const TEST_DEFAULT_SECRET_DATA: &str = "this is a secret";
 
     pub fn new_secret() -> Secret {
-        let inner_meta = Metadata::new();
+        let inner_meta = Metadata::default();
 
         Secret {
             id: 999_i32,
@@ -65,7 +65,7 @@ pub mod tests {
         let name = "dummy secret";
         let data = "secret_new_should_success".as_bytes();
         let user = new_user();
-        let secret = Secret::new(&user, name.clone(), data.clone());
+        let secret = Secret::new(&user, name, data);
 
         assert_eq!(0, secret.id);
         assert_eq!(name, secret.name);

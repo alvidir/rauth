@@ -10,21 +10,23 @@ pub struct Metadata {
 }
 
 impl Metadata {
-    pub fn new() -> Self {
-        Metadata {
-            id: 0,
-            created_at: Utc::now().naive_utc(),
-            updated_at: Utc::now().naive_utc(),
-            deleted_at: None,
-        }
-    }
-
     pub fn get_id(&self) -> i32 {
         self.id
     }
 
     pub fn touch(&mut self) {
         self.updated_at = Utc::now().naive_utc();
+    }
+}
+
+impl Default for Metadata {
+    fn default() -> Self {
+        Self {
+            id: 0,
+            created_at: Utc::now().naive_utc(),
+            updated_at: Utc::now().naive_utc(),
+            deleted_at: None,
+        }
     }
 }
 
@@ -36,16 +38,14 @@ pub mod tests {
     pub fn new_metadata() -> Metadata {
         Metadata {
             id: 999,
-            created_at: Utc::now().naive_utc(),
-            updated_at: Utc::now().naive_utc(),
-            deleted_at: None,
+            ..Default::default()
         }
     }
 
     #[test]
     fn metadata_new_should_not_fail() {
         let before = Utc::now().naive_utc();
-        let meta = Metadata::new();
+        let meta = Metadata::default();
         let after = Utc::now().naive_utc();
 
         assert_eq!(meta.id, 0);

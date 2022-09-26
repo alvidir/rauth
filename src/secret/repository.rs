@@ -32,7 +32,7 @@ impl<'a, M: MetadataRepository> PostgresSecretRepository<'a, M> {
             name: secret_row.1.clone(),
             data: secret_row.2.as_bytes().to_vec(),
             owner: secret_row.3,
-            meta: meta,
+            meta,
         })
     }
 }

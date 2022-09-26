@@ -5,7 +5,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::time::{Duration, SystemTime};
 
-#[derive(Serialize, Deserialize, Hash, PartialEq, Debug, Clone)]
+#[derive(Serialize, Deserialize, Hash, PartialEq, Eq, Debug, Clone)]
 pub enum TokenKind {
     Session = 0,
     Verification = 1,

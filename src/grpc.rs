@@ -6,7 +6,7 @@ pub fn get_header<T>(req: &Request<T>, header: &str) -> Result<String, Status> {
     let data = req
         .metadata()
         .get(header)
-        .ok_or(Status::aborted(constants::ERR_NOT_FOUND))
+        .ok_or_else(|| Status::aborted(constants::ERR_NOT_FOUND))
         .map(|data| data.to_str())?;
 
     data.map(|data| data.to_string()).map_err(|err| {
@@ -20,7 +20,7 @@ pub fn get_header<T>(req: &Request<T>, header: &str) -> Result<String, Status> {
 }
 
 pub fn get_encoded_header<T>(request: &Request<T>, header: &str) -> Result<String, Status> {
-    let header = get_header(&request, header)?;
+    let header = get_header(request, header)?;
     let header = base64::decode(header).map_err(|err| {
         warn!(
             "{} decoding header from base64: {}",

@@ -7,7 +7,7 @@ use std::error::Error;
 
 #[derive(Serialize, Deserialize)]
 enum EventKind {
-    CREATED,
+    Created,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -28,9 +28,9 @@ impl<'a> EventBus for RabbitMqUserBus<'a> {
     async fn emit_user_created(&self, user: &User) -> Result<(), Box<dyn Error>> {
         let event = UserEvent {
             id: user.get_id(),
-            name: user.get_name().split("@").collect::<Vec<&str>>()[0],
+            name: user.get_name().split('@').collect::<Vec<&str>>()[0],
             email: user.get_email(),
-            kind: EventKind::CREATED,
+            kind: EventKind::Created,
         };
 
         let payload = serde_json::to_string(&event)

@@ -186,13 +186,15 @@ pub mod util {
         async fn verify_token_should_not_fail() {
             let jwt_secret = base64::decode(JWT_SECRET).unwrap();
             let token = security::sign_jwt(&jwt_secret, new_session_token()).unwrap();
-            let mut token_repo = TokenRepositoryMock::new();
-            token_repo.token = token.clone();
-            token_repo.fn_find = Some(
-                |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
-                    Ok(this.token.clone())
-                },
-            );
+            let token_repo = TokenRepositoryMock {
+                token: token.clone(),
+                fn_find: Some(
+                    |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+                        Ok(this.token.clone())
+                    },
+                ),
+                ..Default::default()
+            };
             let public = base64::decode(JWT_PUBLIC).unwrap();
             verify_token::<TokenRepositoryMock, Token>(
                 Arc::new(token_repo),
@@ -210,7 +212,7 @@ pub mod util {
             let secret = base64::decode(JWT_SECRET).unwrap();
             let token = security::sign_jwt(&secret, claim).unwrap();
             let public = base64::decode(JWT_PUBLIC).unwrap();
-            let token_repo = TokenRepositoryMock::new();
+            let token_repo = TokenRepositoryMock::default();
             verify_token::<TokenRepositoryMock, Token>(
                 Arc::new(token_repo),
                 TokenKind::Session,
@@ -227,13 +229,15 @@ pub mod util {
             let token = security::sign_jwt(&jwt_secret, new_session_token())
                 .unwrap()
                 .replace('A', "a");
-            let mut token_repo = TokenRepositoryMock::new();
-            token_repo.token = token.clone();
-            token_repo.fn_find = Some(
-                |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
-                    Ok(this.token.clone())
-                },
-            );
+            let token_repo = TokenRepositoryMock {
+                token: token.clone(),
+                fn_find: Some(
+                    |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+                        Ok(this.token.clone())
+                    },
+                ),
+                ..Default::default()
+            };
             let public = base64::decode(JWT_PUBLIC).unwrap();
             verify_token::<TokenRepositoryMock, Token>(
                 Arc::new(token_repo),
@@ -249,13 +253,15 @@ pub mod util {
         async fn verify_token_wrong_kind_should_fail() {
             let jwt_secret = base64::decode(JWT_SECRET).unwrap();
             let token = security::sign_jwt(&jwt_secret, new_session_token()).unwrap();
-            let mut token_repo = TokenRepositoryMock::new();
-            token_repo.token = token.clone();
-            token_repo.fn_find = Some(
-                |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
-                    Ok(this.token.clone())
-                },
-            );
+            let token_repo = TokenRepositoryMock {
+                token: token.clone(),
+                fn_find: Some(
+                    |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+                        Ok(this.token.clone())
+                    },
+                ),
+                ..Default::default()
+            };
             let public = base64::decode(JWT_PUBLIC).unwrap();
             verify_token::<TokenRepositoryMock, Token>(
                 Arc::new(token_repo),
@@ -271,13 +277,15 @@ pub mod util {
         async fn verify_token_not_present_should_fail() {
             let jwt_secret = base64::decode(JWT_SECRET).unwrap();
             let token = security::sign_jwt(&jwt_secret, new_session_token()).unwrap();
-            let mut token_repo = TokenRepositoryMock::new();
-            token_repo.token = token.clone();
-            token_repo.fn_find = Some(
-                |_: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
-                    Err(constants::ERR_NOT_FOUND.into())
-                },
-            );
+            let token_repo = TokenRepositoryMock {
+                token: token.clone(),
+                fn_find: Some(
+                    |_: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+                        Err(constants::ERR_NOT_FOUND.into())
+                    },
+                ),
+                ..Default::default()
+            };
             let public = base64::decode(JWT_PUBLIC).unwrap();
             verify_token::<TokenRepositoryMock, Token>(
                 Arc::new(token_repo),
@@ -293,13 +301,15 @@ pub mod util {
         async fn verify_token_mismatch_should_fail() {
             let jwt_secret = base64::decode(JWT_SECRET).unwrap();
             let token = security::sign_jwt(&jwt_secret, new_session_token()).unwrap();
-            let mut token_repo = TokenRepositoryMock::new();
-            token_repo.token = token.clone();
-            token_repo.fn_find = Some(
-                |_: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
-                    Ok("hello world".to_string())
-                },
-            );
+            let token_repo = TokenRepositoryMock {
+                token: token.clone(),
+                fn_find: Some(
+                    |_: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+                        Ok("hello world".to_string())
+                    },
+                ),
+                ..Default::default()
+            };
             let public = base64::decode(JWT_PUBLIC).unwrap();
             verify_token::<TokenRepositoryMock, Token>(
                 Arc::new(token_repo),
@@ -335,31 +345,26 @@ pub mod tests {
 
     pub(super) const JWT_SECRET: &[u8] = b"LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR0hBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJHMHdhd0lCQVFRZy9JMGJTbVZxL1BBN2FhRHgKN1FFSGdoTGxCVS9NcWFWMUJab3ZhM2Y5aHJxaFJBTkNBQVJXZVcwd3MydmlnWi96SzRXcGk3Rm1mK0VPb3FybQpmUlIrZjF2azZ5dnBGd0gzZllkMlllNXl4b3ZsaTROK1ZNNlRXVFErTmVFc2ZmTWY2TkFBMloxbQotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg==";
     pub(super) const JWT_PUBLIC: &[u8] = b"LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFVm5sdE1MTnI0b0dmOHl1RnFZdXhabi9oRHFLcQo1bjBVZm45YjVPc3I2UmNCOTMySGRtSHVjc2FMNVl1RGZsVE9rMWswUGpYaExIM3pIK2pRQU5tZFpnPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg==";
-    pub struct TokenRepositoryMock {
-        pub fn_find:
-            Option<fn(this: &TokenRepositoryMock, key: &str) -> Result<String, Box<dyn Error>>>,
-        pub fn_save: Option<
-            fn(
-                this: &TokenRepositoryMock,
-                key: &str,
-                token: &str,
-                expire: Option<u64>,
-            ) -> Result<(), Box<dyn Error>>,
-        >,
-        pub fn_delete:
-            Option<fn(this: &TokenRepositoryMock, key: &str) -> Result<(), Box<dyn Error>>>,
-        pub token: String,
-    }
 
-    impl TokenRepositoryMock {
-        pub fn new() -> Self {
-            TokenRepositoryMock {
-                fn_find: None,
-                fn_save: None,
-                fn_delete: None,
-                token: "".into(),
-            }
-        }
+    type MockFnFind =
+        Option<fn(this: &TokenRepositoryMock, key: &str) -> Result<String, Box<dyn Error>>>;
+    type MockFnSave = Option<
+        fn(
+            this: &TokenRepositoryMock,
+            key: &str,
+            token: &str,
+            expire: Option<u64>,
+        ) -> Result<(), Box<dyn Error>>,
+    >;
+    type MockFnDelete =
+        Option<fn(this: &TokenRepositoryMock, key: &str) -> Result<(), Box<dyn Error>>>;
+
+    #[derive(Default)]
+    pub struct TokenRepositoryMock {
+        pub fn_find: MockFnFind,
+        pub fn_save: MockFnSave,
+        pub fn_delete: MockFnDelete,
+        pub token: String,
     }
 
     #[async_trait]
@@ -396,9 +401,9 @@ pub mod tests {
 
     pub fn new_session_application(
     ) -> SessionApplication<TokenRepositoryMock, UserRepositoryMock, SecretRepositoryMock> {
-        let user_repo = UserRepositoryMock::new();
-        let secret_repo = SecretRepositoryMock::new();
-        let token_repo = TokenRepositoryMock::new();
+        let user_repo = UserRepositoryMock::default();
+        let secret_repo = SecretRepositoryMock::default();
+        let token_repo = TokenRepositoryMock::default();
 
         SessionApplication {
             user_repo: Arc::new(user_repo),
@@ -410,12 +415,14 @@ pub mod tests {
 
     #[tokio::test]
     async fn login_by_email_should_not_fail() {
-        let mut secret_repo = SecretRepositoryMock::new();
-        secret_repo.fn_find_by_user_and_name = Some(
-            |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                Err(constants::ERR_NOT_FOUND.into())
-            },
-        );
+        let secret_repo = SecretRepositoryMock {
+            fn_find_by_user_and_name: Some(
+                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+                    Err(constants::ERR_NOT_FOUND.into())
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_session_application();
         app.secret_repo = Arc::new(secret_repo);
@@ -444,12 +451,14 @@ pub mod tests {
 
     #[tokio::test]
     async fn login_by_username_should_not_fail() {
-        let mut secret_repo = SecretRepositoryMock::new();
-        secret_repo.fn_find_by_user_and_name = Some(
-            |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                Err(constants::ERR_NOT_FOUND.into())
-            },
-        );
+        let secret_repo = SecretRepositoryMock {
+            fn_find_by_user_and_name: Some(
+                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+                    Err(constants::ERR_NOT_FOUND.into())
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_session_application();
         app.secret_repo = Arc::new(secret_repo);
@@ -503,12 +512,14 @@ pub mod tests {
 
     #[tokio::test]
     async fn login_user_not_found_should_fail() {
-        let mut user_repo = UserRepositoryMock::new();
-        user_repo.fn_find_by_email = Some(
-            |_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
-                Err(constants::ERR_WRONG_CREDENTIALS.into())
-            },
-        );
+        let user_repo = UserRepositoryMock {
+            fn_find_by_email: Some(
+                |_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
+                    Err(constants::ERR_WRONG_CREDENTIALS.into())
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_session_application();
         app.user_repo = Arc::new(user_repo);
@@ -563,8 +574,10 @@ pub mod tests {
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let token = security::sign_jwt(&jwt_secret, new_session_token()).unwrap();
 
-        let mut token_repo = TokenRepositoryMock::new();
-        token_repo.token = token.clone();
+        let token_repo = TokenRepositoryMock {
+            token: token.clone(),
+            ..Default::default()
+        };
 
         let mut app = new_session_application();
         app.token_repo = Arc::new(token_repo);
@@ -583,8 +596,10 @@ pub mod tests {
 
         let token = security::sign_jwt(&jwt_secret, token).unwrap();
 
-        let mut token_repo = TokenRepositoryMock::new();
-        token_repo.token = token.clone();
+        let token_repo = TokenRepositoryMock {
+            token: token.clone(),
+            ..Default::default()
+        };
 
         let mut app = new_session_application();
         app.token_repo = Arc::new(token_repo);
@@ -603,8 +618,10 @@ pub mod tests {
 
         let token = security::sign_jwt(&jwt_secret, token).unwrap();
 
-        let mut token_repo = TokenRepositoryMock::new();
-        token_repo.token = token.clone();
+        let token_repo = TokenRepositoryMock {
+            token: token.clone(),
+            ..Default::default()
+        };
 
         let mut app = new_session_application();
         app.token_repo = Arc::new(token_repo);

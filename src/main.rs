@@ -4,7 +4,6 @@ extern crate log;
 extern crate lazy_static;
 
 use async_once::AsyncOnce;
-use dotenv;
 use lapin::{
     options::*, types::FieldTable, Channel, Connection, ConnectionProperties, ExchangeKind,
 };
@@ -73,19 +72,20 @@ lazy_static! {
         .map(|secret| base64::decode(secret).unwrap())
         .expect("jwt public key must be set");
     static ref JWT_HEADER: String =
-        env::var(ENV_JWT_HEADER).unwrap_or(DEFAULT_JWT_HEADER.to_string());
+        env::var(ENV_JWT_HEADER).unwrap_or_else(|_| DEFAULT_JWT_HEADER.to_string());
     static ref TOTP_HEADER: String =
-        env::var(ENV_TOTP_HEADER).unwrap_or(DEFAULT_TOTP_HEADER.to_string());
+        env::var(ENV_TOTP_HEADER).unwrap_or_else(|_| DEFAULT_TOTP_HEADER.to_string());
     static ref SMTP_TRANSPORT: String =
         env::var(ENV_SMTP_TRANSPORT).expect("smtp transport must be set");
     static ref SMTP_USERNAME: String = env::var(ENV_SMTP_USERNAME).unwrap_or_default();
     static ref SMTP_PASSWORD: String = env::var(ENV_SMTP_PASSWORD).unwrap_or_default();
     static ref SMTP_ORIGIN: String = env::var(ENV_SMTP_ORIGIN).expect("smpt origin must be set");
     static ref SMTP_ISSUER: String =
-        env::var(ENV_SMTP_ISSUER).unwrap_or(DEFAULT_EMAIL_ISSUER.to_string());
+        env::var(ENV_SMTP_ISSUER).unwrap_or_else(|_| DEFAULT_EMAIL_ISSUER.to_string());
     static ref SMTP_TEMPLATES: String =
-        env::var(ENV_SMTP_TEMPLATES).unwrap_or(DEFAULT_TEMPLATES_PATH.to_string());
-    static ref PWD_SUFIX: String = env::var(ENV_PWD_SUFIX).unwrap_or(DEFAULT_PWD_SUFIX.to_string());
+        env::var(ENV_SMTP_TEMPLATES).unwrap_or_else(|_| DEFAULT_TEMPLATES_PATH.to_string());
+    static ref PWD_SUFIX: String =
+        env::var(ENV_PWD_SUFIX).unwrap_or_else(|_| DEFAULT_PWD_SUFIX.to_string());
     static ref PG_POOL: AsyncOnce<PgPool> = AsyncOnce::new(async {
         let postgres_dsn = env::var(ENV_POSTGRES_DSN).expect("postgres url must be set");
 
@@ -108,7 +108,7 @@ lazy_static! {
         let redis_dsn: String = env::var(ENV_REDIS_DSN).expect("redis url must be set");
         let redis_pool: usize = env::var(ENV_REDIS_POOL)
             .map(|pool_size| pool_size.parse().unwrap())
-            .unwrap_or(DEFAULT_POOL_SIZE.try_into().unwrap());
+            .unwrap_or_else(|_| DEFAULT_POOL_SIZE.try_into().unwrap());
 
         RedisPool::builder()
             .connect_to_node(redis_dsn)
@@ -118,7 +118,7 @@ lazy_static! {
             .unwrap()
     };
     static ref RABBITMQ_BUS: String =
-        env::var(ENV_RABBITMQ_USERS_BUS).unwrap_or(DEFAULT_BUS.to_string());
+        env::var(ENV_RABBITMQ_USERS_BUS).unwrap_or_else(|_| DEFAULT_BUS.to_string());
     static ref RABBITMQ_CONN: AsyncOnce<Channel> = AsyncOnce::new(async {
         let rabbitmq_dsn = env::var(ENV_RABBITMQ_DSN).expect("rabbitmq url must be set");
         let conn = Connection::connect(&rabbitmq_dsn, ConnectionProperties::default())
@@ -212,7 +212,7 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
     };
 
     let user_server = UserImplementation {
-        user_app: user_app,
+        user_app,
         jwt_secret: &JWT_SECRET,
         jwt_public: &JWT_PUBLIC,
         jwt_header: &JWT_HEADER,
@@ -221,7 +221,7 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
     };
 
     let sess_server = SessionImplementation {
-        sess_app: sess_app,
+        sess_app,
         jwt_secret: &JWT_SECRET,
         jwt_public: &JWT_PUBLIC,
         jwt_header: &JWT_HEADER,
@@ -241,13 +241,13 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
 async fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
 
-    if let Err(_) = dotenv::dotenv() {
-        warn!("no dotenv file has been found");
+    if let Err(err) = dotenv::dotenv() {
+        warn!("processing dotenv file {}", err);
     }
 
-    let netw = env::var(ENV_SERVICE_NETW).unwrap_or(DEFAULT_NETW.to_string());
+    let netw = env::var(ENV_SERVICE_NETW).unwrap_or_else(|_| DEFAULT_NETW.to_string());
 
-    let port = env::var(ENV_SERVICE_PORT).unwrap_or(DEFAULT_PORT.to_string());
+    let port = env::var(ENV_SERVICE_PORT).unwrap_or_else(|_| DEFAULT_PORT.to_string());
     let addr = format!("{}:{}", netw, port);
     start_server(addr).await
 }

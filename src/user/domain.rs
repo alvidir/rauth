@@ -35,7 +35,7 @@ impl User {
             name: email.to_string(),
             email: email.to_string(),
             password: password.to_string(),
-            meta: Metadata::new(),
+            meta: Metadata::default(),
         };
 
         Ok(user)
@@ -95,8 +95,8 @@ pub mod tests {
 
     pub fn new_user_custom(id: i32, email: &str) -> User {
         User {
-            id: id,
-            name: "customuser".to_string(),
+            id,
+            name: "custom_user".to_string(),
             email: email.to_string(),
             password: TEST_DEFAULT_USER_PASSWORD.to_string(),
             meta: new_metadata(),
@@ -142,6 +142,6 @@ pub mod tests {
     #[test]
     fn user_match_password_should_fail() {
         let user = new_user();
-        assert_eq!(user.match_password("wrong password"), false);
+        assert!(!user.match_password("wrong password"));
     }
 }

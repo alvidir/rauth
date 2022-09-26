@@ -51,7 +51,7 @@ impl<
                 .user_app
                 .secure_signup(&token, self.jwt_public, self.jwt_secret)
                 .await
-                .map(|token| base64::encode(token))
+                .map(base64::encode)
                 .map_err(|err| Status::aborted(err.to_string()))?;
 
             let mut res = Response::new(Empty {});

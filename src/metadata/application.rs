@@ -16,29 +16,26 @@ pub mod tests {
     use super::MetadataRepository;
     use async_trait::async_trait;
     use std::error::Error;
-    pub struct MetadataRepositoryMock {
-        pub fn_find:
-            Option<fn(this: &MetadataRepositoryMock, id: i32) -> Result<Metadata, Box<dyn Error>>>,
-        pub fn_create: Option<
-            fn(this: &MetadataRepositoryMock, meta: &mut Metadata) -> Result<(), Box<dyn Error>>,
-        >,
-        pub fn_save: Option<
-            fn(this: &MetadataRepositoryMock, meta: &Metadata) -> Result<(), Box<dyn Error>>,
-        >,
-        pub fn_delete: Option<
-            fn(this: &MetadataRepositoryMock, meta: &Metadata) -> Result<(), Box<dyn Error>>,
-        >,
-    }
 
-    impl MetadataRepositoryMock {
-        pub fn new() -> Self {
-            MetadataRepositoryMock {
-                fn_find: None,
-                fn_create: None,
-                fn_save: None,
-                fn_delete: None,
-            }
-        }
+    type MockFnFind =
+        Option<fn(this: &MetadataRepositoryMock, id: i32) -> Result<Metadata, Box<dyn Error>>>;
+
+    type MockFnCreate = Option<
+        fn(this: &MetadataRepositoryMock, meta: &mut Metadata) -> Result<(), Box<dyn Error>>,
+    >;
+
+    type MockFnSave =
+        Option<fn(this: &MetadataRepositoryMock, meta: &Metadata) -> Result<(), Box<dyn Error>>>;
+
+    type MockFnDelete =
+        Option<fn(this: &MetadataRepositoryMock, meta: &Metadata) -> Result<(), Box<dyn Error>>>;
+
+    #[derive(Default)]
+    pub struct MetadataRepositoryMock {
+        pub fn_find: MockFnFind,
+        pub fn_create: MockFnCreate,
+        pub fn_save: MockFnSave,
+        pub fn_delete: MockFnDelete,
     }
 
     #[async_trait]

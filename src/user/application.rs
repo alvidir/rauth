@@ -137,7 +137,7 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M:
             email
         );
 
-        let mut user = User::new(email, &pwd)?;
+        let mut user = User::new(email, pwd)?;
         self.user_repo.create(&mut user).await?;
         self.bus.emit_user_created(&user).await?;
         generate_token(self.token_repo.clone(), self.timeout, &user, jwt_secret).await
@@ -272,7 +272,7 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M:
             }
 
             secret.set_deleted_at(None);
-            self.secret_repo.save(&secret).await?;
+            self.secret_repo.save(secret).await?;
             return Ok(None);
         }
 
@@ -348,7 +348,7 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M:
                 return Err(constants::ERR_UNAUTHORIZED.into());
             }
 
-            self.secret_repo.delete(&secret).await?;
+            self.secret_repo.delete(secret).await?;
             return Ok(());
         }
 
@@ -476,31 +476,27 @@ pub mod tests {
     const JWT_SECRET: &[u8] = b"LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR0hBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJHMHdhd0lCQVFRZy9JMGJTbVZxL1BBN2FhRHgKN1FFSGdoTGxCVS9NcWFWMUJab3ZhM2Y5aHJxaFJBTkNBQVJXZVcwd3MydmlnWi96SzRXcGk3Rm1mK0VPb3FybQpmUlIrZjF2azZ5dnBGd0gzZllkMlllNXl4b3ZsaTROK1ZNNlRXVFErTmVFc2ZmTWY2TkFBMloxbQotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg==";
     const JWT_PUBLIC: &[u8] = b"LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFVm5sdE1MTnI0b0dmOHl1RnFZdXhabi9oRHFLcQo1bjBVZm45YjVPc3I2UmNCOTMySGRtSHVjc2FMNVl1RGZsVE9rMWswUGpYaExIM3pIK2pRQU5tZFpnPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg==";
 
-    pub struct UserRepositoryMock {
-        pub fn_find: Option<fn(this: &UserRepositoryMock, id: i32) -> Result<User, Box<dyn Error>>>,
-        pub fn_find_by_email:
-            Option<fn(this: &UserRepositoryMock, email: &str) -> Result<User, Box<dyn Error>>>,
-        pub fn_find_by_name:
-            Option<fn(this: &UserRepositoryMock, name: &str) -> Result<User, Box<dyn Error>>>,
-        pub fn_create:
-            Option<fn(this: &UserRepositoryMock, user: &mut User) -> Result<(), Box<dyn Error>>>,
-        pub fn_save:
-            Option<fn(this: &UserRepositoryMock, user: &User) -> Result<(), Box<dyn Error>>>,
-        pub fn_delete:
-            Option<fn(this: &UserRepositoryMock, user: &User) -> Result<(), Box<dyn Error>>>,
-    }
+    type MockFnFind =
+        Option<fn(this: &UserRepositoryMock, id: i32) -> Result<User, Box<dyn Error>>>;
+    type MockFnFindByEmail =
+        Option<fn(this: &UserRepositoryMock, email: &str) -> Result<User, Box<dyn Error>>>;
+    type MockFnFindByName =
+        Option<fn(this: &UserRepositoryMock, name: &str) -> Result<User, Box<dyn Error>>>;
+    type MockFnCreate =
+        Option<fn(this: &UserRepositoryMock, user: &mut User) -> Result<(), Box<dyn Error>>>;
+    type MockFnSave =
+        Option<fn(this: &UserRepositoryMock, user: &User) -> Result<(), Box<dyn Error>>>;
+    type MockFnDelete =
+        Option<fn(this: &UserRepositoryMock, user: &User) -> Result<(), Box<dyn Error>>>;
 
-    impl UserRepositoryMock {
-        pub fn new() -> Self {
-            UserRepositoryMock {
-                fn_find: None,
-                fn_find_by_email: None,
-                fn_find_by_name: None,
-                fn_create: None,
-                fn_save: None,
-                fn_delete: None,
-            }
-        }
+    #[derive(Default)]
+    pub struct UserRepositoryMock {
+        pub fn_find: MockFnFind,
+        pub fn_find_by_email: MockFnFindByEmail,
+        pub fn_find_by_name: MockFnFindByName,
+        pub fn_create: MockFnCreate,
+        pub fn_save: MockFnSave,
+        pub fn_delete: MockFnDelete,
     }
 
     #[async_trait]
@@ -555,17 +551,12 @@ pub mod tests {
         }
     }
 
-    pub struct EventBusMock {
-        pub fn_emit_user_created:
-            Option<fn(this: &EventBusMock, user: &User) -> Result<(), Box<dyn Error>>>,
-    }
+    type MockFnEmitUserCreated =
+        Option<fn(this: &EventBusMock, user: &User) -> Result<(), Box<dyn Error>>>;
 
-    impl EventBusMock {
-        pub fn new() -> Self {
-            EventBusMock {
-                fn_emit_user_created: None,
-            }
-        }
+    #[derive(Default)]
+    pub struct EventBusMock {
+        pub fn_emit_user_created: MockFnEmitUserCreated,
     }
 
     #[async_trait]
@@ -586,11 +577,11 @@ pub mod tests {
         EventBusMock,
         MailerMock,
     > {
-        let user_repo = UserRepositoryMock::new();
-        let secret_repo = SecretRepositoryMock::new();
-        let mailer_mock = MailerMock::new();
-        let token_repo = TokenRepositoryMock::new();
-        let event_bus = EventBusMock::new();
+        let user_repo = UserRepositoryMock::default();
+        let secret_repo = SecretRepositoryMock::default();
+        let mailer_mock = MailerMock::default();
+        let token_repo = TokenRepositoryMock::default();
+        let event_bus = EventBusMock::default();
         UserApplication {
             user_repo: Arc::new(user_repo),
             secret_repo: Arc::new(secret_repo),
@@ -603,12 +594,14 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_verify_should_not_fail() {
-        let mut user_repo = UserRepositoryMock::new();
-        user_repo.fn_find_by_email = Some(
-            |_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
-                Err(constants::ERR_NOT_FOUND.into())
-            },
-        );
+        let user_repo = UserRepositoryMock {
+            fn_find_by_email: Some(
+                |_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
+                    Err(constants::ERR_NOT_FOUND.into())
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_user_application();
         app.user_repo = Arc::new(user_repo);
@@ -638,12 +631,14 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_verify_wrong_email_should_fail() {
-        let mut user_repo = UserRepositoryMock::new();
-        user_repo.fn_find_by_email = Some(
-            |_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
-                Err(constants::ERR_NOT_FOUND.into())
-            },
-        );
+        let user_repo = UserRepositoryMock {
+            fn_find_by_email: Some(
+                |_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
+                    Err(constants::ERR_NOT_FOUND.into())
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_user_application();
         app.user_repo = Arc::new(user_repo);
@@ -661,12 +656,14 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_secure_signup_should_not_fail() {
-        let mut user_repo = UserRepositoryMock::new();
-        user_repo.fn_find_by_email = Some(
-            |_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
-                Err(constants::ERR_NOT_FOUND.into())
-            },
-        );
+        let user_repo = UserRepositoryMock {
+            fn_find_by_email: Some(
+                |_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
+                    Err(constants::ERR_NOT_FOUND.into())
+                },
+            ),
+            ..Default::default()
+        };
 
         let verif_token = Token::new_secret(
             "test",
@@ -687,17 +684,19 @@ pub mod tests {
         let secure_verif_token = security::sign_jwt(&jwt_secret, verif_token).unwrap();
         let secure_sess_token = security::sign_jwt(&jwt_secret, sess_token).unwrap();
 
-        let mut token_repo = TokenRepositoryMock::new();
-        token_repo.token = secure_verif_token.clone();
-        token_repo.fn_find = Some(
-            |this: &TokenRepositoryMock, tid: &str| -> Result<String, Box<dyn Error>> {
-                let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
-                let claims: Token = security::verify_jwt(&jwt_public, &this.token)?;
-                assert_eq!(claims.get_id(), tid);
+        let token_repo = TokenRepositoryMock {
+            token: secure_verif_token.clone(),
+            fn_find: Some(
+                |this: &TokenRepositoryMock, tid: &str| -> Result<String, Box<dyn Error>> {
+                    let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+                    let claims: Token = security::verify_jwt(&jwt_public, &this.token)?;
+                    assert_eq!(claims.get_id(), tid);
 
-                Ok(this.token.clone())
-            },
-        );
+                    Ok(this.token.clone())
+                },
+            ),
+            ..Default::default()
+        };
         let mut app = new_user_application();
         app.user_repo = Arc::new(user_repo);
         app.token_repo = Arc::new(token_repo);
@@ -713,12 +712,14 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_secure_signup_verification_token_kind_should_fail() {
-        let mut user_repo = UserRepositoryMock::new();
-        user_repo.fn_find_by_email = Some(
-            |_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
-                Err(constants::ERR_NOT_FOUND.into())
-            },
-        );
+        let user_repo = UserRepositoryMock {
+            fn_find_by_email: Some(
+                |_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
+                    Err(constants::ERR_NOT_FOUND.into())
+                },
+            ),
+            ..Default::default()
+        };
 
         let token = Token::new(
             "test",
@@ -730,13 +731,15 @@ pub mod tests {
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let token = security::sign_jwt(&jwt_secret, token).unwrap();
 
-        let mut token_repo = TokenRepositoryMock::new();
-        token_repo.token = token.clone();
-        token_repo.fn_find = Some(
-            |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
-                Ok(this.token.clone())
-            },
-        );
+        let token_repo = TokenRepositoryMock {
+            token: token.clone(),
+            fn_find: Some(
+                |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+                    Ok(this.token.clone())
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_user_application();
         app.user_repo = Arc::new(user_repo);
@@ -751,25 +754,29 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_secure_signup_reset_token_kind_should_fail() {
-        let mut user_repo = UserRepositoryMock::new();
-        user_repo.fn_find_by_email = Some(
-            |_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
-                Err(constants::ERR_NOT_FOUND.into())
-            },
-        );
+        let user_repo = UserRepositoryMock {
+            fn_find_by_email: Some(
+                |_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
+                    Err(constants::ERR_NOT_FOUND.into())
+                },
+            ),
+            ..Default::default()
+        };
 
         let token = Token::new("test", "test", Duration::from_secs(60), TokenKind::Reset);
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let token = security::sign_jwt(&jwt_secret, token).unwrap();
 
-        let mut token_repo = TokenRepositoryMock::new();
-        token_repo.token = token.clone();
-        token_repo.fn_find = Some(
-            |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
-                Ok(this.token.clone())
-            },
-        );
+        let token_repo = TokenRepositoryMock {
+            token: token.clone(),
+            fn_find: Some(
+                |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+                    Ok(this.token.clone())
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_user_application();
         app.user_repo = Arc::new(user_repo);
@@ -784,12 +791,14 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_signup_should_not_fail() {
-        let mut user_repo = UserRepositoryMock::new();
-        user_repo.fn_find_by_email = Some(
-            |_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
-                Err("overrided".into())
-            },
-        );
+        let user_repo = UserRepositoryMock {
+            fn_find_by_email: Some(
+                |_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
+                    Err("overrided".into())
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_user_application();
         app.user_repo = Arc::new(user_repo);
@@ -847,25 +856,29 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_secure_delete_should_not_fail() {
-        let mut secret_repo = SecretRepositoryMock::new();
-        secret_repo.fn_find_by_user_and_name = Some(
-            |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                Err(constants::ERR_NOT_FOUND.into())
-            },
-        );
+        let secret_repo = SecretRepositoryMock {
+            fn_find_by_user_and_name: Some(
+                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+                    Err(constants::ERR_NOT_FOUND.into())
+                },
+            ),
+            ..Default::default()
+        };
 
         let token = Token::new("test", "0", Duration::from_secs(60), TokenKind::Session);
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
-        let mut token_repo = TokenRepositoryMock::new();
-        token_repo.token = secure_token.clone();
-        token_repo.fn_find = Some(
-            |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
-                Ok(this.token.clone())
-            },
-        );
+        let token_repo = TokenRepositoryMock {
+            token: secure_token.clone(),
+            fn_find: Some(
+                |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+                    Ok(this.token.clone())
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
@@ -879,12 +892,14 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_secure_delete_verification_token_kind_should_fail() {
-        let mut secret_repo = SecretRepositoryMock::new();
-        secret_repo.fn_find_by_user_and_name = Some(
-            |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                Err(constants::ERR_NOT_FOUND.into())
-            },
-        );
+        let secret_repo = SecretRepositoryMock {
+            fn_find_by_user_and_name: Some(
+                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+                    Err(constants::ERR_NOT_FOUND.into())
+                },
+            ),
+            ..Default::default()
+        };
 
         let token = Token::new(
             "test",
@@ -896,13 +911,15 @@ pub mod tests {
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
-        let mut token_repo = TokenRepositoryMock::new();
-        token_repo.token = secure_token.clone();
-        token_repo.fn_find = Some(
-            |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
-                Ok(this.token.clone())
-            },
-        );
+        let token_repo = TokenRepositoryMock {
+            token: secure_token.clone(),
+            fn_find: Some(
+                |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+                    Ok(this.token.clone())
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
@@ -917,25 +934,29 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_secure_delete_reset_token_kind_should_fail() {
-        let mut secret_repo = SecretRepositoryMock::new();
-        secret_repo.fn_find_by_user_and_name = Some(
-            |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                Err(constants::ERR_NOT_FOUND.into())
-            },
-        );
+        let secret_repo = SecretRepositoryMock {
+            fn_find_by_user_and_name: Some(
+                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+                    Err(constants::ERR_NOT_FOUND.into())
+                },
+            ),
+            ..Default::default()
+        };
 
         let token = Token::new("test", "0", Duration::from_secs(60), TokenKind::Reset);
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
-        let mut token_repo = TokenRepositoryMock::new();
-        token_repo.token = secure_token.clone();
-        token_repo.fn_find = Some(
-            |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
-                Ok(this.token.clone())
-            },
-        );
+        let token_repo = TokenRepositoryMock {
+            token: secure_token.clone(),
+            fn_find: Some(
+                |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+                    Ok(this.token.clone())
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
@@ -950,12 +971,14 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_delete_should_not_fail() {
-        let mut secret_repo = SecretRepositoryMock::new();
-        secret_repo.fn_find_by_user_and_name = Some(
-            |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                Err(constants::ERR_NOT_FOUND.into())
-            },
-        );
+        let secret_repo = SecretRepositoryMock {
+            fn_find_by_user_and_name: Some(
+                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+                    Err(constants::ERR_NOT_FOUND.into())
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
@@ -976,19 +999,23 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_delete_not_found_should_fail() {
-        let mut user_repo = UserRepositoryMock::new();
-        user_repo.fn_find = Some(
-            |_: &UserRepositoryMock, _: i32| -> Result<User, Box<dyn Error>> {
-                Err(constants::ERR_NOT_FOUND.into())
-            },
-        );
+        let user_repo = UserRepositoryMock {
+            fn_find: Some(
+                |_: &UserRepositoryMock, _: i32| -> Result<User, Box<dyn Error>> {
+                    Err(constants::ERR_NOT_FOUND.into())
+                },
+            ),
+            ..Default::default()
+        };
 
-        let mut secret_repo = SecretRepositoryMock::new();
-        secret_repo.fn_find_by_user_and_name = Some(
-            |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                Err(constants::ERR_NOT_FOUND.into())
-            },
-        );
+        let secret_repo = SecretRepositoryMock {
+            fn_find_by_user_and_name: Some(
+                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+                    Err(constants::ERR_NOT_FOUND.into())
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_user_application();
         app.user_repo = Arc::new(user_repo);
@@ -1002,12 +1029,14 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_delete_wrong_password_should_fail() {
-        let mut secret_repo = SecretRepositoryMock::new();
-        secret_repo.fn_find_by_user_and_name = Some(
-            |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                Err(constants::ERR_NOT_FOUND.into())
-            },
-        );
+        let secret_repo = SecretRepositoryMock {
+            fn_find_by_user_and_name: Some(
+                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+                    Err(constants::ERR_NOT_FOUND.into())
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
@@ -1029,25 +1058,29 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_secure_enable_totp_should_not_fail() {
-        let mut secret_repo = SecretRepositoryMock::new();
-        secret_repo.fn_find_by_user_and_name = Some(
-            |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                Err(constants::ERR_NOT_FOUND.into())
-            },
-        );
+        let secret_repo = SecretRepositoryMock {
+            fn_find_by_user_and_name: Some(
+                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+                    Err(constants::ERR_NOT_FOUND.into())
+                },
+            ),
+            ..Default::default()
+        };
 
         let token = Token::new("test", "0", Duration::from_secs(60), TokenKind::Session);
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
-        let mut token_repo = TokenRepositoryMock::new();
-        token_repo.token = secure_token.clone();
-        token_repo.fn_find = Some(
-            |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
-                Ok(this.token.clone())
-            },
-        );
+        let token_repo = TokenRepositoryMock {
+            token: secure_token.clone(),
+            fn_find: Some(
+                |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+                    Ok(this.token.clone())
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
@@ -1064,12 +1097,14 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_secure_enable_totp_verification_token_kind_should_fail() {
-        let mut secret_repo = SecretRepositoryMock::new();
-        secret_repo.fn_find_by_user_and_name = Some(
-            |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                Err(constants::ERR_NOT_FOUND.into())
-            },
-        );
+        let secret_repo = SecretRepositoryMock {
+            fn_find_by_user_and_name: Some(
+                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+                    Err(constants::ERR_NOT_FOUND.into())
+                },
+            ),
+            ..Default::default()
+        };
 
         let token = Token::new(
             "test",
@@ -1081,13 +1116,15 @@ pub mod tests {
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
-        let mut token_repo = TokenRepositoryMock::new();
-        token_repo.token = secure_token.clone();
-        token_repo.fn_find = Some(
-            |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
-                Ok(this.token.clone())
-            },
-        );
+        let token_repo = TokenRepositoryMock {
+            token: secure_token.clone(),
+            fn_find: Some(
+                |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+                    Ok(this.token.clone())
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
@@ -1102,25 +1139,29 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_secure_enable_totp_reset_token_kind_should_fail() {
-        let mut secret_repo = SecretRepositoryMock::new();
-        secret_repo.fn_find_by_user_and_name = Some(
-            |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                Err(constants::ERR_NOT_FOUND.into())
-            },
-        );
+        let secret_repo = SecretRepositoryMock {
+            fn_find_by_user_and_name: Some(
+                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+                    Err(constants::ERR_NOT_FOUND.into())
+                },
+            ),
+            ..Default::default()
+        };
 
         let token = Token::new("test", "0", Duration::from_secs(60), TokenKind::Reset);
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
-        let mut token_repo = TokenRepositoryMock::new();
-        token_repo.token = secure_token.clone();
-        token_repo.fn_find = Some(
-            |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
-                Ok(this.token.clone())
-            },
-        );
+        let token_repo = TokenRepositoryMock {
+            token: secure_token.clone(),
+            fn_find: Some(
+                |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+                    Ok(this.token.clone())
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
@@ -1135,12 +1176,14 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_enable_totp_should_not_fail() {
-        let mut secret_repo = SecretRepositoryMock::new();
-        secret_repo.fn_find_by_user_and_name = Some(
-            |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                Err(constants::ERR_NOT_FOUND.into())
-            },
-        );
+        let mut secret_repo = SecretRepositoryMock {
+            fn_find_by_user_and_name: Some(
+                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+                    Err(constants::ERR_NOT_FOUND.into())
+                },
+            ),
+            ..Default::default()
+        };
 
         secret_repo.fn_save = Some(
             |_: &SecretRepositoryMock, secret: &Secret| -> Result<(), Box<dyn Error>> {
@@ -1165,24 +1208,25 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_enable_totp_verify_should_not_fail() {
-        let mut secret_repo = SecretRepositoryMock::new();
-        secret_repo.fn_find_by_user_and_name = Some(
-            |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                let mut secret = new_secret();
-                secret.set_deleted_at(Some(Utc::now().naive_utc()));
-                Ok(secret)
-            },
-        );
+        let secret_repo = SecretRepositoryMock {
+            fn_find_by_user_and_name: Some(
+                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+                    let mut secret = new_secret();
+                    secret.set_deleted_at(Some(Utc::now().naive_utc()));
+                    Ok(secret)
+                },
+            ),
+            fn_save: Some(
+                |_: &SecretRepositoryMock, secret: &Secret| -> Result<(), Box<dyn Error>> {
+                    if secret.is_deleted() {
+                        return Err("secret's deleted_at should not be Some".into());
+                    }
 
-        secret_repo.fn_save = Some(
-            |_: &SecretRepositoryMock, secret: &Secret| -> Result<(), Box<dyn Error>> {
-                if secret.is_deleted() {
-                    return Err("secret's deleted_at should not be Some".into());
-                }
-
-                Ok(())
-            },
-        );
+                    Ok(())
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
@@ -1199,14 +1243,16 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_enable_totp_wrong_password_should_fail() {
-        let mut secret_repo = SecretRepositoryMock::new();
-        secret_repo.fn_find_by_user_and_name = Some(
-            |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                let mut secret = new_secret();
-                secret.set_deleted_at(Some(Utc::now().naive_utc()));
-                Ok(secret)
-            },
-        );
+        let secret_repo = SecretRepositoryMock {
+            fn_find_by_user_and_name: Some(
+                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+                    let mut secret = new_secret();
+                    secret.set_deleted_at(Some(Utc::now().naive_utc()));
+                    Ok(secret)
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
@@ -1239,13 +1285,15 @@ pub mod tests {
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
-        let mut token_repo = TokenRepositoryMock::new();
-        token_repo.token = secure_token.clone();
-        token_repo.fn_find = Some(
-            |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
-                Ok(this.token.clone())
-            },
-        );
+        let token_repo = TokenRepositoryMock {
+            token: secure_token.clone(),
+            fn_find: Some(
+                |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+                    Ok(this.token.clone())
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_user_application();
         app.token_repo = Arc::new(token_repo);
@@ -1276,13 +1324,15 @@ pub mod tests {
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
-        let mut token_repo = TokenRepositoryMock::new();
-        token_repo.token = secure_token.clone();
-        token_repo.fn_find = Some(
-            |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
-                Ok(this.token.clone())
-            },
-        );
+        let token_repo = TokenRepositoryMock {
+            token: secure_token.clone(),
+            fn_find: Some(
+                |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+                    Ok(this.token.clone())
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_user_application();
         app.token_repo = Arc::new(token_repo);
@@ -1309,13 +1359,15 @@ pub mod tests {
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
-        let mut token_repo = TokenRepositoryMock::new();
-        token_repo.token = secure_token.clone();
-        token_repo.fn_find = Some(
-            |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
-                Ok(this.token.clone())
-            },
-        );
+        let token_repo = TokenRepositoryMock {
+            token: secure_token.clone(),
+            fn_find: Some(
+                |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+                    Ok(this.token.clone())
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_user_application();
         app.token_repo = Arc::new(token_repo);
@@ -1369,12 +1421,14 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_disable_totp_not_enabled_should_fail() {
-        let mut secret_repo = SecretRepositoryMock::new();
-        secret_repo.fn_find_by_user_and_name = Some(
-            |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                Err(constants::ERR_NOT_FOUND.into())
-            },
-        );
+        let secret_repo = SecretRepositoryMock {
+            fn_find_by_user_and_name: Some(
+                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+                    Err(constants::ERR_NOT_FOUND.into())
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
@@ -1390,14 +1444,16 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_disable_totp_not_verified_should_fail() {
-        let mut secret_repo = SecretRepositoryMock::new();
-        secret_repo.fn_find_by_user_and_name = Some(
-            |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                let mut secret = new_secret();
-                secret.set_deleted_at(Some(Utc::now().naive_utc()));
-                Ok(secret)
-            },
-        );
+        let secret_repo = SecretRepositoryMock {
+            fn_find_by_user_and_name: Some(
+                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+                    let mut secret = new_secret();
+                    secret.set_deleted_at(Some(Utc::now().naive_utc()));
+                    Ok(secret)
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
@@ -1413,25 +1469,29 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_secure_reset_should_not_fail() {
-        let mut secret_repo = SecretRepositoryMock::new();
-        secret_repo.fn_find_by_user_and_name = Some(
-            |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                Err(constants::ERR_NOT_FOUND.into())
-            },
-        );
+        let secret_repo = SecretRepositoryMock {
+            fn_find_by_user_and_name: Some(
+                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+                    Err(constants::ERR_NOT_FOUND.into())
+                },
+            ),
+            ..Default::default()
+        };
 
         let token = Token::new("test", "0", Duration::from_secs(60), TokenKind::Reset);
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
-        let mut token_repo = TokenRepositoryMock::new();
-        token_repo.token = secure_token.clone();
-        token_repo.fn_find = Some(
-            |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
-                Ok(this.token.clone())
-            },
-        );
+        let token_repo = TokenRepositoryMock {
+            token: secure_token.clone(),
+            fn_find: Some(
+                |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+                    Ok(this.token.clone())
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
@@ -1445,12 +1505,14 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_secure_reset_verification_token_kind_should_fail() {
-        let mut secret_repo = SecretRepositoryMock::new();
-        secret_repo.fn_find_by_user_and_name = Some(
-            |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                Err(constants::ERR_NOT_FOUND.into())
-            },
-        );
+        let secret_repo = SecretRepositoryMock {
+            fn_find_by_user_and_name: Some(
+                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+                    Err(constants::ERR_NOT_FOUND.into())
+                },
+            ),
+            ..Default::default()
+        };
 
         let token = Token::new(
             "test",
@@ -1462,13 +1524,15 @@ pub mod tests {
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
-        let mut token_repo = TokenRepositoryMock::new();
-        token_repo.token = secure_token.clone();
-        token_repo.fn_find = Some(
-            |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
-                Ok(this.token.clone())
-            },
-        );
+        let token_repo = TokenRepositoryMock {
+            token: secure_token.clone(),
+            fn_find: Some(
+                |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+                    Ok(this.token.clone())
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
@@ -1483,25 +1547,29 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_secure_reset_session_token_kind_should_fail() {
-        let mut secret_repo = SecretRepositoryMock::new();
-        secret_repo.fn_find_by_user_and_name = Some(
-            |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                Err(constants::ERR_NOT_FOUND.into())
-            },
-        );
+        let secret_repo = SecretRepositoryMock {
+            fn_find_by_user_and_name: Some(
+                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+                    Err(constants::ERR_NOT_FOUND.into())
+                },
+            ),
+            ..Default::default()
+        };
 
         let token = Token::new("test", "0", Duration::from_secs(60), TokenKind::Session);
 
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
-        let mut token_repo = TokenRepositoryMock::new();
-        token_repo.token = secure_token.clone();
-        token_repo.fn_find = Some(
-            |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
-                Ok(this.token.clone())
-            },
-        );
+        let token_repo = TokenRepositoryMock {
+            token: secure_token.clone(),
+            fn_find: Some(
+                |this: &TokenRepositoryMock, _: &str| -> Result<String, Box<dyn Error>> {
+                    Ok(this.token.clone())
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
@@ -1516,12 +1584,14 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_reset_should_not_fail() {
-        let mut secret_repo = SecretRepositoryMock::new();
-        secret_repo.fn_find_by_user_and_name = Some(
-            |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                Err(constants::ERR_NOT_FOUND.into())
-            },
-        );
+        let secret_repo = SecretRepositoryMock {
+            fn_find_by_user_and_name: Some(
+                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+                    Err(constants::ERR_NOT_FOUND.into())
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
@@ -1531,12 +1601,14 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_reset_same_password_should_fail() {
-        let mut secret_repo = SecretRepositoryMock::new();
-        secret_repo.fn_find_by_user_and_name = Some(
-            |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                Err(constants::ERR_NOT_FOUND.into())
-            },
-        );
+        let secret_repo = SecretRepositoryMock {
+            fn_find_by_user_and_name: Some(
+                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
+                    Err(constants::ERR_NOT_FOUND.into())
+                },
+            ),
+            ..Default::default()
+        };
 
         let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
