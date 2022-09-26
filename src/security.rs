@@ -16,7 +16,6 @@ use libreauth::{
 use crate::constants;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use rand::prelude::*;
-use sha256;
 
 const SECURE_CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
                                 abcdefghijklmnopqrstuvwxyz\
@@ -24,7 +23,7 @@ const SECURE_CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
 
 pub fn sign_jwt<S: Serialize>(secret: &[u8], payload: S) -> Result<String, Box<dyn Error>> {
     let header = Header::new(Algorithm::ES256);
-    let key = EncodingKey::from_ec_pem(&secret).map_err(|err| {
+    let key = EncodingKey::from_ec_pem(secret).map_err(|err| {
         error!(
             "{} encoding elliptic curve keypair: {}",
             constants::ERR_UNKNOWN,
@@ -124,7 +123,7 @@ pub fn _decrypt(private: &[u8], data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> 
 
     let decrypted_len = decrypter.decrypt(data, &mut decrypted)?;
     decrypted.truncate(decrypted_len);
-    Ok((&*decrypted).to_vec())
+    Ok((*decrypted).to_vec())
 }
 
 #[cfg(test)]
@@ -138,12 +137,12 @@ pub mod tests {
         let code = generate_totp(SECRET).unwrap().generate();
 
         assert_eq!(code.len(), 6);
-        assert!(verify_totp(&SECRET, &code).is_ok());
+        assert!(verify_totp(SECRET, &code).is_ok());
     }
 
     #[test]
     fn verify_totp_ko_should_not_fail() {
         const SECRET: &[u8] = "hello world".as_bytes();
-        assert!(!verify_totp(&SECRET, "tester").unwrap());
+        assert!(!verify_totp(SECRET, "tester").unwrap());
     }
 }

@@ -33,7 +33,7 @@ impl<'a, M: MetadataRepository> PostgresUserRepository<'a, M> {
             name: user_raw.1.clone(),
             email: user_raw.2.clone(),
             password: user_raw.3.clone(),
-            meta: meta,
+            meta,
         })
     }
 }

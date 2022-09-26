@@ -26,15 +26,15 @@ impl<'a> Smtp<'a> {
     ) -> Result<Self, Box<dyn Error>> {
         let tera = Tera::new(templates_path)?;
 
-        let transport_attrs: Vec<&str> = smtp_transport.split(":").collect();
-        if transport_attrs.len() == 0 || transport_attrs[0].len() == 0 {
+        let transport_attrs: Vec<&str> = smtp_transport.split(':').collect();
+        if transport_attrs.is_empty() || transport_attrs[0].is_empty() {
             return Err("smtp transport is not valid".into());
         }
 
         info!("smtp transport set as {}", transport_attrs[0]);
 
         let mut mailer = SmtpTransport::relay(transport_attrs[0])?;
-        if transport_attrs.len() > 1 && transport_attrs[1].len() > 0 {
+        if transport_attrs.len() > 1 && !transport_attrs[1].is_empty() {
             warn!("smtp transport port set as {}", transport_attrs[1]);
             mailer = mailer.port(transport_attrs[1].parse().unwrap());
         }
@@ -51,14 +51,14 @@ impl<'a> Smtp<'a> {
             issuer: "",
             origin: "",
             mailer: mailer.build(),
-            tera: tera,
+            tera,
         })
     }
 
     pub fn send_email(&self, to: &str, subject: &str, body: String) -> Result<(), Box<dyn Error>> {
         info!("sending a verification email to {}", to);
 
-        let formated_subject = if self.issuer.len() > 0 {
+        let formated_subject = if !self.issuer.is_empty() {
             format!("[{}] {}", self.issuer, subject)
         } else {
             subject.to_string()
@@ -90,7 +90,7 @@ impl<'a> Mailer for Smtp<'a> {
         token: &str,
     ) -> Result<(), Box<dyn Error>> {
         let mut context = Context::new();
-        context.insert("name", email.split("@").collect::<Vec<&str>>()[0]);
+        context.insert("name", email.split('@').collect::<Vec<&str>>()[0]);
         context.insert("token", &base64::encode(token));
 
         const SUBJECT: &str = constants::EMAIL_VERIFICATION_SUBJECT;
@@ -106,7 +106,7 @@ impl<'a> Mailer for Smtp<'a> {
                 constants::ERR_UNKNOWN
             })?;
 
-        self.send_email(email, &SUBJECT, body)
+        self.send_email(email, SUBJECT, body)
     }
 
     fn send_verification_reset_email(
@@ -115,7 +115,7 @@ impl<'a> Mailer for Smtp<'a> {
         token: &str,
     ) -> Result<(), Box<dyn Error>> {
         let mut context = Context::new();
-        context.insert("name", email.split("@").collect::<Vec<&str>>()[0]);
+        context.insert("name", email.split('@').collect::<Vec<&str>>()[0]);
         context.insert("token", &base64::encode(token));
 
         const SUBJECT: &str = constants::EMAIL_RESET_SUBJECT;
@@ -131,7 +131,7 @@ impl<'a> Mailer for Smtp<'a> {
                 constants::ERR_UNKNOWN
             })?;
 
-        self.send_email(email, &SUBJECT, body)
+        self.send_email(email, SUBJECT, body)
     }
 }
 
@@ -141,14 +141,9 @@ pub mod tests {
     use crate::constants;
     use std::error::Error;
 
+    #[derive(Default)]
     pub struct MailerMock {
         pub force_fail: bool,
-    }
-
-    impl MailerMock {
-        pub fn new() -> Self {
-            MailerMock { force_fail: false }
-        }
     }
 
     impl Mailer for MailerMock {
