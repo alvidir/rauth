@@ -1,5 +1,5 @@
 use super::{application::SecretRepository, domain::Secret};
-use crate::constants;
+use crate::errors;
 use crate::metadata::application::MetadataRepository;
 use async_trait::async_trait;
 use sqlx::postgres::PgPool;
@@ -51,15 +51,15 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRe
                 .map_err(|err| {
                     error!(
                         "{} performing select by id query on postgres: {:?}",
-                        constants::ERR_UNKNOWN,
+                        errors::ERR_UNKNOWN,
                         err
                     );
-                    constants::ERR_UNKNOWN
+                    errors::ERR_UNKNOWN
                 })?
         };
 
         if row.0 == 0 {
-            return Err(constants::ERR_NOT_FOUND.into());
+            return Err(errors::ERR_NOT_FOUND.into());
         }
 
         self.build(&row).await // another connection consumed here
@@ -80,15 +80,15 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRe
                 .map_err(|err| {
                     error!(
                         "{} performing select by user and name query on postgres: {:?}",
-                        constants::ERR_UNKNOWN,
+                        errors::ERR_UNKNOWN,
                         err
                     );
-                    constants::ERR_UNKNOWN
+                    errors::ERR_UNKNOWN
                 })?
         };
 
         if row.0 == 0 {
-            return Err(constants::ERR_NOT_FOUND.into());
+            return Err(errors::ERR_NOT_FOUND.into());
         }
 
         self.build(&row).await // another connection consumed here
@@ -107,10 +107,10 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRe
             .map_err(|err| {
                 error!(
                     "{} performing insert query on postgres: {:?}",
-                    constants::ERR_UNKNOWN,
+                    errors::ERR_UNKNOWN,
                     err
                 );
-                constants::ERR_UNKNOWN
+                errors::ERR_UNKNOWN
             })?;
 
         secret.id = row.0;
@@ -129,10 +129,10 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRe
             .map_err(|err| {
                 error!(
                     "{} performing update query on postgres: {:?}",
-                    constants::ERR_UNKNOWN,
+                    errors::ERR_UNKNOWN,
                     err
                 );
-                constants::ERR_UNKNOWN
+                errors::ERR_UNKNOWN
             })?;
 
         Ok(())
@@ -148,10 +148,10 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRe
                 .map_err(|err| {
                     error!(
                         "{} performing delete query on postgres: {:?}",
-                        constants::ERR_UNKNOWN,
+                        errors::ERR_UNKNOWN,
                         err
                     );
-                    constants::ERR_UNKNOWN
+                    errors::ERR_UNKNOWN
                 })?;
         }
 

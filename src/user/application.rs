@@ -1,5 +1,5 @@
 use super::domain::User;
-use crate::constants;
+use crate::errors;
 use crate::secret::{application::SecretRepository, domain::Secret};
 use crate::security;
 use crate::session::{
@@ -32,6 +32,7 @@ pub trait EventBus {
 }
 
 pub struct UserApplication<
+    'a,
     U: UserRepository,
     E: SecretRepository,
     T: TokenRepository,
@@ -44,10 +45,13 @@ pub struct UserApplication<
     pub mailer: Arc<M>,
     pub bus: Arc<B>,
     pub timeout: u64,
+    pub totp_secret_len: usize,
+    pub totp_secret_name: &'a str,
+    pub token_issuer: &'a str,
 }
 
-impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M: Mailer>
-    UserApplication<U, E, T, B, M>
+impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M: Mailer>
+    UserApplication<'a, U, E, T, B, M>
 {
     pub async fn verify_signup_email(
         &self,
@@ -62,7 +66,7 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M:
 
         User::new(email, pwd)?;
         let token_to_keep = Token::new_secret(
-            constants::TOKEN_ISSUER,
+            self.token_issuer,
             email,
             pwd,
             Duration::from_secs(self.timeout),
@@ -70,7 +74,7 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M:
         );
 
         let token_to_send = Token::new(
-            constants::TOKEN_ISSUER,
+            self.token_issuer,
             &token_to_keep.get_id(),
             Duration::from_secs(self.timeout),
             TokenKind::Verification,
@@ -98,19 +102,19 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M:
         if claims.knd != TokenKind::Verification {
             warn!(
                 "{} checking token's kind with id {}: got {:?} want {:?}",
-                constants::ERR_INVALID_TOKEN,
+                errors::ERR_INVALID_TOKEN,
                 claims.jti,
                 claims.knd,
                 TokenKind::Verification
             );
-            return Err(constants::ERR_INVALID_TOKEN.into());
+            return Err(errors::ERR_INVALID_TOKEN.into());
         }
 
         let token = self
             .token_repo
             .find(&claims.sub)
             .await
-            .map_err(|_| constants::ERR_INVALID_TOKEN)?;
+            .map_err(|_| errors::ERR_INVALID_TOKEN)?;
 
         let claims: Token = verify_token(
             self.token_repo.clone(),
@@ -120,7 +124,7 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M:
         )
         .await?;
         let token_id = claims.get_id();
-        let password = &claims.scr.ok_or(constants::ERR_INVALID_TOKEN)?;
+        let password = &claims.scr.ok_or(errors::ERR_INVALID_TOKEN)?;
         let token = self.signup(&claims.sub, password, jwt_secret).await?;
         self.token_repo.delete(&token_id).await?;
         Ok(token)
@@ -140,7 +144,14 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M:
         let mut user = User::new(email, pwd)?;
         self.user_repo.create(&mut user).await?;
         self.bus.emit_user_created(&user).await?;
-        generate_token(self.token_repo.clone(), self.timeout, &user, jwt_secret).await
+        generate_token(
+            self.token_repo.clone(),
+            self.timeout,
+            &user,
+            jwt_secret,
+            self.token_issuer,
+        )
+        .await
     }
 
     pub async fn secure_delete(
@@ -158,12 +169,8 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M:
         )
         .await?;
         let user_id = claims.sub.parse().map_err(|err| {
-            warn!(
-                "{} parsing str to i32: {}",
-                constants::ERR_INVALID_TOKEN,
-                err
-            );
-            constants::ERR_INVALID_TOKEN
+            warn!("{} parsing str to i32: {}", errors::ERR_INVALID_TOKEN, err);
+            errors::ERR_INVALID_TOKEN
         })?;
 
         self.delete(user_id, pwd, totp).await
@@ -179,16 +186,16 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M:
             .user_repo
             .find(user_id)
             .await
-            .map_err(|_| constants::ERR_WRONG_CREDENTIALS)?;
+            .map_err(|_| errors::ERR_WRONG_CREDENTIALS)?;
 
         if !user.match_password(pwd) {
-            return Err(constants::ERR_WRONG_CREDENTIALS.into());
+            return Err(errors::ERR_WRONG_CREDENTIALS.into());
         }
 
         // if, and only if, the user has activated the totp
         let secret_lookup = self
             .secret_repo
-            .find_by_user_and_name(user.id, constants::TOTP_SECRET_NAME)
+            .find_by_user_and_name(user.id, self.totp_secret_name)
             .await
             .ok();
 
@@ -196,7 +203,7 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M:
             if !secret.is_deleted() {
                 let data = secret.get_data();
                 if !security::verify_totp(data, totp)? {
-                    return Err(constants::ERR_UNAUTHORIZED.into());
+                    return Err(errors::ERR_UNAUTHORIZED.into());
                 }
                 self.secret_repo.delete(&secret).await?;
             }
@@ -221,12 +228,8 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M:
         )
         .await?;
         let user_id = claims.sub.parse().map_err(|err| {
-            warn!(
-                "{} parsing str to i32: {}",
-                constants::ERR_INVALID_TOKEN,
-                err
-            );
-            constants::ERR_INVALID_TOKEN
+            warn!("{} parsing str to i32: {}", errors::ERR_INVALID_TOKEN, err);
+            errors::ERR_INVALID_TOKEN
         })?;
 
         self.enable_totp(user_id, pwd, totp).await
@@ -247,28 +250,28 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M:
             .user_repo
             .find(user_id)
             .await
-            .map_err(|_| constants::ERR_WRONG_CREDENTIALS)?;
+            .map_err(|_| errors::ERR_WRONG_CREDENTIALS)?;
 
         if !user.match_password(pwd) {
-            return Err(constants::ERR_WRONG_CREDENTIALS.into());
+            return Err(errors::ERR_WRONG_CREDENTIALS.into());
         }
 
         // if, and only if, the user has activated the totp
         let mut secret_lookup = self
             .secret_repo
-            .find_by_user_and_name(user.id, constants::TOTP_SECRET_NAME)
+            .find_by_user_and_name(user.id, self.totp_secret_name)
             .await
             .ok();
 
         if let Some(secret) = &mut secret_lookup {
             if !secret.is_deleted() {
                 // the totp is already enabled
-                return Err(constants::ERR_NOT_AVAILABLE.into());
+                return Err(errors::ERR_NOT_AVAILABLE.into());
             }
 
             let data = secret.get_data();
             if !security::verify_totp(data, totp)? {
-                return Err(constants::ERR_UNAUTHORIZED.into());
+                return Err(errors::ERR_UNAUTHORIZED.into());
             }
 
             secret.set_deleted_at(None);
@@ -276,8 +279,8 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M:
             return Ok(None);
         }
 
-        let token = security::get_random_string(constants::TOTP_SECRET_LEN);
-        let mut secret = Secret::new(&user, constants::TOTP_SECRET_NAME, token.as_bytes());
+        let token = security::get_random_string(self.totp_secret_len);
+        let mut secret = Secret::new(&user, self.totp_secret_name, token.as_bytes());
         secret.set_deleted_at(Some(Utc::now().naive_utc())); // unavailable till confirmed
         self.secret_repo.create(&mut secret).await?;
         Ok(Some(token))
@@ -298,12 +301,8 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M:
         )
         .await?;
         let user_id = claims.sub.parse().map_err(|err| {
-            warn!(
-                "{} parsing str to i32: {}",
-                constants::ERR_INVALID_TOKEN,
-                err
-            );
-            constants::ERR_INVALID_TOKEN
+            warn!("{} parsing str to i32: {}", errors::ERR_INVALID_TOKEN, err);
+            errors::ERR_INVALID_TOKEN
         })?;
 
         self.disable_totp(user_id, pwd, totp).await
@@ -324,35 +323,35 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M:
             .user_repo
             .find(user_id)
             .await
-            .map_err(|_| constants::ERR_WRONG_CREDENTIALS)?;
+            .map_err(|_| errors::ERR_WRONG_CREDENTIALS)?;
 
         if !user.match_password(pwd) {
-            return Err(constants::ERR_WRONG_CREDENTIALS.into());
+            return Err(errors::ERR_WRONG_CREDENTIALS.into());
         }
 
         // if, and only if, the user has activated the totp
         let mut secret_lookup = self
             .secret_repo
-            .find_by_user_and_name(user.id, constants::TOTP_SECRET_NAME)
+            .find_by_user_and_name(user.id, self.totp_secret_name)
             .await
             .ok();
 
         if let Some(secret) = &mut secret_lookup {
             if secret.is_deleted() {
                 // the totp is not enabled yet
-                return Err(constants::ERR_NOT_AVAILABLE.into());
+                return Err(errors::ERR_NOT_AVAILABLE.into());
             }
 
             let data = secret.get_data();
             if !security::verify_totp(data, totp)? {
-                return Err(constants::ERR_UNAUTHORIZED.into());
+                return Err(errors::ERR_UNAUTHORIZED.into());
             }
 
             self.secret_repo.delete(secret).await?;
             return Ok(());
         }
 
-        Err(constants::ERR_NOT_AVAILABLE.into())
+        Err(errors::ERR_NOT_AVAILABLE.into())
     }
 
     pub async fn verify_reset_email(
@@ -366,7 +365,7 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M:
         };
 
         let token = Token::new(
-            constants::TOKEN_ISSUER,
+            self.token_issuer,
             &user.get_id().to_string(),
             Duration::from_secs(self.timeout),
             TokenKind::Reset,
@@ -392,12 +391,8 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M:
         let claims: Token =
             verify_token(self.token_repo.clone(), TokenKind::Reset, token, jwt_public).await?;
         let user_id = claims.sub.parse().map_err(|err| {
-            warn!(
-                "{} parsing str to i32: {}",
-                constants::ERR_INVALID_TOKEN,
-                err
-            );
-            constants::ERR_INVALID_TOKEN
+            warn!("{} parsing str to i32: {}", errors::ERR_INVALID_TOKEN, err);
+            errors::ERR_INVALID_TOKEN
         })?;
 
         self.reset(user_id, new_pwd, totp).await?;
@@ -420,22 +415,22 @@ impl<U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M:
             .user_repo
             .find(user_id)
             .await
-            .map_err(|_| constants::ERR_WRONG_CREDENTIALS)?;
+            .map_err(|_| errors::ERR_WRONG_CREDENTIALS)?;
 
         if user.match_password(new_pwd) {
-            return Err(constants::ERR_WRONG_CREDENTIALS.into());
+            return Err(errors::ERR_WRONG_CREDENTIALS.into());
         }
 
         // if, and only if, the user has activated the totp
         if let Ok(secret) = self
             .secret_repo
-            .find_by_user_and_name(user.get_id(), constants::TOTP_SECRET_NAME)
+            .find_by_user_and_name(user.get_id(), self.totp_secret_name)
             .await
         {
             if !secret.is_deleted() {
                 let data = secret.get_data();
                 if !security::verify_totp(data, totp)? {
-                    return Err(constants::ERR_UNAUTHORIZED.into());
+                    return Err(errors::ERR_UNAUTHORIZED.into());
                 }
             }
         }
@@ -462,7 +457,7 @@ pub mod tests {
         domain::{Token, TokenKind},
     };
     use crate::smtp::tests::MailerMock;
-    use crate::{constants, security};
+    use crate::{errors, security};
     use async_trait::async_trait;
     use chrono::Utc;
     use std::error::Error;
@@ -571,6 +566,7 @@ pub mod tests {
     }
 
     pub fn new_user_application() -> UserApplication<
+        'static,
         UserRepositoryMock,
         SecretRepositoryMock,
         TokenRepositoryMock,
@@ -589,6 +585,9 @@ pub mod tests {
             mailer: Arc::new(mailer_mock),
             bus: Arc::new(event_bus),
             timeout: 60,
+            totp_secret_len: 32_usize,
+            totp_secret_name: ".dummy_totp_secret",
+            token_issuer: "dummy",
         }
     }
 
@@ -597,7 +596,7 @@ pub mod tests {
         let user_repo = UserRepositoryMock {
             fn_find_by_email: Some(
                 |_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
-                    Err(constants::ERR_NOT_FOUND.into())
+                    Err(errors::ERR_NOT_FOUND.into())
                 },
             ),
             ..Default::default()
@@ -634,7 +633,7 @@ pub mod tests {
         let user_repo = UserRepositoryMock {
             fn_find_by_email: Some(
                 |_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
-                    Err(constants::ERR_NOT_FOUND.into())
+                    Err(errors::ERR_NOT_FOUND.into())
                 },
             ),
             ..Default::default()
@@ -650,7 +649,7 @@ pub mod tests {
             &jwt_secret,
         )
         .await
-        .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_FORMAT))
+        .map_err(|err| assert_eq!(err.to_string(), errors::ERR_INVALID_FORMAT))
         .unwrap_err();
     }
 
@@ -659,7 +658,7 @@ pub mod tests {
         let user_repo = UserRepositoryMock {
             fn_find_by_email: Some(
                 |_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
-                    Err(constants::ERR_NOT_FOUND.into())
+                    Err(errors::ERR_NOT_FOUND.into())
                 },
             ),
             ..Default::default()
@@ -715,7 +714,7 @@ pub mod tests {
         let user_repo = UserRepositoryMock {
             fn_find_by_email: Some(
                 |_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
-                    Err(constants::ERR_NOT_FOUND.into())
+                    Err(errors::ERR_NOT_FOUND.into())
                 },
             ),
             ..Default::default()
@@ -748,7 +747,7 @@ pub mod tests {
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
         app.secure_signup(&token, &jwt_public, &jwt_secret)
             .await
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
+            .map_err(|err| assert_eq!(err.to_string(), errors::ERR_INVALID_TOKEN))
             .unwrap_err();
     }
 
@@ -757,7 +756,7 @@ pub mod tests {
         let user_repo = UserRepositoryMock {
             fn_find_by_email: Some(
                 |_: &UserRepositoryMock, _: &str| -> Result<User, Box<dyn Error>> {
-                    Err(constants::ERR_NOT_FOUND.into())
+                    Err(errors::ERR_NOT_FOUND.into())
                 },
             ),
             ..Default::default()
@@ -785,7 +784,7 @@ pub mod tests {
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
         app.secure_signup(&token, &jwt_public, &jwt_secret)
             .await
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
+            .map_err(|err| assert_eq!(err.to_string(), errors::ERR_INVALID_TOKEN))
             .unwrap_err();
     }
 
@@ -827,7 +826,7 @@ pub mod tests {
             &jwt_secret,
         )
         .await
-        .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_FORMAT))
+        .map_err(|err| assert_eq!(err.to_string(), errors::ERR_INVALID_FORMAT))
         .unwrap_err();
     }
 
@@ -837,7 +836,7 @@ pub mod tests {
         let jwt_secret = base64::decode(JWT_SECRET).unwrap();
         app.signup(TEST_DEFAULT_USER_EMAIL, "bad password", &jwt_secret)
             .await
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_FORMAT))
+            .map_err(|err| assert_eq!(err.to_string(), errors::ERR_INVALID_FORMAT))
             .unwrap_err();
     }
 
@@ -859,7 +858,7 @@ pub mod tests {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
                 |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                    Err(constants::ERR_NOT_FOUND.into())
+                    Err(errors::ERR_NOT_FOUND.into())
                 },
             ),
             ..Default::default()
@@ -895,7 +894,7 @@ pub mod tests {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
                 |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                    Err(constants::ERR_NOT_FOUND.into())
+                    Err(errors::ERR_NOT_FOUND.into())
                 },
             ),
             ..Default::default()
@@ -928,7 +927,7 @@ pub mod tests {
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
         app.secure_delete(TEST_DEFAULT_USER_PASSWORD, "", &secure_token, &jwt_public)
             .await
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
+            .map_err(|err| assert_eq!(err.to_string(), errors::ERR_INVALID_TOKEN))
             .unwrap_err();
     }
 
@@ -937,7 +936,7 @@ pub mod tests {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
                 |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                    Err(constants::ERR_NOT_FOUND.into())
+                    Err(errors::ERR_NOT_FOUND.into())
                 },
             ),
             ..Default::default()
@@ -965,7 +964,7 @@ pub mod tests {
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
         app.secure_delete(TEST_DEFAULT_USER_PASSWORD, "", &secure_token, &jwt_public)
             .await
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
+            .map_err(|err| assert_eq!(err.to_string(), errors::ERR_INVALID_TOKEN))
             .unwrap_err();
     }
 
@@ -974,7 +973,7 @@ pub mod tests {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
                 |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                    Err(constants::ERR_NOT_FOUND.into())
+                    Err(errors::ERR_NOT_FOUND.into())
                 },
             ),
             ..Default::default()
@@ -1002,7 +1001,7 @@ pub mod tests {
         let user_repo = UserRepositoryMock {
             fn_find: Some(
                 |_: &UserRepositoryMock, _: i32| -> Result<User, Box<dyn Error>> {
-                    Err(constants::ERR_NOT_FOUND.into())
+                    Err(errors::ERR_NOT_FOUND.into())
                 },
             ),
             ..Default::default()
@@ -1011,7 +1010,7 @@ pub mod tests {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
                 |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                    Err(constants::ERR_NOT_FOUND.into())
+                    Err(errors::ERR_NOT_FOUND.into())
                 },
             ),
             ..Default::default()
@@ -1023,7 +1022,7 @@ pub mod tests {
 
         app.delete(0, TEST_DEFAULT_USER_PASSWORD, "")
             .await
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_WRONG_CREDENTIALS))
+            .map_err(|err| assert_eq!(err.to_string(), errors::ERR_WRONG_CREDENTIALS))
             .unwrap_err();
     }
 
@@ -1032,7 +1031,7 @@ pub mod tests {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
                 |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                    Err(constants::ERR_NOT_FOUND.into())
+                    Err(errors::ERR_NOT_FOUND.into())
                 },
             ),
             ..Default::default()
@@ -1043,7 +1042,7 @@ pub mod tests {
 
         app.delete(0, "bad password", "")
             .await
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_WRONG_CREDENTIALS))
+            .map_err(|err| assert_eq!(err.to_string(), errors::ERR_WRONG_CREDENTIALS))
             .unwrap_err();
     }
 
@@ -1052,7 +1051,7 @@ pub mod tests {
         let app = new_user_application();
         app.delete(0, TEST_DEFAULT_USER_PASSWORD, "bad totp")
             .await
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_UNAUTHORIZED))
+            .map_err(|err| assert_eq!(err.to_string(), errors::ERR_UNAUTHORIZED))
             .unwrap_err();
     }
 
@@ -1061,7 +1060,7 @@ pub mod tests {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
                 |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                    Err(constants::ERR_NOT_FOUND.into())
+                    Err(errors::ERR_NOT_FOUND.into())
                 },
             ),
             ..Default::default()
@@ -1092,7 +1091,7 @@ pub mod tests {
             .await
             .unwrap();
         assert!(totp.is_some());
-        assert_eq!(totp.unwrap().len(), constants::TOTP_SECRET_LEN);
+        assert_eq!(totp.unwrap().len(), app.totp_secret_len);
     }
 
     #[tokio::test]
@@ -1100,7 +1099,7 @@ pub mod tests {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
                 |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                    Err(constants::ERR_NOT_FOUND.into())
+                    Err(errors::ERR_NOT_FOUND.into())
                 },
             ),
             ..Default::default()
@@ -1133,7 +1132,7 @@ pub mod tests {
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
         app.secure_enable_totp(TEST_DEFAULT_USER_PASSWORD, "", &secure_token, &jwt_public)
             .await
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
+            .map_err(|err| assert_eq!(err.to_string(), errors::ERR_INVALID_TOKEN))
             .unwrap_err();
     }
 
@@ -1142,7 +1141,7 @@ pub mod tests {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
                 |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                    Err(constants::ERR_NOT_FOUND.into())
+                    Err(errors::ERR_NOT_FOUND.into())
                 },
             ),
             ..Default::default()
@@ -1170,7 +1169,7 @@ pub mod tests {
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
         app.secure_enable_totp(TEST_DEFAULT_USER_PASSWORD, "", &secure_token, &jwt_public)
             .await
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
+            .map_err(|err| assert_eq!(err.to_string(), errors::ERR_INVALID_TOKEN))
             .unwrap_err();
     }
 
@@ -1179,7 +1178,7 @@ pub mod tests {
         let mut secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
                 |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                    Err(constants::ERR_NOT_FOUND.into())
+                    Err(errors::ERR_NOT_FOUND.into())
                 },
             ),
             ..Default::default()
@@ -1203,7 +1202,7 @@ pub mod tests {
             .await
             .unwrap();
         assert!(totp.is_some());
-        assert_eq!(totp.unwrap().len(), constants::TOTP_SECRET_LEN);
+        assert_eq!(totp.unwrap().len(), app.totp_secret_len);
     }
 
     #[tokio::test]
@@ -1262,7 +1261,7 @@ pub mod tests {
             .generate();
         app.enable_totp(0, "bad password", &code)
             .await
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_WRONG_CREDENTIALS))
+            .map_err(|err| assert_eq!(err.to_string(), errors::ERR_WRONG_CREDENTIALS))
             .unwrap_err();
     }
 
@@ -1274,7 +1273,7 @@ pub mod tests {
             .generate();
         app.enable_totp(0, TEST_DEFAULT_USER_PASSWORD, &code)
             .await
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_NOT_AVAILABLE))
+            .map_err(|err| assert_eq!(err.to_string(), errors::ERR_NOT_AVAILABLE))
             .unwrap_err();
     }
 
@@ -1348,7 +1347,7 @@ pub mod tests {
             &jwt_public,
         )
         .await
-        .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
+        .map_err(|err| assert_eq!(err.to_string(), errors::ERR_INVALID_TOKEN))
         .unwrap_err();
     }
 
@@ -1383,7 +1382,7 @@ pub mod tests {
             &jwt_public,
         )
         .await
-        .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
+        .map_err(|err| assert_eq!(err.to_string(), errors::ERR_INVALID_TOKEN))
         .unwrap_err();
     }
 
@@ -1406,7 +1405,7 @@ pub mod tests {
             .generate();
         app.disable_totp(0, "bad password", &code)
             .await
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_WRONG_CREDENTIALS))
+            .map_err(|err| assert_eq!(err.to_string(), errors::ERR_WRONG_CREDENTIALS))
             .unwrap_err();
     }
 
@@ -1415,7 +1414,7 @@ pub mod tests {
         let app = new_user_application();
         app.disable_totp(0, TEST_DEFAULT_USER_PASSWORD, "bad totp")
             .await
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_UNAUTHORIZED))
+            .map_err(|err| assert_eq!(err.to_string(), errors::ERR_UNAUTHORIZED))
             .unwrap_err();
     }
 
@@ -1424,7 +1423,7 @@ pub mod tests {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
                 |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                    Err(constants::ERR_NOT_FOUND.into())
+                    Err(errors::ERR_NOT_FOUND.into())
                 },
             ),
             ..Default::default()
@@ -1438,7 +1437,7 @@ pub mod tests {
             .generate();
         app.disable_totp(0, TEST_DEFAULT_USER_PASSWORD, &code)
             .await
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_NOT_AVAILABLE))
+            .map_err(|err| assert_eq!(err.to_string(), errors::ERR_NOT_AVAILABLE))
             .unwrap_err();
     }
 
@@ -1463,7 +1462,7 @@ pub mod tests {
             .generate();
         app.disable_totp(0, TEST_DEFAULT_USER_PASSWORD, &code)
             .await
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_NOT_AVAILABLE))
+            .map_err(|err| assert_eq!(err.to_string(), errors::ERR_NOT_AVAILABLE))
             .unwrap_err();
     }
 
@@ -1472,7 +1471,7 @@ pub mod tests {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
                 |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                    Err(constants::ERR_NOT_FOUND.into())
+                    Err(errors::ERR_NOT_FOUND.into())
                 },
             ),
             ..Default::default()
@@ -1508,7 +1507,7 @@ pub mod tests {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
                 |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                    Err(constants::ERR_NOT_FOUND.into())
+                    Err(errors::ERR_NOT_FOUND.into())
                 },
             ),
             ..Default::default()
@@ -1541,7 +1540,7 @@ pub mod tests {
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
         app.secure_reset("another password", "", &secure_token, &jwt_public)
             .await
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
+            .map_err(|err| assert_eq!(err.to_string(), errors::ERR_INVALID_TOKEN))
             .unwrap_err();
     }
 
@@ -1550,7 +1549,7 @@ pub mod tests {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
                 |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                    Err(constants::ERR_NOT_FOUND.into())
+                    Err(errors::ERR_NOT_FOUND.into())
                 },
             ),
             ..Default::default()
@@ -1578,7 +1577,7 @@ pub mod tests {
         let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
         app.secure_reset("another password", "", &secure_token, &jwt_public)
             .await
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_TOKEN))
+            .map_err(|err| assert_eq!(err.to_string(), errors::ERR_INVALID_TOKEN))
             .unwrap_err();
     }
 
@@ -1587,7 +1586,7 @@ pub mod tests {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
                 |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                    Err(constants::ERR_NOT_FOUND.into())
+                    Err(errors::ERR_NOT_FOUND.into())
                 },
             ),
             ..Default::default()
@@ -1604,7 +1603,7 @@ pub mod tests {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
                 |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret, Box<dyn Error>> {
-                    Err(constants::ERR_NOT_FOUND.into())
+                    Err(errors::ERR_NOT_FOUND.into())
                 },
             ),
             ..Default::default()
@@ -1615,7 +1614,7 @@ pub mod tests {
 
         app.reset(0, TEST_DEFAULT_USER_PASSWORD, "")
             .await
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_WRONG_CREDENTIALS))
+            .map_err(|err| assert_eq!(err.to_string(), errors::ERR_WRONG_CREDENTIALS))
             .unwrap_err();
     }
 }

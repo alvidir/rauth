@@ -2,7 +2,7 @@ use crate::secret::application::SecretRepository;
 use crate::session::application::TokenRepository;
 use crate::smtp::Mailer;
 use crate::user::application::{EventBus, UserApplication, UserRepository};
-use crate::{constants, grpc, security};
+use crate::{errors, grpc, security};
 use tonic::{Request, Response, Status};
 
 const TOTP_ACTION_ENABLE: i32 = 0;
@@ -27,7 +27,7 @@ pub struct UserImplementation<
     B: EventBus + Sync + Send,
     M: Mailer,
 > {
-    pub user_app: UserApplication<U, E, S, B, M>,
+    pub user_app: UserApplication<'static, U, E, S, B, M>,
     pub jwt_secret: &'static [u8],
     pub jwt_public: &'static [u8],
     pub jwt_header: &'static str,
@@ -56,12 +56,8 @@ impl<
 
             let mut res = Response::new(Empty {});
             let token = token.parse().map_err(|err| {
-                error!(
-                    "{} parsing token to header: {}",
-                    constants::ERR_UNKNOWN,
-                    err
-                );
-                Status::unknown(constants::ERR_UNKNOWN)
+                error!("{} parsing token to header: {}", errors::ERR_UNKNOWN, err);
+                Status::unknown(errors::ERR_UNKNOWN)
             })?;
             res.metadata_mut().append(self.jwt_header, token);
             return Ok(res);
@@ -73,7 +69,7 @@ impl<
             .verify_signup_email(&msg_ref.email, &shadowed_pwd, self.jwt_secret)
             .await
             .map_err(|err| Status::aborted(err.to_string()))?;
-        Err(Status::failed_precondition(constants::ERR_NOT_AVAILABLE))
+        Err(Status::failed_precondition(errors::ERR_NOT_AVAILABLE))
     }
 
     async fn reset(&self, request: Request<ResetRequest>) -> Result<Response<Empty>, Status> {
@@ -94,7 +90,7 @@ impl<
             .verify_reset_email(&msg_ref.email, self.jwt_secret)
             .await
             .map_err(|err| Status::aborted(err.to_string()))?;
-        Err(Status::failed_precondition(constants::ERR_NOT_AVAILABLE))
+        Err(Status::failed_precondition(errors::ERR_NOT_AVAILABLE))
     }
 
     async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<Empty>, Status> {
@@ -123,12 +119,8 @@ impl<
             let mut response = Response::new(Empty {});
             if let Some(token) = token {
                 let token = token.parse().map_err(|err| {
-                    error!(
-                        "{} parsing str to metadata: {}",
-                        constants::ERR_UNKNOWN,
-                        err
-                    );
-                    Status::aborted(constants::ERR_UNKNOWN.to_string())
+                    error!("{} parsing str to metadata: {}", errors::ERR_UNKNOWN, err);
+                    Status::aborted(errors::ERR_UNKNOWN.to_string())
                 })?;
 
                 response.metadata_mut().insert(self.totp_header, token);
@@ -144,6 +136,6 @@ impl<
                 .map_err(|err| Status::unknown(err.to_string()));
         }
 
-        Err(Status::invalid_argument(constants::ERR_NOT_AVAILABLE))
+        Err(Status::invalid_argument(errors::ERR_NOT_AVAILABLE))
     }
 }

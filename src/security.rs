@@ -13,7 +13,7 @@ use libreauth::{
     oath::{TOTPBuilder, TOTP},
 };
 
-use crate::constants;
+use crate::errors;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use rand::prelude::*;
 
@@ -26,15 +26,15 @@ pub fn sign_jwt<S: Serialize>(secret: &[u8], payload: S) -> Result<String, Box<d
     let key = EncodingKey::from_ec_pem(secret).map_err(|err| {
         error!(
             "{} encoding elliptic curve keypair: {}",
-            constants::ERR_UNKNOWN,
+            errors::ERR_UNKNOWN,
             err
         );
-        constants::ERR_UNKNOWN
+        errors::ERR_UNKNOWN
     })?;
 
     let token = jsonwebtoken::encode(&header, &payload, &key).map_err(|err| {
-        error!("{} signing json web token: {}", constants::ERR_UNKNOWN, err);
-        constants::ERR_UNKNOWN
+        error!("{} signing json web token: {}", errors::ERR_UNKNOWN, err);
+        errors::ERR_UNKNOWN
     })?;
 
     Ok(token)
@@ -45,19 +45,19 @@ pub fn verify_jwt<T: DeserializeOwned>(public: &[u8], token: &str) -> Result<T, 
     let key = DecodingKey::from_ec_pem(public).map_err(|err| {
         error!(
             "{} decoding elliptic curve keypair: {}",
-            constants::ERR_UNKNOWN,
+            errors::ERR_UNKNOWN,
             err
         );
-        constants::ERR_UNKNOWN
+        errors::ERR_UNKNOWN
     })?;
 
     let token = jsonwebtoken::decode::<T>(token, &key, &validation).map_err(|err| {
         error!(
             "{} checking token's signature: {}",
-            constants::ERR_INVALID_TOKEN,
+            errors::ERR_INVALID_TOKEN,
             err
         );
-        constants::ERR_INVALID_TOKEN
+        errors::ERR_INVALID_TOKEN
     })?;
 
     Ok(token.claims)
@@ -83,10 +83,10 @@ pub fn generate_totp(secret: &[u8]) -> Result<TOTP, Box<dyn Error>> {
         .map_err(|err| {
             error!(
                 "{} genereting time-based one time password: {:?}",
-                constants::ERR_UNKNOWN,
+                errors::ERR_UNKNOWN,
                 err
             );
-            constants::ERR_UNKNOWN.into()
+            errors::ERR_UNKNOWN.into()
         })
 }
 

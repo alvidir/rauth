@@ -1,10 +1,15 @@
-use crate::constants;
+use crate::errors;
 use lettre::message::SinglePart;
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::transport::smtp::client::Tls;
 use lettre::{Message, SmtpTransport, Transport};
 use std::error::Error;
 use tera::{Context, Tera};
+
+pub const EMAIL_VERIFICATION_SUBJECT: &str = "Email verification";
+pub const EMAIL_VERIFICATION_TEMPLATE: &str = "verification_email.html";
+pub const EMAIL_RESET_SUBJECT: &str = "Reset password";
+pub const EMAIL_RESET_TEMPLATE: &str = "reset_email.html";
 
 pub trait Mailer {
     fn send_verification_signup_email(&self, to: &str, token: &str) -> Result<(), Box<dyn Error>>;
@@ -14,6 +19,10 @@ pub trait Mailer {
 pub struct Smtp<'a> {
     pub issuer: &'a str,
     pub origin: &'a str,
+    pub verification_subject: &'a str,
+    pub verification_template: &'a str,
+    pub reset_subject: &'a str,
+    pub reset_template: &'a str,
     mailer: SmtpTransport,
     tera: Tera,
 }
@@ -52,6 +61,10 @@ impl<'a> Smtp<'a> {
             origin: "",
             mailer: mailer.build(),
             tera,
+            verification_subject: EMAIL_VERIFICATION_SUBJECT,
+            verification_template: EMAIL_VERIFICATION_TEMPLATE,
+            reset_subject: EMAIL_RESET_SUBJECT,
+            reset_template: EMAIL_RESET_TEMPLATE,
         })
     }
 
@@ -70,13 +83,13 @@ impl<'a> Smtp<'a> {
             .subject(formated_subject)
             .singlepart(SinglePart::html(body))
             .map_err(|err| {
-                error!("{} building email: {}", constants::ERR_UNKNOWN, err);
-                constants::ERR_UNKNOWN
+                error!("{} building email: {}", errors::ERR_UNKNOWN, err);
+                errors::ERR_UNKNOWN
             })?;
 
         self.mailer.send(&email).map_err(|err| {
-            error!("{} sending email: {}", constants::ERR_UNKNOWN, err);
-            constants::ERR_UNKNOWN
+            error!("{} sending email: {}", errors::ERR_UNKNOWN, err);
+            errors::ERR_UNKNOWN
         })?;
 
         Ok(())
@@ -93,20 +106,19 @@ impl<'a> Mailer for Smtp<'a> {
         context.insert("name", email.split('@').collect::<Vec<&str>>()[0]);
         context.insert("token", &base64::encode(token));
 
-        const SUBJECT: &str = constants::EMAIL_VERIFICATION_SUBJECT;
         let body = self
             .tera
-            .render(constants::EMAIL_VERIFICATION_TEMPLATE, &context)
+            .render(self.verification_template, &context)
             .map_err(|err| {
                 error!(
                     "{} rendering verification signup email template: {}",
-                    constants::ERR_UNKNOWN,
+                    errors::ERR_UNKNOWN,
                     err
                 );
-                constants::ERR_UNKNOWN
+                errors::ERR_UNKNOWN
             })?;
 
-        self.send_email(email, SUBJECT, body)
+        self.send_email(email, self.verification_subject, body)
     }
 
     fn send_verification_reset_email(
@@ -118,27 +130,26 @@ impl<'a> Mailer for Smtp<'a> {
         context.insert("name", email.split('@').collect::<Vec<&str>>()[0]);
         context.insert("token", &base64::encode(token));
 
-        const SUBJECT: &str = constants::EMAIL_RESET_SUBJECT;
         let body = self
             .tera
-            .render(constants::EMAIL_RESET_TEMPLATE, &context)
+            .render(self.reset_template, &context)
             .map_err(|err| {
                 error!(
                     "{} rendering verification reset email template: {}",
-                    constants::ERR_UNKNOWN,
+                    errors::ERR_UNKNOWN,
                     err
                 );
-                constants::ERR_UNKNOWN
+                errors::ERR_UNKNOWN
             })?;
 
-        self.send_email(email, SUBJECT, body)
+        self.send_email(email, self.reset_subject, body)
     }
 }
 
 #[cfg(test)]
 pub mod tests {
     use super::Mailer;
-    use crate::constants;
+    use crate::errors;
     use std::error::Error;
 
     #[derive(Default)]
@@ -149,7 +160,7 @@ pub mod tests {
     impl Mailer for MailerMock {
         fn send_verification_signup_email(&self, _: &str, _: &str) -> Result<(), Box<dyn Error>> {
             if self.force_fail {
-                return Err(constants::ERR_UNKNOWN.into());
+                return Err(errors::ERR_UNKNOWN.into());
             }
 
             Ok(())
@@ -157,7 +168,7 @@ pub mod tests {
 
         fn send_verification_reset_email(&self, _: &str, _: &str) -> Result<(), Box<dyn Error>> {
             if self.force_fail {
-                return Err(constants::ERR_UNKNOWN.into());
+                return Err(errors::ERR_UNKNOWN.into());
             }
 
             Ok(())

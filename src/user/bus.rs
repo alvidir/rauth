@@ -1,5 +1,5 @@
 use super::{application::EventBus, domain::User};
-use crate::constants;
+use crate::errors;
 use async_trait::async_trait;
 use lapin::{options::*, BasicProperties, Channel};
 use serde_json;
@@ -38,10 +38,10 @@ impl<'a> EventBus for RabbitMqUserBus<'a> {
             .map_err(|err| {
                 error!(
                     "{} serializing \"user created\" event data to json: {}",
-                    constants::ERR_UNKNOWN,
+                    errors::ERR_UNKNOWN,
                     err
                 );
-                constants::ERR_UNKNOWN
+                errors::ERR_UNKNOWN
             })?;
 
         self.channel
@@ -56,19 +56,19 @@ impl<'a> EventBus for RabbitMqUserBus<'a> {
             .map_err(|err| {
                 error!(
                     "{} emititng \"user created\" event: {}",
-                    constants::ERR_UNKNOWN,
+                    errors::ERR_UNKNOWN,
                     err
                 );
-                constants::ERR_UNKNOWN
+                errors::ERR_UNKNOWN
             })?
             .await
             .map_err(|err| {
                 error!(
                     "{} confirming \"user created\" event reception: {}",
-                    constants::ERR_UNKNOWN,
+                    errors::ERR_UNKNOWN,
                     err
                 );
-                constants::ERR_UNKNOWN
+                errors::ERR_UNKNOWN
             })?;
 
         Ok(())

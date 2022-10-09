@@ -3,7 +3,7 @@ use tonic::{Request, Response, Status};
 use super::application::{SessionApplication, TokenRepository};
 use crate::secret::application::SecretRepository;
 use crate::user::application::UserRepository;
-use crate::{constants, grpc, security};
+use crate::{errors, grpc, security};
 
 // Import the generated rust code into module
 mod proto {
@@ -22,7 +22,7 @@ pub struct SessionImplementation<
     U: UserRepository + Sync + Send,
     E: SecretRepository + Sync + Send,
 > {
-    pub sess_app: SessionApplication<S, U, E>,
+    pub sess_app: SessionApplication<'static, S, U, E>,
     pub jwt_secret: &'static [u8],
     pub jwt_public: &'static [u8],
     pub jwt_header: &'static str,
@@ -54,12 +54,8 @@ impl<
 
         let mut res = Response::new(Empty {});
         let token = token.parse().map_err(|err| {
-            error!(
-                "{} parsing token to header: {}",
-                constants::ERR_UNKNOWN,
-                err
-            );
-            Status::unknown(constants::ERR_UNKNOWN)
+            error!("{} parsing token to header: {}", errors::ERR_UNKNOWN, err);
+            Status::unknown(errors::ERR_UNKNOWN)
         })?;
 
         res.metadata_mut().append(self.jwt_header, token);

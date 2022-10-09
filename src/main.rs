@@ -7,19 +7,22 @@ use async_once::AsyncOnce;
 use lapin::{
     options::*, types::FieldTable, Channel, Connection, ConnectionProperties, ExchangeKind,
 };
-use rauth::metadata::repository::PostgresMetadataRepository;
-use rauth::secret::repository::PostgresSecretRepository;
-use rauth::session::{
-    application::SessionApplication,
-    grpc::{SessionImplementation, SessionServer},
-    repository::RedisTokenRepository,
-};
-use rauth::smtp::Smtp;
-use rauth::user::{
-    application::UserApplication,
-    bus::RabbitMqUserBus,
-    grpc::{UserImplementation, UserServer},
-    repository::PostgresUserRepository,
+
+use rauth::{
+    metadata::repository::PostgresMetadataRepository,
+    secret::repository::PostgresSecretRepository,
+    session::{
+        application::SessionApplication,
+        grpc::{SessionImplementation, SessionServer},
+        repository::RedisTokenRepository,
+    },
+    smtp::Smtp,
+    user::{
+        application::UserApplication,
+        bus::RabbitMqUserBus,
+        grpc::{UserImplementation, UserServer},
+        repository::PostgresUserRepository,
+    },
 };
 use reool::RedisPool;
 use sqlx::postgres::{PgPool, PgPoolOptions};
@@ -39,6 +42,9 @@ const DEFAULT_TOTP_HEADER: &str = "x-totp-secret";
 const DEFAULT_TOKEN_TIMEOUT: u64 = 7200;
 const DEFAULT_POOL_SIZE: u32 = 10;
 const DEFAULT_BUS: &str = "rauth";
+const DEFAULT_TOTP_SECRET_LEN: usize = 32_usize;
+const DEFAULT_TOTP_SECRET_NAME: &str = ".totp_secret";
+const DEFAULT_TOKEN_ISSUER: &str = "rauth.alvidir.com";
 
 const ENV_SERVICE_PORT: &str = "SERVICE_PORT";
 const ENV_SERVICE_NETW: &str = "SERVICE_NETW";
@@ -60,6 +66,9 @@ const ENV_SMTP_ORIGIN: &str = "SMTP_ORIGIN";
 const ENV_PWD_SUFIX: &str = "PWD_SUFIX";
 const ENV_RABBITMQ_USERS_BUS: &str = "RABBITMQ_USERS_BUS";
 const ENV_RABBITMQ_DSN: &str = "RABBITMQ_URL";
+const ENV_TOTP_SECRET_LEN: &str = "TOTP_SECRET_LEN";
+const ENV_TOTP_SECRET_NAME: &str = "TOTP_SECRET_NAME";
+const ENV_TOKEN_ISSUER: &str = "TOKEN_ISSUER";
 
 lazy_static! {
     static ref TOKEN_TIMEOUT: u64 = env::var(ENV_TOKEN_TIMEOUT)
@@ -157,6 +166,13 @@ lazy_static! {
 
         channel
     });
+    static ref TOTP_SECRET_LEN: usize = env::var(ENV_TOTP_SECRET_LEN)
+        .map(|len| len.parse().unwrap())
+        .unwrap_or_else(|_| DEFAULT_TOTP_SECRET_LEN);
+    static ref TOTP_SECRET_NAME: String =
+        env::var(ENV_TOTP_SECRET_NAME).unwrap_or_else(|_| DEFAULT_TOTP_SECRET_NAME.to_string());
+    static ref TOKEN_ISSUER: String =
+        env::var(ENV_TOKEN_ISSUER).unwrap_or_else(|_| DEFAULT_TOKEN_ISSUER.to_string());
 }
 
 pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
@@ -199,9 +215,12 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
         user_repo: user_repo.clone(),
         secret_repo: secret_repo.clone(),
         token_repo: token_repo.clone(),
-        bus: user_event_bus.clone(),
         mailer: Arc::new(mailer),
+        bus: user_event_bus.clone(),
         timeout: *TOKEN_TIMEOUT,
+        totp_secret_len: *TOTP_SECRET_LEN,
+        totp_secret_name: &TOTP_SECRET_NAME,
+        token_issuer: &TOKEN_ISSUER,
     };
 
     let sess_app = SessionApplication {
@@ -209,6 +228,8 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
         user_repo: user_repo.clone(),
         secret_repo: secret_repo.clone(),
         timeout: *TOKEN_TIMEOUT,
+        totp_secret_name: &TOTP_SECRET_NAME,
+        token_issuer: &TOKEN_ISSUER,
     };
 
     let user_server = UserImplementation {

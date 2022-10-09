@@ -1,5 +1,5 @@
 use crate::metadata::domain::Metadata;
-use crate::{constants, regex};
+use crate::{errors, regex};
 use std::error::Error;
 
 pub struct User {
@@ -15,19 +15,19 @@ impl User {
         regex::match_regex(regex::EMAIL, email).map_err(|err| {
             info!(
                 "{} validating email's format: {}",
-                constants::ERR_INVALID_FORMAT,
+                errors::ERR_INVALID_FORMAT,
                 err
             );
-            constants::ERR_INVALID_FORMAT
+            errors::ERR_INVALID_FORMAT
         })?;
 
         regex::match_regex(regex::BASE64, password).map_err(|err| {
             info!(
                 "{} validating password's format: {}",
-                constants::ERR_INVALID_FORMAT,
+                errors::ERR_INVALID_FORMAT,
                 err
             );
-            constants::ERR_INVALID_FORMAT
+            errors::ERR_INVALID_FORMAT
         })?;
 
         let user = User {
@@ -61,10 +61,10 @@ impl User {
         regex::match_regex(regex::BASE64, password).map_err(|err| {
             info!(
                 "{} validating password's format: {}",
-                constants::ERR_INVALID_FORMAT,
+                errors::ERR_INVALID_FORMAT,
                 err
             );
-            constants::ERR_INVALID_FORMAT
+            errors::ERR_INVALID_FORMAT
         })?;
 
         self.password = password.to_string();
@@ -75,7 +75,7 @@ impl User {
 #[cfg(test)]
 pub mod tests {
     use super::User;
-    use crate::constants;
+    use crate::errors;
     use crate::metadata::domain::tests::new_metadata;
 
     pub const TEST_DEFAULT_USER_ID: i32 = 999;
@@ -118,7 +118,7 @@ pub mod tests {
         const EMAIL: &str = "not_an_email";
 
         let result = User::new(EMAIL, TEST_DEFAULT_USER_PASSWORD)
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_FORMAT));
+            .map_err(|err| assert_eq!(err.to_string(), errors::ERR_INVALID_FORMAT));
 
         assert!(result.is_err());
     }
@@ -128,7 +128,7 @@ pub mod tests {
         const PWD: &str = "ABCDEFG1234567890";
 
         let result = User::new(TEST_DEFAULT_USER_EMAIL, PWD)
-            .map_err(|err| assert_eq!(err.to_string(), constants::ERR_INVALID_FORMAT));
+            .map_err(|err| assert_eq!(err.to_string(), errors::ERR_INVALID_FORMAT));
 
         assert!(result.is_err());
     }
