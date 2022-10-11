@@ -1,4 +1,4 @@
-use crate::constants;
+use crate::errors;
 use regex::Regex;
 use std::error::Error;
 
@@ -9,7 +9,7 @@ pub const BASE64: &str = r"^[A-Fa-f0-9]{8,64}$";
 pub fn match_regex(r: &str, s: &str) -> Result<(), Box<dyn Error>> {
     let regex = Regex::new(r)?;
     if !regex.is_match(s) {
-        return Err(constants::ERR_REGEX_NOT_MATCH.into());
+        return Err(errors::ERR_REGEX_NOT_MATCH.into());
     }
 
     Ok(())

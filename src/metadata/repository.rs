@@ -1,5 +1,5 @@
 use super::{application::MetadataRepository, domain::Metadata};
-use crate::constants;
+use crate::errors;
 use async_trait::async_trait;
 use chrono::naive::NaiveDateTime;
 use sqlx::postgres::PgPool;
@@ -31,15 +31,15 @@ impl<'a> MetadataRepository for PostgresMetadataRepository<'a> {
                 .map_err(|err| {
                     error!(
                         "{} performing select by id query on postgres: {:?}",
-                        constants::ERR_UNKNOWN,
+                        errors::ERR_UNKNOWN,
                         err
                     );
-                    constants::ERR_UNKNOWN
+                    errors::ERR_UNKNOWN
                 })?
         };
 
         if row.0 == 0 {
-            return Err(constants::ERR_NOT_FOUND.into());
+            return Err(errors::ERR_NOT_FOUND.into());
         }
 
         Ok(Metadata {
@@ -60,10 +60,10 @@ impl<'a> MetadataRepository for PostgresMetadataRepository<'a> {
             .map_err(|err| {
                 error!(
                     "{} performing insert query on postgres: {:?}",
-                    constants::ERR_UNKNOWN,
+                    errors::ERR_UNKNOWN,
                     err
                 );
-                constants::ERR_UNKNOWN
+                errors::ERR_UNKNOWN
             })?;
 
         meta.id = row.0;
@@ -81,10 +81,10 @@ impl<'a> MetadataRepository for PostgresMetadataRepository<'a> {
             .map_err(|err| {
                 error!(
                     "{} performing update query on postgres: {:?}",
-                    constants::ERR_UNKNOWN,
+                    errors::ERR_UNKNOWN,
                     err
                 );
-                constants::ERR_UNKNOWN
+                errors::ERR_UNKNOWN
             })?;
 
         Ok(())
@@ -98,10 +98,10 @@ impl<'a> MetadataRepository for PostgresMetadataRepository<'a> {
             .map_err(|err| {
                 error!(
                     "{} performing delete query on postgres: {:?}",
-                    constants::ERR_UNKNOWN,
+                    errors::ERR_UNKNOWN,
                     err
                 );
-                constants::ERR_UNKNOWN
+                errors::ERR_UNKNOWN
             })?;
 
         Ok(())

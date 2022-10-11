@@ -9,7 +9,7 @@ pub mod session;
 pub mod smtp;
 pub mod user;
 
-mod constants;
+mod errors;
 mod grpc;
 mod regex;
 mod security;
