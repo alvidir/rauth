@@ -24,7 +24,7 @@ setup:
 	python3 scripts/build_db_setup_script.py
 
 deploy:
-	podman-compose  -f compose.yaml up --remove-orphans
+	podman-compose  -f compose.yaml up --remove-orphans -d
 
 follow:
 	podman logs --follow --names rauth-server
