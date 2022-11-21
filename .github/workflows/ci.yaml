@@ -20,7 +20,7 @@ jobs:
 
       - name: Get changed files
         id: changed-files
-        uses: tj-actions/changed-files@v31.0.3
+        uses: tj-actions/changed-files@v34.4.4
 
   run_unitary_tests:
     name: Run unitary tests
