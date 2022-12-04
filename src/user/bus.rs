@@ -6,6 +6,7 @@ use serde_json;
 use std::error::Error;
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 enum EventKind {
     Created,
 }
