@@ -35,16 +35,12 @@ use tonic::transport::Server;
 const DEFAULT_NETW: &str = "127.0.0.1";
 const DEFAULT_PORT: &str = "8000";
 const DEFAULT_TEMPLATES_PATH: &str = "/etc/rauth/smtp/templates/*.html";
-const DEFAULT_EMAIL_ISSUER: &str = "rauth";
-const DEFAULT_PWD_SUFIX: &str = "::PWD::RAUTH";
 const DEFAULT_JWT_HEADER: &str = "authorization";
 const DEFAULT_TOTP_HEADER: &str = "x-totp-secret";
 const DEFAULT_TOKEN_TIMEOUT: u64 = 7200;
 const DEFAULT_POOL_SIZE: u32 = 10;
-const DEFAULT_BUS: &str = "rauth";
 const DEFAULT_TOTP_SECRET_LEN: usize = 32_usize;
 const DEFAULT_TOTP_SECRET_NAME: &str = ".totp_secret";
-const DEFAULT_TOKEN_ISSUER: &str = "rauth.alvidir.com";
 
 const ENV_SERVICE_PORT: &str = "SERVICE_PORT";
 const ENV_SERVICE_NETW: &str = "SERVICE_NETW";
@@ -89,12 +85,10 @@ lazy_static! {
     static ref SMTP_USERNAME: String = env::var(ENV_SMTP_USERNAME).unwrap_or_default();
     static ref SMTP_PASSWORD: String = env::var(ENV_SMTP_PASSWORD).unwrap_or_default();
     static ref SMTP_ORIGIN: String = env::var(ENV_SMTP_ORIGIN).expect("smpt origin must be set");
-    static ref SMTP_ISSUER: String =
-        env::var(ENV_SMTP_ISSUER).unwrap_or_else(|_| DEFAULT_EMAIL_ISSUER.to_string());
+    static ref SMTP_ISSUER: String = env::var(ENV_SMTP_ISSUER).expect("smtp issuer must be set");
     static ref SMTP_TEMPLATES: String =
         env::var(ENV_SMTP_TEMPLATES).unwrap_or_else(|_| DEFAULT_TEMPLATES_PATH.to_string());
-    static ref PWD_SUFIX: String =
-        env::var(ENV_PWD_SUFIX).unwrap_or_else(|_| DEFAULT_PWD_SUFIX.to_string());
+    static ref PWD_SUFIX: String = env::var(ENV_PWD_SUFIX).expect("password sufix must be set");
     static ref PG_POOL: AsyncOnce<PgPool> = AsyncOnce::new(async {
         let postgres_dsn = env::var(ENV_POSTGRES_DSN).expect("postgres url must be set");
 
@@ -127,7 +121,7 @@ lazy_static! {
             .unwrap()
     };
     static ref RABBITMQ_BUS: String =
-        env::var(ENV_RABBITMQ_USERS_BUS).unwrap_or_else(|_| DEFAULT_BUS.to_string());
+        env::var(ENV_RABBITMQ_USERS_BUS).expect("rabbitmq users bus name must be set");
     static ref RABBITMQ_CONN: AsyncOnce<Channel> = AsyncOnce::new(async {
         let rabbitmq_dsn = env::var(ENV_RABBITMQ_DSN).expect("rabbitmq url must be set");
         let conn = Connection::connect(&rabbitmq_dsn, ConnectionProperties::default())
@@ -171,8 +165,7 @@ lazy_static! {
         .unwrap_or_else(|_| DEFAULT_TOTP_SECRET_LEN);
     static ref TOTP_SECRET_NAME: String =
         env::var(ENV_TOTP_SECRET_NAME).unwrap_or_else(|_| DEFAULT_TOTP_SECRET_NAME.to_string());
-    static ref TOKEN_ISSUER: String =
-        env::var(ENV_TOKEN_ISSUER).unwrap_or_else(|_| DEFAULT_TOKEN_ISSUER.to_string());
+    static ref TOKEN_ISSUER: String = env::var(ENV_TOKEN_ISSUER).expect("token issuer must be set");
 }
 
 pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
