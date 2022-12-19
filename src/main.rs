@@ -185,7 +185,7 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
 
     let user_event_bus = Arc::new(RabbitMqUserBus {
         channel: RABBITMQ_CONN.get().await,
-        bus: &*RABBITMQ_BUS,
+        bus: &RABBITMQ_BUS,
     });
 
     let token_repo = Arc::new(RedisTokenRepository {

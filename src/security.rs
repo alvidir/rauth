@@ -97,7 +97,7 @@ pub fn verify_totp(secret: &[u8], pwd: &str) -> Result<bool, Box<dyn Error>> {
 
 pub fn shadow(subject: &str, sufix: &str) -> String {
     let format_pwd = format!("{}{}", subject, sufix);
-    return sha256::digest_bytes(format_pwd.as_bytes());
+    return sha256::digest(format_pwd.as_bytes());
 }
 
 pub fn _encrypt(public: &[u8], data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
