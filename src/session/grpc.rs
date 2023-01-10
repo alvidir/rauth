@@ -1,9 +1,11 @@
 use tonic::{Request, Response, Status};
 
 use super::application::{SessionApplication, TokenRepository};
+use crate::engines;
 use crate::secret::application::SecretRepository;
 use crate::user::application::UserRepository;
 use crate::{errors, grpc, security};
+use base64::Engine;
 
 // Import the generated rust code into module
 mod proto {
@@ -49,7 +51,7 @@ impl<
                 self.jwt_secret,
             )
             .await
-            .map(base64::encode)
+            .map(|token| engines::B64.encode(token))
             .map_err(|err| Status::aborted(err.to_string()))?;
 
         let mut res = Response::new(Empty {});

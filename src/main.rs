@@ -4,10 +4,10 @@ extern crate log;
 extern crate lazy_static;
 
 use async_once::AsyncOnce;
+use base64::{engine::general_purpose, Engine as _};
 use lapin::{
     options::*, types::FieldTable, Channel, Connection, ConnectionProperties, ExchangeKind,
 };
-
 use rauth::{
     metadata::repository::PostgresMetadataRepository,
     secret::repository::PostgresSecretRepository,
@@ -71,10 +71,10 @@ lazy_static! {
         .map(|timeout| timeout.parse().unwrap())
         .unwrap_or(DEFAULT_TOKEN_TIMEOUT);
     static ref JWT_SECRET: Vec<u8> = env::var(ENV_JWT_SECRET)
-        .map(|secret| base64::decode(secret).unwrap())
+        .map(|secret| general_purpose::STANDARD.decode(secret).unwrap())
         .expect("jwt secret must be set");
     static ref JWT_PUBLIC: Vec<u8> = env::var(ENV_JWT_PUBLIC)
-        .map(|secret| base64::decode(secret).unwrap())
+        .map(|secret| general_purpose::STANDARD.decode(secret).unwrap())
         .expect("jwt public key must be set");
     static ref JWT_HEADER: String =
         env::var(ENV_JWT_HEADER).unwrap_or_else(|_| DEFAULT_JWT_HEADER.to_string());

@@ -459,6 +459,7 @@ pub mod tests {
     use crate::smtp::tests::MailerMock;
     use crate::{errors, security};
     use async_trait::async_trait;
+    use base64::{engine::general_purpose, Engine as _};
     use chrono::Utc;
     use std::error::Error;
     use std::sync::Arc;
@@ -605,7 +606,7 @@ pub mod tests {
         let mut app = new_user_application();
         app.user_repo = Arc::new(user_repo);
 
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         app.verify_signup_email(
             TEST_DEFAULT_USER_EMAIL,
             TEST_DEFAULT_USER_PASSWORD,
@@ -618,7 +619,7 @@ pub mod tests {
     #[tokio::test]
     async fn user_verify_already_exists_should_not_fail() {
         let app = new_user_application();
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         app.verify_signup_email(
             TEST_DEFAULT_USER_EMAIL,
             TEST_DEFAULT_USER_PASSWORD,
@@ -642,7 +643,7 @@ pub mod tests {
         let mut app = new_user_application();
         app.user_repo = Arc::new(user_repo);
 
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         app.verify_signup_email(
             "this is not an email",
             TEST_DEFAULT_USER_PASSWORD,
@@ -679,7 +680,7 @@ pub mod tests {
             TokenKind::Verification,
         );
 
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let secure_verif_token = security::sign_jwt(&jwt_secret, verif_token).unwrap();
         let secure_sess_token = security::sign_jwt(&jwt_secret, sess_token).unwrap();
 
@@ -687,7 +688,7 @@ pub mod tests {
             token: secure_verif_token.clone(),
             fn_find: Some(
                 |this: &TokenRepositoryMock, tid: &str| -> Result<String, Box<dyn Error>> {
-                    let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+                    let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
                     let claims: Token = security::verify_jwt(&jwt_public, &this.token)?;
                     assert_eq!(claims.get_id(), tid);
 
@@ -700,7 +701,7 @@ pub mod tests {
         app.user_repo = Arc::new(user_repo);
         app.token_repo = Arc::new(token_repo);
 
-        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         let token = app
             .secure_signup(&secure_sess_token, &jwt_public, &jwt_secret)
             .await
@@ -727,7 +728,7 @@ pub mod tests {
             TokenKind::Verification,
         );
 
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let token = security::sign_jwt(&jwt_secret, token).unwrap();
 
         let token_repo = TokenRepositoryMock {
@@ -744,7 +745,7 @@ pub mod tests {
         app.user_repo = Arc::new(user_repo);
         app.token_repo = Arc::new(token_repo);
 
-        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         app.secure_signup(&token, &jwt_public, &jwt_secret)
             .await
             .map_err(|err| assert_eq!(err.to_string(), errors::ERR_INVALID_TOKEN))
@@ -764,7 +765,7 @@ pub mod tests {
 
         let token = Token::new("test", "test", Duration::from_secs(60), TokenKind::Reset);
 
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let token = security::sign_jwt(&jwt_secret, token).unwrap();
 
         let token_repo = TokenRepositoryMock {
@@ -781,7 +782,7 @@ pub mod tests {
         app.user_repo = Arc::new(user_repo);
         app.token_repo = Arc::new(token_repo);
 
-        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         app.secure_signup(&token, &jwt_public, &jwt_secret)
             .await
             .map_err(|err| assert_eq!(err.to_string(), errors::ERR_INVALID_TOKEN))
@@ -802,8 +803,8 @@ pub mod tests {
         let mut app = new_user_application();
         app.user_repo = Arc::new(user_repo);
 
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
-        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
+        let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         let token = app
             .signup(
                 TEST_DEFAULT_USER_EMAIL,
@@ -819,7 +820,7 @@ pub mod tests {
     #[tokio::test]
     async fn user_signup_wrong_email_should_fail() {
         let app = new_user_application();
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         app.signup(
             "this is not an email",
             TEST_DEFAULT_USER_PASSWORD,
@@ -833,7 +834,7 @@ pub mod tests {
     #[tokio::test]
     async fn user_signup_wrong_password_should_fail() {
         let app = new_user_application();
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         app.signup(TEST_DEFAULT_USER_EMAIL, "bad password", &jwt_secret)
             .await
             .map_err(|err| assert_eq!(err.to_string(), errors::ERR_INVALID_FORMAT))
@@ -843,7 +844,7 @@ pub mod tests {
     #[tokio::test]
     async fn user_signup_already_exists_should_not_fail() {
         let app = new_user_application();
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         app.signup(
             TEST_DEFAULT_USER_EMAIL,
             TEST_DEFAULT_USER_PASSWORD,
@@ -866,7 +867,7 @@ pub mod tests {
 
         let token = Token::new("test", "0", Duration::from_secs(60), TokenKind::Session);
 
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
         let token_repo = TokenRepositoryMock {
@@ -883,7 +884,7 @@ pub mod tests {
         app.secret_repo = Arc::new(secret_repo);
         app.token_repo = Arc::new(token_repo);
 
-        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         app.secure_delete(TEST_DEFAULT_USER_PASSWORD, "", &secure_token, &jwt_public)
             .await
             .unwrap();
@@ -907,7 +908,7 @@ pub mod tests {
             TokenKind::Verification,
         );
 
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
         let token_repo = TokenRepositoryMock {
@@ -924,7 +925,7 @@ pub mod tests {
         app.secret_repo = Arc::new(secret_repo);
         app.token_repo = Arc::new(token_repo);
 
-        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         app.secure_delete(TEST_DEFAULT_USER_PASSWORD, "", &secure_token, &jwt_public)
             .await
             .map_err(|err| assert_eq!(err.to_string(), errors::ERR_INVALID_TOKEN))
@@ -944,7 +945,7 @@ pub mod tests {
 
         let token = Token::new("test", "0", Duration::from_secs(60), TokenKind::Reset);
 
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
         let token_repo = TokenRepositoryMock {
@@ -961,7 +962,7 @@ pub mod tests {
         app.secret_repo = Arc::new(secret_repo);
         app.token_repo = Arc::new(token_repo);
 
-        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         app.secure_delete(TEST_DEFAULT_USER_PASSWORD, "", &secure_token, &jwt_public)
             .await
             .map_err(|err| assert_eq!(err.to_string(), errors::ERR_INVALID_TOKEN))
@@ -1068,7 +1069,7 @@ pub mod tests {
 
         let token = Token::new("test", "0", Duration::from_secs(60), TokenKind::Session);
 
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
         let token_repo = TokenRepositoryMock {
@@ -1085,7 +1086,7 @@ pub mod tests {
         app.secret_repo = Arc::new(secret_repo);
         app.token_repo = Arc::new(token_repo);
 
-        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         let totp = app
             .secure_enable_totp(TEST_DEFAULT_USER_PASSWORD, "", &secure_token, &jwt_public)
             .await
@@ -1112,7 +1113,7 @@ pub mod tests {
             TokenKind::Verification,
         );
 
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
         let token_repo = TokenRepositoryMock {
@@ -1129,7 +1130,7 @@ pub mod tests {
         app.secret_repo = Arc::new(secret_repo);
         app.token_repo = Arc::new(token_repo);
 
-        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         app.secure_enable_totp(TEST_DEFAULT_USER_PASSWORD, "", &secure_token, &jwt_public)
             .await
             .map_err(|err| assert_eq!(err.to_string(), errors::ERR_INVALID_TOKEN))
@@ -1149,7 +1150,7 @@ pub mod tests {
 
         let token = Token::new("test", "0", Duration::from_secs(60), TokenKind::Reset);
 
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
         let token_repo = TokenRepositoryMock {
@@ -1166,7 +1167,7 @@ pub mod tests {
         app.secret_repo = Arc::new(secret_repo);
         app.token_repo = Arc::new(token_repo);
 
-        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         app.secure_enable_totp(TEST_DEFAULT_USER_PASSWORD, "", &secure_token, &jwt_public)
             .await
             .map_err(|err| assert_eq!(err.to_string(), errors::ERR_INVALID_TOKEN))
@@ -1281,7 +1282,7 @@ pub mod tests {
     async fn user_secure_disable_totp_should_not_fail() {
         let token = Token::new("test", "0", Duration::from_secs(60), TokenKind::Session);
 
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
         let token_repo = TokenRepositoryMock {
@@ -1297,7 +1298,7 @@ pub mod tests {
         let mut app = new_user_application();
         app.token_repo = Arc::new(token_repo);
 
-        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         let code = security::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
             .unwrap()
             .generate();
@@ -1320,7 +1321,7 @@ pub mod tests {
             TokenKind::Verification,
         );
 
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
         let token_repo = TokenRepositoryMock {
@@ -1336,7 +1337,7 @@ pub mod tests {
         let mut app = new_user_application();
         app.token_repo = Arc::new(token_repo);
 
-        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         let code = security::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
             .unwrap()
             .generate();
@@ -1355,7 +1356,7 @@ pub mod tests {
     async fn user_secure_disable_totp_reset_token_kind_should_fail() {
         let token = Token::new("test", "0", Duration::from_secs(60), TokenKind::Reset);
 
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
         let token_repo = TokenRepositoryMock {
@@ -1371,7 +1372,7 @@ pub mod tests {
         let mut app = new_user_application();
         app.token_repo = Arc::new(token_repo);
 
-        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         let code = security::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
             .unwrap()
             .generate();
@@ -1479,7 +1480,7 @@ pub mod tests {
 
         let token = Token::new("test", "0", Duration::from_secs(60), TokenKind::Reset);
 
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
         let token_repo = TokenRepositoryMock {
@@ -1496,7 +1497,7 @@ pub mod tests {
         app.secret_repo = Arc::new(secret_repo);
         app.token_repo = Arc::new(token_repo);
 
-        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         app.secure_reset("ABCDEF1234567891", "", &secure_token, &jwt_public)
             .await
             .unwrap();
@@ -1520,7 +1521,7 @@ pub mod tests {
             TokenKind::Verification,
         );
 
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
         let token_repo = TokenRepositoryMock {
@@ -1537,7 +1538,7 @@ pub mod tests {
         app.secret_repo = Arc::new(secret_repo);
         app.token_repo = Arc::new(token_repo);
 
-        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         app.secure_reset("another password", "", &secure_token, &jwt_public)
             .await
             .map_err(|err| assert_eq!(err.to_string(), errors::ERR_INVALID_TOKEN))
@@ -1557,7 +1558,7 @@ pub mod tests {
 
         let token = Token::new("test", "0", Duration::from_secs(60), TokenKind::Session);
 
-        let jwt_secret = base64::decode(JWT_SECRET).unwrap();
+        let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let secure_token = security::sign_jwt(&jwt_secret, token).unwrap();
 
         let token_repo = TokenRepositoryMock {
@@ -1574,7 +1575,7 @@ pub mod tests {
         app.secret_repo = Arc::new(secret_repo);
         app.token_repo = Arc::new(token_repo);
 
-        let jwt_public = base64::decode(JWT_PUBLIC).unwrap();
+        let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         app.secure_reset("another password", "", &secure_token, &jwt_public)
             .await
             .map_err(|err| assert_eq!(err.to_string(), errors::ERR_INVALID_TOKEN))

@@ -1,4 +1,6 @@
+use crate::engines;
 use crate::errors;
+use base64::Engine;
 use lettre::message::SinglePart;
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::transport::smtp::client::Tls;
@@ -104,7 +106,7 @@ impl<'a> Mailer for Smtp<'a> {
     ) -> Result<(), Box<dyn Error>> {
         let mut context = Context::new();
         context.insert("name", email.split('@').collect::<Vec<&str>>()[0]);
-        context.insert("token", &base64::encode(token));
+        context.insert("token", &engines::B64.encode(token));
 
         let body = self
             .tera
@@ -128,7 +130,7 @@ impl<'a> Mailer for Smtp<'a> {
     ) -> Result<(), Box<dyn Error>> {
         let mut context = Context::new();
         context.insert("name", email.split('@').collect::<Vec<&str>>()[0]);
-        context.insert("token", &base64::encode(token));
+        context.insert("token", &engines::B64.encode(token));
 
         let body = self
             .tera
