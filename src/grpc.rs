@@ -1,3 +1,5 @@
+use crate::engines;
+use base64::Engine;
 use tonic::{Request, Status};
 
 use crate::errors;
@@ -21,7 +23,7 @@ pub fn get_header<T>(req: &Request<T>, header: &str) -> Result<String, Status> {
 
 pub fn get_encoded_header<T>(request: &Request<T>, header: &str) -> Result<String, Status> {
     let header = get_header(request, header)?;
-    let header = base64::decode(header).map_err(|err| {
+    let header = engines::B64.decode(header).map_err(|err| {
         warn!(
             "{} decoding header from base64: {}",
             errors::ERR_INVALID_HEADER,
