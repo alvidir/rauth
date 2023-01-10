@@ -140,7 +140,7 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> UserRepo
             .bind(&user.name)
             .bind(&user.email)
             .bind(&user.password)
-            .bind(&user.id)
+            .bind(user.id)
             .execute(self.pool)
             .await
             .map_err(|err| {
@@ -159,7 +159,7 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> UserRepo
         {
             // block is required because of connection release
             sqlx::query(QUERY_DELETE_USER)
-                .bind(&user.id)
+                .bind(user.id)
                 .execute(self.pool)
                 .await
                 .map_err(|err| {

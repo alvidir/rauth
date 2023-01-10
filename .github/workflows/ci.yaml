@@ -20,7 +20,7 @@ jobs:
 
       - name: Get changed files
         id: changed-files
-        uses: tj-actions/changed-files@v34.5.0
+        uses: tj-actions/changed-files@v35.4.0
 
   run_unitary_tests:
     name: Run unitary tests
@@ -68,7 +68,7 @@ jobs:
 
       - name: Create tag
         id: tagging
-        uses: anothrNick/github-tag-action@1.52.0
+        uses: anothrNick/github-tag-action@1.61.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DEFAULT_BUMP: patch

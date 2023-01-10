@@ -100,7 +100,7 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRe
         let row: (i32,) = sqlx::query_as(QUERY_INSERT_SECRET)
             .bind(&secret.name)
             .bind(&secret.data)
-            .bind(&secret.owner)
+            .bind(secret.owner)
             .bind(secret.meta.get_id())
             .fetch_one(self.pool)
             .await
@@ -119,11 +119,11 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRe
 
     async fn save(&self, secret: &Secret) -> Result<(), Box<dyn Error>> {
         sqlx::query(QUERY_UPDATE_SECRET)
-            .bind(&secret.id)
+            .bind(secret.id)
             .bind(&secret.name)
             .bind(&secret.data)
-            .bind(&secret.owner)
-            .bind(&secret.meta.get_id())
+            .bind(secret.owner)
+            .bind(secret.meta.get_id())
             .fetch_one(self.pool)
             .await
             .map_err(|err| {
@@ -142,7 +142,7 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRe
         {
             // block is required because of connection release
             sqlx::query(QUERY_DELETE_SECRET)
-                .bind(&secret.id)
+                .bind(secret.id)
                 .fetch_one(self.pool)
                 .await
                 .map_err(|err| {
