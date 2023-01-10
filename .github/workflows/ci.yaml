@@ -68,7 +68,7 @@ jobs:
 
       - name: Create tag
         id: tagging
-        uses: anothrNick/github-tag-action@1.54.0
+        uses: anothrNick/github-tag-action@1.61.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DEFAULT_BUMP: patch
