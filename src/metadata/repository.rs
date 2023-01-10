@@ -52,9 +52,9 @@ impl<'a> MetadataRepository for PostgresMetadataRepository<'a> {
 
     async fn create(&self, meta: &mut Metadata) -> Result<(), Box<dyn Error>> {
         let row: (i32,) = sqlx::query_as(QUERY_INSERT_METADATA)
-            .bind(&meta.created_at)
-            .bind(&meta.updated_at)
-            .bind(&meta.deleted_at)
+            .bind(meta.created_at)
+            .bind(meta.updated_at)
+            .bind(meta.deleted_at)
             .fetch_one(self.pool)
             .await
             .map_err(|err| {
@@ -72,10 +72,10 @@ impl<'a> MetadataRepository for PostgresMetadataRepository<'a> {
 
     async fn save(&self, meta: &Metadata) -> Result<(), Box<dyn Error>> {
         sqlx::query(QUERY_UPDATE_METADATA)
-            .bind(&meta.id)
-            .bind(&meta.created_at)
-            .bind(&meta.updated_at)
-            .bind(&meta.deleted_at)
+            .bind(meta.id)
+            .bind(meta.created_at)
+            .bind(meta.updated_at)
+            .bind(meta.deleted_at)
             .fetch_one(self.pool)
             .await
             .map_err(|err| {
@@ -92,7 +92,7 @@ impl<'a> MetadataRepository for PostgresMetadataRepository<'a> {
 
     async fn delete(&self, meta: &Metadata) -> Result<(), Box<dyn Error>> {
         sqlx::query(QUERY_DELETE_METADATA)
-            .bind(&meta.id)
+            .bind(meta.id)
             .fetch_one(self.pool)
             .await
             .map_err(|err| {

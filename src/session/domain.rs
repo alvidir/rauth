@@ -91,6 +91,7 @@ pub mod tests {
     use super::{Token, TokenKind};
     use crate::time::unix_timestamp;
     use crate::{security, time};
+    use base64::{engine::general_purpose, Engine as _};
     use std::time::{Duration, SystemTime};
 
     pub const TEST_DEFAULT_TOKEN_TIMEOUT: u64 = 60;
@@ -135,10 +136,10 @@ pub mod tests {
 
         let after = SystemTime::now();
 
-        let secret = base64::decode(JWT_SECRET).unwrap();
+        let secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let token = security::sign_jwt(&secret, claim).unwrap();
 
-        let public = base64::decode(JWT_PUBLIC).unwrap();
+        let public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         let claim = security::verify_jwt::<Token>(&public, &token).unwrap();
 
         assert!(claim.iat >= before && claim.iat <= after);
@@ -155,9 +156,9 @@ pub mod tests {
         let mut claim = new_session_token();
         claim.exp = time::unix_timestamp(SystemTime::now() - Duration::from_secs(61));
 
-        let secret = base64::decode(JWT_SECRET).unwrap();
+        let secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let token = security::sign_jwt(&secret, claim).unwrap();
-        let public = base64::decode(JWT_PUBLIC).unwrap();
+        let public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
 
         assert!(security::verify_jwt::<Token>(&public, &token).is_err());
     }

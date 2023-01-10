@@ -1,8 +1,10 @@
+use crate::engines;
 use crate::secret::application::SecretRepository;
 use crate::session::application::TokenRepository;
 use crate::smtp::Mailer;
 use crate::user::application::{EventBus, UserApplication, UserRepository};
 use crate::{errors, grpc, security};
+use base64::Engine;
 use tonic::{Request, Response, Status};
 
 const TOTP_ACTION_ENABLE: i32 = 0;
@@ -51,7 +53,7 @@ impl<
                 .user_app
                 .secure_signup(&token, self.jwt_public, self.jwt_secret)
                 .await
-                .map(base64::encode)
+                .map(|token| engines::B64.encode(token))
                 .map_err(|err| Status::aborted(err.to_string()))?;
 
             let mut res = Response::new(Empty {});
