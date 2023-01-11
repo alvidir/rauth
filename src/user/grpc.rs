@@ -1,9 +1,9 @@
-use crate::engines;
+use super::application::Mailer;
+use crate::base64::B64_CUSTOM_ENGINE;
 use crate::secret::application::SecretRepository;
 use crate::session::application::TokenRepository;
-use crate::smtp::Mailer;
 use crate::user::application::{EventBus, UserApplication, UserRepository};
-use crate::{errors, grpc, security};
+use crate::{crypto, grpc, result::Error};
 use base64::Engine;
 use tonic::{Request, Response, Status};
 
@@ -53,32 +53,32 @@ impl<
                 .user_app
                 .secure_signup(&token, self.jwt_public, self.jwt_secret)
                 .await
-                .map(|token| engines::B64.encode(token))
+                .map(|token| B64_CUSTOM_ENGINE.encode(token))
                 .map_err(|err| Status::aborted(err.to_string()))?;
 
             let mut res = Response::new(Empty {});
             let token = token.parse().map_err(|err| {
-                error!("{} parsing token to header: {}", errors::ERR_UNKNOWN, err);
-                Status::unknown(errors::ERR_UNKNOWN)
+                error!("{} parsing token to header: {}", Error::Unknown, err);
+                Status::unknown(Error::Unknown)
             })?;
             res.metadata_mut().append(self.jwt_header, token);
             return Ok(res);
         }
         let msg_ref = request.into_inner();
-        let shadowed_pwd = security::shadow(&msg_ref.pwd, self.pwd_sufix);
+        let shadowed_pwd = crypto::shadow(&msg_ref.pwd, self.pwd_sufix);
 
         self.user_app
             .verify_signup_email(&msg_ref.email, &shadowed_pwd, self.jwt_secret)
             .await
             .map_err(|err| Status::aborted(err.to_string()))?;
-        Err(Status::failed_precondition(errors::ERR_NOT_AVAILABLE))
+        Err(Status::failed_precondition(Error::NotAvailable))
     }
 
     async fn reset(&self, request: Request<ResetRequest>) -> Result<Response<Empty>, Status> {
         if request.metadata().get(self.jwt_header).is_some() {
             let token = grpc::get_encoded_header(&request, self.jwt_header)?;
             let msg_ref = request.into_inner();
-            let shadowed_pwd = security::shadow(&msg_ref.pwd, self.pwd_sufix);
+            let shadowed_pwd = crypto::shadow(&msg_ref.pwd, self.pwd_sufix);
             return self
                 .user_app
                 .secure_reset(&shadowed_pwd, &msg_ref.totp, &token, self.jwt_public)
@@ -92,13 +92,13 @@ impl<
             .verify_reset_email(&msg_ref.email, self.jwt_secret)
             .await
             .map_err(|err| Status::aborted(err.to_string()))?;
-        Err(Status::failed_precondition(errors::ERR_NOT_AVAILABLE))
+        Err(Status::failed_precondition(Error::NotAvailable))
     }
 
     async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<Empty>, Status> {
         let token = grpc::get_encoded_header(&request, self.jwt_header)?;
         let msg_ref = request.into_inner();
-        let shadowed_pwd = security::shadow(&msg_ref.pwd, self.pwd_sufix);
+        let shadowed_pwd = crypto::shadow(&msg_ref.pwd, self.pwd_sufix);
         self.user_app
             .secure_delete(&shadowed_pwd, &msg_ref.totp, &token, self.jwt_public)
             .await
@@ -109,7 +109,7 @@ impl<
     async fn totp(&self, request: Request<TotpRequest>) -> Result<Response<Empty>, Status> {
         let token = grpc::get_encoded_header(&request, self.jwt_header)?;
         let msg_ref = request.into_inner();
-        let shadowed_pwd = security::shadow(&msg_ref.pwd, self.pwd_sufix);
+        let shadowed_pwd = crypto::shadow(&msg_ref.pwd, self.pwd_sufix);
 
         if msg_ref.action == TOTP_ACTION_ENABLE {
             let token = self
@@ -121,8 +121,8 @@ impl<
             let mut response = Response::new(Empty {});
             if let Some(token) = token {
                 let token = token.parse().map_err(|err| {
-                    error!("{} parsing str to metadata: {}", errors::ERR_UNKNOWN, err);
-                    Status::aborted(errors::ERR_UNKNOWN.to_string())
+                    error!("{} parsing str to metadata: {}", Error::Unknown, err);
+                    Status::aborted(Error::Unknown.to_string())
                 })?;
 
                 response.metadata_mut().insert(self.totp_header, token);
@@ -138,6 +138,6 @@ impl<
                 .map_err(|err| Status::unknown(err.to_string()));
         }
 
-        Err(Status::invalid_argument(errors::ERR_NOT_AVAILABLE))
+        Err(Status::invalid_argument(Error::NotAvailable))
     }
 }

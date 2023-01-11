@@ -1,9 +1,8 @@
 use super::{application::SecretRepository, domain::Secret};
-use crate::errors;
 use crate::metadata::application::MetadataRepository;
+use crate::result::{Error, Result};
 use async_trait::async_trait;
 use sqlx::postgres::PgPool;
-use std::error::Error;
 use std::sync::Arc;
 
 const QUERY_INSERT_SECRET: &str =
@@ -24,7 +23,7 @@ pub struct PostgresSecretRepository<'a, M: MetadataRepository> {
 }
 
 impl<'a, M: MetadataRepository> PostgresSecretRepository<'a, M> {
-    async fn build(&self, secret_row: &PostgresSecretRow) -> Result<Secret, Box<dyn Error>> {
+    async fn build(&self, secret_row: &PostgresSecretRow) -> Result<Secret> {
         let meta = self.metadata_repo.find(secret_row.4).await?;
 
         Ok(Secret {
@@ -41,7 +40,7 @@ impl<'a, M: MetadataRepository> PostgresSecretRepository<'a, M> {
 impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRepository
     for PostgresSecretRepository<'a, M>
 {
-    async fn find(&self, target: i32) -> Result<Secret, Box<dyn Error>> {
+    async fn find(&self, target: i32) -> Result<Secret> {
         let row: PostgresSecretRow = {
             // block is required because of connection release
             sqlx::query_as(QUERY_FIND_SECRET)
@@ -51,25 +50,21 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRe
                 .map_err(|err| {
                     error!(
                         "{} performing select by id query on postgres: {:?}",
-                        errors::ERR_UNKNOWN,
+                        Error::Unknown,
                         err
                     );
-                    errors::ERR_UNKNOWN
+                    Error::Unknown
                 })?
         };
 
         if row.0 == 0 {
-            return Err(errors::ERR_NOT_FOUND.into());
+            return Err(Error::NotFound);
         }
 
         self.build(&row).await // another connection consumed here
     }
 
-    async fn find_by_user_and_name(
-        &self,
-        user: i32,
-        secret_name: &str,
-    ) -> Result<Secret, Box<dyn Error>> {
+    async fn find_by_user_and_name(&self, user: i32, secret_name: &str) -> Result<Secret> {
         let row: PostgresSecretRow = {
             // block is required because of connection release
             sqlx::query_as(QUERY_FIND_SECRET_BY_USER_AND_NAME)
@@ -80,21 +75,21 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRe
                 .map_err(|err| {
                     error!(
                         "{} performing select by user and name query on postgres: {:?}",
-                        errors::ERR_UNKNOWN,
+                        Error::Unknown,
                         err
                     );
-                    errors::ERR_UNKNOWN
+                    Error::Unknown
                 })?
         };
 
         if row.0 == 0 {
-            return Err(errors::ERR_NOT_FOUND.into());
+            return Err(Error::NotFound);
         }
 
         self.build(&row).await // another connection consumed here
     }
 
-    async fn create(&self, secret: &mut Secret) -> Result<(), Box<dyn Error>> {
+    async fn create(&self, secret: &mut Secret) -> Result<()> {
         self.metadata_repo.create(&mut secret.meta).await?;
 
         let row: (i32,) = sqlx::query_as(QUERY_INSERT_SECRET)
@@ -107,17 +102,17 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRe
             .map_err(|err| {
                 error!(
                     "{} performing insert query on postgres: {:?}",
-                    errors::ERR_UNKNOWN,
+                    Error::Unknown,
                     err
                 );
-                errors::ERR_UNKNOWN
+                Error::Unknown
             })?;
 
         secret.id = row.0;
         Ok(())
     }
 
-    async fn save(&self, secret: &Secret) -> Result<(), Box<dyn Error>> {
+    async fn save(&self, secret: &Secret) -> Result<()> {
         sqlx::query(QUERY_UPDATE_SECRET)
             .bind(secret.id)
             .bind(&secret.name)
@@ -129,16 +124,16 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRe
             .map_err(|err| {
                 error!(
                     "{} performing update query on postgres: {:?}",
-                    errors::ERR_UNKNOWN,
+                    Error::Unknown,
                     err
                 );
-                errors::ERR_UNKNOWN
+                Error::Unknown
             })?;
 
         Ok(())
     }
 
-    async fn delete(&self, secret: &Secret) -> Result<(), Box<dyn Error>> {
+    async fn delete(&self, secret: &Secret) -> Result<()> {
         {
             // block is required because of connection release
             sqlx::query(QUERY_DELETE_SECRET)
@@ -148,10 +143,10 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRe
                 .map_err(|err| {
                     error!(
                         "{} performing delete query on postgres: {:?}",
-                        errors::ERR_UNKNOWN,
+                        Error::Unknown,
                         err
                     );
-                    errors::ERR_UNKNOWN
+                    Error::Unknown
                 })?;
         }
 

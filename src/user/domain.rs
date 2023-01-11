@@ -1,6 +1,8 @@
 use crate::metadata::domain::Metadata;
-use crate::{errors, regex};
-use std::error::Error;
+use crate::{
+    regex,
+    result::{Error, Result},
+};
 
 pub struct User {
     pub(super) id: i32,
@@ -11,23 +13,23 @@ pub struct User {
 }
 
 impl User {
-    pub fn new(email: &str, password: &str) -> Result<Self, Box<dyn Error>> {
+    pub fn new(email: &str, password: &str) -> Result<Self> {
         regex::match_regex(regex::EMAIL, email).map_err(|err| {
             info!(
                 "{} validating email's format: {}",
-                errors::ERR_INVALID_FORMAT,
+                Error::InvalidFormat,
                 err
             );
-            errors::ERR_INVALID_FORMAT
+            Error::InvalidFormat
         })?;
 
         regex::match_regex(regex::BASE64, password).map_err(|err| {
             info!(
                 "{} validating password's format: {}",
-                errors::ERR_INVALID_FORMAT,
+                Error::InvalidFormat,
                 err
             );
-            errors::ERR_INVALID_FORMAT
+            Error::InvalidFormat
         })?;
 
         let user = User {
@@ -57,14 +59,14 @@ impl User {
         password == self.password
     }
 
-    pub fn set_password(&mut self, password: &str) -> Result<(), Box<dyn Error>> {
+    pub fn set_password(&mut self, password: &str) -> Result<()> {
         regex::match_regex(regex::BASE64, password).map_err(|err| {
             info!(
                 "{} validating password's format: {}",
-                errors::ERR_INVALID_FORMAT,
+                Error::InvalidFormat,
                 err
             );
-            errors::ERR_INVALID_FORMAT
+            Error::InvalidFormat
         })?;
 
         self.password = password.to_string();
@@ -75,8 +77,8 @@ impl User {
 #[cfg(test)]
 pub mod tests {
     use super::User;
-    use crate::errors;
     use crate::metadata::domain::tests::new_metadata;
+    use crate::result::Error;
 
     pub const TEST_DEFAULT_USER_ID: i32 = 999;
     pub const TEST_DEFAULT_USER_NAME: &str = "dummyuser";
@@ -118,7 +120,7 @@ pub mod tests {
         const EMAIL: &str = "not_an_email";
 
         let result = User::new(EMAIL, TEST_DEFAULT_USER_PASSWORD)
-            .map_err(|err| assert_eq!(err.to_string(), errors::ERR_INVALID_FORMAT));
+            .map_err(|err| assert_eq!(err.to_string(), Error::InvalidFormat.to_string()));
 
         assert!(result.is_err());
     }
@@ -128,7 +130,7 @@ pub mod tests {
         const PWD: &str = "ABCDEFG1234567890";
 
         let result = User::new(TEST_DEFAULT_USER_EMAIL, PWD)
-            .map_err(|err| assert_eq!(err.to_string(), errors::ERR_INVALID_FORMAT));
+            .map_err(|err| assert_eq!(err.to_string(), Error::InvalidFormat.to_string()));
 
         assert!(result.is_err());
     }

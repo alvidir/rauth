@@ -90,7 +90,7 @@ impl TokenDefinition for Token {
 pub mod tests {
     use super::{Token, TokenKind};
     use crate::time::unix_timestamp;
-    use crate::{security, time};
+    use crate::{crypto, time};
     use base64::{engine::general_purpose, Engine as _};
     use std::time::{Duration, SystemTime};
 
@@ -137,10 +137,10 @@ pub mod tests {
         let after = SystemTime::now();
 
         let secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
-        let token = security::sign_jwt(&secret, claim).unwrap();
+        let token = crypto::sign_jwt(&secret, claim).unwrap();
 
         let public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
-        let claim = security::verify_jwt::<Token>(&public, &token).unwrap();
+        let claim = crypto::verify_jwt::<Token>(&public, &token).unwrap();
 
         assert!(claim.iat >= before && claim.iat <= after);
         assert!(claim.exp >= unix_timestamp(before + timeout));
@@ -151,15 +151,15 @@ pub mod tests {
 
     #[test]
     fn expired_token_verification_should_fail() {
-        use crate::security;
+        use crate::crypto;
 
         let mut claim = new_session_token();
         claim.exp = time::unix_timestamp(SystemTime::now() - Duration::from_secs(61));
 
         let secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
-        let token = security::sign_jwt(&secret, claim).unwrap();
+        let token = crypto::sign_jwt(&secret, claim).unwrap();
         let public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
 
-        assert!(security::verify_jwt::<Token>(&public, &token).is_err());
+        assert!(crypto::verify_jwt::<Token>(&public, &token).is_err());
     }
 }

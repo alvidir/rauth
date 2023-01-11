@@ -1,9 +1,8 @@
 use super::{application::EventBus, domain::User};
-use crate::errors;
+use crate::result::{Error, Result};
 use async_trait::async_trait;
 use lapin::{options::*, BasicProperties, Channel};
 use serde_json;
-use std::error::Error;
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -26,7 +25,7 @@ pub struct RabbitMqUserBus<'a> {
 
 #[async_trait]
 impl<'a> EventBus for RabbitMqUserBus<'a> {
-    async fn emit_user_created(&self, user: &User) -> Result<(), Box<dyn Error>> {
+    async fn emit_user_created(&self, user: &User) -> Result<()> {
         let event = UserEvent {
             id: user.get_id(),
             name: user.get_name().split('@').collect::<Vec<&str>>()[0],
@@ -39,10 +38,10 @@ impl<'a> EventBus for RabbitMqUserBus<'a> {
             .map_err(|err| {
                 error!(
                     "{} serializing \"user created\" event data to json: {}",
-                    errors::ERR_UNKNOWN,
+                    Error::Unknown,
                     err
                 );
-                errors::ERR_UNKNOWN
+                Error::Unknown
             })?;
 
         self.channel
@@ -57,19 +56,19 @@ impl<'a> EventBus for RabbitMqUserBus<'a> {
             .map_err(|err| {
                 error!(
                     "{} emititng \"user created\" event: {}",
-                    errors::ERR_UNKNOWN,
+                    Error::Unknown,
                     err
                 );
-                errors::ERR_UNKNOWN
+                Error::Unknown
             })?
             .await
             .map_err(|err| {
                 error!(
                     "{} confirming \"user created\" event reception: {}",
-                    errors::ERR_UNKNOWN,
+                    Error::Unknown,
                     err
                 );
-                errors::ERR_UNKNOWN
+                Error::Unknown
             })?;
 
         Ok(())
