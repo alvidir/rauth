@@ -1,9 +1,8 @@
 use super::application::TokenRepository;
-use crate::errors;
+use crate::result::{Error, Result};
 use async_trait::async_trait;
 use reool::AsyncCommands;
 use reool::*;
-use std::error::Error;
 
 pub struct RedisTokenRepository<'a> {
     pub pool: &'a RedisPool,
@@ -13,101 +12,84 @@ pub struct RedisTokenRepository<'a> {
 
 #[async_trait]
 impl<'a> TokenRepository for RedisTokenRepository<'a> {
-    async fn find(&self, key: &str) -> Result<String, Box<dyn Error>> {
+    async fn find(&self, key: &str) -> Result<String> {
         info!("looking for token with id {}", key);
 
         let mut conn = self.pool.check_out(PoolDefault).await.map_err(|err| {
-            error!(
-                "{} pulling connection for redis: {}",
-                errors::ERR_UNKNOWN,
-                err
-            );
-            errors::ERR_UNKNOWN
+            error!("{} pulling connection for redis: {}", Error::Unknown, err);
+            Error::Unknown
         })?;
 
         let token: Vec<u8> = conn.get(key).await.map_err(|err| {
             error!(
                 "{} performing GET command on redis: {}",
-                errors::ERR_UNKNOWN,
+                Error::Unknown,
                 err
             );
-            errors::ERR_UNKNOWN
+            Error::Unknown
         })?;
 
         let token: String = String::from_utf8(token).map_err(|err| {
-            error!("{} parsing token to string: {}", errors::ERR_UNKNOWN, err);
-            errors::ERR_UNKNOWN
+            error!("{} parsing token to string: {}", Error::Unknown, err);
+            Error::Unknown
         })?;
         Ok(token)
     }
 
-    async fn save(
-        &self,
-        key: &str,
-        token: &str,
-        expire: Option<u64>,
-    ) -> Result<(), Box<dyn Error>> {
+    async fn save(&self, key: &str, token: &str, expire: Option<u64>) -> Result<()> {
         info!("storing token with id {}", key);
 
         let mut conn = self.pool.check_out(PoolDefault).await.map_err(|err| {
-            error!(
-                "{} pulling connection for redis: {}",
-                errors::ERR_UNKNOWN,
-                err
-            );
-            errors::ERR_UNKNOWN
+            error!("{} pulling connection for redis: {}", Error::Unknown, err);
+            Error::Unknown
         })?;
 
         conn.set(key, token).await.map_err(|err| {
             error!(
                 "{} performing SET command on redis: {}",
-                errors::ERR_UNKNOWN,
+                Error::Unknown,
                 err
             );
-            errors::ERR_UNKNOWN
+            Error::Unknown
         })?;
 
         if let Some(expire) = expire {
             let expire = expire.try_into().map_err(|err| {
                 error!(
                     "{} parsing expiration time to usize: {}",
-                    errors::ERR_UNKNOWN,
+                    Error::Unknown,
                     err
                 );
-                errors::ERR_UNKNOWN
+                Error::Unknown
             })?;
 
             conn.expire(key, expire).await.map_err(|err| {
                 error!(
                     "{} performing EXPIRE command on redis: {}",
-                    errors::ERR_UNKNOWN,
+                    Error::Unknown,
                     err
                 );
-                errors::ERR_UNKNOWN
+                Error::Unknown
             })?;
         }
         Ok(())
     }
 
-    async fn delete(&self, key: &str) -> Result<(), Box<dyn Error>> {
+    async fn delete(&self, key: &str) -> Result<()> {
         info!("removing token with id {}", key);
 
         let mut conn = self.pool.check_out(PoolDefault).await.map_err(|err| {
-            error!(
-                "{} pulling connection for redis: {}",
-                errors::ERR_UNKNOWN,
-                err
-            );
-            errors::ERR_UNKNOWN
+            error!("{} pulling connection for redis: {}", Error::Unknown, err);
+            Error::Unknown
         })?;
 
         conn.del(key).await.map_err(|err| {
             error!(
                 "{} performing DELETE command on redis: {}",
-                errors::ERR_UNKNOWN,
+                Error::Unknown,
                 err
             );
-            errors::ERR_UNKNOWN
+            Error::Unknown
         })?;
 
         Ok(())

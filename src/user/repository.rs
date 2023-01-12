@@ -1,9 +1,8 @@
 use super::{application::UserRepository, domain::User};
-use crate::errors;
 use crate::metadata::application::MetadataRepository;
+use crate::result::{Error, Result};
 use async_trait::async_trait;
 use sqlx::postgres::PgPool;
-use std::error::Error;
 use std::sync::Arc;
 
 const QUERY_INSERT_USER: &str =
@@ -25,7 +24,7 @@ pub struct PostgresUserRepository<'a, M: MetadataRepository> {
 }
 
 impl<'a, M: MetadataRepository> PostgresUserRepository<'a, M> {
-    async fn build(&self, user_raw: &PostgresUserRow) -> Result<User, Box<dyn Error>> {
+    async fn build(&self, user_raw: &PostgresUserRow) -> Result<User> {
         let meta = self.metadata_repo.find(user_raw.4).await?;
 
         Ok(User {
@@ -42,7 +41,7 @@ impl<'a, M: MetadataRepository> PostgresUserRepository<'a, M> {
 impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> UserRepository
     for PostgresUserRepository<'a, M>
 {
-    async fn find(&self, target: i32) -> Result<User, Box<dyn Error>> {
+    async fn find(&self, target: i32) -> Result<User> {
         let row: PostgresUserRow = {
             // block is required because of connection release
             sqlx::query_as(QUERY_FIND_USER)
@@ -52,21 +51,21 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> UserRepo
                 .map_err(|err| {
                     error!(
                         "{} performing select by id query on postgres: {:?}",
-                        errors::ERR_UNKNOWN,
+                        Error::Unknown,
                         err
                     );
-                    errors::ERR_UNKNOWN
+                    Error::Unknown
                 })?
         };
 
         if row.0 == 0 {
-            return Err(errors::ERR_NOT_FOUND.into());
+            return Err(Error::NotFound);
         }
 
         self.build(&row).await // another connection consumed here
     }
 
-    async fn find_by_email(&self, target: &str) -> Result<User, Box<dyn Error>> {
+    async fn find_by_email(&self, target: &str) -> Result<User> {
         let row: PostgresUserRow = {
             // block is required because of connection release
             sqlx::query_as(QUERY_FIND_USER_BY_EMAIL)
@@ -76,20 +75,20 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> UserRepo
                 .map_err(|err| {
                     error!(
                         "{} performing select by email query on postgres: {:?}",
-                        errors::ERR_UNKNOWN,
+                        Error::Unknown,
                         err
                     );
-                    errors::ERR_UNKNOWN
+                    Error::Unknown
                 })?
         };
 
         if row.0 == 0 {
-            return Err(errors::ERR_NOT_FOUND.into());
+            return Err(Error::NotFound);
         }
         self.build(&row).await // another connection consumed here
     }
 
-    async fn find_by_name(&self, target: &str) -> Result<User, Box<dyn Error>> {
+    async fn find_by_name(&self, target: &str) -> Result<User> {
         let row: PostgresUserRow = {
             // block is required because of connection release
             sqlx::query_as(QUERY_FIND_USER_BY_NAME)
@@ -99,20 +98,20 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> UserRepo
                 .map_err(|err| {
                     error!(
                         "{} performing select by name query on postgres: {:?}",
-                        errors::ERR_UNKNOWN,
+                        Error::Unknown,
                         err
                     );
-                    errors::ERR_UNKNOWN
+                    Error::Unknown
                 })?
         };
 
         if row.0 == 0 {
-            return Err(errors::ERR_NOT_FOUND.into());
+            return Err(Error::NotFound);
         }
         self.build(&row).await // another connection consumed here
     }
 
-    async fn create(&self, user: &mut User) -> Result<(), Box<dyn Error>> {
+    async fn create(&self, user: &mut User) -> Result<()> {
         self.metadata_repo.create(&mut user.meta).await?;
 
         let row: (i32,) = sqlx::query_as(QUERY_INSERT_USER)
@@ -125,17 +124,17 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> UserRepo
             .map_err(|err| {
                 error!(
                     "{} performing insert query on postgres: {:?}",
-                    errors::ERR_UNKNOWN,
+                    Error::Unknown,
                     err
                 );
-                errors::ERR_UNKNOWN
+                Error::Unknown
             })?;
 
         user.id = row.0;
         Ok(())
     }
 
-    async fn save(&self, user: &User) -> Result<(), Box<dyn Error>> {
+    async fn save(&self, user: &User) -> Result<()> {
         sqlx::query(QUERY_UPDATE_USER)
             .bind(&user.name)
             .bind(&user.email)
@@ -146,16 +145,16 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> UserRepo
             .map_err(|err| {
                 error!(
                     "{} performing update query on postgres: {:?}",
-                    errors::ERR_UNKNOWN,
+                    Error::Unknown,
                     err
                 );
-                errors::ERR_UNKNOWN
+                Error::Unknown
             })?;
 
         Ok(())
     }
 
-    async fn delete(&self, user: &User) -> Result<(), Box<dyn Error>> {
+    async fn delete(&self, user: &User) -> Result<()> {
         {
             // block is required because of connection release
             sqlx::query(QUERY_DELETE_USER)
@@ -165,10 +164,10 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> UserRepo
                 .map_err(|err| {
                     error!(
                         "{} performing delete query on postgres: {:?}",
-                        errors::ERR_UNKNOWN,
+                        Error::Unknown,
                         err
                     );
-                    errors::ERR_UNKNOWN
+                    Error::Unknown
                 })?;
         }
 

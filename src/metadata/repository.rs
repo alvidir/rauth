@@ -1,9 +1,8 @@
 use super::{application::MetadataRepository, domain::Metadata};
-use crate::errors;
+use crate::result::{Error, Result};
 use async_trait::async_trait;
 use chrono::naive::NaiveDateTime;
 use sqlx::postgres::PgPool;
-use std::error::Error;
 
 const QUERY_INSERT_METADATA: &str =
     "INSERT INTO metadata (created_at, updated_at, deleted_at) VALUES ($1, $2, $3) RETURNING id";
@@ -21,7 +20,7 @@ pub struct PostgresMetadataRepository<'a> {
 
 #[async_trait]
 impl<'a> MetadataRepository for PostgresMetadataRepository<'a> {
-    async fn find(&self, target: i32) -> Result<Metadata, Box<dyn Error>> {
+    async fn find(&self, target: i32) -> Result<Metadata> {
         let row: PostgresSecretRow = {
             // block is required because of connection release
             sqlx::query_as(QUERY_FIND_METADATA)
@@ -31,15 +30,15 @@ impl<'a> MetadataRepository for PostgresMetadataRepository<'a> {
                 .map_err(|err| {
                     error!(
                         "{} performing select by id query on postgres: {:?}",
-                        errors::ERR_UNKNOWN,
+                        Error::Unknown,
                         err
                     );
-                    errors::ERR_UNKNOWN
+                    Error::Unknown
                 })?
         };
 
         if row.0 == 0 {
-            return Err(errors::ERR_NOT_FOUND.into());
+            return Err(Error::NotFound);
         }
 
         Ok(Metadata {
@@ -50,7 +49,7 @@ impl<'a> MetadataRepository for PostgresMetadataRepository<'a> {
         })
     }
 
-    async fn create(&self, meta: &mut Metadata) -> Result<(), Box<dyn Error>> {
+    async fn create(&self, meta: &mut Metadata) -> Result<()> {
         let row: (i32,) = sqlx::query_as(QUERY_INSERT_METADATA)
             .bind(meta.created_at)
             .bind(meta.updated_at)
@@ -60,17 +59,17 @@ impl<'a> MetadataRepository for PostgresMetadataRepository<'a> {
             .map_err(|err| {
                 error!(
                     "{} performing insert query on postgres: {:?}",
-                    errors::ERR_UNKNOWN,
+                    Error::Unknown,
                     err
                 );
-                errors::ERR_UNKNOWN
+                Error::Unknown
             })?;
 
         meta.id = row.0;
         Ok(())
     }
 
-    async fn save(&self, meta: &Metadata) -> Result<(), Box<dyn Error>> {
+    async fn save(&self, meta: &Metadata) -> Result<()> {
         sqlx::query(QUERY_UPDATE_METADATA)
             .bind(meta.id)
             .bind(meta.created_at)
@@ -81,16 +80,16 @@ impl<'a> MetadataRepository for PostgresMetadataRepository<'a> {
             .map_err(|err| {
                 error!(
                     "{} performing update query on postgres: {:?}",
-                    errors::ERR_UNKNOWN,
+                    Error::Unknown,
                     err
                 );
-                errors::ERR_UNKNOWN
+                Error::Unknown
             })?;
 
         Ok(())
     }
 
-    async fn delete(&self, meta: &Metadata) -> Result<(), Box<dyn Error>> {
+    async fn delete(&self, meta: &Metadata) -> Result<()> {
         sqlx::query(QUERY_DELETE_METADATA)
             .bind(meta.id)
             .fetch_one(self.pool)
@@ -98,10 +97,10 @@ impl<'a> MetadataRepository for PostgresMetadataRepository<'a> {
             .map_err(|err| {
                 error!(
                     "{} performing delete query on postgres: {:?}",
-                    errors::ERR_UNKNOWN,
+                    Error::Unknown,
                     err
                 );
-                errors::ERR_UNKNOWN
+                Error::Unknown
             })?;
 
         Ok(())

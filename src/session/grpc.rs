@@ -1,10 +1,10 @@
 use tonic::{Request, Response, Status};
 
 use super::application::{SessionApplication, TokenRepository};
-use crate::engines;
+use crate::base64::B64_CUSTOM_ENGINE;
 use crate::secret::application::SecretRepository;
 use crate::user::application::UserRepository;
-use crate::{errors, grpc, security};
+use crate::{crypto, grpc, result::Error};
 use base64::Engine;
 
 // Import the generated rust code into module
@@ -40,7 +40,7 @@ impl<
 {
     async fn login(&self, request: Request<LoginRequest>) -> Result<Response<Empty>, Status> {
         let msg_ref = request.into_inner();
-        let shadowed_pwd = security::shadow(&msg_ref.pwd, self.pwd_sufix);
+        let shadowed_pwd = crypto::shadow(&msg_ref.pwd, self.pwd_sufix);
 
         let token = self
             .sess_app
@@ -51,13 +51,13 @@ impl<
                 self.jwt_secret,
             )
             .await
-            .map(|token| engines::B64.encode(token))
+            .map(|token| B64_CUSTOM_ENGINE.encode(token))
             .map_err(|err| Status::aborted(err.to_string()))?;
 
         let mut res = Response::new(Empty {});
         let token = token.parse().map_err(|err| {
-            error!("{} parsing token to header: {}", errors::ERR_UNKNOWN, err);
-            Status::unknown(errors::ERR_UNKNOWN)
+            error!("{} parsing token to header: {}", Error::Unknown, err);
+            Into::<Status>::into(Error::Unknown)
         })?;
 
         res.metadata_mut().append(self.jwt_header, token);

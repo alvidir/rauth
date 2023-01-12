@@ -67,6 +67,11 @@ const ENV_TOTP_SECRET_NAME: &str = "TOTP_SECRET_NAME";
 const ENV_TOKEN_ISSUER: &str = "TOKEN_ISSUER";
 
 lazy_static! {
+    static ref SERVER_ADDR: String = {
+        let netw = env::var(ENV_SERVICE_NETW).unwrap_or_else(|_| DEFAULT_NETW.to_string());
+        let port = env::var(ENV_SERVICE_PORT).unwrap_or_else(|_| DEFAULT_PORT.to_string());
+        format!("{}:{}", netw, port)
+    };
     static ref TOKEN_TIMEOUT: u64 = env::var(ENV_TOKEN_TIMEOUT)
         .map(|timeout| timeout.parse().unwrap())
         .unwrap_or(DEFAULT_TOKEN_TIMEOUT);
@@ -168,7 +173,7 @@ lazy_static! {
     static ref TOKEN_ISSUER: String = env::var(ENV_TOKEN_ISSUER).expect("token issuer must be set");
 }
 
-pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
+pub async fn start_server() -> Result<(), Box<dyn Error>> {
     let metadata_repo = Arc::new(PostgresMetadataRepository {
         pool: PG_POOL.get().await,
     });
@@ -241,13 +246,15 @@ pub async fn start_server(address: String) -> Result<(), Box<dyn Error>> {
         jwt_header: &JWT_HEADER,
         pwd_sufix: &PWD_SUFIX,
     };
-    let addr = address.parse().unwrap();
+
+    let addr = SERVER_ADDR.parse().unwrap();
     info!("server listening on {}", addr);
     Server::builder()
         .add_service(UserServer::new(user_server))
         .add_service(SessionServer::new(sess_server))
         .serve(addr)
         .await?;
+
     Ok(())
 }
 
@@ -259,9 +266,5 @@ async fn main() -> Result<(), Box<dyn Error>> {
         warn!("processing dotenv file {}", err);
     }
 
-    let netw = env::var(ENV_SERVICE_NETW).unwrap_or_else(|_| DEFAULT_NETW.to_string());
-
-    let port = env::var(ENV_SERVICE_PORT).unwrap_or_else(|_| DEFAULT_PORT.to_string());
-    let addr = format!("{}:{}", netw, port);
-    start_server(addr).await
+    start_server().await
 }
