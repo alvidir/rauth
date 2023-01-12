@@ -1,3 +1,5 @@
+//! Smtp implementation for sending of predefined email templates.
+
 use crate::base64::B64_CUSTOM_ENGINE;
 use crate::result::{Error, Result, StdResult};
 use crate::user::application as user_app;

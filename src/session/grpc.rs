@@ -57,7 +57,7 @@ impl<
         let mut res = Response::new(Empty {});
         let token = token.parse().map_err(|err| {
             error!("{} parsing token to header: {}", Error::Unknown, err);
-            Status::unknown(Error::Unknown)
+            Into::<Status>::into(Error::Unknown)
         })?;
 
         res.metadata_mut().append(self.jwt_header, token);

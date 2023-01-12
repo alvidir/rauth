@@ -1,4 +1,4 @@
-//! Custom result and common errors thrown by the application
+//! Custom result and common errors thrown by the application.
 
 /// Result represents a custom result where error is of the [`Error`] type.
 pub type Result<T> = std::result::Result<T, Error>;

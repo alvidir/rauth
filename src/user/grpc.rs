@@ -59,7 +59,7 @@ impl<
             let mut res = Response::new(Empty {});
             let token = token.parse().map_err(|err| {
                 error!("{} parsing token to header: {}", Error::Unknown, err);
-                Status::unknown(Error::Unknown)
+                Into::<Status>::into(Error::Unknown)
             })?;
             res.metadata_mut().append(self.jwt_header, token);
             return Ok(res);
@@ -71,7 +71,7 @@ impl<
             .verify_signup_email(&msg_ref.email, &shadowed_pwd, self.jwt_secret)
             .await
             .map_err(|err| Status::aborted(err.to_string()))?;
-        Err(Status::failed_precondition(Error::NotAvailable))
+        Err(Error::NotAvailable.into())
     }
 
     async fn reset(&self, request: Request<ResetRequest>) -> Result<Response<Empty>, Status> {
@@ -92,7 +92,7 @@ impl<
             .verify_reset_email(&msg_ref.email, self.jwt_secret)
             .await
             .map_err(|err| Status::aborted(err.to_string()))?;
-        Err(Status::failed_precondition(Error::NotAvailable))
+        Err(Error::NotAvailable.into())
     }
 
     async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<Empty>, Status> {
@@ -138,6 +138,6 @@ impl<
                 .map_err(|err| Status::unknown(err.to_string()));
         }
 
-        Err(Status::invalid_argument(Error::NotAvailable))
+        Err(Error::NotAvailable.into())
     }
 }

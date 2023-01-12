@@ -6,13 +6,29 @@ use tonic::{Request, Status};
 
 use crate::result::Error;
 
+impl From<Error> for Status {
+    fn from(value: Error) -> Self {
+        match value {
+            Error::Unknown => Status::unknown(value),
+            Error::NotFound => Status::not_found(value),
+            Error::NotAvailable => Status::unavailable(value),
+            Error::Unauthorized => Status::permission_denied(value),
+            Error::InvalidToken | Error::InvalidFormat | Error::InvalidHeader => {
+                Status::invalid_argument(value)
+            }
+            Error::WrongCredentials => Status::unauthenticated(value),
+            Error::RegexNotMatch => Status::failed_precondition(value),
+        }
+    }
+}
+
 /// Given a gPRC request, returns the value of the provided header's key if any, otherwise an error
 /// is returned.
 pub fn get_header<T>(req: &Request<T>, header: &str) -> Result<String, Status> {
     let data = req
         .metadata()
         .get(header)
-        .ok_or_else(|| Status::aborted(Error::NotFound))
+        .ok_or_else(|| Into::<Status>::into(Error::NotFound))
         .map(|data| data.to_str())?;
 
     data.map(|data| data.to_string()).map_err(|err| {
@@ -21,7 +37,7 @@ pub fn get_header<T>(req: &Request<T>, header: &str) -> Result<String, Status> {
             Error::InvalidHeader,
             err
         );
-        Status::aborted(Error::InvalidHeader)
+        Error::InvalidHeader.into()
     })
 }
 
@@ -35,12 +51,12 @@ pub fn get_encoded_header<T>(request: &Request<T>, header: &str) -> Result<Strin
             Error::InvalidHeader,
             err
         );
-        Status::unknown(Error::InvalidHeader)
+        Into::<Status>::into(Error::InvalidHeader)
     })?;
 
     let header = String::from_utf8(header).map_err(|err| {
         warn!("{} parsing header to str: {}", Error::InvalidHeader, err);
-        Status::unknown(Error::InvalidHeader)
+        Into::<Status>::into(Error::InvalidHeader)
     })?;
 
     Ok(header)
