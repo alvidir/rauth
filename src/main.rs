@@ -173,7 +173,14 @@ lazy_static! {
     static ref TOKEN_ISSUER: String = env::var(ENV_TOKEN_ISSUER).expect("token issuer must be set");
 }
 
-pub async fn start_server() -> Result<(), Box<dyn Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    env_logger::init();
+
+    if let Err(err) = dotenv::dotenv() {
+        warn!("processing dotenv file {}", err);
+    }
+
     let metadata_repo = Arc::new(PostgresMetadataRepository {
         pool: PG_POOL.get().await,
     });
@@ -190,7 +197,7 @@ pub async fn start_server() -> Result<(), Box<dyn Error>> {
 
     let user_event_bus = Arc::new(RabbitMqUserBus {
         channel: RABBITMQ_CONN.get().await,
-        bus: &RABBITMQ_BUS,
+        exchange: &RABBITMQ_BUS,
     });
 
     let token_repo = Arc::new(RedisTokenRepository {
@@ -256,15 +263,4 @@ pub async fn start_server() -> Result<(), Box<dyn Error>> {
         .await?;
 
     Ok(())
-}
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    env_logger::init();
-
-    if let Err(err) = dotenv::dotenv() {
-        warn!("processing dotenv file {}", err);
-    }
-
-    start_server().await
 }

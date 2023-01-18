@@ -12,6 +12,7 @@ pub mod user;
 mod base64;
 mod crypto;
 mod grpc;
+mod rabbitmq;
 mod regex;
 mod result;
 mod time;
