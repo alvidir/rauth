@@ -1,32 +1,29 @@
 use super::{application::EventBus, domain::User};
-use crate::result::{Error, Result};
+use crate::{
+    rabbitmq::EventKind,
+    result::{Error, Result},
+};
 use async_trait::async_trait;
 use lapin::{options::*, BasicProperties, Channel};
 use serde_json;
 
 #[derive(Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-enum EventKind {
-    Created,
-}
-
-#[derive(Serialize, Deserialize)]
-struct UserEvent<'a> {
-    pub id: i32,
-    pub name: &'a str,
-    pub email: &'a str,
-    pub kind: EventKind,
+struct UserEventPayload<'a> {
+    id: i32,
+    name: &'a str,
+    email: &'a str,
+    kind: EventKind,
 }
 
 pub struct RabbitMqUserBus<'a> {
     pub channel: &'a Channel,
-    pub bus: &'a str,
+    pub exchange: &'a str,
 }
 
 #[async_trait]
 impl<'a> EventBus for RabbitMqUserBus<'a> {
     async fn emit_user_created(&self, user: &User) -> Result<()> {
-        let event = UserEvent {
+        let event = UserEventPayload {
             id: user.get_id(),
             name: user.get_name().split('@').collect::<Vec<&str>>()[0],
             email: user.get_email(),
@@ -46,7 +43,7 @@ impl<'a> EventBus for RabbitMqUserBus<'a> {
 
         self.channel
             .basic_publish(
-                self.bus,
+                self.exchange,
                 "",
                 BasicPublishOptions::default(),
                 &payload,

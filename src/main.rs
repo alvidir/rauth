@@ -32,7 +32,7 @@ use std::sync::Arc;
 use tokio::runtime::Handle;
 use tonic::transport::Server;
 
-const DEFAULT_NETW: &str = "127.0.0.1";
+const DEFAULT_ADDR: &str = "127.0.0.1";
 const DEFAULT_PORT: &str = "8000";
 const DEFAULT_TEMPLATES_PATH: &str = "/etc/rauth/smtp/templates/*.html";
 const DEFAULT_JWT_HEADER: &str = "authorization";
@@ -43,7 +43,7 @@ const DEFAULT_TOTP_SECRET_LEN: usize = 32_usize;
 const DEFAULT_TOTP_SECRET_NAME: &str = ".totp_secret";
 
 const ENV_SERVICE_PORT: &str = "SERVICE_PORT";
-const ENV_SERVICE_NETW: &str = "SERVICE_NETW";
+const ENV_SERVICE_ADDR: &str = "SERVICE_ADDR";
 const ENV_POSTGRES_DSN: &str = "POSTGRES_DSN";
 const ENV_JWT_SECRET: &str = "JWT_SECRET";
 const ENV_JWT_PUBLIC: &str = "JWT_PUBLIC";
@@ -68,7 +68,7 @@ const ENV_TOKEN_ISSUER: &str = "TOKEN_ISSUER";
 
 lazy_static! {
     static ref SERVER_ADDR: String = {
-        let netw = env::var(ENV_SERVICE_NETW).unwrap_or_else(|_| DEFAULT_NETW.to_string());
+        let netw = env::var(ENV_SERVICE_ADDR).unwrap_or_else(|_| DEFAULT_ADDR.to_string());
         let port = env::var(ENV_SERVICE_PORT).unwrap_or_else(|_| DEFAULT_PORT.to_string());
         format!("{}:{}", netw, port)
     };
@@ -173,7 +173,14 @@ lazy_static! {
     static ref TOKEN_ISSUER: String = env::var(ENV_TOKEN_ISSUER).expect("token issuer must be set");
 }
 
-pub async fn start_server() -> Result<(), Box<dyn Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    env_logger::init();
+
+    if let Err(err) = dotenv::dotenv() {
+        warn!("processing dotenv file {}", err);
+    }
+
     let metadata_repo = Arc::new(PostgresMetadataRepository {
         pool: PG_POOL.get().await,
     });
@@ -190,7 +197,7 @@ pub async fn start_server() -> Result<(), Box<dyn Error>> {
 
     let user_event_bus = Arc::new(RabbitMqUserBus {
         channel: RABBITMQ_CONN.get().await,
-        bus: &RABBITMQ_BUS,
+        exchange: &RABBITMQ_BUS,
     });
 
     let token_repo = Arc::new(RedisTokenRepository {
@@ -256,15 +263,4 @@ pub async fn start_server() -> Result<(), Box<dyn Error>> {
         .await?;
 
     Ok(())
-}
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    env_logger::init();
-
-    if let Err(err) = dotenv::dotenv() {
-        warn!("processing dotenv file {}", err);
-    }
-
-    start_server().await
 }
