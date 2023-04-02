@@ -1,6 +1,6 @@
 # rauth
 
-[![Rust version](https://img.shields.io/badge/Rust-v1.66.0-orange.svg)](https://www.rust-lang.org/) [![tests](https://github.com/alvidir/rauth/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/alvidir/rauth/actions/workflows/ci.yaml)
+[![Rust version](https://img.shields.io/badge/Rust-v1.68.0-orange.svg)](https://www.rust-lang.org/) [![tests](https://github.com/alvidir/rauth/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/alvidir/rauth/actions/workflows/ci.yaml)
 [![rauth](https://img.shields.io/github/v/release/alvidir/rauth.svg)](https://github.com/alvidir/rauth)
 
 A simple SSO implementation in Rust

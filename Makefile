@@ -1,39 +1,43 @@
-install:
-	### fedora ###
-	sudo dnf install postgresql-devel
-	sudo dnf install pkg-config openssl-devel
+BINARY_NAME=rauth
+PKG_MANAGER?=dnf
 
-	### debian ###
-	# sudo apt install libpq-dev
-	# sudo apt install pkg-config libssl-dev
+all: binaries
 
-build:
-	podman build -t alvidir/rauth:latest -f ./container/rauth/containerfile .
+binaries: install-deps
+	cargo build --release
 
-setup:
-	mkdir -p .ssh/
+images:
+	-podman build -t alvidir/$(BINARY_NAME):latest -f ./container/grpc/containerfile .
 
-	openssl ecparam -name prime256v1 -genkey -noout -out .ssh/ec_key.pem
-	openssl ec -in .ssh/ec_key.pem -pubout -out .ssh/ec_pubkey.pem
-	openssl pkcs8 -topk8 -nocrypt -in .ssh/ec_key.pem -out .ssh/pkcs8_key.pem
+install-deps:
+	-$(PKG_MANAGER) install -y protobuf-compiler
+	-$(PKG_MANAGER) install -y postgresql-devel
+	-$(PKG_MANAGER) install -y openssl-devel
+	-$(PKG_MANAGER) install -y pkg-config
+
+clean:
+	@-cargo clean
+	@-rm -rf bin/                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     o
+	@-rm -rf secrets/
+
+clean-images:
+	@-podman image rm alvidir/$(BINARY_NAME):latest
 	
-	cat .ssh/ec_key.pem | base64 | tr -d '\n' > .ssh/ec_key.base64
-	cat .ssh/ec_pubkey.pem | base64 | tr -d '\n' > .ssh/ec_pubkey.base64
-	cat .ssh/pkcs8_key.pem | base64 | tr -d '\n' > .ssh/pkcs8_key.base64
-	
-	python3 scripts/build_db_setup_script.py
+test:
+	@RUST_BACKTRACE=full cargo test -- --nocapture
+
+secrets:
+	@mkdir -p secrets/
+	@openssl ecparam -name prime256v1 -genkey -noout -out secrets/ec_key.pem
+	@openssl ec -in secrets/ec_key.pem -pubout -out secrets/ec_pubkey.pem
+	@openssl pkcs8 -topk8 -nocrypt -in secrets/ec_key.pem -out secrets/pkcs8_key.pem
+	@cat secrets/ec_key.pem | base64 | tr -d '\n' > secrets/ec_key.base64
+	@cat secrets/ec_pubkey.pem | base64 | tr -d '\n' > secrets/ec_pubkey.base64
+	@cat secrets/pkcs8_key.pem | base64 | tr -d '\n' > secrets/pkcs8_key.base64
 
 deploy:
-	podman-compose  -f compose.yaml up --remove-orphans -d
+	@python3 scripts/build_db_setup_script.py
+	@podman-compose -f compose.yaml up -d
 
-follow:
-	podman logs --follow --names rauth-server
-	
 undeploy:
-	podman-compose -f compose.yaml down
-
-run:
-	RUST_LOG=INFO cargo run
-
-test:
-	RUST_BACKTRACE=full cargo test -- --nocapture
+	@podman-compose -f compose.yaml down

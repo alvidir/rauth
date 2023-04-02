@@ -29,12 +29,12 @@ jobs:
 
       - name: Build image
         id: build-image
-        uses: redhat-actions/buildah-build@v2.11
+        uses: redhat-actions/buildah-build@v2.12
         with:
           image: ${{ env.IMAGE_NAME }}
-          tags: latest ${{ github.event.release.tag_name }}
+          tags: ${{ github.event.release.tag_name }}
           containerfiles: |
-            ./container/rauth/containerfile
+            ./container/grpc/containerfile
 
       - name: Log in to registry
         uses: redhat-actions/podman-login@v1
