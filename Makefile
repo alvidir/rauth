@@ -7,7 +7,7 @@ binaries: install-deps
 	cargo build --release
 
 images:
-	-podman build -t alvidir/$(BINARY_NAME):latest -f ./container/grpc/containerfile .
+	-podman build -t alvidir/$(BINARY_NAME):latest-grpc -f ./container/grpc/containerfile .
 
 install-deps:
 	-$(PKG_MANAGER) install -y protobuf-compiler
