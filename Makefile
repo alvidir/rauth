@@ -21,7 +21,7 @@ clean:
 	@-rm -rf secrets/
 
 clean-images:
-	@-podman image rm alvidir/$(BINARY_NAME):latest
+	@-podman image rm alvidir/$(BINARY_NAME):latest-grpc
 	
 test:
 	@RUST_BACKTRACE=full cargo test -- --nocapture
