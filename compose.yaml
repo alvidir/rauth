@@ -29,9 +29,9 @@ services:
     security_opt:
       label: disable
 
-  rauth:
-    container_name: rauth-server
-    image: localhost/alvidir/rauth:latest
+  grpc:
+    container_name: rauth-grpc
+    image: localhost/alvidir/rauth:latest-grpc
     restart: always
     ports:
       - 8000:8000

@@ -31,4 +31,4 @@ Cargo.lock
 templates/
 
 # keys and secrets
-.ssh/
+secrets/

@@ -11,7 +11,7 @@ env:
   IMAGE_NAME: alvidir/rauth
 
 jobs:
-  push_to_registry:
+  push_grpc_server_to_registry:
     name: Push image to registry
     runs-on: ubuntu-latest
 
@@ -29,12 +29,12 @@ jobs:
 
       - name: Build image
         id: build-image
-        uses: redhat-actions/buildah-build@v2.11
+        uses: redhat-actions/buildah-build@v2.12
         with:
           image: ${{ env.IMAGE_NAME }}
-          tags: latest ${{ github.event.release.tag_name }}
+          tags: ${{ github.event.release.tag_name }}-grpc
           containerfiles: |
-            ./container/rauth/containerfile
+            ./container/grpc/containerfile
 
       - name: Log in to registry
         uses: redhat-actions/podman-login@v1

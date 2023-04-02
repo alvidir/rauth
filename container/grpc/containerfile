@@ -1,4 +1,4 @@
-FROM docker.io/rust:1.66.0 as builder
+FROM docker.io/rust:1.68.0 as builder
 
 RUN USER=root cargo new --bin rauth
 RUN apt-get update && \
@@ -8,19 +8,18 @@ RUN apt-get update && \
     apt-get install -y protobuf-compiler && \
     apt-get upgrade -y
 
-WORKDIR /rauth
+WORKDIR /app
+RUN rustup component add rustfmt --toolchain 1.68.0-x86_64-unknown-linux-gnu
 
-RUN rustup component add rustfmt --toolchain 1.66.0-x86_64-unknown-linux-gnu
-ADD . ./
-
-RUN cargo build --release
+ADD . .
+RUN PKG_MANAGER=apt-get make all
 
 ######## Start a new stage from scratch #######
-FROM docker.io/debian:buster-slim
+FROM docker.io/debian:stable-slim
 ARG APP=/usr/src/app
 
 RUN apt-get update \
-    && apt-get install -y ca-certificates tzdata pkg-config libssl-dev libpq-dev \
+    && apt-get install -y tzdata libssl-dev libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 ENV TZ=Etc/UTC \
@@ -30,11 +29,11 @@ RUN groupadd $APP_USER \
     && useradd -g $APP_USER $APP_USER \
     && mkdir -p ${APP}
 
-COPY --from=builder /rauth/target/release/rauth ${APP}/rauth
+COPY --from=builder /app/target/release/rauth ${APP}/rauth-grpc
 
 RUN chown -R $APP_USER:$APP_USER ${APP}
 
 USER $APP_USER
 WORKDIR ${APP}
 
-CMD ["./rauth"]
+CMD ["./rauth-grpc"]

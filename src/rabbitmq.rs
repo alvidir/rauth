@@ -3,8 +3,8 @@
 use serde::{Deserialize, Serialize};
 
 /// Represents all the possible kind of events that may be handled or emited.
-#[derive(strum_macros::Display, Serialize, Deserialize)]
-#[strum(serialize_all = "snake_case")]
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum EventKind {
     Created,
     Deleted,
