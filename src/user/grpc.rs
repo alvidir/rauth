@@ -1,7 +1,6 @@
-use super::application::Mailer;
+use super::application::{Mailer, TokenApplication};
 use crate::base64::B64_CUSTOM_ENGINE;
 use crate::secret::application::SecretRepository;
-use crate::session::application::TokenRepository;
 use crate::user::application::{EventBus, UserApplication, UserRepository};
 use crate::{crypto, grpc, result::Error};
 use base64::Engine;
@@ -25,7 +24,7 @@ use proto::{DeleteRequest, Empty, ResetRequest, SignupRequest, TotpRequest};
 pub struct UserImplementation<
     U: UserRepository + Sync + Send,
     E: SecretRepository + Sync + Send,
-    S: TokenRepository + Sync + Send,
+    S: TokenApplication + Sync + Send,
     B: EventBus + Sync + Send,
     M: Mailer,
 > {
@@ -41,7 +40,7 @@ pub struct UserImplementation<
 impl<
         U: 'static + UserRepository + Sync + Send,
         E: 'static + SecretRepository + Sync + Send,
-        S: 'static + TokenRepository + Sync + Send,
+        S: 'static + TokenApplication + Sync + Send,
         B: 'static + EventBus + Sync + Send,
         M: 'static + Mailer + Sync + Send,
     > User for UserImplementation<U, E, S, B, M>
@@ -64,6 +63,7 @@ impl<
             res.metadata_mut().append(self.jwt_header, token);
             return Ok(res);
         }
+
         let msg_ref = request.into_inner();
         let shadowed_pwd = crypto::shadow(&msg_ref.pwd, self.pwd_sufix);
 
@@ -71,6 +71,7 @@ impl<
             .verify_signup_email(&msg_ref.email, &shadowed_pwd, self.jwt_secret)
             .await
             .map_err(|err| Status::aborted(err.to_string()))?;
+
         Err(Error::NotAvailable.into())
     }
 
@@ -92,6 +93,7 @@ impl<
             .verify_reset_email(&msg_ref.email, self.jwt_secret)
             .await
             .map_err(|err| Status::aborted(err.to_string()))?;
+
         Err(Error::NotAvailable.into())
     }
 
@@ -111,6 +113,15 @@ impl<
         let msg_ref = request.into_inner();
         let shadowed_pwd = crypto::shadow(&msg_ref.pwd, self.pwd_sufix);
 
+        if msg_ref.action == TOTP_ACTION_DISABLE {
+            return self
+                .user_app
+                .secure_disable_totp(&shadowed_pwd, &msg_ref.totp, &token, self.jwt_public)
+                .await
+                .map(|_| Response::new(Empty {}))
+                .map_err(|err| Status::unknown(err.to_string()));
+        }
+
         if msg_ref.action == TOTP_ACTION_ENABLE {
             let token = self
                 .user_app
@@ -127,15 +138,6 @@ impl<
 
                 response.metadata_mut().insert(self.totp_header, token);
             }
-        }
-
-        if msg_ref.action == TOTP_ACTION_DISABLE {
-            return self
-                .user_app
-                .secure_disable_totp(&shadowed_pwd, &msg_ref.totp, &token, self.jwt_public)
-                .await
-                .map(|_| Response::new(Empty {}))
-                .map_err(|err| Status::unknown(err.to_string()));
         }
 
         Err(Error::NotAvailable.into())

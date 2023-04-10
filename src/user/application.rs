@@ -2,15 +2,14 @@ use super::domain::User;
 use crate::crypto;
 use crate::result::{Error, Result};
 use crate::secret::{application::SecretRepository, domain::Secret};
-use crate::session::{
-    application::{
-        util::{generate_token, verify_token, TokenDefinition},
-        TokenRepository,
-    },
+use crate::token::{
+    application::TokenRepository,
+    domain::TokenDefinition,
     domain::{Token, TokenKind},
 };
 use async_trait::async_trait;
 use chrono::Utc;
+use serde::{de::DeserializeOwned, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -34,17 +33,35 @@ pub trait Mailer {
     fn send_verification_reset_email(&self, to: &str, token: &str) -> Result<()>;
 }
 
+#[async_trait]
+pub trait TokenApplication {
+    async fn generate(
+        &self,
+        user: &User,
+        timeout: u64,
+        issuer: &str,
+        jwt_secret: &[u8],
+    ) -> Result<String>;
+
+    async fn verify<S: Serialize + DeserializeOwned + TokenDefinition>(
+        &self,
+        kind: TokenKind,
+        token: &str,
+        jwt_public: &[u8],
+    ) -> Result<S>;
+}
+
 pub struct UserApplication<
     'a,
     U: UserRepository,
     E: SecretRepository,
-    T: TokenRepository,
+    T: TokenApplication,
     B: EventBus,
     M: Mailer,
 > {
     pub user_repo: Arc<U>,
     pub secret_repo: Arc<E>,
-    pub token_repo: Arc<T>,
+    pub token_app: Arc<T>,
     pub mailer: Arc<M>,
     pub bus: Arc<B>,
     pub timeout: u64,
@@ -53,7 +70,7 @@ pub struct UserApplication<
     pub token_issuer: &'a str,
 }
 
-impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M: Mailer>
+impl<'a, U: UserRepository, E: SecretRepository, T: TokenApplication, B: EventBus, M: Mailer>
     UserApplication<'a, U, E, T, B, M>
 {
     pub async fn verify_signup_email(
@@ -82,15 +99,16 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
             Duration::from_secs(self.timeout),
             TokenKind::Verification,
         );
+
         let token_to_keep = crypto::sign_jwt(jwt_secret, token_to_keep)?;
         self.token_repo
             .save(&token_to_send.sub, &token_to_keep, Some(self.timeout))
             .await?;
 
         let token_to_send = crypto::sign_jwt(jwt_secret, token_to_send)?;
-
         self.mailer
             .send_verification_signup_email(email, &token_to_send)?;
+
         Ok(())
     }
 
@@ -119,13 +137,11 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
             .await
             .map_err(|_| Error::InvalidToken)?;
 
-        let claims: Token = verify_token(
-            self.token_repo.clone(),
-            TokenKind::Verification,
-            &token,
-            jwt_public,
-        )
-        .await?;
+        let claims: Token = self
+            .token_app
+            .verify(TokenKind::Verification, &token, jwt_public)
+            .await?;
+
         let token_id = claims.get_id();
         let password = &claims.scr.ok_or(Error::InvalidToken)?;
         let token = self.signup(&claims.sub, password, jwt_secret).await?;
@@ -142,14 +158,9 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
         let mut user = User::new(email, pwd)?;
         self.user_repo.create(&mut user).await?;
         self.bus.emit_user_created(&user).await?;
-        generate_token(
-            self.token_repo.clone(),
-            self.timeout,
-            &user,
-            jwt_secret,
-            self.token_issuer,
-        )
-        .await
+        self.token_app
+            .generate(&user, self.timeout, self.token_issuer, jwt_secret)
+            .await
     }
 
     pub async fn secure_delete(
@@ -159,13 +170,10 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
         token: &str,
         jwt_public: &[u8],
     ) -> Result<()> {
-        let claims: Token = verify_token(
-            self.token_repo.clone(),
-            TokenKind::Session,
-            token,
-            jwt_public,
-        )
-        .await?;
+        let claims: Token = self
+            .token_app
+            .verify(TokenKind::Session, token, jwt_public)
+            .await?;
         let user_id = claims.sub.parse().map_err(|err| {
             warn!("{} parsing str to i32: {}", Error::InvalidToken, err);
             Error::InvalidToken
@@ -218,13 +226,10 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
         token: &str,
         jwt_public: &[u8],
     ) -> Result<Option<String>> {
-        let claims: Token = verify_token(
-            self.token_repo.clone(),
-            TokenKind::Session,
-            token,
-            jwt_public,
-        )
-        .await?;
+        let claims: Token = self
+            .token_app
+            .verify(TokenKind::Session, token, jwt_public)
+            .await?;
         let user_id = claims.sub.parse().map_err(|err| {
             warn!("{} parsing str to i32: {}", Error::InvalidToken, err);
             Error::InvalidToken
@@ -286,13 +291,10 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
         token: &str,
         jwt_public: &[u8],
     ) -> Result<()> {
-        let claims: Token = verify_token(
-            self.token_repo.clone(),
-            TokenKind::Session,
-            token,
-            jwt_public,
-        )
-        .await?;
+        let claims: Token = self
+            .token_app
+            .verify(TokenKind::Session, token, jwt_public)
+            .await?;
         let user_id = claims.sub.parse().map_err(|err| {
             warn!("{} parsing str to i32: {}", Error::InvalidToken, err);
             Error::InvalidToken
@@ -372,8 +374,10 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
         token: &str,
         jwt_public: &[u8],
     ) -> Result<()> {
-        let claims: Token =
-            verify_token(self.token_repo.clone(), TokenKind::Reset, token, jwt_public).await?;
+        let claims: Token = self
+            .token_app
+            .verify(self.token_repo.clone(), TokenKind::Reset, token, jwt_public)
+            .await?;
         let user_id = claims.sub.parse().map_err(|err| {
             warn!("{} parsing str to i32: {}", Error::InvalidToken, err);
             Error::InvalidToken
@@ -431,11 +435,11 @@ pub mod tests {
             Secret,
         },
     };
-    use crate::session::{
-        application::{tests::TokenRepositoryMock, util::TokenDefinition},
-        domain::{Token, TokenKind},
-    };
     use crate::smtp::tests::MailerMock;
+    use crate::token::{
+        application::tests::TokenRepositoryMock,
+        domain::{Token, TokenDefinition, TokenKind},
+    };
     use crate::{
         crypto,
         result::{Error, Result},

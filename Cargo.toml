@@ -44,7 +44,3 @@ tonic-build = "0.8.0"
 [lib]
 name = "rauth"
 path = "src/lib.rs"
-
-[[bin]]
-name = "rauth"
-path = "src/main.rs"

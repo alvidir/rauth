@@ -3,7 +3,7 @@
 const DOMAIN_SEPARATOR: &str = "@";
 const SUFIX_SEPARATOR: &str = "+";
 
-/// Given an email that may, or may not, be sufixed, returns the actual email without any sufix.
+/// Given an email that may, or may not, be sufixed, returns the actual email without the sufix.
 pub fn actual_email(email: &str) -> String {
     if !email.contains(SUFIX_SEPARATOR) {
         return email.to_string();

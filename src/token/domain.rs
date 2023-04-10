@@ -1,9 +1,13 @@
-use super::application::util::TokenDefinition;
 use crate::time;
 use rand::Rng;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::time::{Duration, SystemTime};
+
+pub trait TokenDefinition {
+    fn get_id(&self) -> String;
+    fn get_kind(&self) -> TokenKind;
+}
 
 #[derive(Serialize, Deserialize, Hash, PartialEq, Eq, Debug, Clone)]
 pub enum TokenKind {

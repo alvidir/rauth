@@ -1,6 +1,6 @@
 use tonic::{Request, Response, Status};
 
-use super::application::{SessionApplication, TokenRepository};
+use super::application::{TokenApplication, TokenRepository};
 use crate::base64::B64_CUSTOM_ENGINE;
 use crate::secret::application::SecretRepository;
 use crate::user::application::UserRepository;
@@ -24,7 +24,7 @@ pub struct SessionImplementation<
     U: UserRepository + Sync + Send,
     E: SecretRepository + Sync + Send,
 > {
-    pub sess_app: SessionApplication<'static, S, U, E>,
+    pub sess_app: TokenApplication<'static, S, U, E>,
     pub jwt_secret: &'static [u8],
     pub jwt_public: &'static [u8],
     pub jwt_header: &'static str,
