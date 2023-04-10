@@ -1,4 +1,5 @@
 BINARY_NAME=rauth
+VERSION?=latest
 PKG_MANAGER?=dnf
 
 all: binaries
@@ -7,7 +8,10 @@ binaries: install-deps
 	cargo build --release
 
 images:
-	-podman build -t alvidir/$(BINARY_NAME):latest-grpc -f ./container/grpc/containerfile .
+	-podman build -t alvidir/$(BINARY_NAME):$(VERSION)-grpc -f ./container/grpc/containerfile .
+
+push-images:
+	@podman push alvidir/$(BINARY_NAME):$(VERSION)-grpc
 
 install-deps:
 	-$(PKG_MANAGER) install -y protobuf-compiler
@@ -21,7 +25,7 @@ clean:
 	@-rm -rf secrets/
 
 clean-images:
-	@-podman image rm alvidir/$(BINARY_NAME):latest-grpc
+	@-podman image rm alvidir/$(BINARY_NAME):$(VERSION)-grpc
 	
 test:
 	@RUST_BACKTRACE=full cargo test -- --nocapture

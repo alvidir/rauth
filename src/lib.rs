@@ -11,6 +11,7 @@ pub mod user;
 
 mod base64;
 mod crypto;
+mod email;
 mod grpc;
 mod rabbitmq;
 mod regex;
