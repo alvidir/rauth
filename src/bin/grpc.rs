@@ -11,12 +11,12 @@ use lapin::{
 use rauth::{
     metadata::repository::PostgresMetadataRepository,
     secret::repository::PostgresSecretRepository,
-    session::{
-        application::SessionApplication,
+    smtp::Smtp,
+    token::{
+        application::TokenApplication,
         grpc::{SessionImplementation, SessionServer},
         repository::RedisTokenRepository,
     },
-    smtp::Smtp,
     user::{
         application::UserApplication,
         bus::RabbitMqUserBus,
@@ -216,23 +216,24 @@ async fn main() -> Result<(), Box<dyn Error>> {
     mailer.issuer = &*SMTP_ISSUER;
     mailer.origin = &*SMTP_ORIGIN;
 
+    let token_app = Arc::new(TokenApplication {
+        token_repo: token_repo.clone(),
+        user_repo: user_repo.clone(),
+        secret_repo: secret_repo.clone(),
+        timeout: *TOKEN_TIMEOUT,
+        totp_secret_name: &TOTP_SECRET_NAME,
+        token_issuer: &TOKEN_ISSUER,
+    });
+
     let user_app = UserApplication {
         user_repo: user_repo.clone(),
         secret_repo: secret_repo.clone(),
         token_repo: token_repo.clone(),
+        token_app: token_app.clone(),
         mailer: Arc::new(mailer),
         bus: user_event_bus.clone(),
         timeout: *TOKEN_TIMEOUT,
         totp_secret_len: *TOTP_SECRET_LEN,
-        totp_secret_name: &TOTP_SECRET_NAME,
-        token_issuer: &TOKEN_ISSUER,
-    };
-
-    let sess_app = SessionApplication {
-        token_repo: token_repo.clone(),
-        user_repo: user_repo.clone(),
-        secret_repo: secret_repo.clone(),
-        timeout: *TOKEN_TIMEOUT,
         totp_secret_name: &TOTP_SECRET_NAME,
         token_issuer: &TOKEN_ISSUER,
     };
@@ -247,7 +248,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
 
     let sess_server = SessionImplementation {
-        sess_app,
+        token_app: token_app.clone(),
         jwt_secret: &JWT_SECRET,
         jwt_public: &JWT_PUBLIC,
         jwt_header: &JWT_HEADER,

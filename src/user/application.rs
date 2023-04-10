@@ -3,13 +3,12 @@ use crate::crypto;
 use crate::result::{Error, Result};
 use crate::secret::{application::SecretRepository, domain::Secret};
 use crate::token::{
-    application::TokenRepository,
+    application::{TokenApplication, TokenRepository},
     domain::TokenDefinition,
     domain::{Token, TokenKind},
 };
 use async_trait::async_trait;
 use chrono::Utc;
-use serde::{de::DeserializeOwned, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -33,35 +32,18 @@ pub trait Mailer {
     fn send_verification_reset_email(&self, to: &str, token: &str) -> Result<()>;
 }
 
-#[async_trait]
-pub trait TokenApplication {
-    async fn generate(
-        &self,
-        user: &User,
-        timeout: u64,
-        issuer: &str,
-        jwt_secret: &[u8],
-    ) -> Result<String>;
-
-    async fn verify<S: Serialize + DeserializeOwned + TokenDefinition>(
-        &self,
-        kind: TokenKind,
-        token: &str,
-        jwt_public: &[u8],
-    ) -> Result<S>;
-}
-
 pub struct UserApplication<
     'a,
     U: UserRepository,
     E: SecretRepository,
-    T: TokenApplication,
+    T: TokenRepository,
     B: EventBus,
     M: Mailer,
 > {
     pub user_repo: Arc<U>,
     pub secret_repo: Arc<E>,
-    pub token_app: Arc<T>,
+    pub token_repo: Arc<T>,
+    pub token_app: Arc<TokenApplication<'a, T, U, E>>,
     pub mailer: Arc<M>,
     pub bus: Arc<B>,
     pub timeout: u64,
@@ -70,7 +52,7 @@ pub struct UserApplication<
     pub token_issuer: &'a str,
 }
 
-impl<'a, U: UserRepository, E: SecretRepository, T: TokenApplication, B: EventBus, M: Mailer>
+impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M: Mailer>
     UserApplication<'a, U, E, T, B, M>
 {
     pub async fn verify_signup_email(
@@ -158,9 +140,7 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenApplication, B: EventBu
         let mut user = User::new(email, pwd)?;
         self.user_repo.create(&mut user).await?;
         self.bus.emit_user_created(&user).await?;
-        self.token_app
-            .generate(&user, self.timeout, self.token_issuer, jwt_secret)
-            .await
+        self.token_app.generate(&user, jwt_secret).await
     }
 
     pub async fn secure_delete(
@@ -376,7 +356,7 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenApplication, B: EventBu
     ) -> Result<()> {
         let claims: Token = self
             .token_app
-            .verify(self.token_repo.clone(), TokenKind::Reset, token, jwt_public)
+            .verify(TokenKind::Reset, token, jwt_public)
             .await?;
         let user_id = claims.sub.parse().map_err(|err| {
             warn!("{} parsing str to i32: {}", Error::InvalidToken, err);
@@ -436,6 +416,7 @@ pub mod tests {
         },
     };
     use crate::smtp::tests::MailerMock;
+    use crate::token::application::tests::new_token_application;
     use crate::token::{
         application::tests::TokenRepositoryMock,
         domain::{Token, TokenDefinition, TokenKind},
@@ -544,7 +525,9 @@ pub mod tests {
         }
     }
 
-    pub fn new_user_application() -> UserApplication<
+    pub fn new_user_application(
+        token_repo: Option<&TokenRepositoryMock>,
+    ) -> UserApplication<
         'static,
         UserRepositoryMock,
         SecretRepositoryMock,
@@ -555,12 +538,14 @@ pub mod tests {
         let user_repo = UserRepositoryMock::default();
         let secret_repo = SecretRepositoryMock::default();
         let mailer_mock = MailerMock::default();
-        let token_repo = TokenRepositoryMock::default();
+        let token_app = new_token_application(token_repo.cloned());
+
         let event_bus = EventBusMock::default();
         UserApplication {
             user_repo: Arc::new(user_repo),
             secret_repo: Arc::new(secret_repo),
-            token_repo: Arc::new(token_repo),
+            token_repo: Arc::new(token_repo.cloned().unwrap_or_default()),
+            token_app: Arc::new(token_app),
             mailer: Arc::new(mailer_mock),
             bus: Arc::new(event_bus),
             timeout: 60,
@@ -579,7 +564,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application();
+        let mut app = new_user_application(None);
         app.user_repo = Arc::new(user_repo);
 
         let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
@@ -594,7 +579,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_verify_already_exists_should_not_fail() {
-        let app = new_user_application();
+        let app = new_user_application(None);
         let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         app.verify_signup_email(
             TEST_DEFAULT_USER_EMAIL,
@@ -614,7 +599,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application();
+        let mut app = new_user_application(None);
         app.user_repo = Arc::new(user_repo);
 
         let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
@@ -667,9 +652,8 @@ pub mod tests {
             }),
             ..Default::default()
         };
-        let mut app = new_user_application();
+        let mut app = new_user_application(Some(&token_repo));
         app.user_repo = Arc::new(user_repo);
-        app.token_repo = Arc::new(token_repo);
 
         let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         let token = app
@@ -707,7 +691,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application();
+        let mut app = new_user_application(None);
         app.user_repo = Arc::new(user_repo);
         app.token_repo = Arc::new(token_repo);
 
@@ -740,7 +724,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application();
+        let mut app = new_user_application(None);
         app.user_repo = Arc::new(user_repo);
         app.token_repo = Arc::new(token_repo);
 
@@ -760,7 +744,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application();
+        let mut app = new_user_application(None);
         app.user_repo = Arc::new(user_repo);
 
         let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
@@ -779,7 +763,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_signup_wrong_email_should_fail() {
-        let app = new_user_application();
+        let app = new_user_application(None);
         let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         app.signup(
             "this is not an email",
@@ -793,7 +777,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_signup_wrong_password_should_fail() {
-        let app = new_user_application();
+        let app = new_user_application(None);
         let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         app.signup(TEST_DEFAULT_USER_EMAIL, "bad password", &jwt_secret)
             .await
@@ -803,7 +787,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_signup_already_exists_should_not_fail() {
-        let app = new_user_application();
+        let app = new_user_application(None);
         let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         app.signup(
             TEST_DEFAULT_USER_EMAIL,
@@ -838,7 +822,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application();
+        let mut app = new_user_application(Some(&token_repo));
         app.secret_repo = Arc::new(secret_repo);
         app.token_repo = Arc::new(token_repo);
 
@@ -877,7 +861,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application();
+        let mut app = new_user_application(Some(&token_repo));
         app.secret_repo = Arc::new(secret_repo);
         app.token_repo = Arc::new(token_repo);
 
@@ -912,9 +896,8 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application();
+        let mut app = new_user_application(Some(&token_repo));
         app.secret_repo = Arc::new(secret_repo);
-        app.token_repo = Arc::new(token_repo);
 
         let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         app.secure_delete(TEST_DEFAULT_USER_PASSWORD, "", &secure_token, &jwt_public)
@@ -934,7 +917,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application();
+        let mut app = new_user_application(None);
         app.secret_repo = Arc::new(secret_repo);
 
         app.delete(0, TEST_DEFAULT_USER_PASSWORD, "").await.unwrap();
@@ -942,7 +925,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_delete_totp_should_not_fail() {
-        let app = new_user_application();
+        let app = new_user_application(None);
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
             .unwrap()
             .generate();
@@ -969,7 +952,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application();
+        let mut app = new_user_application(None);
         app.user_repo = Arc::new(user_repo);
         app.secret_repo = Arc::new(secret_repo);
 
@@ -990,7 +973,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application();
+        let mut app = new_user_application(None);
         app.secret_repo = Arc::new(secret_repo);
 
         app.delete(0, "bad password", "")
@@ -1001,7 +984,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_delete_wrong_totp_should_fail() {
-        let app = new_user_application();
+        let app = new_user_application(None);
         app.delete(0, TEST_DEFAULT_USER_PASSWORD, "bad totp")
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::Unauthorized.to_string()))
@@ -1032,9 +1015,8 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application();
+        let mut app = new_user_application(Some(&token_repo));
         app.secret_repo = Arc::new(secret_repo);
-        app.token_repo = Arc::new(token_repo);
 
         let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         let totp = app
@@ -1074,9 +1056,8 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application();
+        let mut app = new_user_application(Some(&token_repo));
         app.secret_repo = Arc::new(secret_repo);
-        app.token_repo = Arc::new(token_repo);
 
         let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         app.secure_enable_totp(TEST_DEFAULT_USER_PASSWORD, "", &secure_token, &jwt_public)
@@ -1109,9 +1090,8 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application();
+        let mut app = new_user_application(Some(&token_repo));
         app.secret_repo = Arc::new(secret_repo);
-        app.token_repo = Arc::new(token_repo);
 
         let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         app.secure_enable_totp(TEST_DEFAULT_USER_PASSWORD, "", &secure_token, &jwt_public)
@@ -1139,7 +1119,7 @@ pub mod tests {
             Ok(())
         });
 
-        let mut app = new_user_application();
+        let mut app = new_user_application(None);
         app.secret_repo = Arc::new(secret_repo);
 
         let totp = app
@@ -1170,7 +1150,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application();
+        let mut app = new_user_application(None);
         app.secret_repo = Arc::new(secret_repo);
 
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
@@ -1196,7 +1176,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application();
+        let mut app = new_user_application(None);
         app.secret_repo = Arc::new(secret_repo);
 
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
@@ -1210,7 +1190,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_enable_totp_already_enabled_should_fail() {
-        let app = new_user_application();
+        let app = new_user_application(None);
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
             .unwrap()
             .generate();
@@ -1235,9 +1215,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application();
-        app.token_repo = Arc::new(token_repo);
-
+        let app = new_user_application(Some(&token_repo));
         let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
             .unwrap()
@@ -1272,9 +1250,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application();
-        app.token_repo = Arc::new(token_repo);
-
+        let app = new_user_application(Some(&token_repo));
         let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
             .unwrap()
@@ -1305,9 +1281,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application();
-        app.token_repo = Arc::new(token_repo);
-
+        let app = new_user_application(Some(&token_repo));
         let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
             .unwrap()
@@ -1325,7 +1299,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_disable_totp_should_not_fail() {
-        let app = new_user_application();
+        let app = new_user_application(None);
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
             .unwrap()
             .generate();
@@ -1336,7 +1310,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_disable_totp_wrong_password_should_fail() {
-        let app = new_user_application();
+        let app = new_user_application(None);
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
             .unwrap()
             .generate();
@@ -1348,7 +1322,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_disable_totp_wrong_totp_should_fail() {
-        let app = new_user_application();
+        let app = new_user_application(None);
         app.disable_totp(0, TEST_DEFAULT_USER_PASSWORD, "bad totp")
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::Unauthorized.to_string()))
@@ -1366,7 +1340,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application();
+        let mut app = new_user_application(None);
         app.secret_repo = Arc::new(secret_repo);
 
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
@@ -1391,7 +1365,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application();
+        let mut app = new_user_application(None);
         app.secret_repo = Arc::new(secret_repo);
 
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
@@ -1427,9 +1401,8 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application();
+        let mut app = new_user_application(Some(&token_repo));
         app.secret_repo = Arc::new(secret_repo);
-        app.token_repo = Arc::new(token_repo);
 
         let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         app.secure_reset("ABCDEF1234567891", "", &secure_token, &jwt_public)
@@ -1466,9 +1439,8 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application();
+        let mut app = new_user_application(Some(&token_repo));
         app.secret_repo = Arc::new(secret_repo);
-        app.token_repo = Arc::new(token_repo);
 
         let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         app.secure_reset("another password", "", &secure_token, &jwt_public)
@@ -1501,9 +1473,8 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application();
+        let mut app = new_user_application(Some(&token_repo));
         app.secret_repo = Arc::new(secret_repo);
-        app.token_repo = Arc::new(token_repo);
 
         let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         app.secure_reset("another password", "", &secure_token, &jwt_public)
@@ -1523,7 +1494,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application();
+        let mut app = new_user_application(None);
         app.secret_repo = Arc::new(secret_repo);
 
         app.reset(0, "ABCDEF12345678901", "").await.unwrap();
@@ -1540,7 +1511,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application();
+        let mut app = new_user_application(None);
         app.secret_repo = Arc::new(secret_repo);
 
         app.reset(0, TEST_DEFAULT_USER_PASSWORD, "")

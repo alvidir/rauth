@@ -1,6 +1,7 @@
-use super::application::{Mailer, TokenApplication};
+use super::application::Mailer;
 use crate::base64::B64_CUSTOM_ENGINE;
 use crate::secret::application::SecretRepository;
+use crate::token::application::TokenRepository;
 use crate::user::application::{EventBus, UserApplication, UserRepository};
 use crate::{crypto, grpc, result::Error};
 use base64::Engine;
@@ -24,7 +25,7 @@ use proto::{DeleteRequest, Empty, ResetRequest, SignupRequest, TotpRequest};
 pub struct UserImplementation<
     U: UserRepository + Sync + Send,
     E: SecretRepository + Sync + Send,
-    S: TokenApplication + Sync + Send,
+    S: TokenRepository + Sync + Send,
     B: EventBus + Sync + Send,
     M: Mailer,
 > {
@@ -40,7 +41,7 @@ pub struct UserImplementation<
 impl<
         U: 'static + UserRepository + Sync + Send,
         E: 'static + SecretRepository + Sync + Send,
-        S: 'static + TokenApplication + Sync + Send,
+        S: 'static + TokenRepository + Sync + Send,
         B: 'static + EventBus + Sync + Send,
         M: 'static + Mailer + Sync + Send,
     > User for UserImplementation<U, E, S, B, M>

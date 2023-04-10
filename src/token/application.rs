@@ -27,24 +27,20 @@ pub struct TokenApplication<'a, T: TokenRepository, U: UserRepository, E: Secret
 }
 
 impl<'a, T: TokenRepository, U: UserRepository, E: SecretRepository> TokenApplication<'a, T, U, E> {
-    pub async fn generate(
-        &self,
-        user: &User,
-        timeout: u64,
-        issuer: &str,
-        jwt_secret: &[u8],
-    ) -> Result<String> {
+    pub async fn generate(&self, user: &User, jwt_secret: &[u8]) -> Result<String> {
         let sess = Token::new(
-            issuer,
+            self.token_issuer,
             &user.get_id().to_string(),
-            Duration::from_secs(timeout),
+            Duration::from_secs(self.timeout),
             TokenKind::Session,
         );
 
         let key = sess.get_id();
         let token = crypto::sign_jwt(jwt_secret, sess)?;
 
-        self.token_repo.save(&key, &token, Some(timeout)).await?;
+        self.token_repo
+            .save(&key, &token, Some(self.timeout))
+            .await?;
         Ok(token)
     }
 
@@ -126,8 +122,7 @@ impl<'a, T: TokenRepository, U: UserRepository, E: SecretRepository> TokenApplic
             }
         }
 
-        self.generate(&user, self.timeout, self.token_issuer, jwt_secret)
-            .await
+        self.generate(&user, jwt_secret).await
     }
 
     pub async fn logout(&self, token: &str, jwt_public: &[u8]) -> Result<()> {
@@ -184,7 +179,7 @@ pub mod tests {
     >;
     type MockFnDelete = Option<fn(this: &TokenRepositoryMock, key: &str) -> Result<()>>;
 
-    #[derive(Default)]
+    #[derive(Default, Clone)]
     pub struct TokenRepositoryMock {
         pub fn_find: MockFnFind,
         pub fn_save: MockFnSave,
@@ -219,16 +214,16 @@ pub mod tests {
         }
     }
 
-    pub fn new_token_application<'a>(
-    ) -> TokenApplication<'a, TokenRepositoryMock, UserRepositoryMock, SecretRepositoryMock> {
+    pub fn new_token_application<'a, T: TokenRepository + Default>(
+        token_repo: Option<T>,
+    ) -> TokenApplication<'a, T, UserRepositoryMock, SecretRepositoryMock> {
         let user_repo = UserRepositoryMock::default();
         let secret_repo = SecretRepositoryMock::default();
-        let token_repo = TokenRepositoryMock::default();
 
         TokenApplication {
             user_repo: Arc::new(user_repo),
             secret_repo: Arc::new(secret_repo),
-            token_repo: Arc::new(token_repo),
+            token_repo: Arc::new(token_repo.unwrap_or_default()),
             timeout: 999,
             totp_secret_name: ".dummy_totp_secret",
             token_issuer: "dummy",
@@ -246,7 +241,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_token_application();
+        let mut app = new_token_application::<TokenRepositoryMock>(None);
         app.secret_repo = Arc::new(secret_repo);
 
         let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
@@ -282,7 +277,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_token_application();
+        let mut app = new_token_application::<TokenRepositoryMock>(None);
         app.secret_repo = Arc::new(secret_repo);
         let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let token = app
@@ -307,7 +302,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn login_with_totp_should_not_fail() {
-        let app = new_token_application();
+        let app = new_token_application::<TokenRepositoryMock>(None);
         let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
             .unwrap()
@@ -341,7 +336,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_token_application();
+        let mut app = new_token_application::<TokenRepositoryMock>(None);
         app.user_repo = Arc::new(user_repo);
 
         let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
@@ -362,7 +357,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn login_wrong_password_should_fail() {
-        let app = new_token_application();
+        let app = new_token_application::<TokenRepositoryMock>(None);
         let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
             .unwrap()
@@ -375,7 +370,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn login_wrong_totp_should_fail() {
-        let app = new_token_application();
+        let app = new_token_application::<TokenRepositoryMock>(None);
         let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
 
         app.login(
@@ -393,13 +388,12 @@ pub mod tests {
     async fn logout_should_not_fail() {
         let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let token = crypto::sign_jwt(&jwt_secret, new_session_token()).unwrap();
-
         let token_repo = TokenRepositoryMock {
             token: token.clone(),
             ..Default::default()
         };
 
-        let mut app = new_token_application();
+        let mut app = new_token_application::<TokenRepositoryMock>(None);
         app.token_repo = Arc::new(token_repo);
         let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         app.logout(&token, &jwt_public)
@@ -421,7 +415,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_token_application();
+        let mut app = new_token_application::<TokenRepositoryMock>(None);
         app.token_repo = Arc::new(token_repo);
         let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         app.logout(&token, &jwt_public)
@@ -443,7 +437,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_token_application();
+        let mut app = new_token_application::<TokenRepositoryMock>(None);
         app.token_repo = Arc::new(token_repo);
         let jwt_public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         app.logout(&token, &jwt_public)
@@ -455,19 +449,6 @@ pub mod tests {
     #[tokio::test]
     async fn verify_token_should_not_fail() {
         let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
-        let mut token = new_session_token();
-        token.knd = TokenKind::Verification;
-
-        let token = crypto::sign_jwt(&jwt_secret, token).unwrap();
-
-        let token_repo = TokenRepositoryMock {
-            token: token.clone(),
-            ..Default::default()
-        };
-
-        let mut app = new_token_application();
-
-        let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let token = crypto::sign_jwt(&jwt_secret, new_session_token()).unwrap();
         let token_repo = TokenRepositoryMock {
             token: token.clone(),
@@ -476,6 +457,8 @@ pub mod tests {
             }),
             ..Default::default()
         };
+
+        let app = new_token_application(Some(token_repo));
         let public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         app.verify::<Token>(TokenKind::Session, &token, &public)
             .await
@@ -484,25 +467,14 @@ pub mod tests {
 
     #[tokio::test]
     async fn verif_token_expired_should_fail() {
-        let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
-        let mut token = new_session_token();
-        token.knd = TokenKind::Verification;
-
-        let token = crypto::sign_jwt(&jwt_secret, token).unwrap();
-
-        let token_repo = TokenRepositoryMock {
-            token: token.clone(),
-            ..Default::default()
-        };
-
-        let mut app = new_token_application();
-
         let mut claim = new_session_token();
         claim.exp = time::unix_timestamp(SystemTime::now() - Duration::from_secs(61));
+
         let secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let token = crypto::sign_jwt(&secret, claim).unwrap();
         let public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
-        let token_repo = TokenRepositoryMock::default();
+        let app = new_token_application::<TokenRepositoryMock>(None);
+
         app.verify::<Token>(TokenKind::Session, &token, &public)
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
@@ -511,19 +483,6 @@ pub mod tests {
 
     #[tokio::test]
     async fn verify_token_invalid_should_fail() {
-        let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
-        let mut token = new_session_token();
-        token.knd = TokenKind::Verification;
-
-        let token = crypto::sign_jwt(&jwt_secret, token).unwrap();
-
-        let token_repo = TokenRepositoryMock {
-            token: token.clone(),
-            ..Default::default()
-        };
-
-        let mut app = new_token_application();
-
         let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let token = crypto::sign_jwt(&jwt_secret, new_session_token())
             .unwrap()
@@ -536,6 +495,7 @@ pub mod tests {
             ..Default::default()
         };
         let public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
+        let app = new_token_application(Some(token_repo));
         app.verify::<Token>(TokenKind::Session, &token, &public)
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
@@ -544,19 +504,6 @@ pub mod tests {
 
     #[tokio::test]
     async fn verify_token_wrong_kind_should_fail() {
-        let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
-        let mut token = new_session_token();
-        token.knd = TokenKind::Verification;
-
-        let token = crypto::sign_jwt(&jwt_secret, token).unwrap();
-
-        let token_repo = TokenRepositoryMock {
-            token: token.clone(),
-            ..Default::default()
-        };
-
-        let mut app = new_token_application();
-
         let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let token = crypto::sign_jwt(&jwt_secret, new_session_token()).unwrap();
         let token_repo = TokenRepositoryMock {
@@ -567,6 +514,7 @@ pub mod tests {
             ..Default::default()
         };
         let public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
+        let app = new_token_application(Some(token_repo));
         app.verify::<Token>(TokenKind::Verification, &token, &public)
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
@@ -575,19 +523,6 @@ pub mod tests {
 
     #[tokio::test]
     async fn verify_token_not_present_should_fail() {
-        let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
-        let mut token = new_session_token();
-        token.knd = TokenKind::Verification;
-
-        let token = crypto::sign_jwt(&jwt_secret, token).unwrap();
-
-        let token_repo = TokenRepositoryMock {
-            token: token.clone(),
-            ..Default::default()
-        };
-
-        let mut app = new_token_application();
-
         let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let token = crypto::sign_jwt(&jwt_secret, new_session_token()).unwrap();
         let token_repo = TokenRepositoryMock {
@@ -598,6 +533,7 @@ pub mod tests {
             ..Default::default()
         };
         let public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
+        let app = new_token_application(Some(token_repo));
         app.verify::<Token>(TokenKind::Verification, &token, &public)
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
@@ -606,19 +542,6 @@ pub mod tests {
 
     #[tokio::test]
     async fn verify_token_mismatch_should_fail() {
-        let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
-        let mut token = new_session_token();
-        token.knd = TokenKind::Verification;
-
-        let token = crypto::sign_jwt(&jwt_secret, token).unwrap();
-
-        let token_repo = TokenRepositoryMock {
-            token: token.clone(),
-            ..Default::default()
-        };
-
-        let mut app = new_token_application();
-
         let jwt_secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let token = crypto::sign_jwt(&jwt_secret, new_session_token()).unwrap();
         let token_repo = TokenRepositoryMock {
@@ -629,6 +552,7 @@ pub mod tests {
             ..Default::default()
         };
         let public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
+        let app = new_token_application(Some(token_repo));
         app.verify::<Token>(TokenKind::Verification, &token, &public)
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))

@@ -32,8 +32,8 @@ message TotpRequest {
 message Empty {}
 
 service User {
-  rpc Signup(user.SignupRequest) returns (Empty);
-  rpc Reset(user.ResetRequest) returns (Empty);
-  rpc Delete(user.DeleteRequest) returns (Empty);
-  rpc Totp(user.TotpRequest) returns (Empty);
+  rpc Signup(SignupRequest) returns (Empty);
+  rpc Reset(ResetRequest) returns (Empty);
+  rpc Delete(DeleteRequest) returns (Empty);
+  rpc Totp(TotpRequest) returns (Empty);
 }

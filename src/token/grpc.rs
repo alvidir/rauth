@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use tonic::{Request, Response, Status};
 
 use super::application::{TokenApplication, TokenRepository};
@@ -24,7 +26,7 @@ pub struct SessionImplementation<
     U: UserRepository + Sync + Send,
     E: SecretRepository + Sync + Send,
 > {
-    pub sess_app: TokenApplication<'static, S, U, E>,
+    pub token_app: Arc<TokenApplication<'static, S, U, E>>,
     pub jwt_secret: &'static [u8],
     pub jwt_public: &'static [u8],
     pub jwt_header: &'static str,
@@ -43,7 +45,7 @@ impl<
         let shadowed_pwd = crypto::shadow(&msg_ref.pwd, self.pwd_sufix);
 
         let token = self
-            .sess_app
+            .token_app
             .login(
                 &msg_ref.ident,
                 &shadowed_pwd,
@@ -66,7 +68,7 @@ impl<
 
     async fn logout(&self, request: Request<Empty>) -> Result<Response<Empty>, Status> {
         let token = grpc::get_encoded_header(&request, self.jwt_header)?;
-        if let Err(err) = self.sess_app.logout(&token, self.jwt_public).await {
+        if let Err(err) = self.token_app.logout(&token, self.jwt_public).await {
             return Err(Status::aborted(err.to_string()));
         }
 
