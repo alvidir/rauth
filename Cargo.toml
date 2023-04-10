@@ -36,7 +36,7 @@ strum = "0.24"
 strum_macros = "0.24"
 tera = "1.17.0" # template engine
 tokio = { version = "1.24.1", features = ["macros"] }
-tonic = "0.8.1" # gRPC
+tonic = "0.9.1" # gRPC
 
 [build-dependencies]
 tonic-build = "0.8.0"
