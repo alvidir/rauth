@@ -5,6 +5,7 @@ extern crate serde;
 
 pub mod metadata;
 pub mod secret;
+pub mod session;
 pub mod smtp;
 pub mod token;
 pub mod user;

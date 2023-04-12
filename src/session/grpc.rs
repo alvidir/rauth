@@ -2,9 +2,10 @@ use std::sync::Arc;
 
 use tonic::{Request, Response, Status};
 
-use super::application::{TokenApplication, TokenRepository};
+use super::application::SessionApplication;
 use crate::base64::B64_CUSTOM_ENGINE;
 use crate::secret::application::SecretRepository;
+use crate::token::application::TokenRepository;
 use crate::user::application::UserRepository;
 use crate::{crypto, grpc, result::Error};
 use base64::Engine;
@@ -22,13 +23,11 @@ pub use proto::session_server::SessionServer;
 use proto::{Empty, LoginRequest};
 
 pub struct SessionImplementation<
-    S: TokenRepository + Sync + Send,
+    T: TokenRepository + Sync + Send,
     U: UserRepository + Sync + Send,
     E: SecretRepository + Sync + Send,
 > {
-    pub token_app: Arc<TokenApplication<'static, S, U, E>>,
-    pub jwt_secret: &'static [u8],
-    pub jwt_public: &'static [u8],
+    pub session_app: Arc<SessionApplication<'static, T, U, E>>,
     pub jwt_header: &'static str,
     pub pwd_sufix: &'static str,
 }
@@ -45,13 +44,8 @@ impl<
         let shadowed_pwd = crypto::shadow(&msg_ref.pwd, self.pwd_sufix);
 
         let token = self
-            .token_app
-            .login(
-                &msg_ref.ident,
-                &shadowed_pwd,
-                &msg_ref.totp,
-                self.jwt_secret,
-            )
+            .session_app
+            .login(&msg_ref.ident, &shadowed_pwd, &msg_ref.totp)
             .await
             .map(|token| B64_CUSTOM_ENGINE.encode(token))
             .map_err(|err| Status::aborted(err.to_string()))?;
@@ -68,7 +62,7 @@ impl<
 
     async fn logout(&self, request: Request<Empty>) -> Result<Response<Empty>, Status> {
         let token = grpc::get_encoded_header(&request, self.jwt_header)?;
-        if let Err(err) = self.token_app.logout(&token, self.jwt_public).await {
+        if let Err(err) = self.session_app.logout(&token).await {
             return Err(Status::aborted(err.to_string()));
         }
 

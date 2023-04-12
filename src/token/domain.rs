@@ -6,7 +6,23 @@ use std::time::{Duration, SystemTime};
 
 pub trait TokenDefinition {
     fn get_id(&self) -> String;
-    fn get_kind(&self) -> TokenKind;
+    fn get_secret(&self) -> Option<&str>;
+    fn get_kind(&self) -> &TokenKind;
+}
+
+pub struct SignedToken {
+    pub(super) id: String,
+    pub(super) signature: String,
+}
+
+impl SignedToken {
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    pub fn signature(&self) -> &str {
+        &self.signature
+    }
 }
 
 #[derive(Serialize, Deserialize, Hash, PartialEq, Eq, Debug, Clone)]
@@ -16,7 +32,7 @@ pub enum TokenKind {
     Reset = 2,
 }
 
-#[derive(Serialize, Deserialize, Hash, Debug)]
+#[derive(Serialize, Deserialize, Hash, Debug, Clone)]
 pub struct Token {
     pub jti: String,     // JWT ID
     pub exp: usize,      // expiration time (as UTC timestamp) - required
@@ -35,31 +51,12 @@ impl Token {
         None
     }
 
-    pub fn new(iss: &str, sub: &str, timeout: Duration, kind: TokenKind) -> Self {
-        let mut token = Token {
-            jti: rand::thread_rng().gen::<u64>().to_string(), // noise
-            exp: time::unix_timestamp(SystemTime::now() + timeout),
-            nbf: time::unix_timestamp(SystemTime::now()),
-            iat: SystemTime::now(),
-            iss: iss.to_string(),
-            sub: sub.to_string(),
-            knd: kind,
-            scr: None,
-        };
-
-        let mut hasher = DefaultHasher::new();
-        token.hash(&mut hasher);
-        token.jti = hasher.finish().to_string();
-
-        token
-    }
-
-    pub fn new_secret(
+    pub fn new(
         iss: &str,
         sub: &str,
-        secret: &str,
         timeout: Duration,
         kind: TokenKind,
+        secret: Option<&str>,
     ) -> Self {
         let mut token = Token {
             jti: rand::thread_rng().gen::<u64>().to_string(), // noise
@@ -69,7 +66,7 @@ impl Token {
             iss: iss.to_string(),
             sub: sub.to_string(),
             knd: kind,
-            scr: Some(secret.to_string()),
+            scr: secret.map(ToString::to_string),
         };
 
         let mut hasher = DefaultHasher::new();
@@ -85,8 +82,12 @@ impl TokenDefinition for Token {
         format!("{:?}::{}", self.knd, self.jti)
     }
 
-    fn get_kind(&self) -> TokenKind {
-        self.knd.clone()
+    fn get_kind(&self) -> &TokenKind {
+        &self.knd
+    }
+
+    fn get_secret(&self) -> Option<&str> {
+        self.scr.as_deref()
     }
 }
 
@@ -102,14 +103,6 @@ pub mod tests {
     const JWT_SECRET: &[u8] = b"LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR0hBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJHMHdhd0lCQVFRZy9JMGJTbVZxL1BBN2FhRHgKN1FFSGdoTGxCVS9NcWFWMUJab3ZhM2Y5aHJxaFJBTkNBQVJXZVcwd3MydmlnWi96SzRXcGk3Rm1mK0VPb3FybQpmUlIrZjF2azZ5dnBGd0gzZllkMlllNXl4b3ZsaTROK1ZNNlRXVFErTmVFc2ZmTWY2TkFBMloxbQotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg==";
     const JWT_PUBLIC: &[u8] = b"LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFVm5sdE1MTnI0b0dmOHl1RnFZdXhabi9oRHFLcQo1bjBVZm45YjVPc3I2UmNCOTMySGRtSHVjc2FMNVl1RGZsVE9rMWswUGpYaExIM3pIK2pRQU5tZFpnPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg==";
 
-    pub fn new_session_token() -> Token {
-        const ISS: &str = "test";
-        const SUB: i32 = 999;
-
-        let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
-        Token::new(ISS, &SUB.to_string(), timeout, TokenKind::Session)
-    }
-
     #[test]
     fn token_new_should_not_fail() {
         const ISS: &str = "test";
@@ -118,7 +111,7 @@ pub mod tests {
         let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
 
         let before = SystemTime::now();
-        let claim = Token::new(ISS, &SUB.to_string(), timeout, TokenKind::Session);
+        let claim = Token::new(ISS, &SUB.to_string(), timeout, TokenKind::Session, None);
         let after = SystemTime::now();
 
         assert!(claim.iat >= before && claim.iat <= after);
@@ -136,7 +129,7 @@ pub mod tests {
         let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
 
         let before = SystemTime::now();
-        let claim = Token::new(ISS, &SUB.to_string(), timeout, TokenKind::Session);
+        let claim = Token::new(ISS, &SUB.to_string(), timeout, TokenKind::Session, None);
 
         let after = SystemTime::now();
 
@@ -157,7 +150,11 @@ pub mod tests {
     fn expired_token_verification_should_fail() {
         use crate::crypto;
 
-        let mut claim = new_session_token();
+        const ISS: &str = "test";
+        const SUB: i32 = 999;
+
+        let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
+        let mut claim = Token::new(ISS, &SUB.to_string(), timeout, TokenKind::Session, None);
         claim.exp = time::unix_timestamp(SystemTime::now() - Duration::from_secs(61));
 
         let secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();

@@ -30,8 +30,6 @@ pub struct UserImplementation<
     M: Mailer,
 > {
     pub user_app: UserApplication<'static, U, E, S, B, M>,
-    pub jwt_secret: &'static [u8],
-    pub jwt_public: &'static [u8],
     pub jwt_header: &'static str,
     pub totp_header: &'static str,
     pub pwd_sufix: &'static str,
@@ -51,7 +49,7 @@ impl<
             let token = grpc::get_encoded_header(&request, self.jwt_header)?;
             let token = self
                 .user_app
-                .secure_signup(&token, self.jwt_public, self.jwt_secret)
+                .secure_signup(&token)
                 .await
                 .map(|token| B64_CUSTOM_ENGINE.encode(token))
                 .map_err(|err| Status::aborted(err.to_string()))?;
@@ -69,7 +67,7 @@ impl<
         let shadowed_pwd = crypto::shadow(&msg_ref.pwd, self.pwd_sufix);
 
         self.user_app
-            .verify_signup_email(&msg_ref.email, &shadowed_pwd, self.jwt_secret)
+            .verify_signup_email(&msg_ref.email, &shadowed_pwd)
             .await
             .map_err(|err| Status::aborted(err.to_string()))?;
 
@@ -83,7 +81,7 @@ impl<
             let shadowed_pwd = crypto::shadow(&msg_ref.pwd, self.pwd_sufix);
             return self
                 .user_app
-                .secure_reset(&shadowed_pwd, &msg_ref.totp, &token, self.jwt_public)
+                .secure_reset(&shadowed_pwd, &msg_ref.totp, &token)
                 .await
                 .map(|_| Response::new(Empty {}))
                 .map_err(|err| Status::aborted(err.to_string()));
@@ -91,7 +89,7 @@ impl<
 
         let msg_ref = request.into_inner();
         self.user_app
-            .verify_reset_email(&msg_ref.email, self.jwt_secret)
+            .verify_reset_email(&msg_ref.email)
             .await
             .map_err(|err| Status::aborted(err.to_string()))?;
 
@@ -103,7 +101,7 @@ impl<
         let msg_ref = request.into_inner();
         let shadowed_pwd = crypto::shadow(&msg_ref.pwd, self.pwd_sufix);
         self.user_app
-            .secure_delete(&shadowed_pwd, &msg_ref.totp, &token, self.jwt_public)
+            .secure_delete(&shadowed_pwd, &msg_ref.totp, &token)
             .await
             .map(|_| Response::new(Empty {}))
             .map_err(|err| Status::aborted(err.to_string()))
@@ -117,7 +115,7 @@ impl<
         if msg_ref.action == TOTP_ACTION_DISABLE {
             return self
                 .user_app
-                .secure_disable_totp(&shadowed_pwd, &msg_ref.totp, &token, self.jwt_public)
+                .secure_disable_totp(&shadowed_pwd, &msg_ref.totp, &token)
                 .await
                 .map(|_| Response::new(Empty {}))
                 .map_err(|err| Status::unknown(err.to_string()));
@@ -126,7 +124,7 @@ impl<
         if msg_ref.action == TOTP_ACTION_ENABLE {
             let token = self
                 .user_app
-                .secure_enable_totp(&shadowed_pwd, &msg_ref.totp, &token, self.jwt_public)
+                .secure_enable_totp(&shadowed_pwd, &msg_ref.totp, &token)
                 .await
                 .map_err(|err| Status::aborted(err.to_string()))?;
 
