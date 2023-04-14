@@ -80,14 +80,15 @@ impl User {
 #[cfg(test)]
 pub mod tests {
     use super::User;
-    use crate::email;
     use crate::metadata::domain::tests::new_metadata;
     use crate::result::Error;
+    use crate::{crypto, email};
 
     pub const TEST_DEFAULT_USER_ID: i32 = 999;
     pub const TEST_DEFAULT_USER_NAME: &str = "dummyuser";
     pub const TEST_DEFAULT_USER_EMAIL: &str = "dummy@test.com";
     pub const TEST_DEFAULT_USER_PASSWORD: &str = "ABCDEF1234567890";
+    pub const TEST_DEFAULT_PWD_SUFIX: &str = "sufix";
 
     pub fn new_user() -> User {
         User {
@@ -106,7 +107,7 @@ pub mod tests {
             name: "custom_user".to_string(),
             email: email.to_string(),
             actual_email: email::actual_email(email),
-            password: TEST_DEFAULT_USER_PASSWORD.to_string(),
+            password: crypto::obfuscate(TEST_DEFAULT_USER_PASSWORD, TEST_DEFAULT_PWD_SUFIX),
             meta: new_metadata(),
         }
     }

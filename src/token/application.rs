@@ -2,10 +2,7 @@ use super::domain::SignedToken;
 use super::domain::{Token, TokenDefinition, TokenKind};
 use crate::crypto;
 use crate::result::{Error, Result};
-use crate::secret::application::SecretRepository;
-use crate::user::application::UserRepository;
 use async_trait::async_trait;
-use serde::{de::DeserializeOwned, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -16,41 +13,43 @@ pub trait TokenRepository {
     async fn delete(&self, key: &str) -> Result<()>;
 }
 
-pub struct TokenApplication<'a, T: TokenRepository, U: UserRepository, E: SecretRepository> {
+pub struct TokenApplication<'a, T: TokenRepository> {
     pub token_repo: Arc<T>,
-    pub user_repo: Arc<U>,
-    pub secret_repo: Arc<E>,
     pub timeout: Duration,
-    pub totp_secret_name: &'a str,
     pub token_issuer: &'a str,
     pub private_key: &'a [u8],
     pub public_key: &'a [u8],
 }
 
 #[derive(Clone)]
-pub struct Options {
+pub struct GenerateOptions {
     pub store: bool,
-    pub must_exists: bool,
-    pub revoke: bool,
 }
 
-impl Default for Options {
+impl Default for GenerateOptions {
     fn default() -> Self {
-        Self {
-            store: true,
-            must_exists: true,
-            revoke: false,
-        }
+        Self { store: true }
     }
 }
 
-impl<'a, T: TokenRepository, U: UserRepository, E: SecretRepository> TokenApplication<'a, T, U, E> {
+#[derive(Clone)]
+pub struct VerifyOptions {
+    pub must_exists: bool,
+}
+
+impl Default for VerifyOptions {
+    fn default() -> Self {
+        Self { must_exists: true }
+    }
+}
+
+impl<'a, T: TokenRepository> TokenApplication<'a, T> {
     pub async fn generate(
         &self,
         kind: TokenKind,
         sub: &str,
         secret: Option<&str>,
-        options: Options,
+        options: GenerateOptions,
     ) -> Result<SignedToken> {
         let token = Token::new(self.token_issuer, sub, self.timeout, kind, secret);
         let signed = crypto::sign_jwt(self.private_key, &token)?;
@@ -67,39 +66,35 @@ impl<'a, T: TokenRepository, U: UserRepository, E: SecretRepository> TokenApplic
         })
     }
 
-    pub async fn consume(&self, kind: TokenKind, key: &str, options: Options) -> Result<Token> {
+    pub async fn decode(&self, token: &str) -> Result<Token> {
+        crypto::decode_jwt(self.public_key, token)
+    }
+
+    pub async fn consume(&self, key: &str) -> Result<Token> {
         let token = self.token_repo.find(key).await?;
-        let claims: Token = self.deserialize(kind, &token, options.clone()).await?;
-
-        if options.revoke {
-            let key = claims.get_id();
-            self.token_repo.delete(&key).await?;
-        }
-
+        let claims = self.decode(&token).await?;
         Ok(claims)
     }
 
-    pub async fn deserialize<S: Serialize + DeserializeOwned + TokenDefinition>(
+    pub async fn verify(
         &self,
         kind: TokenKind,
-        token: &str,
-        options: Options,
-    ) -> Result<S> {
-        let claims: S = crypto::verify_jwt(self.public_key, token)?;
-
-        if *claims.get_kind() != kind {
+        token: &Token,
+        options: VerifyOptions,
+    ) -> Result<()> {
+        if *token.get_kind() != kind {
             warn!(
                 "{} checking token's kind with id {}, got {:?} want {:?}",
                 Error::InvalidToken,
-                claims.get_id(),
-                claims.get_kind(),
+                token.get_id(),
+                token.get_kind(),
                 kind
             );
             return Err(Error::InvalidToken);
         }
 
         if options.must_exists {
-            let key = claims.get_id();
+            let key = token.get_id();
             let present_data = self.token_repo.find(&key).await.map_err(|err| {
                 warn!(
                     "{} finding token with id {}: {}",
@@ -110,7 +105,8 @@ impl<'a, T: TokenRepository, U: UserRepository, E: SecretRepository> TokenApplic
                 Error::InvalidToken
             })?;
 
-            if present_data != token {
+            let present_token = self.decode(&present_data).await?;
+            if token != &present_token {
                 error!(
                     "{} comparing tokens with id {}: do not match",
                     Error::InvalidToken,
@@ -120,23 +116,31 @@ impl<'a, T: TokenRepository, U: UserRepository, E: SecretRepository> TokenApplic
             }
         }
 
-        if options.revoke {
-            let key = claims.get_id();
-            self.token_repo.delete(&key).await?;
-        }
+        Ok(())
+    }
 
-        Ok(claims)
+    pub async fn revoke(&self, token: &Token) -> Result<()> {
+        let key = token.get_id();
+        self.token_repo.find(&key).await.map_err(|err| {
+            warn!(
+                "{} finding token with id {}: {}",
+                Error::InvalidToken,
+                &key,
+                err
+            );
+            Error::InvalidToken
+        })?;
+
+        self.token_repo.delete(&key).await
     }
 }
 
 #[cfg(test)]
 pub mod tests {
     use super::{TokenApplication, TokenRepository};
-    use crate::secret::application::tests::SecretRepositoryMock;
     use crate::time;
-    use crate::token::application::Options;
+    use crate::token::application::VerifyOptions;
     use crate::token::domain::{Token, TokenKind};
-    use crate::user::application::tests::UserRepositoryMock;
     use crate::{
         crypto,
         result::{Error, Result},
@@ -209,16 +213,10 @@ pub mod tests {
 
     pub fn new_token_application<'a, T: TokenRepository + Default>(
         token_repo: Option<T>,
-    ) -> TokenApplication<'a, T, UserRepositoryMock, SecretRepositoryMock> {
-        let user_repo = UserRepositoryMock::default();
-        let secret_repo = SecretRepositoryMock::default();
-
+    ) -> TokenApplication<'a, T> {
         TokenApplication {
-            user_repo: Arc::new(user_repo),
-            secret_repo: Arc::new(secret_repo),
             token_repo: Arc::new(token_repo.unwrap_or_default()),
             timeout: Duration::from_secs(999),
-            totp_secret_name: ".dummy_totp_secret",
             token_issuer: "dummy",
             private_key: &PRIVATE_KEY,
             public_key: &PUBLIC_KEY,
@@ -237,27 +235,28 @@ pub mod tests {
         };
 
         let app = new_token_application(Some(token_repo));
-        app.deserialize::<Token>(TokenKind::Session, &token, Options::default())
+        let claims = app.decode(&token).await.unwrap();
+        app.verify(TokenKind::Session, &claims, VerifyOptions::default())
             .await
             .unwrap();
     }
 
     #[tokio::test]
-    async fn verif_token_expired_should_fail() {
+    async fn decode_token_expired_should_fail() {
         let mut claim = new_token(TokenKind::Session);
         claim.exp = time::unix_timestamp(SystemTime::now() - Duration::from_secs(61));
 
         let token = crypto::sign_jwt(&PRIVATE_KEY, claim).unwrap();
         let app = new_token_application::<TokenRepositoryMock>(None);
 
-        app.deserialize::<Token>(TokenKind::Session, &token, Options::default())
+        app.decode(&token)
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
             .unwrap_err();
     }
 
     #[tokio::test]
-    async fn verify_token_invalid_should_fail() {
+    async fn decode_token_invalid_should_fail() {
         let token = crypto::sign_jwt(&PRIVATE_KEY, new_token(TokenKind::Session))
             .unwrap()
             .replace('A', "a");
@@ -268,8 +267,9 @@ pub mod tests {
             }),
             ..Default::default()
         };
+
         let app = new_token_application(Some(token_repo));
-        app.deserialize::<Token>(TokenKind::Session, &token, Options::default())
+        app.decode(&token)
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
             .unwrap_err();
@@ -285,8 +285,10 @@ pub mod tests {
             }),
             ..Default::default()
         };
+
         let app = new_token_application(Some(token_repo));
-        app.deserialize::<Token>(TokenKind::Verification, &token, Options::default())
+        let claims = app.decode(&token).await.unwrap();
+        app.verify(TokenKind::Verification, &claims, VerifyOptions::default())
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
             .unwrap_err();
@@ -302,8 +304,10 @@ pub mod tests {
             }),
             ..Default::default()
         };
+
         let app = new_token_application(Some(token_repo));
-        app.deserialize::<Token>(TokenKind::Verification, &token, Options::default())
+        let claims = app.decode(&token).await.unwrap();
+        app.verify(TokenKind::Verification, &claims, VerifyOptions::default())
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
             .unwrap_err();
@@ -319,8 +323,10 @@ pub mod tests {
             }),
             ..Default::default()
         };
+
         let app = new_token_application(Some(token_repo));
-        app.deserialize::<Token>(TokenKind::Verification, &token, Options::default())
+        let claims = app.decode(&token).await.unwrap();
+        app.verify(TokenKind::Verification, &claims, VerifyOptions::default())
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
             .unwrap_err();

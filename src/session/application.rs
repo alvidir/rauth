@@ -2,10 +2,10 @@ use crate::crypto;
 use crate::regex;
 use crate::result::{Error, Result};
 use crate::secret::application::SecretRepository;
-use crate::token::application::Options;
+use crate::token::application::GenerateOptions;
 use crate::token::application::TokenApplication;
 use crate::token::application::TokenRepository;
-use crate::token::domain::Token;
+use crate::token::application::VerifyOptions;
 use crate::token::domain::TokenKind;
 use crate::user::application::UserRepository;
 use std::sync::Arc;
@@ -13,8 +13,9 @@ use std::sync::Arc;
 pub struct SessionApplication<'a, T: TokenRepository, U: UserRepository, E: SecretRepository> {
     pub user_repo: Arc<U>,
     pub secret_repo: Arc<E>,
-    pub token_app: Arc<TokenApplication<'a, T, U, E>>,
+    pub token_app: Arc<TokenApplication<'a, T>>,
     pub totp_secret_name: &'a str,
+    pub pwd_sufix: &'static str,
 }
 
 impl<'a, T: TokenRepository, U: UserRepository, E: SecretRepository>
@@ -34,7 +35,8 @@ impl<'a, T: TokenRepository, U: UserRepository, E: SecretRepository>
         }
         .map_err(|_| Error::WrongCredentials)?;
 
-        if !user.match_password(pwd) {
+        let pwd = crypto::obfuscate(pwd, self.pwd_sufix);
+        if !user.match_password(&pwd) {
             return Err(Error::WrongCredentials);
         }
 
@@ -57,7 +59,7 @@ impl<'a, T: TokenRepository, U: UserRepository, E: SecretRepository>
                 TokenKind::Session,
                 &user.get_id().to_string(),
                 None,
-                Options::default(),
+                GenerateOptions::default(),
             )
             .await
             .map(|token| token.signature().to_string())
@@ -66,17 +68,12 @@ impl<'a, T: TokenRepository, U: UserRepository, E: SecretRepository>
     pub async fn logout(&self, token: &str) -> Result<()> {
         info!("processing a \"logout\" request for token {} ", token);
 
+        let claims = self.token_app.decode(token).await?;
         self.token_app
-            .deserialize::<Token>(
-                TokenKind::Session,
-                token,
-                Options {
-                    revoke: true,
-                    ..Default::default()
-                },
-            )
+            .verify(TokenKind::Session, &claims, VerifyOptions::default())
             .await?;
 
+        self.token_app.revoke(&claims).await?;
         Ok(())
     }
 }
@@ -91,6 +88,7 @@ pub mod tests {
         new_token, new_token_application, PRIVATE_KEY, PUBLIC_KEY,
     };
     use crate::token::domain::{Token, TokenKind};
+    use crate::user::domain::tests::TEST_DEFAULT_PWD_SUFIX;
     use crate::user::{
         application::tests::{UserRepositoryMock, TEST_FIND_BY_EMAIL_ID, TEST_FIND_BY_NAME_ID},
         domain::tests::{
@@ -158,6 +156,7 @@ pub mod tests {
             secret_repo: Arc::new(secret_repo),
             token_app: Arc::new(token_app),
             totp_secret_name: ".dummy_totp_secret",
+            pwd_sufix: TEST_DEFAULT_PWD_SUFIX,
         }
     }
 
@@ -185,7 +184,7 @@ pub mod tests {
                 )
             })
             .unwrap();
-        let session: Token = crypto::verify_jwt(&PUBLIC_KEY, &token).unwrap();
+        let session: Token = crypto::decode_jwt(&PUBLIC_KEY, &token).unwrap();
 
         assert_eq!(session.sub, TEST_FIND_BY_EMAIL_ID.to_string());
     }
@@ -213,7 +212,7 @@ pub mod tests {
                 )
             })
             .unwrap();
-        let session: Token = crypto::verify_jwt(&PUBLIC_KEY, &token).unwrap();
+        let session: Token = crypto::decode_jwt(&PUBLIC_KEY, &token).unwrap();
         assert_eq!(session.sub, TEST_FIND_BY_NAME_ID.to_string());
     }
 
@@ -233,7 +232,7 @@ pub mod tests {
                 )
             })
             .unwrap();
-        let session: Token = crypto::verify_jwt(&PUBLIC_KEY, &token).unwrap();
+        let session: Token = crypto::decode_jwt(&PUBLIC_KEY, &token).unwrap();
         assert_eq!(session.sub, TEST_FIND_BY_NAME_ID.to_string());
     }
 

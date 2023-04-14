@@ -41,7 +41,7 @@ pub fn sign_jwt<S: Serialize>(secret: &[u8], payload: S) -> Result<String> {
 
 /// Given an elliptic curve secret in PEM format returns the token's claim if, and only if, the provided token
 /// is valid. Otherwise an error is returned.
-pub fn verify_jwt<T: DeserializeOwned>(public: &[u8], token: &str) -> Result<T> {
+pub fn decode_jwt<T: DeserializeOwned>(public: &[u8], token: &str) -> Result<T> {
     let validation = Validation::new(Algorithm::ES256);
     let key = DecodingKey::from_ec_pem(public).map_err(|err| {
         error!(
@@ -101,7 +101,7 @@ pub fn verify_totp(secret: &[u8], pwd: &str) -> Result<bool> {
 }
 
 /// Given a subject str and a sufix returns the sha256 digest of apending them both.
-pub fn shadow(subject: &str, sufix: &str) -> String {
+pub fn obfuscate(subject: &str, sufix: &str) -> String {
     let format_pwd = format!("{}{}", subject, sufix);
     return sha256::digest(format_pwd.as_bytes());
 }

@@ -32,7 +32,7 @@ pub enum TokenKind {
     Reset = 2,
 }
 
-#[derive(Serialize, Deserialize, Hash, Debug, Clone)]
+#[derive(Serialize, Deserialize, Hash, Debug, Clone, PartialEq)]
 pub struct Token {
     pub jti: String,     // JWT ID
     pub exp: usize,      // expiration time (as UTC timestamp) - required
@@ -137,7 +137,7 @@ pub mod tests {
         let token = crypto::sign_jwt(&secret, claim).unwrap();
 
         let public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
-        let claim = crypto::verify_jwt::<Token>(&public, &token).unwrap();
+        let claim = crypto::decode_jwt::<Token>(&public, &token).unwrap();
 
         assert!(claim.iat >= before && claim.iat <= after);
         assert!(claim.exp >= unix_timestamp(before + timeout));
@@ -161,6 +161,6 @@ pub mod tests {
         let token = crypto::sign_jwt(&secret, claim).unwrap();
         let public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
 
-        assert!(crypto::verify_jwt::<Token>(&public, &token).is_err());
+        assert!(crypto::decode_jwt::<Token>(&public, &token).is_err());
     }
 }

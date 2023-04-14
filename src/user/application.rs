@@ -2,7 +2,7 @@ use super::domain::User;
 use crate::crypto;
 use crate::result::{Error, Result};
 use crate::secret::{application::SecretRepository, domain::Secret};
-use crate::token::application::Options;
+use crate::token::application::{GenerateOptions, VerifyOptions};
 use crate::token::domain::TokenDefinition;
 use crate::token::{
     application::{TokenApplication, TokenRepository},
@@ -42,11 +42,12 @@ pub struct UserApplication<
 > {
     pub user_repo: Arc<U>,
     pub secret_repo: Arc<E>,
-    pub token_app: Arc<TokenApplication<'a, T, U, E>>,
+    pub token_app: Arc<TokenApplication<'a, T>>,
     pub mailer: Arc<M>,
     pub bus: Arc<B>,
     pub totp_secret_len: usize,
     pub totp_secret_name: &'a str,
+    pub pwd_sufix: &'static str,
 }
 
 impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M: Mailer>
@@ -58,14 +59,15 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
             return Ok(());
         }
 
-        User::new(email, pwd)?;
+        let pwd = crypto::obfuscate(pwd, self.pwd_sufix);
+        User::new(email, &pwd)?;
         let token_to_keep = self
             .token_app
             .generate(
                 TokenKind::Verification,
                 email,
-                Some(pwd),
-                Options::default(),
+                Some(&pwd),
+                GenerateOptions::default(),
             )
             .await?;
 
@@ -75,10 +77,7 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
                 TokenKind::Verification,
                 token_to_keep.id(),
                 None,
-                Options {
-                    store: false,
-                    ..Default::default()
-                },
+                GenerateOptions { store: false },
             )
             .await?;
 
@@ -89,32 +88,24 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
     }
 
     pub async fn secure_signup(&self, token: &str) -> Result<String> {
-        let claims: Token = self
-            .token_app
-            .deserialize(
+        let claims: Token = self.token_app.decode(token).await?;
+        self.token_app
+            .verify(
                 TokenKind::Verification,
-                token,
-                Options {
-                    must_exists: false,
-                    ..Default::default()
-                },
+                &claims,
+                VerifyOptions { must_exists: false },
             )
             .await?;
 
-        let claims: Token = self
-            .token_app
-            .consume(
-                TokenKind::Verification,
-                &claims.sub,
-                Options {
-                    revoke: true,
-                    ..Default::default()
-                },
-            )
+        let claims: Token = self.token_app.consume(&claims.sub).await?;
+        self.token_app
+            .verify(TokenKind::Verification, &claims, VerifyOptions::default())
             .await?;
 
         let password = &claims.get_secret().ok_or(Error::InvalidToken)?;
         let token = self.signup(&claims.sub, password).await?;
+        self.token_app.revoke(&claims).await?;
+
         Ok(token)
     }
 
@@ -132,16 +123,16 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
                 TokenKind::Session,
                 &user.get_id().to_string(),
                 None,
-                Options::default(),
+                GenerateOptions::default(),
             )
             .await
             .map(|token| token.signature().to_string())
     }
 
     pub async fn secure_delete(&self, pwd: &str, totp: &str, token: &str) -> Result<()> {
-        let claims: Token = self
-            .token_app
-            .deserialize(TokenKind::Session, token, Options::default())
+        let claims: Token = self.token_app.decode(token).await?;
+        self.token_app
+            .verify(TokenKind::Session, &claims, VerifyOptions::default())
             .await?;
 
         let user_id = claims.sub.parse().map_err(|err| {
@@ -164,7 +155,8 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
             .await
             .map_err(|_| Error::WrongCredentials)?;
 
-        if !user.match_password(pwd) {
+        let pwd = crypto::obfuscate(pwd, self.pwd_sufix);
+        if !user.match_password(&pwd) {
             return Err(Error::WrongCredentials);
         }
 
@@ -195,10 +187,11 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
         totp: &str,
         token: &str,
     ) -> Result<Option<String>> {
-        let claims: Token = self
-            .token_app
-            .deserialize(TokenKind::Session, token, Options::default())
+        let claims: Token = self.token_app.decode(token).await?;
+        self.token_app
+            .verify(TokenKind::Session, &claims, VerifyOptions::default())
             .await?;
+
         let user_id = claims.sub.parse().map_err(|err| {
             warn!("{} parsing str to i32: {}", Error::InvalidToken, err);
             Error::InvalidToken
@@ -219,7 +212,8 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
             .await
             .map_err(|_| Error::WrongCredentials)?;
 
-        if !user.match_password(pwd) {
+        let pwd = crypto::obfuscate(pwd, self.pwd_sufix);
+        if !user.match_password(&pwd) {
             return Err(Error::WrongCredentials);
         }
 
@@ -254,10 +248,11 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
     }
 
     pub async fn secure_disable_totp(&self, pwd: &str, totp: &str, token: &str) -> Result<()> {
-        let claims: Token = self
-            .token_app
-            .deserialize(TokenKind::Session, token, Options::default())
+        let claims: Token = self.token_app.decode(token).await?;
+        self.token_app
+            .verify(TokenKind::Session, &claims, VerifyOptions::default())
             .await?;
+
         let user_id = claims.sub.parse().map_err(|err| {
             warn!("{} parsing str to i32: {}", Error::InvalidToken, err);
             Error::InvalidToken
@@ -278,7 +273,8 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
             .await
             .map_err(|_| Error::WrongCredentials)?;
 
-        if !user.match_password(pwd) {
+        let pwd = crypto::obfuscate(pwd, self.pwd_sufix);
+        if !user.match_password(&pwd) {
             return Err(Error::WrongCredentials);
         }
 
@@ -319,7 +315,7 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
                 TokenKind::Reset,
                 &user.get_id().to_string(),
                 None,
-                Options::default(),
+                GenerateOptions::default(),
             )
             .await?;
 
@@ -329,23 +325,18 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
     }
 
     pub async fn secure_reset(&self, new_pwd: &str, totp: &str, token: &str) -> Result<()> {
-        let claims: Token = self
-            .token_app
-            .deserialize(
-                TokenKind::Reset,
-                token,
-                Options {
-                    revoke: true,
-                    ..Default::default()
-                },
-            )
+        let claims: Token = self.token_app.decode(token).await?;
+        self.token_app
+            .verify(TokenKind::Reset, &claims, VerifyOptions::default())
             .await?;
+
         let user_id = claims.sub.parse().map_err(|err| {
             warn!("{} parsing str to i32: {}", Error::InvalidToken, err);
             Error::InvalidToken
         })?;
 
         self.reset(user_id, new_pwd, totp).await?;
+        self.token_app.revoke(&claims).await?;
         Ok(())
     }
 
@@ -361,7 +352,8 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
             .await
             .map_err(|_| Error::WrongCredentials)?;
 
-        if user.match_password(new_pwd) {
+        let new_pwd = crypto::obfuscate(new_pwd, self.pwd_sufix);
+        if user.match_password(&new_pwd) {
             return Err(Error::WrongCredentials);
         }
 
@@ -379,7 +371,7 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
             }
         }
 
-        user.set_password(new_pwd)?;
+        user.set_password(&new_pwd)?;
         self.user_repo.save(&user).await
     }
 }
@@ -402,6 +394,7 @@ pub mod tests {
         application::tests::TokenRepositoryMock,
         domain::{Token, TokenDefinition, TokenKind},
     };
+    use crate::user::domain::tests::TEST_DEFAULT_PWD_SUFIX;
     use crate::{
         crypto,
         result::{Error, Result},
@@ -526,6 +519,7 @@ pub mod tests {
             bus: Arc::new(event_bus),
             totp_secret_len: 32_usize,
             totp_secret_name: ".dummy_totp_secret",
+            pwd_sufix: TEST_DEFAULT_PWD_SUFIX,
         }
     }
 
@@ -603,7 +597,7 @@ pub mod tests {
         let token_repo = TokenRepositoryMock {
             token: token_to_keep.clone(),
             fn_find: Some(|this: &TokenRepositoryMock, tid: &str| -> Result<String> {
-                let claims: Token = crypto::verify_jwt(&PUBLIC_KEY, &this.token)?;
+                let claims: Token = crypto::decode_jwt(&PUBLIC_KEY, &this.token)?;
                 assert_eq!(claims.get_id(), tid);
 
                 Ok(this.token.clone())
@@ -614,7 +608,7 @@ pub mod tests {
         app.user_repo = Arc::new(user_repo);
 
         let token = app.secure_signup(&token_to_send).await.unwrap();
-        let claims: Token = crypto::verify_jwt(&PUBLIC_KEY, &token).unwrap();
+        let claims: Token = crypto::decode_jwt(&PUBLIC_KEY, &token).unwrap();
         assert_eq!(claims.sub, TEST_CREATE_ID.to_string());
     }
 
@@ -688,7 +682,7 @@ pub mod tests {
             .signup(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD)
             .await
             .unwrap();
-        let claims: Token = crypto::verify_jwt(&PUBLIC_KEY, &token).unwrap();
+        let claims: Token = crypto::decode_jwt(&PUBLIC_KEY, &token).unwrap();
         assert_eq!(claims.sub, TEST_CREATE_ID.to_string());
     }
 
