@@ -1,7 +1,7 @@
 services:
   postgres:
     container_name: rauth-postgres
-    image: docker.io/postgres:alpine3.15
+    image: docker.io/postgres:alpine3.17
     restart: on-failure
     volumes:
       - dbdata:/data/postgres
@@ -13,7 +13,7 @@ services:
 
   redis:
     container_name: rauth-redis
-    image: docker.io/redis:alpine3.15
+    image: docker.io/redis:alpine3.17
     restart: always
     volumes:
       - ./redis:/usr/local/etc/redis:ro
@@ -45,6 +45,23 @@ services:
       - rabbitmq
     env_file:
       - .env
+    environment:
+      - SERVICE_PORT=8000
+
+  rest:
+    container_name: rauth-rest
+    image: localhost/alvidir/rauth:latest-rest
+    restart: always
+    ports:
+      - 8001:8001
+    security_opt:
+      label: disable
+    depends_on:
+      - redis
+    env_file:
+      - .env
+    environment:
+      - SERVICE_PORT=8001
 
   envoy:
     container_name: rauth-envoy

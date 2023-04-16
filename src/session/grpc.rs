@@ -1,11 +1,11 @@
-use tonic::{Request, Response, Status};
-
-use super::application::{SessionApplication, TokenRepository};
+use super::application::SessionApplication;
 use crate::base64::B64_CUSTOM_ENGINE;
 use crate::secret::application::SecretRepository;
+use crate::token::application::TokenRepository;
 use crate::user::application::UserRepository;
-use crate::{crypto, grpc, result::Error};
+use crate::{grpc, result::Error};
 use base64::Engine;
+use tonic::{Request, Response, Status};
 
 // Import the generated rust code into module
 mod proto {
@@ -19,16 +19,13 @@ pub use proto::session_server::SessionServer;
 // Proto message structs
 use proto::{Empty, LoginRequest};
 
-pub struct SessionImplementation<
-    S: TokenRepository + Sync + Send,
+pub struct SessionGrpcService<
+    T: TokenRepository + Sync + Send,
     U: UserRepository + Sync + Send,
     E: SecretRepository + Sync + Send,
 > {
-    pub sess_app: SessionApplication<'static, S, U, E>,
-    pub jwt_secret: &'static [u8],
-    pub jwt_public: &'static [u8],
+    pub session_app: SessionApplication<'static, T, U, E>,
     pub jwt_header: &'static str,
-    pub pwd_sufix: &'static str,
 }
 
 #[tonic::async_trait]
@@ -36,20 +33,13 @@ impl<
         S: 'static + TokenRepository + Sync + Send,
         U: 'static + UserRepository + Sync + Send,
         E: 'static + SecretRepository + Sync + Send,
-    > Session for SessionImplementation<S, U, E>
+    > Session for SessionGrpcService<S, U, E>
 {
     async fn login(&self, request: Request<LoginRequest>) -> Result<Response<Empty>, Status> {
         let msg_ref = request.into_inner();
-        let shadowed_pwd = crypto::shadow(&msg_ref.pwd, self.pwd_sufix);
-
         let token = self
-            .sess_app
-            .login(
-                &msg_ref.ident,
-                &shadowed_pwd,
-                &msg_ref.totp,
-                self.jwt_secret,
-            )
+            .session_app
+            .login(&msg_ref.ident, &msg_ref.pwd, &msg_ref.totp)
             .await
             .map(|token| B64_CUSTOM_ENGINE.encode(token))
             .map_err(|err| Status::aborted(err.to_string()))?;
@@ -66,7 +56,7 @@ impl<
 
     async fn logout(&self, request: Request<Empty>) -> Result<Response<Empty>, Status> {
         let token = grpc::get_encoded_header(&request, self.jwt_header)?;
-        if let Err(err) = self.sess_app.logout(&token, self.jwt_public).await {
+        if let Err(err) = self.session_app.logout(&token).await {
             return Err(Status::aborted(err.to_string()));
         }
 

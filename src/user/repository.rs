@@ -6,17 +6,18 @@ use sqlx::postgres::PgPool;
 use std::sync::Arc;
 
 const QUERY_INSERT_USER: &str =
-    "INSERT INTO users (name, email, password, meta_id) VALUES ($1, $2, $3, $4) RETURNING id";
-const QUERY_FIND_USER: &str = "SELECT id, name, email, password, meta_id FROM users WHERE id = $1";
+    "INSERT INTO users (name, email, actual_email, password, meta_id) VALUES ($1, $2, $3, $4, $5) RETURNING id";
+const QUERY_FIND_USER: &str =
+    "SELECT id, name, email, actual_email, password, meta_id FROM users WHERE id = $1";
 const QUERY_FIND_USER_BY_EMAIL: &str =
-    "SELECT id, name, email, password, meta_id FROM users WHERE email = $1";
+    "SELECT id, name, email, actual_email, password, meta_id FROM users WHERE email = $1 OR actual_email = $1";
 const QUERY_FIND_USER_BY_NAME: &str =
-    "SELECT id, name, email, password, meta_id FROM users WHERE name = $1";
+    "SELECT id, name, email, actual_email, password, meta_id FROM users WHERE name = $1";
 const QUERY_UPDATE_USER: &str =
-    "UPDATE users SET name = $1, email = $2, password = $3 WHERE id = $4";
+    "UPDATE users SET name = $1, email = $2, actual_email = $3, password = $4 WHERE id = $5";
 const QUERY_DELETE_USER: &str = "DELETE FROM users WHERE id = $1";
 
-type PostgresUserRow = (i32, String, String, String, i32); // id, name, email, password, meta_id
+type PostgresUserRow = (i32, String, String, String, String, i32); // id, name, email, actual_email, password, meta_id
 
 pub struct PostgresUserRepository<'a, M: MetadataRepository> {
     pub pool: &'a PgPool,
@@ -25,13 +26,14 @@ pub struct PostgresUserRepository<'a, M: MetadataRepository> {
 
 impl<'a, M: MetadataRepository> PostgresUserRepository<'a, M> {
     async fn build(&self, user_raw: &PostgresUserRow) -> Result<User> {
-        let meta = self.metadata_repo.find(user_raw.4).await?;
+        let meta = self.metadata_repo.find(user_raw.5).await?;
 
         Ok(User {
             id: user_raw.0,
             name: user_raw.1.clone(),
             email: user_raw.2.clone(),
-            password: user_raw.3.clone(),
+            actual_email: user_raw.3.clone(),
+            password: user_raw.4.clone(),
             meta,
         })
     }
@@ -117,6 +119,7 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> UserRepo
         let row: (i32,) = sqlx::query_as(QUERY_INSERT_USER)
             .bind(&user.name)
             .bind(&user.email)
+            .bind(&user.actual_email)
             .bind(&user.password)
             .bind(user.meta.get_id())
             .fetch_one(self.pool)
@@ -138,6 +141,7 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> UserRepo
         sqlx::query(QUERY_UPDATE_USER)
             .bind(&user.name)
             .bind(&user.email)
+            .bind(&user.actual_email)
             .bind(&user.password)
             .bind(user.id)
             .execute(self.pool)

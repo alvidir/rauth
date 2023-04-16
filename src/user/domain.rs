@@ -1,13 +1,15 @@
 use crate::metadata::domain::Metadata;
 use crate::{
-    regex,
+    email, regex,
     result::{Error, Result},
 };
 
+/// Represents a user and all its personal data
 pub struct User {
     pub(super) id: i32,
     pub(super) name: String,
     pub(super) email: String,
+    pub(super) actual_email: String,
     pub(super) password: String,
     pub(super) meta: Metadata,
 }
@@ -36,6 +38,7 @@ impl User {
             id: 0,
             name: email.to_string(),
             email: email.to_string(),
+            actual_email: email::actual_email(email),
             password: password.to_string(),
             meta: Metadata::default(),
         };
@@ -79,17 +82,20 @@ pub mod tests {
     use super::User;
     use crate::metadata::domain::tests::new_metadata;
     use crate::result::Error;
+    use crate::{crypto, email};
 
     pub const TEST_DEFAULT_USER_ID: i32 = 999;
     pub const TEST_DEFAULT_USER_NAME: &str = "dummyuser";
     pub const TEST_DEFAULT_USER_EMAIL: &str = "dummy@test.com";
     pub const TEST_DEFAULT_USER_PASSWORD: &str = "ABCDEF1234567890";
+    pub const TEST_DEFAULT_PWD_SUFIX: &str = "sufix";
 
     pub fn new_user() -> User {
         User {
             id: TEST_DEFAULT_USER_ID,
             name: TEST_DEFAULT_USER_NAME.to_string(),
             email: TEST_DEFAULT_USER_EMAIL.to_string(),
+            actual_email: email::actual_email(TEST_DEFAULT_USER_EMAIL),
             password: TEST_DEFAULT_USER_PASSWORD.to_string(),
             meta: new_metadata(),
         }
@@ -100,7 +106,8 @@ pub mod tests {
             id,
             name: "custom_user".to_string(),
             email: email.to_string(),
-            password: TEST_DEFAULT_USER_PASSWORD.to_string(),
+            actual_email: email::actual_email(email),
+            password: crypto::obfuscate(TEST_DEFAULT_USER_PASSWORD, TEST_DEFAULT_PWD_SUFIX),
             meta: new_metadata(),
         }
     }

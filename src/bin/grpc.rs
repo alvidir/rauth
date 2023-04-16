@@ -13,14 +13,14 @@ use rauth::{
     secret::repository::PostgresSecretRepository,
     session::{
         application::SessionApplication,
-        grpc::{SessionImplementation, SessionServer},
-        repository::RedisTokenRepository,
+        grpc::{SessionGrpcService, SessionServer},
     },
     smtp::Smtp,
+    token::{application::TokenApplication, repository::RedisTokenRepository},
     user::{
         application::UserApplication,
         bus::RabbitMqUserBus,
-        grpc::{UserImplementation, UserServer},
+        grpc::{UserGrpcService, UserServer},
         repository::PostgresUserRepository,
     },
 };
@@ -29,6 +29,7 @@ use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::env;
 use std::error::Error;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::runtime::Handle;
 use tonic::transport::Server;
 
@@ -40,7 +41,7 @@ const DEFAULT_TOTP_HEADER: &str = "x-totp-secret";
 const DEFAULT_TOKEN_TIMEOUT: u64 = 7200;
 const DEFAULT_POOL_SIZE: u32 = 10;
 const DEFAULT_TOTP_SECRET_LEN: usize = 32_usize;
-const DEFAULT_TOTP_SECRET_NAME: &str = ".totp_secret";
+const DEFAULT_TOTP_SECRET_NAME: &str = "totp";
 
 const ENV_SERVICE_PORT: &str = "SERVICE_PORT";
 const ENV_SERVICE_ADDR: &str = "SERVICE_ADDR";
@@ -200,12 +201,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         exchange: &RABBITMQ_BUS,
     });
 
-    let token_repo = Arc::new(RedisTokenRepository {
-        pool: &RD_POOL,
-        jwt_secret: &JWT_SECRET,
-        jwt_public: &JWT_PUBLIC,
-    });
-
+    let token_repo = Arc::new(RedisTokenRepository { pool: &RD_POOL });
     let credentials = if SMTP_USERNAME.len() > 0 && SMTP_PASSWORD.len() > 0 {
         Some((SMTP_USERNAME.to_string(), SMTP_PASSWORD.to_string()))
     } else {
@@ -216,49 +212,49 @@ async fn main() -> Result<(), Box<dyn Error>> {
     mailer.issuer = &*SMTP_ISSUER;
     mailer.origin = &*SMTP_ORIGIN;
 
+    let token_app = Arc::new(TokenApplication {
+        token_repo: token_repo.clone(),
+        timeout: Duration::from_secs(*TOKEN_TIMEOUT),
+        token_issuer: &TOKEN_ISSUER,
+        private_key: &JWT_SECRET,
+        public_key: &JWT_PUBLIC,
+    });
+
     let user_app = UserApplication {
         user_repo: user_repo.clone(),
         secret_repo: secret_repo.clone(),
-        token_repo: token_repo.clone(),
+        token_app: token_app.clone(),
         mailer: Arc::new(mailer),
         bus: user_event_bus.clone(),
-        timeout: *TOKEN_TIMEOUT,
         totp_secret_len: *TOTP_SECRET_LEN,
         totp_secret_name: &TOTP_SECRET_NAME,
-        token_issuer: &TOKEN_ISSUER,
+        pwd_sufix: &PWD_SUFIX,
     };
 
-    let sess_app = SessionApplication {
-        token_repo: token_repo.clone(),
-        user_repo: user_repo.clone(),
-        secret_repo: secret_repo.clone(),
-        timeout: *TOKEN_TIMEOUT,
-        totp_secret_name: &TOTP_SECRET_NAME,
-        token_issuer: &TOKEN_ISSUER,
-    };
-
-    let user_server = UserImplementation {
+    let user_grpc_service = UserGrpcService {
         user_app,
-        jwt_secret: &JWT_SECRET,
-        jwt_public: &JWT_PUBLIC,
         jwt_header: &JWT_HEADER,
         totp_header: &TOTP_HEADER,
+    };
+
+    let session_app = SessionApplication {
+        user_repo: user_repo.clone(),
+        secret_repo: secret_repo.clone(),
+        token_app: token_app.clone(),
+        totp_secret_name: &TOTP_SECRET_NAME,
         pwd_sufix: &PWD_SUFIX,
     };
 
-    let sess_server = SessionImplementation {
-        sess_app,
-        jwt_secret: &JWT_SECRET,
-        jwt_public: &JWT_PUBLIC,
+    let session_grpc_service = SessionGrpcService {
+        session_app,
         jwt_header: &JWT_HEADER,
-        pwd_sufix: &PWD_SUFIX,
     };
 
     let addr = SERVER_ADDR.parse().unwrap();
     info!("server listening on {}", addr);
     Server::builder()
-        .add_service(UserServer::new(user_server))
-        .add_service(SessionServer::new(sess_server))
+        .add_service(UserServer::new(user_grpc_service))
+        .add_service(SessionServer::new(session_grpc_service))
         .serve(addr)
         .await?;
 

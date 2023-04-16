@@ -11,6 +11,6 @@ message LoginRequest {
 message Empty {}
 
 service Session {
-  rpc Login(session.LoginRequest) returns (Empty);
+  rpc Login(LoginRequest) returns (Empty);
   rpc Logout(Empty) returns (Empty);
 }

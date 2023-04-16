@@ -25,7 +25,7 @@ $BODY$
     COST 100;
 
 CREATE TRIGGER trg_prevent_update_secrets_data
-    BEFORE UPDATE OF data, user_id
+    BEFORE UPDATE OF id, name, data, user_id
     ON Secrets
     FOR EACH ROW
     EXECUTE PROCEDURE fn_prevent_update_secrets_data();

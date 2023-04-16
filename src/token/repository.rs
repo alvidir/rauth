@@ -6,8 +6,6 @@ use reool::*;
 
 pub struct RedisTokenRepository<'a> {
     pub pool: &'a RedisPool,
-    pub jwt_secret: &'a [u8],
-    pub jwt_public: &'a [u8],
 }
 
 #[async_trait]
