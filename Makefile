@@ -6,10 +6,10 @@ all: binaries
 
 binaries: install-deps
 ifdef target
-	cargo build --bin $(target) --release
+	cargo build --bin $(target) --features $(target) --release
 else
-	-cargo build --bin grpc --release
-	-cargo build --bin rest --release
+	-cargo build --bin grpc --features grpc --release
+	-cargo build --bin rest --features rest --release
 endif
 
 images:

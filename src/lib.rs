@@ -15,6 +15,8 @@ mod crypto;
 mod email;
 #[cfg(feature = "grpc")]
 mod grpc;
+#[cfg(feature = "rest")]
+mod http;
 mod rabbitmq;
 mod regex;
 mod result;

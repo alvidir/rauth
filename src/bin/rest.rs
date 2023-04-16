@@ -3,6 +3,7 @@ extern crate log;
 #[macro_use]
 extern crate lazy_static;
 
+use actix_web::web::Data;
 use actix_web::{middleware, App, HttpServer};
 use base64::{engine::general_purpose, Engine as _};
 use rauth::token::{
@@ -72,11 +73,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         warn!("processing dotenv file {}", err);
     }
 
-    let token_repo = Arc::new(RedisTokenRepository {
-        pool: &RD_POOL,
-        jwt_secret: &JWT_SECRET,
-        jwt_public: &JWT_PUBLIC,
-    });
+    let token_repo = Arc::new(RedisTokenRepository { pool: &RD_POOL });
 
     let token_app = TokenApplication {
         token_repo: token_repo.clone(),
@@ -95,8 +92,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     HttpServer::new(move || {
         App::new()
             .wrap(middleware::Logger::default())
-            .app_data(token_server.clone())
-            .configure(TokenRestService::<RedisTokenRepository>::register)
+            .app_data(Data::new(token_server.clone()))
+            .configure(token_server.router())
     })
     .bind(&*SERVER_ADDR)?
     .run()

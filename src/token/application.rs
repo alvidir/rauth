@@ -70,7 +70,7 @@ impl<'a, T: TokenRepository> TokenApplication<'a, T> {
         crypto::decode_jwt(self.public_key, token)
     }
 
-    pub async fn consume(&self, key: &str) -> Result<Token> {
+    pub async fn retrieve(&self, key: &str) -> Result<Token> {
         let token = self.token_repo.find(key).await?;
         let claims = self.decode(&token).await?;
         Ok(claims)

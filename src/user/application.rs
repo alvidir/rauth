@@ -97,7 +97,7 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
             )
             .await?;
 
-        let claims: Token = self.token_app.consume(&claims.sub).await?;
+        let claims: Token = self.token_app.retrieve(&claims.sub).await?;
         self.token_app
             .verify(TokenKind::Verification, &claims, VerifyOptions::default())
             .await?;

@@ -201,12 +201,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         exchange: &RABBITMQ_BUS,
     });
 
-    let token_repo = Arc::new(RedisTokenRepository {
-        pool: &RD_POOL,
-        jwt_secret: &JWT_SECRET,
-        jwt_public: &JWT_PUBLIC,
-    });
-
+    let token_repo = Arc::new(RedisTokenRepository { pool: &RD_POOL });
     let credentials = if SMTP_USERNAME.len() > 0 && SMTP_PASSWORD.len() > 0 {
         Some((SMTP_USERNAME.to_string(), SMTP_PASSWORD.to_string()))
     } else {

@@ -54,11 +54,9 @@ rest = ["actix-web"]
 [[bin]]         
 name = "grpc"    
 path = "src/bin/grpc.rs"
-default-features = false
 required-features = ["grpc"]
 
 [[bin]]         
 name = "rest"    
 path = "src/bin/rest.rs"
-default-features = false
 required-features = ["rest"]
