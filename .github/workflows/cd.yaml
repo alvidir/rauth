@@ -12,7 +12,7 @@ env:
 
 jobs:
   push_grpc_server_to_registry:
-    name: Push image to registry
+    name: Push gRPC server image
     runs-on: ubuntu-latest
 
     steps:
@@ -51,7 +51,7 @@ jobs:
           registry: ${{ env.IMAGE_REGISTRY }}
 
   push_rest_server_to_registry:
-    name: Push image to registry
+    name: Push REST server image
     runs-on: ubuntu-latest
 
     steps:
