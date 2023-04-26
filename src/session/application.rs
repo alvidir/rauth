@@ -15,7 +15,7 @@ pub struct SessionApplication<'a, T: TokenRepository, U: UserRepository, E: Secr
     pub secret_repo: Arc<E>,
     pub token_app: Arc<TokenApplication<'a, T>>,
     pub totp_secret_name: &'a str,
-    pub pwd_sufix: &'static str,
+    pub pwd_sufix: &'a str,
 }
 
 impl<'a, T: TokenRepository, U: UserRepository, E: SecretRepository>

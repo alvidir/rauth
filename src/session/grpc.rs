@@ -30,10 +30,10 @@ pub struct SessionGrpcService<
 
 #[tonic::async_trait]
 impl<
-        S: 'static + TokenRepository + Sync + Send,
+        T: 'static + TokenRepository + Sync + Send,
         U: 'static + UserRepository + Sync + Send,
         E: 'static + SecretRepository + Sync + Send,
-    > Session for SessionGrpcService<S, U, E>
+    > Session for SessionGrpcService<T, U, E>
 {
     async fn login(&self, request: Request<LoginRequest>) -> Result<Response<Empty>, Status> {
         let msg_ref = request.into_inner();

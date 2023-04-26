@@ -47,7 +47,7 @@ pub struct UserApplication<
     pub bus: Arc<B>,
     pub totp_secret_len: usize,
     pub totp_secret_name: &'a str,
-    pub pwd_sufix: &'static str,
+    pub pwd_sufix: &'a str,
 }
 
 impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M: Mailer>

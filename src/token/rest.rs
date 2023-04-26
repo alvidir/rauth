@@ -1,4 +1,7 @@
-use super::application::{TokenApplication, TokenRepository};
+use super::{
+    application::{TokenApplication, TokenRepository},
+    domain::Token,
+};
 use crate::{
     http,
     result::Error,
@@ -15,7 +18,7 @@ pub struct TokenRestService<T: TokenRepository + Sync + Send> {
 impl<T: 'static + TokenRepository + Sync + Send> TokenRestService<T> {
     pub fn router(&self) -> impl Fn(&mut web::ServiceConfig) {
         |cfg: &mut web::ServiceConfig| {
-            cfg.service(web::resource("/session").route(web::get().to(Self::get_session)));
+            cfg.service(web::resource("/token/session").route(web::get().to(Self::get_session)));
         }
     }
 
@@ -23,29 +26,21 @@ impl<T: 'static + TokenRepository + Sync + Send> TokenRestService<T> {
         app_data: web::Data<Arc<TokenRestService<T>>>,
         req: HttpRequest,
     ) -> impl Responder {
-        let token = match http::get_encoded_header(req, app_data.jwt_header) {
-            Ok(header) => header,
-            Err(err) => {
-                warn!("{} getting encoded header: {}", Error::InvalidHeader, err);
-                return HttpResponse::Unauthorized().finish();
-            }
-        };
+        match async move {
+            let token = http::get_encoded_header(req, app_data.jwt_header)?;
+            let token = app_data.token_app.decode(&token).await?;
 
-        let Ok(token) = app_data.token_app.decode(&token).await else {
-            error!("cannot decode token");
-            return HttpResponse::Unauthorized().finish();
-        };
+            app_data
+                .token_app
+                .verify(TokenKind::Session, &token, VerifyOptions::default())
+                .await?;
 
-        if app_data
-            .token_app
-            .verify(TokenKind::Session, &token, VerifyOptions::default())
-            .await
-            .is_err()
-        {
-            error!("could not verify token");
-            return HttpResponse::Unauthorized().finish();
+            Ok::<Token, Error>(token)
         }
-
-        HttpResponse::Accepted().json(token)
+        .await
+        {
+            Ok(token) => HttpResponse::Accepted().json(token),
+            Err(err) => HttpResponse::from(err),
+        }
     }
 }
