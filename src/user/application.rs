@@ -91,15 +91,17 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
         let claims: Token = self.token_app.decode(token).await?;
         self.token_app
             .verify(
-                TokenKind::Verification,
                 &claims,
-                VerifyOptions { must_exists: false },
+                VerifyOptions {
+                    must_exists: false,
+                    kind: Some(TokenKind::Verification),
+                },
             )
             .await?;
 
         let claims: Token = self.token_app.retrieve(&claims.sub).await?;
         self.token_app
-            .verify(TokenKind::Verification, &claims, VerifyOptions::default())
+            .verify(&claims, VerifyOptions::new(TokenKind::Verification))
             .await?;
 
         let password = &claims.get_secret().ok_or(Error::InvalidToken)?;
@@ -132,7 +134,7 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
     pub async fn secure_delete(&self, pwd: &str, totp: &str, token: &str) -> Result<()> {
         let claims: Token = self.token_app.decode(token).await?;
         self.token_app
-            .verify(TokenKind::Session, &claims, VerifyOptions::default())
+            .verify(&claims, VerifyOptions::new(TokenKind::Session))
             .await?;
 
         let user_id = claims.sub.parse().map_err(|err| {
@@ -189,7 +191,7 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
     ) -> Result<Option<String>> {
         let claims: Token = self.token_app.decode(token).await?;
         self.token_app
-            .verify(TokenKind::Session, &claims, VerifyOptions::default())
+            .verify(&claims, VerifyOptions::new(TokenKind::Session))
             .await?;
 
         let user_id = claims.sub.parse().map_err(|err| {
@@ -250,7 +252,7 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
     pub async fn secure_disable_totp(&self, pwd: &str, totp: &str, token: &str) -> Result<()> {
         let claims: Token = self.token_app.decode(token).await?;
         self.token_app
-            .verify(TokenKind::Session, &claims, VerifyOptions::default())
+            .verify(&claims, VerifyOptions::new(TokenKind::Session))
             .await?;
 
         let user_id = claims.sub.parse().map_err(|err| {
@@ -327,7 +329,7 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
     pub async fn secure_reset(&self, new_pwd: &str, totp: &str, token: &str) -> Result<()> {
         let claims: Token = self.token_app.decode(token).await?;
         self.token_app
-            .verify(TokenKind::Reset, &claims, VerifyOptions::default())
+            .verify(&claims, VerifyOptions::new(TokenKind::Reset))
             .await?;
 
         let user_id = claims.sub.parse().map_err(|err| {

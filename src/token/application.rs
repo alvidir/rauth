@@ -35,11 +35,24 @@ impl Default for GenerateOptions {
 #[derive(Clone)]
 pub struct VerifyOptions {
     pub must_exists: bool,
+    pub kind: Option<TokenKind>,
 }
 
 impl Default for VerifyOptions {
     fn default() -> Self {
-        Self { must_exists: true }
+        Self {
+            must_exists: true,
+            kind: None,
+        }
+    }
+}
+
+impl VerifyOptions {
+    pub fn new(kind: TokenKind) -> Self {
+        VerifyOptions {
+            kind: Some(kind),
+            ..Default::default()
+        }
     }
 }
 
@@ -76,21 +89,18 @@ impl<'a, T: TokenRepository> TokenApplication<'a, T> {
         Ok(claims)
     }
 
-    pub async fn verify(
-        &self,
-        kind: TokenKind,
-        token: &Token,
-        options: VerifyOptions,
-    ) -> Result<()> {
-        if *token.get_kind() != kind {
-            warn!(
-                "{} checking token's kind with id {}, got {:?} want {:?}",
-                Error::InvalidToken,
-                token.get_id(),
-                token.get_kind(),
-                kind
-            );
-            return Err(Error::InvalidToken);
+    pub async fn verify(&self, token: &Token, options: VerifyOptions) -> Result<()> {
+        if let Some(kind) = options.kind {
+            if *token.get_kind() != kind {
+                warn!(
+                    "{} checking token's kind with id {}, got {:?} want {:?}",
+                    Error::InvalidToken,
+                    token.get_id(),
+                    token.get_kind(),
+                    kind
+                );
+                return Err(Error::InvalidToken);
+            }
         }
 
         if options.must_exists {
@@ -236,7 +246,7 @@ pub mod tests {
 
         let app = new_token_application(Some(token_repo));
         let claims = app.decode(&token).await.unwrap();
-        app.verify(TokenKind::Session, &claims, VerifyOptions::default())
+        app.verify(&claims, VerifyOptions::new(TokenKind::Session))
             .await
             .unwrap();
     }
@@ -288,7 +298,7 @@ pub mod tests {
 
         let app = new_token_application(Some(token_repo));
         let claims = app.decode(&token).await.unwrap();
-        app.verify(TokenKind::Verification, &claims, VerifyOptions::default())
+        app.verify(&claims, VerifyOptions::new(TokenKind::Verification))
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
             .unwrap_err();
@@ -307,7 +317,7 @@ pub mod tests {
 
         let app = new_token_application(Some(token_repo));
         let claims = app.decode(&token).await.unwrap();
-        app.verify(TokenKind::Verification, &claims, VerifyOptions::default())
+        app.verify(&claims, VerifyOptions::new(TokenKind::Verification))
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
             .unwrap_err();
@@ -326,7 +336,7 @@ pub mod tests {
 
         let app = new_token_application(Some(token_repo));
         let claims = app.decode(&token).await.unwrap();
-        app.verify(TokenKind::Verification, &claims, VerifyOptions::default())
+        app.verify(&claims, VerifyOptions::new(TokenKind::Verification))
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
             .unwrap_err();

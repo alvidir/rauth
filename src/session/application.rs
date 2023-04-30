@@ -67,15 +67,21 @@ impl<'a, T: TokenRepository, U: UserRepository, E: SecretRepository>
 
     pub async fn logout(&self, token: &str) -> Result<()> {
         info!("processing a \"logout\" request for token {} ", token);
-
-        let claims = self.token_app.decode(token).await?;
-        self.token_app
-            .verify(TokenKind::Session, &claims, VerifyOptions::default())
-            .await?;
-
-        self.token_app.revoke(&claims).await?;
-        Ok(())
+        logout_strategy::<T>(&self.token_app, token).await
     }
+}
+
+pub(super) async fn logout_strategy<'b, R: TokenRepository>(
+    token_app: &TokenApplication<'b, R>,
+    token: &str,
+) -> Result<()> {
+    let token = token_app.decode(token).await?;
+
+    token_app
+        .verify(&token, VerifyOptions::new(TokenKind::Session))
+        .await?;
+
+    token_app.revoke(&token).await
 }
 
 #[cfg(test)]

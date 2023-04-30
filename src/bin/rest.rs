@@ -6,8 +6,9 @@ extern crate lazy_static;
 use actix_web::web::Data;
 use actix_web::{middleware, App, HttpServer};
 use base64::{engine::general_purpose, Engine as _};
-use rauth::token::{
-    application::TokenApplication, repository::RedisTokenRepository, rest::TokenRestService,
+use rauth::{
+    session::rest::SessionRestService,
+    token::{application::TokenApplication, repository::RedisTokenRepository},
 };
 use reool::RedisPool;
 use std::env;
@@ -31,6 +32,7 @@ const ENV_REDIS_DSN: &str = "REDIS_DSN";
 const ENV_TOKEN_TIMEOUT: &str = "TOKEN_TIMEOUT";
 const ENV_REDIS_POOL: &str = "REDIS_POOL";
 const ENV_TOKEN_ISSUER: &str = "TOKEN_ISSUER";
+const ENV_LOGOUT_REDIRECT: &str = "LOGOUT_REDIRECT";
 
 lazy_static! {
     static ref SERVER_ADDR: String = {
@@ -63,6 +65,8 @@ lazy_static! {
             .unwrap()
     };
     static ref TOKEN_ISSUER: String = env::var(ENV_TOKEN_ISSUER).expect("token issuer must be set");
+    static ref LOGOUT_REDIRECT: String =
+        env::var(ENV_LOGOUT_REDIRECT).expect("logout redirect location must be set");
 }
 
 #[tokio::main]
@@ -83,17 +87,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
         public_key: &JWT_PUBLIC,
     };
 
-    let token_server = Arc::new(TokenRestService {
+    let session_server = Arc::new(SessionRestService {
         token_app,
         jwt_header: &JWT_HEADER,
+        logout_redirect: &LOGOUT_REDIRECT,
     });
 
     info!("server listening on {}", *SERVER_ADDR);
     HttpServer::new(move || {
         App::new()
             .wrap(middleware::Logger::default())
-            .app_data(Data::new(token_server.clone()))
-            .configure(token_server.router())
+            .app_data(Data::new(session_server.clone()))
+            .configure(session_server.router())
     })
     .bind(&*SERVER_ADDR)?
     .run()
