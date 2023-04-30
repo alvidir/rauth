@@ -11,7 +11,6 @@ use super::application;
 pub struct SessionRestService<T: TokenRepository + Sync + Send> {
     pub token_app: TokenApplication<'static, T>,
     pub jwt_header: &'static str,
-    pub logout_redirect: &'static str,
 }
 
 impl<T: 'static + TokenRepository + Sync + Send> SessionRestService<T> {
@@ -49,15 +48,11 @@ impl<T: 'static + TokenRepository + Sync + Send> SessionRestService<T> {
     ) -> impl Responder {
         match async move {
             let token = http::get_encoded_header(req, app_data.jwt_header)?;
-            application::logout_strategy::<T>(&app_data.token_app, &token)
-                .await
-                .map(|_| app_data.logout_redirect)
+            application::logout_strategy::<T>(&app_data.token_app, &token).await
         }
         .await
         {
-            Ok(location) => HttpResponse::PermanentRedirect()
-                .append_header(("location", location))
-                .finish(),
+            Ok(_) => HttpResponse::Ok().finish(),
             Err(err) => HttpResponse::from(err),
         }
     }

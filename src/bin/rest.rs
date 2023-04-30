@@ -32,7 +32,6 @@ const ENV_REDIS_DSN: &str = "REDIS_DSN";
 const ENV_TOKEN_TIMEOUT: &str = "TOKEN_TIMEOUT";
 const ENV_REDIS_POOL: &str = "REDIS_POOL";
 const ENV_TOKEN_ISSUER: &str = "TOKEN_ISSUER";
-const ENV_LOGOUT_REDIRECT: &str = "LOGOUT_REDIRECT";
 
 lazy_static! {
     static ref SERVER_ADDR: String = {
@@ -65,8 +64,6 @@ lazy_static! {
             .unwrap()
     };
     static ref TOKEN_ISSUER: String = env::var(ENV_TOKEN_ISSUER).expect("token issuer must be set");
-    static ref LOGOUT_REDIRECT: String =
-        env::var(ENV_LOGOUT_REDIRECT).expect("logout redirect location must be set");
 }
 
 #[tokio::main]
@@ -90,7 +87,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let session_server = Arc::new(SessionRestService {
         token_app,
         jwt_header: &JWT_HEADER,
-        logout_redirect: &LOGOUT_REDIRECT,
     });
 
     info!("server listening on {}", *SERVER_ADDR);
