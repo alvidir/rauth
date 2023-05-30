@@ -19,7 +19,7 @@ use rauth::{
     token::{application::TokenApplication, repository::RedisTokenRepository},
     user::{
         application::UserApplication,
-        bus::RabbitMqUserBus,
+        event_bus::RabbitMqUserBus,
         grpc::{UserGrpcService, UserServer},
         repository::PostgresUserRepository,
     },
@@ -225,7 +225,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         secret_repo: secret_repo.clone(),
         token_app: token_app.clone(),
         mailer: Arc::new(mailer),
-        bus: user_event_bus.clone(),
+        event_bus: user_event_bus.clone(),
         totp_secret_len: *TOTP_SECRET_LEN,
         totp_secret_name: &TOTP_SECRET_NAME,
         pwd_sufix: &PWD_SUFIX,

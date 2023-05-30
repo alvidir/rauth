@@ -44,7 +44,7 @@ pub struct UserApplication<
     pub secret_repo: Arc<E>,
     pub token_app: Arc<TokenApplication<'a, T>>,
     pub mailer: Arc<M>,
-    pub bus: Arc<B>,
+    pub event_bus: Arc<B>,
     pub totp_secret_len: usize,
     pub totp_secret_name: &'a str,
     pub pwd_sufix: &'a str,
@@ -119,7 +119,7 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
 
         let mut user = User::new(email, pwd)?;
         self.user_repo.create(&mut user).await?;
-        self.bus.emit_user_created(&user).await?;
+        self.event_bus.emit_user_created(&user).await?;
         self.token_app
             .generate(
                 TokenKind::Session,
@@ -518,7 +518,7 @@ pub mod tests {
             secret_repo: Arc::new(secret_repo),
             token_app: Arc::new(token_app),
             mailer: Arc::new(mailer_mock),
-            bus: Arc::new(event_bus),
+            event_bus: Arc::new(event_bus),
             totp_secret_len: 32_usize,
             totp_secret_name: ".dummy_totp_secret",
             pwd_sufix: TEST_DEFAULT_PWD_SUFIX,
