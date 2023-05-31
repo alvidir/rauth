@@ -1,6 +1,5 @@
-FROM docker.io/rust:1.68.0 as builder
+FROM docker.io/rust:1.69.0 as builder
 
-RUN USER=root cargo new --bin rauth
 RUN apt-get update && \
     apt-get install -y software-properties-common && \
     add-apt-repository ppa:george-edison55/cmake-3.x && \
@@ -9,7 +8,7 @@ RUN apt-get update && \
     apt-get upgrade -y
 
 WORKDIR /app
-RUN rustup component add rustfmt --toolchain 1.68.0-x86_64-unknown-linux-gnu
+RUN rustup component add rustfmt --toolchain 1.69.0-x86_64-unknown-linux-gnu
 
 ADD . .
 RUN PKG_MANAGER=apt-get make all target=grpc

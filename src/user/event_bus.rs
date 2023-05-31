@@ -9,25 +9,28 @@ use serde_json;
 
 #[derive(Serialize, Deserialize)]
 struct UserEventPayload<'a> {
-    id: i32,
-    name: &'a str,
-    email: &'a str,
-    kind: EventKind,
+    pub(super) user_id: i32,
+    pub(super) user_name: &'a str,
+    pub(super) user_email: &'a str,
+    pub(super) event_issuer: &'a str,
+    pub(super) event_kind: EventKind,
 }
 
 pub struct RabbitMqUserBus<'a> {
     pub channel: &'a Channel,
     pub exchange: &'a str,
+    pub issuer: &'a str,
 }
 
 #[async_trait]
 impl<'a> EventBus for RabbitMqUserBus<'a> {
     async fn emit_user_created(&self, user: &User) -> Result<()> {
         let event = UserEventPayload {
-            id: user.get_id(),
-            name: user.get_name().split('@').collect::<Vec<&str>>()[0],
-            email: user.get_email(),
-            kind: EventKind::Created,
+            user_id: user.get_id(),
+            user_name: user.get_name().split('@').collect::<Vec<&str>>()[0],
+            user_email: user.get_email(),
+            event_issuer: self.issuer,
+            event_kind: EventKind::Created,
         };
 
         let payload = serde_json::to_string(&event)

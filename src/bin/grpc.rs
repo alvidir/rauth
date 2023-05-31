@@ -63,6 +63,7 @@ const ENV_SMTP_ORIGIN: &str = "SMTP_ORIGIN";
 const ENV_PWD_SUFIX: &str = "PWD_SUFIX";
 const ENV_RABBITMQ_USERS_BUS: &str = "RABBITMQ_USERS_BUS";
 const ENV_RABBITMQ_DSN: &str = "RABBITMQ_URL";
+const ENV_EVENT_ISSUER: &str = "EVENT_ISSUER";
 const ENV_TOTP_SECRET_LEN: &str = "TOTP_SECRET_LEN";
 const ENV_TOTP_SECRET_NAME: &str = "TOTP_SECRET_NAME";
 const ENV_TOKEN_ISSUER: &str = "TOKEN_ISSUER";
@@ -166,6 +167,7 @@ lazy_static! {
 
         channel
     });
+    static ref EVENT_ISSUER: String = env::var(ENV_EVENT_ISSUER).expect("event issuer must be set");
     static ref TOTP_SECRET_LEN: usize = env::var(ENV_TOTP_SECRET_LEN)
         .map(|len| len.parse().unwrap())
         .unwrap_or_else(|_| DEFAULT_TOTP_SECRET_LEN);
@@ -199,6 +201,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let user_event_bus = Arc::new(RabbitMqUserBus {
         channel: RABBITMQ_CONN.get().await,
         exchange: &RABBITMQ_BUS,
+        issuer: &EVENT_ISSUER,
     });
 
     let token_repo = Arc::new(RedisTokenRepository { pool: &RD_POOL });
