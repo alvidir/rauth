@@ -61,7 +61,7 @@ const ENV_SMTP_ISSUER: &str = "SMTP_ISSUER";
 const ENV_SMTP_TEMPLATES: &str = "SMTP_TEMPLATES";
 const ENV_SMTP_ORIGIN: &str = "SMTP_ORIGIN";
 const ENV_PWD_SUFIX: &str = "PWD_SUFIX";
-const ENV_RABBITMQ_USERS_BUS: &str = "RABBITMQ_USERS_BUS";
+const ENV_RABBITMQ_USERS_EXCHANGE: &str = "RABBITMQ_USERS_EXCHANGE";
 const ENV_RABBITMQ_DSN: &str = "RABBITMQ_URL";
 const ENV_EVENT_ISSUER: &str = "EVENT_ISSUER";
 const ENV_TOTP_SECRET_LEN: &str = "TOTP_SECRET_LEN";
@@ -127,8 +127,8 @@ lazy_static! {
             .finish_redis_rs()
             .unwrap()
     };
-    static ref RABBITMQ_BUS: String =
-        env::var(ENV_RABBITMQ_USERS_BUS).expect("rabbitmq users bus name must be set");
+    static ref RABBITMQ_USERS_EXCHANGE: String =
+        env::var(ENV_RABBITMQ_USERS_EXCHANGE).expect("rabbitmq users bus name must be set");
     static ref RABBITMQ_CONN: AsyncOnce<Channel> = AsyncOnce::new(async {
         let rabbitmq_dsn = env::var(ENV_RABBITMQ_DSN).expect("rabbitmq url must be set");
         let conn = Connection::connect(&rabbitmq_dsn, ConnectionProperties::default())
@@ -156,13 +156,18 @@ lazy_static! {
 
         channel
             .exchange_declare(
-                &RABBITMQ_BUS,
+                &RABBITMQ_USERS_EXCHANGE,
                 ExchangeKind::Fanout,
                 exchange_options,
                 FieldTable::default(),
             )
             .await
-            .map_err(|err| format!("creating rabbitmq exchange {}: {}", &*RABBITMQ_BUS, err))
+            .map_err(|err| {
+                format!(
+                    "creating rabbitmq exchange {}: {}",
+                    &*RABBITMQ_USERS_EXCHANGE, err
+                )
+            })
             .unwrap();
 
         channel
@@ -200,7 +205,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let user_event_bus = Arc::new(RabbitMqUserBus {
         channel: RABBITMQ_CONN.get().await,
-        exchange: &RABBITMQ_BUS,
+        exchange: &RABBITMQ_USERS_EXCHANGE,
         issuer: &EVENT_ISSUER,
     });
 
