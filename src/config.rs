@@ -75,7 +75,7 @@ lazy_static! {
         env::var(ENV_SMTP_TEMPLATES).unwrap_or_else(|_| DEFAULT_TEMPLATES_PATH.to_string());
     pub static ref PWD_SUFIX: String = env::var(ENV_PWD_SUFIX).expect("password sufix must be set");
     pub static ref POSTGRES_POOL: AsyncOnce<PgPool> = AsyncOnce::new(async {
-        let postgres_dsn = env::var(ENV_POSTGRES_DSN).expect("postgres url must be set");
+        let postgres_dsn = env::var(ENV_POSTGRES_DSN).expect("postgres dns must be set");
 
         let postgres_pool = env::var(ENV_POSTGRES_POOL)
             .map(|pool_size| pool_size.parse().unwrap())
@@ -85,21 +85,16 @@ lazy_static! {
             .max_connections(postgres_pool)
             .connect(&postgres_dsn)
             .await
-            .map(|pool| {
-                info!("connection with postgres cluster established");
-                pool
-            })
-            .map_err(|err| format!("establishing connection with {}: {}", postgres_dsn, err))
             .unwrap()
     });
     pub static ref REDIS_POOL: RedisPool = {
-        let redis_dsn: String = env::var(ENV_REDIS_URL).expect("redis url must be set");
+        let redis_url: String = env::var(ENV_REDIS_URL).expect("redis url must be set");
         let redis_pool: usize = env::var(ENV_REDIS_POOL)
             .map(|pool_size| pool_size.parse().unwrap())
             .unwrap_or_else(|_| DEFAULT_POOL_SIZE.try_into().unwrap());
 
         RedisPool::builder()
-            .connect_to_node(redis_dsn)
+            .connect_to_node(redis_url)
             .desired_pool_size(redis_pool)
             .task_executor(Handle::current())
             .finish_redis_rs()
@@ -108,33 +103,21 @@ lazy_static! {
     pub static ref RABBITMQ_USERS_EXCHANGE: String =
         env::var(ENV_RABBITMQ_USERS_EXCHANGE).expect("rabbitmq users bus name must be set");
     pub static ref RABBITMQ_POOL: AsyncOnce<Pool> = AsyncOnce::new(async {
-        let rabbitmq_dsn = env::var(ENV_RABBITMQ_URL).expect("rabbitmq url must be set");
+        let rabbitmq_url = env::var(ENV_RABBITMQ_URL).expect("rabbitmq url must be set");
         let rabbitmq_pool = env::var(ENV_RABBITMQ_POOL)
             .map(|pool_size| pool_size.parse().unwrap())
             .unwrap_or_else(|_| DEFAULT_POOL_SIZE.try_into().unwrap());
 
         let pool = Config {
-            url: Some(rabbitmq_dsn.clone()),
+            url: Some(rabbitmq_url),
             ..Default::default()
         }
         .builder(Some(Runtime::Tokio1))
         .max_size(rabbitmq_pool)
         .build()
-        .map(|pool| {
-            info!("connection with rabbitmq cluster established");
-            pool
-        })
-        .map_err(|err| format!("establishing connection with {}: {}", rabbitmq_dsn, err))
         .unwrap();
 
-        let channel = pool
-            .get()
-            .await
-            .unwrap()
-            .create_channel()
-            .await
-            .map_err(|err| format!("creating rabbitmq channel: {}", err))
-            .unwrap();
+        let channel = pool.get().await.unwrap().create_channel().await.unwrap();
 
         let exchange_options = options::ExchangeDeclareOptions {
             durable: true,
@@ -152,12 +135,6 @@ lazy_static! {
                 FieldTable::default(),
             )
             .await
-            .map_err(|err| {
-                format!(
-                    "creating rabbitmq exchange {}: {}",
-                    &*RABBITMQ_USERS_EXCHANGE, err
-                )
-            })
             .unwrap();
 
         pool
