@@ -4,7 +4,8 @@ use crate::{
     result::{Error, Result},
 };
 use async_trait::async_trait;
-use lapin::{options::*, BasicProperties, Channel};
+use deadpool_lapin::Pool;
+use lapin::{options::*, BasicProperties};
 use serde_json;
 
 #[derive(Serialize, Deserialize)]
@@ -17,7 +18,7 @@ struct UserEventPayload<'a> {
 }
 
 pub struct RabbitMqUserBus<'a> {
-    pub channel: &'a Channel,
+    pub pool: &'a Pool,
     pub exchange: &'a str,
     pub issuer: &'a str,
 }
@@ -44,7 +45,22 @@ impl<'a> EventBus for RabbitMqUserBus<'a> {
                 Error::Unknown
             })?;
 
-        self.channel
+        let connection = self.pool.get().await.map_err(|err| {
+            error!(
+                "{} pulling connection from rabbitmq pool: {}",
+                Error::Unknown,
+                err
+            );
+            Error::Unknown
+        })?;
+
+        connection
+            .create_channel()
+            .await
+            .map_err(|err| {
+                error!("{} creating rabbitmq channel: {}", Error::Unknown, err);
+                Error::Unknown
+            })?
             .basic_publish(
                 self.exchange,
                 "",
