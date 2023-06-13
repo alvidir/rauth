@@ -3,6 +3,7 @@ extern crate log;
 #[macro_use]
 extern crate serde;
 
+pub mod config;
 pub mod metadata;
 pub mod secret;
 pub mod session;

@@ -1,6 +1,8 @@
 # rauth
 
-[![Rust version](https://img.shields.io/badge/Rust-v1.69.0-orange.svg)](https://www.rust-lang.org/) [![tests](https://github.com/alvidir/rauth/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/alvidir/rauth/actions/workflows/ci.yaml)
+[![Continuos Integration](https://github.com/alvidir/rauth/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/alvidir/rauth/actions/workflows/ci.yml)
+[![Code Coverage](https://codecov.io/github/alvidir/rauth/coverage.svg?branch=main&token=)](https://codecov.io/gh/alvidir/rauth)
+[![Dependency status](https://deps.rs/repo/github/alvidir/rauth/status.svg)](https://deps.rs/repo/github/alvidir/rauth)
 [![rauth](https://img.shields.io/github/v/release/alvidir/rauth.svg)](https://github.com/alvidir/rauth)
 
 A simple SSO implementation in Rust
@@ -264,35 +266,33 @@ Last but not least, the service will expect a directory (`templates` by default)
 
 The server expects a set of environment variables to work properly. Although some of them has a default value, it is recommended to set all of them to have absolute awareness about how the service will behave.
 
-| Environment variable |           Default value           | Description                                                                                                                                          |
-| :------------------- | :-------------------------------: | :--------------------------------------------------------------------------------------------------------------------------------------------------- |
-| SERVICE_PORT         |               8000                | Port where to expose the gRPC service                                                                                                                |
-| SERVICE_NETW         |             127.0.0.1             | Network where to expose the gRPC service                                                                                                             |
-| POSTGRES_DSN         |                                   | `Postgres` DSN                                                                                                                                       |
-| POSTGRES_DB          |                                   | `Postgres` database name                                                                                                                             |
-| POSTGRES_USER        |                                   | `Postgres` username                                                                                                                                  |
-| POSTGRES_PASSWORD    |                                   | `Postgres` user password                                                                                                                             |
-| POSTGRES_POOL        |                10                 | `Postgres` connection pool size                                                                                                                      |
-| REDIS_HOSTNAME       |                                   | `Redis` container name                                                                                                                               |
-| REDIS_DSN            |                                   | `Redis` DSN                                                                                                                                          |
-| REDIS_POOL           |                10                 | `Redis` connection pool size                                                                                                                         |
-| TOKEN_TIMEOUT        |               7200                | The timeout any token should have                                                                                                                    |
-| JWT_SECRET           |                                   | The JWT secret to sign with all generated tokens (tip: it could be the content of the .ssh/pkcs8_key.base64 file generated on the setup step)        |
-| JWT_PUBLIC           |                                   | The JWT public key to verify with all comming tokens (tip: it could be the content of the .ssh/pkcs8_pubkey.base64 file generated on the setup step) |
-| JWT_HEADER           |           authorization           | Header where to find/store all JWT                                                                                                                   |
-| TOTP_HEADER          |           x-totp-secret           | Header where to set the TOTP secret                                                                                                                  |
-| SMTP_ISSUER          |               rauth               | Name to identify where the emails are sent from                                                                                                      |
-| SMTP_ORIGIN          |                                   | Email to set as the `from` for all sent emails                                                                                                       |
-| SMTP_TRANSPORT       |                                   | Smtp transporter URL (ex.: smtp.gmail.com)                                                                                                           |
-| SMTP_TEMPLATES       | /etc/rauth/smtp/templates/\*.html | Path where to find all email's templates                                                                                                             |
-| SMTP_USERNAME        |                                   | If required, a username to enable the application to send emails                                                                                     |
-| SMTP_PASSWORD        |                                   | If required, an application password to enable the application to send emails                                                                        |
-| PWD_SUFIX            |           ::PWD::RAUTH            | A suffix to append to all passwords before hashing and storing them                                                                                  |
-| RABBITMQ_USERS_BUS   |                                   | The RabbitMQ exchange to emit user related events                                                                                                    |
-| RABBITMQ_DSN         |                                   | `RabbitMQ` DSN                                                                                                                                       |
-| TOTP_SECRET_LEN      |                                   | Length of the random generated secret to be used for the TOTP                                                                                        |
-| TOTP_SECRET_NAME     |                                   | Name by which every TOTP secret will be stored in the database                                                                                       |
-| TOKEN_ISSUER         |                                   | Issuer value for the `iss` field of any generated token                                                                                              |
+| Environment variable    |           Default value           | Description                                                                                                                                          |
+| :---------------------- | :-------------------------------: | :--------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SERVICE_PORT            |               8000                | Port where to expose the gRPC service                                                                                                                |
+| SERVICE_ADDR            |             127.0.0.1             | Address where to expose the gRPC service                                                                                                             |
+| POSTGRES_DSN            |                                   | `Postgres` data source name                                                                                                                          |
+| POSTGRES_POOL           |                10                 | `Postgres` connection pool size                                                                                                                      |
+| REDIS_URL               |                                   | `Redis` URL                                                                                                                                          |
+| REDIS_POOL              |                10                 | `Redis` connection pool size                                                                                                                         |
+| TOKEN_TIMEOUT           |               7200                | The timeout any token should have                                                                                                                    |
+| JWT_SECRET              |                                   | The JWT secret to sign with all generated tokens (tip: it could be the content of the .ssh/pkcs8_key.base64 file generated on the setup step)        |
+| JWT_PUBLIC              |                                   | The JWT public key to verify with all comming tokens (tip: it could be the content of the .ssh/pkcs8_pubkey.base64 file generated on the setup step) |
+| JWT_HEADER              |           authorization           | Header where to find/store all JWT                                                                                                                   |
+| TOTP_HEADER             |           x-totp-secret           | Header where to set the TOTP secret                                                                                                                  |
+| SMTP_ISSUER             |               rauth               | Name to identify where the emails are sent from                                                                                                      |
+| SMTP_ORIGIN             |                                   | Email to set as the `from` for all sent emails                                                                                                       |
+| SMTP_TRANSPORT          |                                   | Smtp transporter URL (ex.: smtp.gmail.com)                                                                                                           |
+| SMTP_TEMPLATES          | /etc/rauth/smtp/templates/\*.html | Path where to find all email's templates                                                                                                             |
+| SMTP_USERNAME           |                                   | If required, a username to enable the application to send emails                                                                                     |
+| SMTP_PASSWORD           |                                   | If required, an application password to enable the application to send emails                                                                        |
+| PWD_SUFIX               |           ::PWD::RAUTH            | A suffix to append to all passwords before hashing and storing them                                                                                  |
+| RABBITMQ_USERS_EXCHANGE |                                   | The RabbitMQ exchange to emit user related events                                                                                                    |
+| RABBITMQ_URL            |                                   | `RabbitMQ` URL                                                                                                                                       |
+| RABBITMQ_POOL           |                10                 | `RabbitMQ` connection pool size                                                                                                                      |
+| EVENT_ISSUER            |                                   | Issuer name for all emited events                                                                                                                    |
+| TOTP_SECRET_LEN         |                                   | Length of the random generated secret to be used for the TOTP                                                                                        |
+| TOTP_SECRET_NAME        |                                   | Name by which every TOTP secret will be stored in the database                                                                                       |
+| TOKEN_ISSUER            |                                   | Issuer value for the `iss` field of any generated token                                                                                              |
 
 > All these environment variables can be set in a .env file, since Rauth uses dotenv to set up the environment
 

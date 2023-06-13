@@ -22,15 +22,16 @@ jobs:
 
       - name: Get changed files
         id: changed-files
-        uses: tj-actions/changed-files@v35.9.0
+        uses: tj-actions/changed-files@v36.0.17
 
   run_unitary_tests:
-    name: Run unitary tests
+    name: Run clippy and unitary tests
     runs-on: ubuntu-latest
 
     needs: changelog
     if: |
       contains(needs.changelog.outputs.changelog, 'src') ||
+      contains(needs.changelog.outputs.changelog, 'Cargo.toml') ||
       contains(needs.changelog.outputs.changelog, 'proto')
 
     steps:
@@ -39,18 +40,60 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install toolchain
+      - name: Install stable
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
+          components: clippy
 
       - name: Install protoc
         uses: arduino/setup-protoc@v1
         with:
           version: "3.x"
 
+      - name: Cargo clippy
+        uses: actions-rs/clippy@master
+
       - name: Cargo test
         uses: actions-rs/cargo@v1
         with:
           command: test
           args: --verbose
+
+  coverage:
+    name: Compute code coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+
+      - name: Install stable
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          components: llvm-tools-preview
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          version: "3.x"
+
+      - name: Cargo install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Cargo generate-lockfile
+        if: hashFiles('Cargo.lock') == ''
+        uses: actions-rs/cargo@v1
+        with:
+          command: generate-lockfile
+
+      - name: Cargo llvm-cov
+        run: cargo llvm-cov --locked --lcov --output-path lcov.info
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          fail_ci_if_error: true
