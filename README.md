@@ -1,6 +1,6 @@
 # rauth
 
-[![Continuos Integration](https://github.com/alvidir/rauth/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/alvidir/rauth/actions/workflows/ci.yml)
+[![Continuos Integration](https://github.com/alvidir/rauth/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/alvidir/rauth/actions/workflows/ci.yaml)
 [![Code Coverage](https://codecov.io/github/alvidir/rauth/coverage.svg?branch=main&token=)](https://codecov.io/gh/alvidir/rauth)
 [![Dependency status](https://deps.rs/repo/github/alvidir/rauth/status.svg)](https://deps.rs/repo/github/alvidir/rauth)
 [![rauth](https://img.shields.io/github/v/release/alvidir/rauth.svg)](https://github.com/alvidir/rauth)
