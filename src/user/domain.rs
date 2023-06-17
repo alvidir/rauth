@@ -18,20 +18,12 @@ pub struct User {
 impl User {
     pub fn new(email: &str, password: &str) -> Result<Self> {
         regex::match_regex(regex::EMAIL, email).map_err(|err| {
-            info!(
-                "{} validating email's format: {}",
-                Error::InvalidFormat,
-                err
-            );
+            warn!(error = err.to_string(), "validating email's format",);
             Error::InvalidFormat
         })?;
 
         regex::match_regex(regex::BASE64, password).map_err(|err| {
-            info!(
-                "{} validating password's format: {}",
-                Error::InvalidFormat,
-                err
-            );
+            warn!(error = err.to_string(), "validating password's format",);
             Error::InvalidFormat
         })?;
 
@@ -65,11 +57,7 @@ impl User {
 
     pub fn set_password(&mut self, password: &str) -> Result<()> {
         regex::match_regex(regex::BASE64, password).map_err(|err| {
-            info!(
-                "{} validating password's format: {}",
-                Error::InvalidFormat,
-                err
-            );
+            info!(error = err.to_string(), "validating password's format",);
             Error::InvalidFormat
         })?;
 
