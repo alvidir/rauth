@@ -513,7 +513,7 @@ pub mod tests {
         }
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_verify_should_not_fail() {
         let user_repo = UserRepositoryMock {
             fn_find_by_email: Some(|_: &UserRepositoryMock, _: &str| -> Result<User> {
@@ -530,7 +530,7 @@ pub mod tests {
             .unwrap();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_verify_already_exists_should_not_fail() {
         let app = new_user_application(None);
         app.verify_signup_email(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD)
@@ -538,7 +538,7 @@ pub mod tests {
             .unwrap();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_verify_wrong_email_should_fail() {
         let user_repo = UserRepositoryMock {
             fn_find_by_email: Some(|_: &UserRepositoryMock, _: &str| -> Result<User> {
@@ -556,7 +556,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_secure_signup_should_not_fail() {
         let user_repo = UserRepositoryMock {
             fn_find_by_email: Some(|_: &UserRepositoryMock, _: &str| -> Result<User> {
@@ -602,7 +602,7 @@ pub mod tests {
         assert_eq!(claims.sub, TEST_CREATE_ID.to_string());
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_secure_signup_verification_token_kind_should_fail() {
         let user_repo = UserRepositoryMock {
             fn_find_by_email: Some(|_: &UserRepositoryMock, _: &str| -> Result<User> {
@@ -629,7 +629,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_secure_signup_reset_token_kind_should_fail() {
         let user_repo = UserRepositoryMock {
             fn_find_by_email: Some(|_: &UserRepositoryMock, _: &str| -> Result<User> {
@@ -656,7 +656,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_signup_should_not_fail() {
         let user_repo = UserRepositoryMock {
             fn_find_by_email: Some(|_: &UserRepositoryMock, _: &str| -> Result<User> {
@@ -676,7 +676,7 @@ pub mod tests {
         assert_eq!(claims.sub, TEST_CREATE_ID.to_string());
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_signup_wrong_email_should_fail() {
         let app = new_user_application(None);
         app.signup("this is not an email", TEST_DEFAULT_USER_PASSWORD)
@@ -685,7 +685,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_signup_wrong_password_should_fail() {
         let app = new_user_application(None);
         app.signup(TEST_DEFAULT_USER_EMAIL, "bad password")
@@ -694,7 +694,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_signup_already_exists_should_not_fail() {
         let app = new_user_application(None);
         app.signup(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD)
@@ -702,7 +702,7 @@ pub mod tests {
             .unwrap();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_secure_delete_should_not_fail() {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
@@ -738,7 +738,7 @@ pub mod tests {
             .unwrap();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_secure_delete_verification_token_kind_should_fail() {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
@@ -775,7 +775,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_secure_delete_reset_token_kind_should_fail() {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
@@ -806,7 +806,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_delete_should_not_fail() {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
@@ -823,7 +823,7 @@ pub mod tests {
         app.delete(0, TEST_DEFAULT_USER_PASSWORD, "").await.unwrap();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_delete_totp_should_not_fail() {
         let app = new_user_application(None);
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
@@ -834,7 +834,7 @@ pub mod tests {
             .unwrap();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_delete_not_found_should_fail() {
         let user_repo = UserRepositoryMock {
             fn_find: Some(|_: &UserRepositoryMock, _: i32| -> Result<User> {
@@ -862,7 +862,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_delete_wrong_password_should_fail() {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
@@ -882,7 +882,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_delete_wrong_totp_should_fail() {
         let app = new_user_application(None);
         app.delete(0, TEST_DEFAULT_USER_PASSWORD, "bad totp")
@@ -891,7 +891,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_secure_enable_totp_should_not_fail() {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
@@ -930,7 +930,7 @@ pub mod tests {
         assert_eq!(totp.unwrap().len(), app.totp_secret_len);
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_secure_enable_totp_verification_token_kind_should_fail() {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
@@ -967,7 +967,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_secure_enable_totp_reset_token_kind_should_fail() {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
@@ -997,7 +997,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_enable_totp_should_not_fail() {
         let mut secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
@@ -1027,7 +1027,7 @@ pub mod tests {
         assert_eq!(totp.unwrap().len(), app.totp_secret_len);
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_enable_totp_verify_should_not_fail() {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
@@ -1060,7 +1060,7 @@ pub mod tests {
         assert_eq!(totp, None);
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_enable_totp_wrong_password_should_fail() {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
@@ -1085,7 +1085,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_enable_totp_already_enabled_should_fail() {
         let app = new_user_application(None);
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
@@ -1097,7 +1097,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_secure_disable_totp_should_not_fail() {
         let token = Token::new(
             "test",
@@ -1125,7 +1125,7 @@ pub mod tests {
             .unwrap();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_secure_disable_totp_verification_token_kind_should_fail() {
         let token = Token::new(
             "test",
@@ -1154,7 +1154,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_secure_disable_totp_reset_token_kind_should_fail() {
         let token = Token::new("test", "0", Duration::from_secs(60), TokenKind::Reset, None);
         let secure_token = crypto::sign_jwt(&PRIVATE_KEY, token).unwrap();
@@ -1176,7 +1176,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_disable_totp_should_not_fail() {
         let app = new_user_application(None);
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
@@ -1187,7 +1187,7 @@ pub mod tests {
             .unwrap();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_disable_totp_wrong_password_should_fail() {
         let app = new_user_application(None);
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
@@ -1199,7 +1199,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_disable_totp_wrong_totp_should_fail() {
         let app = new_user_application(None);
         app.disable_totp(0, TEST_DEFAULT_USER_PASSWORD, "bad totp")
@@ -1208,7 +1208,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_disable_totp_not_enabled_should_fail() {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
@@ -1231,7 +1231,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_disable_totp_not_verified_should_fail() {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
@@ -1256,7 +1256,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_secure_reset_should_not_fail() {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
@@ -1285,7 +1285,7 @@ pub mod tests {
             .unwrap();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_secure_reset_verification_token_kind_should_fail() {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
@@ -1322,7 +1322,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_secure_reset_session_token_kind_should_fail() {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
@@ -1359,7 +1359,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_reset_should_not_fail() {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
@@ -1376,7 +1376,7 @@ pub mod tests {
         app.reset(0, "ABCDEF12345678901", "").await.unwrap();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn user_reset_same_password_should_fail() {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(

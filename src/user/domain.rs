@@ -113,7 +113,7 @@ pub mod tests {
         }
     }
 
-    #[test_log::test]
+    #[test]
     fn user_new_should_not_fail() {
         let user = User::new(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD).unwrap();
 
@@ -123,7 +123,7 @@ pub mod tests {
         assert_eq!(user.password, TEST_DEFAULT_USER_PASSWORD);
     }
 
-    #[test_log::test]
+    #[test]
     fn user_new_wrong_email_should_fail() {
         const EMAIL: &str = "not_an_email";
 
@@ -133,7 +133,7 @@ pub mod tests {
         assert!(result.is_err());
     }
 
-    #[test_log::test]
+    #[test]
     fn user_new_wrong_password_should_fail() {
         const PWD: &str = "ABCDEFG1234567890";
 
@@ -143,13 +143,13 @@ pub mod tests {
         assert!(result.is_err());
     }
 
-    #[test_log::test]
+    #[test]
     fn user_match_password_should_not_fail() {
         let user = new_user();
         assert!(user.match_password(TEST_DEFAULT_USER_PASSWORD));
     }
 
-    #[test_log::test]
+    #[test]
     fn user_match_password_should_fail() {
         let user = new_user();
         assert!(!user.match_password("wrong password"));

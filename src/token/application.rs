@@ -231,7 +231,7 @@ pub mod tests {
         }
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn verify_token_should_not_fail() {
         let token = crypto::sign_jwt(&PRIVATE_KEY, new_token(TokenKind::Session)).unwrap();
         let token_repo = TokenRepositoryMock {
@@ -249,7 +249,7 @@ pub mod tests {
             .unwrap();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn decode_token_expired_should_fail() {
         let mut claim = new_token(TokenKind::Session);
         claim.exp = time::unix_timestamp(SystemTime::now() - Duration::from_secs(61));
@@ -263,7 +263,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn decode_token_invalid_should_fail() {
         let token = crypto::sign_jwt(&PRIVATE_KEY, new_token(TokenKind::Session))
             .unwrap()
@@ -283,7 +283,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn verify_token_wrong_kind_should_fail() {
         let token = crypto::sign_jwt(&PRIVATE_KEY, new_token(TokenKind::Session)).unwrap();
         let token_repo = TokenRepositoryMock {
@@ -302,7 +302,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn verify_token_not_present_should_fail() {
         let token = crypto::sign_jwt(&PRIVATE_KEY, new_token(TokenKind::Session)).unwrap();
         let token_repo = TokenRepositoryMock {
@@ -321,7 +321,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[test_log::test(tokio::test)]
+    #[tokio::test]
     async fn verify_token_mismatch_should_fail() {
         let token = crypto::sign_jwt(&PRIVATE_KEY, new_token(TokenKind::Session)).unwrap();
         let token_repo = TokenRepositoryMock {

@@ -163,7 +163,7 @@ pub fn _decrypt(private: &[u8], data: &[u8]) -> Result<Vec<u8>> {
 pub mod tests {
     use super::{generate_totp, verify_totp};
 
-    #[test_log::test]
+    #[test]
     fn verify_totp_ok_should_not_fail() {
         const SECRET: &[u8] = "hello world".as_bytes();
 
@@ -173,7 +173,7 @@ pub mod tests {
         assert!(verify_totp(SECRET, &code).is_ok());
     }
 
-    #[test_log::test]
+    #[test]
     fn verify_totp_ko_should_not_fail() {
         const SECRET: &[u8] = "hello world".as_bytes();
         assert!(!verify_totp(SECRET, "tester").unwrap());
