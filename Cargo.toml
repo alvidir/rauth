@@ -49,13 +49,13 @@ name = "rauth"
 path = "src/lib.rs"
 
 [features]
-postgres = ["sqlx"]
 default = ["config", "grpc", "rest", "postgres", "rabbitmq", "redis-cache"]
+config = []
 grpc = ["prost", "protoc", "tonic"]
-rest = ["actix-web"]
+postgres = ["sqlx"]
 rabbitmq = ["deadpool-lapin", "lapin"]
 redis-cache = ["redis", "reool"]
-config = []
+rest = ["actix-web"]
 
 [[bin]]
 name = "grpc"
