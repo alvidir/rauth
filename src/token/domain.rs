@@ -103,7 +103,7 @@ pub mod tests {
     const JWT_SECRET: &[u8] = b"LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR0hBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJHMHdhd0lCQVFRZy9JMGJTbVZxL1BBN2FhRHgKN1FFSGdoTGxCVS9NcWFWMUJab3ZhM2Y5aHJxaFJBTkNBQVJXZVcwd3MydmlnWi96SzRXcGk3Rm1mK0VPb3FybQpmUlIrZjF2azZ5dnBGd0gzZllkMlllNXl4b3ZsaTROK1ZNNlRXVFErTmVFc2ZmTWY2TkFBMloxbQotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg==";
     const JWT_PUBLIC: &[u8] = b"LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFVm5sdE1MTnI0b0dmOHl1RnFZdXhabi9oRHFLcQo1bjBVZm45YjVPc3I2UmNCOTMySGRtSHVjc2FMNVl1RGZsVE9rMWswUGpYaExIM3pIK2pRQU5tZFpnPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg==";
 
-    #[test]
+    #[test_log::test]
     fn token_new_should_not_fail() {
         const ISS: &str = "test";
         const SUB: i32 = 999;
@@ -122,7 +122,7 @@ pub mod tests {
         assert_eq!(SUB.to_string(), claim.sub);
     }
 
-    #[test]
+    #[test_log::test]
     fn token_encode_should_not_fail() {
         const ISS: &str = "test";
         const SUB: i32 = 999;
@@ -146,7 +146,7 @@ pub mod tests {
         assert_eq!(SUB.to_string(), claim.sub);
     }
 
-    #[test]
+    #[test_log::test]
     fn expired_token_verification_should_fail() {
         use crate::crypto;
 

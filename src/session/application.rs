@@ -163,7 +163,7 @@ pub mod tests {
         }
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn login_by_email_should_not_fail() {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
@@ -192,7 +192,7 @@ pub mod tests {
         assert_eq!(session.sub, TEST_FIND_BY_EMAIL_ID.to_string());
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn login_by_username_should_not_fail() {
         let secret_repo = SecretRepositoryMock {
             fn_find_by_user_and_name: Some(
@@ -219,7 +219,7 @@ pub mod tests {
         assert_eq!(session.sub, TEST_FIND_BY_NAME_ID.to_string());
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn login_with_totp_should_not_fail() {
         let app = new_session_application::<TokenRepositoryMock>(None);
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
@@ -239,7 +239,7 @@ pub mod tests {
         assert_eq!(session.sub, TEST_FIND_BY_NAME_ID.to_string());
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn login_user_not_found_should_fail() {
         let user_repo = UserRepositoryMock {
             fn_find_by_email: Some(|_: &UserRepositoryMock, _: &str| -> Result<User> {
@@ -261,7 +261,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn login_wrong_password_should_fail() {
         let app = new_session_application::<TokenRepositoryMock>(None);
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
@@ -273,7 +273,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn login_wrong_totp_should_fail() {
         let app = new_session_application::<TokenRepositoryMock>(None);
 
@@ -287,7 +287,7 @@ pub mod tests {
         .unwrap_err();
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn logout_should_not_fail() {
         let token = crypto::sign_jwt(&PRIVATE_KEY, new_token(TokenKind::Session)).unwrap();
         let token_repo = TokenRepositoryMock {
@@ -302,7 +302,7 @@ pub mod tests {
             .unwrap();
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn logout_verification_token_kind_should_fail() {
         let token = new_token(TokenKind::Verification);
         let token = crypto::sign_jwt(&PRIVATE_KEY, token).unwrap();
@@ -318,7 +318,7 @@ pub mod tests {
             .unwrap_err();
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn logout_reset_token_kind_should_fail() {
         let token = new_token(TokenKind::Reset);
         let token = crypto::sign_jwt(&PRIVATE_KEY, token).unwrap();

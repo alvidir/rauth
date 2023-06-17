@@ -42,7 +42,7 @@ pub mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn metadata_new_should_not_fail() {
         let before = Utc::now().naive_utc();
         let meta = Metadata::default();

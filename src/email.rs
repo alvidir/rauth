@@ -24,7 +24,7 @@ pub fn actual_email(email: &str) -> String {
 
 #[cfg(test)]
 pub mod tests {
-    #[test]
+    #[test_log::test]
     fn actual_email_should_not_fail() {
         struct Test<'a> {
             email: &'a str,

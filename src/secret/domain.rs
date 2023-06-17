@@ -60,7 +60,7 @@ pub mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn secret_new_should_not_fail() {
         let name = "dummy secret";
         let data = "secret_new_should_success".as_bytes();
