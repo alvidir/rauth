@@ -44,7 +44,7 @@ clean-images:
 	@-podman image rm alvidir/$(BINARY_NAME):$(VERSION)-rest
 	
 test:
-	@RUST_BACKTRACE=full cargo test -- --nocapture
+	@RUST_BACKTRACE=full cargo test --no-default-features -- --nocapture
 
 secrets:
 	@mkdir -p secrets/
