@@ -2,6 +2,7 @@ use super::{application::UserRepository, domain::User};
 use crate::metadata::application::MetadataRepository;
 use crate::result::{Error, Result};
 use async_trait::async_trait;
+use sqlx::error::Error as SqlError;
 use sqlx::postgres::PgPool;
 use std::sync::Arc;
 
@@ -52,9 +53,9 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> UserRepo
                 .await
                 .map_err(|err| {
                     error!(
-                        "{} performing select by id query on postgres: {:?}",
-                        Error::Unknown,
-                        err
+                        error = err.to_string(),
+                        id = target,
+                        "performing select by id query on postgres",
                     );
                     Error::Unknown
                 })?
@@ -75,10 +76,14 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> UserRepo
                 .fetch_one(self.pool)
                 .await
                 .map_err(|err| {
+                    if matches!(err, SqlError::RowNotFound) {
+                        return Error::NotFound;
+                    }
+
                     error!(
-                        "{} performing select by email query on postgres: {:?}",
-                        Error::Unknown,
-                        err
+                        error = err.to_string(),
+                        email = target,
+                        "performing select by email query on postgres",
                     );
                     Error::Unknown
                 })?
@@ -98,10 +103,14 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> UserRepo
                 .fetch_one(self.pool)
                 .await
                 .map_err(|err| {
+                    if matches!(err, SqlError::RowNotFound) {
+                        return Error::NotFound;
+                    }
+
                     error!(
-                        "{} performing select by name query on postgres: {:?}",
-                        Error::Unknown,
-                        err
+                        error = err.to_string(),
+                        name = target,
+                        "performing select by name query on postgres",
                     );
                     Error::Unknown
                 })?
@@ -126,9 +135,8 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> UserRepo
             .await
             .map_err(|err| {
                 error!(
-                    "{} performing insert query on postgres: {:?}",
-                    Error::Unknown,
-                    err
+                    error = err.to_string(),
+                    "performing insert query on postgres",
                 );
                 Error::Unknown
             })?;
@@ -148,9 +156,8 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> UserRepo
             .await
             .map_err(|err| {
                 error!(
-                    "{} performing update query on postgres: {:?}",
-                    Error::Unknown,
-                    err
+                    error = err.to_string(),
+                    "performing update query on postgres",
                 );
                 Error::Unknown
             })?;
@@ -167,9 +174,8 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> UserRepo
                 .await
                 .map_err(|err| {
                     error!(
-                        "{} performing delete query on postgres: {:?}",
-                        Error::Unknown,
-                        err
+                        error = err.to_string(),
+                        "performing delete query on postgres",
                     );
                     Error::Unknown
                 })?;

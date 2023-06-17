@@ -31,11 +31,7 @@ pub fn get_header<T>(req: &Request<T>, header: &str) -> Result<String, Status> {
         .map(|data| data.to_str())?;
 
     data.map(|data| data.to_string()).map_err(|err| {
-        warn!(
-            "{} parsing header data to str: {}",
-            Error::InvalidHeader,
-            err
-        );
+        warn!(error = err.to_string(), "parsing header data to str",);
         Error::InvalidHeader.into()
     })
 }
@@ -45,12 +41,7 @@ pub fn get_header<T>(req: &Request<T>, header: &str) -> Result<String, Status> {
 pub fn get_encoded_header<T>(request: &Request<T>, header: &str) -> Result<String, Status> {
     let header = get_header(request, header)?;
     base64::decode_str(&header).map_err(|err| {
-        warn!(
-            "{} decoding header from base64: {}",
-            Error::InvalidHeader,
-            err
-        );
-
+        warn!(error = err.to_string(), "decoding header from base64");
         Error::InvalidHeader.into()
     })
 }

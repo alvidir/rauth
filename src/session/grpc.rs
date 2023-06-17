@@ -5,6 +5,7 @@ use crate::token::application::TokenRepository;
 use crate::user::application::UserRepository;
 use crate::{grpc, result::Error};
 use base64::Engine;
+use tonic::metadata::errors::InvalidMetadataValue;
 use tonic::{Request, Response, Status};
 
 // Import the generated rust code into module
@@ -35,6 +36,7 @@ impl<
         E: 'static + SecretRepository + Sync + Send,
     > Session for SessionGrpcService<T, U, E>
 {
+    #[instrument(skip(self))]
     async fn login(&self, request: Request<LoginRequest>) -> Result<Response<Empty>, Status> {
         let msg_ref = request.into_inner();
         let token = self
@@ -45,8 +47,8 @@ impl<
             .map_err(|err| Status::aborted(err.to_string()))?;
 
         let mut res = Response::new(Empty {});
-        let token = token.parse().map_err(|err| {
-            error!("{} parsing token to header: {}", Error::Unknown, err);
+        let token = token.parse().map_err(|err: InvalidMetadataValue| {
+            error!(error = err.to_string(), "parsing token to header");
             Into::<Status>::into(Error::Unknown)
         })?;
 
@@ -54,6 +56,7 @@ impl<
         Ok(res)
     }
 
+    #[instrument(skip(self))]
     async fn logout(&self, request: Request<Empty>) -> Result<Response<Empty>, Status> {
         let token = grpc::get_encoded_header(&request, self.jwt_header)?;
         if let Err(err) = self.session_app.logout(&token).await {

@@ -5,6 +5,7 @@ use crate::{
 };
 
 /// Represents a user and all its personal data
+#[derive(Debug)]
 pub struct User {
     pub(super) id: i32,
     pub(super) name: String,

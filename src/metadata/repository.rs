@@ -20,6 +20,7 @@ pub struct PostgresMetadataRepository<'a> {
 
 #[async_trait]
 impl<'a> MetadataRepository for PostgresMetadataRepository<'a> {
+    #[instrument(skip(self))]
     async fn find(&self, target: i32) -> Result<Metadata> {
         let row: PostgresSecretRow = {
             // block is required because of connection release
@@ -29,9 +30,8 @@ impl<'a> MetadataRepository for PostgresMetadataRepository<'a> {
                 .await
                 .map_err(|err| {
                     error!(
-                        "{} performing select by id query on postgres: {:?}",
-                        Error::Unknown,
-                        err
+                        error = err.to_string(),
+                        "performing select by id query on postgres",
                     );
                     Error::Unknown
                 })?
@@ -49,6 +49,7 @@ impl<'a> MetadataRepository for PostgresMetadataRepository<'a> {
         })
     }
 
+    #[instrument(skip(self))]
     async fn create(&self, meta: &mut Metadata) -> Result<()> {
         let row: (i32,) = sqlx::query_as(QUERY_INSERT_METADATA)
             .bind(meta.created_at)
@@ -58,9 +59,8 @@ impl<'a> MetadataRepository for PostgresMetadataRepository<'a> {
             .await
             .map_err(|err| {
                 error!(
-                    "{} performing insert query on postgres: {:?}",
-                    Error::Unknown,
-                    err
+                    error = err.to_string(),
+                    "performing insert query on postgres",
                 );
                 Error::Unknown
             })?;
@@ -69,6 +69,7 @@ impl<'a> MetadataRepository for PostgresMetadataRepository<'a> {
         Ok(())
     }
 
+    #[instrument(skip(self))]
     async fn save(&self, meta: &Metadata) -> Result<()> {
         sqlx::query(QUERY_UPDATE_METADATA)
             .bind(meta.id)
@@ -79,9 +80,8 @@ impl<'a> MetadataRepository for PostgresMetadataRepository<'a> {
             .await
             .map_err(|err| {
                 error!(
-                    "{} performing update query on postgres: {:?}",
-                    Error::Unknown,
-                    err
+                    error = err.to_string(),
+                    "performing update query on postgres",
                 );
                 Error::Unknown
             })?;
@@ -89,6 +89,7 @@ impl<'a> MetadataRepository for PostgresMetadataRepository<'a> {
         Ok(())
     }
 
+    #[instrument(skip(self))]
     async fn delete(&self, meta: &Metadata) -> Result<()> {
         sqlx::query(QUERY_DELETE_METADATA)
             .bind(meta.id)
@@ -96,9 +97,8 @@ impl<'a> MetadataRepository for PostgresMetadataRepository<'a> {
             .await
             .map_err(|err| {
                 error!(
-                    "{} performing delete query on postgres: {:?}",
-                    Error::Unknown,
-                    err
+                    error = err.to_string(),
+                    "performing delete query on postgres",
                 );
                 Error::Unknown
             })?;

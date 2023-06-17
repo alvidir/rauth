@@ -25,12 +25,7 @@ fn get_header(req: HttpRequest, header: &str) -> Result<String> {
         .ok_or(Error::NotFound)
         .and_then(|header| {
             header.to_str().map_err(|err| {
-                warn!(
-                    "{} parsing header data to str: {}",
-                    Error::InvalidHeader,
-                    err
-                );
-
+                warn!(error = err.to_string(), "parsing header data to str",);
                 Error::InvalidHeader
             })
         })

@@ -1,5 +1,5 @@
 pub mod application;
-#[cfg(feature = "grpc")]
+#[cfg(all(feature = "grpc", feature = "postgres"))]
 pub mod grpc;
-#[cfg(feature = "rest")]
+#[cfg(all(feature = "rest", feature = "postgres"))]
 pub mod rest;

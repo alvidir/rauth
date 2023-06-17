@@ -4,7 +4,8 @@ use crate::base64::B64_CUSTOM_ENGINE;
 use crate::result::{Error, Result, StdResult};
 use crate::user::application as user_app;
 use base64::Engine;
-use lettre::message::SinglePart;
+use lettre::address::AddressError;
+use lettre::message::{Mailbox, SinglePart};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::transport::smtp::client::Tls;
 use lettre::{Message, SmtpTransport, Transport};
@@ -18,7 +19,7 @@ const EMAIL_RESET_TEMPLATE: &str = "reset_email.html";
 /// Smtp represents an email sender
 pub struct Smtp<'a> {
     pub issuer: &'a str,
-    pub origin: &'a str,
+    pub origin: Mailbox,
     pub verification_subject: &'a str,
     pub verification_template: &'a str,
     pub reset_subject: &'a str,
@@ -29,24 +30,23 @@ pub struct Smtp<'a> {
 
 impl<'a> Smtp<'a> {
     pub fn new(
+        origin: &str,
         templates_path: &str,
         smtp_transport: &str,
         smtp_credentials: Option<(String, String)>,
     ) -> StdResult<Self> {
+        let origin = origin.parse()?;
         let tera = Tera::new(templates_path)?;
 
         let transport_attrs: Vec<&str> = smtp_transport.split(':').collect();
         if transport_attrs.is_empty() || transport_attrs[0].is_empty() {
-            error!("{} smtp transport is not valid", Error::Unknown);
+            error!("smtp transport is not valid");
             return Err(Error::Unknown.to_string().into());
         }
-
-        info!("smtp transport set as {}", transport_attrs[0]);
 
         let mut mailer = SmtpTransport::relay(transport_attrs[0])?;
 
         if transport_attrs.len() > 1 && !transport_attrs[1].is_empty() {
-            warn!("smtp transport port set as {}", transport_attrs[1]);
             mailer = mailer.port(transport_attrs[1].parse().unwrap());
         }
 
@@ -60,7 +60,7 @@ impl<'a> Smtp<'a> {
 
         Ok(Smtp {
             issuer: "",
-            origin: "",
+            origin,
             mailer: mailer.build(),
             tera,
             verification_subject: EMAIL_VERIFICATION_SUBJECT,
@@ -70,37 +70,41 @@ impl<'a> Smtp<'a> {
         })
     }
 
-    fn send_email(&self, to: &str, subject: &str, body: String) -> Result<()> {
-        info!("sending a verification email to {}", to);
+    pub fn with_issuer(mut self, issuer: &'a str) -> Self {
+        self.issuer = issuer;
+        self
+    }
 
+    #[instrument(skip(self))]
+    fn send_email(&self, to: &str, subject: &str, body: String) -> Result<()> {
         let formated_subject = if !self.issuer.is_empty() {
             format!("[{}] {}", self.issuer, subject)
         } else {
             subject.to_string()
         };
 
-        let origin = self.origin.parse().map_err(|err| {
-            error!("{} parsing email origin: {:?}", Error::Unknown, err);
-            Error::Unknown
-        })?;
-
-        let to = to.parse().map_err(|err| {
-            error!("{} parsing email destination: {:?}", Error::Unknown, err);
+        let to = to.parse().map_err(|err: AddressError| {
+            error!(
+                to,
+                from = self.origin.to_string(),
+                error = err.to_string(),
+                "parsing verification email destination"
+            );
             Error::Unknown
         })?;
 
         let email = Message::builder()
-            .from(origin)
+            .from(self.origin.clone())
             .to(to)
             .subject(formated_subject)
             .singlepart(SinglePart::html(body))
             .map_err(|err| {
-                error!("{} building email: {}", Error::Unknown, err);
+                error!(error = err.to_string(), "building email");
                 Error::Unknown
             })?;
 
         self.mailer.send(&email).map_err(|err| {
-            error!("{} sending email: {}", Error::Unknown, err);
+            error!(error = err.to_string(), "sending email");
             Error::Unknown
         })?;
 
@@ -109,6 +113,7 @@ impl<'a> Smtp<'a> {
 }
 
 impl<'a> user_app::Mailer for Smtp<'a> {
+    #[instrument(skip(self))]
     fn send_verification_signup_email(&self, email: &str, token: &str) -> Result<()> {
         let mut context = Context::new();
         context.insert("name", email.split('@').collect::<Vec<&str>>()[0]);
@@ -119,9 +124,8 @@ impl<'a> user_app::Mailer for Smtp<'a> {
             .render(self.verification_template, &context)
             .map_err(|err| {
                 error!(
-                    "{} rendering verification signup email template: {}",
-                    Error::Unknown,
-                    err
+                    error = err.to_string(),
+                    "rendering verification signup email template",
                 );
                 Error::Unknown
             })?;
@@ -129,6 +133,7 @@ impl<'a> user_app::Mailer for Smtp<'a> {
         self.send_email(email, self.verification_subject, body)
     }
 
+    #[instrument(skip(self))]
     fn send_verification_reset_email(&self, email: &str, token: &str) -> Result<()> {
         let mut context = Context::new();
         context.insert("name", email.split('@').collect::<Vec<&str>>()[0]);
@@ -139,9 +144,8 @@ impl<'a> user_app::Mailer for Smtp<'a> {
             .render(self.reset_template, &context)
             .map_err(|err| {
                 error!(
-                    "{} rendering verification reset email template: {}",
-                    Error::Unknown,
-                    err
+                    error = err.to_string(),
+                    "rendering verification reset email template",
                 );
                 Error::Unknown
             })?;

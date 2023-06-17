@@ -36,6 +36,7 @@ pub mod tests {
 
     #[async_trait]
     impl SecretRepository for SecretRepositoryMock {
+        #[instrument(skip(self))]
         async fn find(&self, id: i32) -> Result<Secret> {
             if let Some(f) = self.fn_find {
                 return f(self, id);
@@ -44,6 +45,7 @@ pub mod tests {
             Ok(new_secret())
         }
 
+        #[instrument(skip(self))]
         async fn find_by_user_and_name(&self, user: i32, name: &str) -> Result<Secret> {
             if let Some(f) = self.fn_find_by_user_and_name {
                 return f(self, user, name);
@@ -52,6 +54,7 @@ pub mod tests {
             Ok(new_secret())
         }
 
+        #[instrument(skip(self))]
         async fn create(&self, secret: &mut Secret) -> Result<()> {
             if let Some(f) = self.fn_create {
                 return f(self, secret);
@@ -60,6 +63,7 @@ pub mod tests {
             Ok(())
         }
 
+        #[instrument(skip(self))]
         async fn save(&self, secret: &Secret) -> Result<()> {
             if let Some(f) = self.fn_save {
                 return f(self, secret);
@@ -68,6 +72,7 @@ pub mod tests {
             Ok(())
         }
 
+        #[instrument(skip(self))]
         async fn delete(&self, secret: &Secret) -> Result<()> {
             if let Some(f) = self.fn_delete {
                 return f(self, secret);

@@ -21,7 +21,7 @@ pub struct TokenApplication<'a, T: TokenRepository> {
     pub public_key: &'a [u8],
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct GenerateOptions {
     pub store: bool,
 }
@@ -32,7 +32,7 @@ impl Default for GenerateOptions {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct VerifyOptions {
     pub must_exists: bool,
     pub kind: Option<TokenKind>,
@@ -57,6 +57,7 @@ impl VerifyOptions {
 }
 
 impl<'a, T: TokenRepository> TokenApplication<'a, T> {
+    #[instrument(skip(self))]
     pub async fn generate(
         &self,
         kind: TokenKind,
@@ -79,25 +80,27 @@ impl<'a, T: TokenRepository> TokenApplication<'a, T> {
         })
     }
 
+    #[instrument(skip(self))]
     pub async fn decode(&self, token: &str) -> Result<Token> {
         crypto::decode_jwt(self.public_key, token)
     }
 
+    #[instrument(skip(self))]
     pub async fn retrieve(&self, key: &str) -> Result<Token> {
         let token = self.token_repo.find(key).await?;
         let claims = self.decode(&token).await?;
         Ok(claims)
     }
 
+    #[instrument(skip(self))]
     pub async fn verify(&self, token: &Token, options: VerifyOptions) -> Result<()> {
         if let Some(kind) = options.kind {
             if *token.get_kind() != kind {
                 warn!(
-                    "{} checking token's kind with id {}, got {:?} want {:?}",
-                    Error::InvalidToken,
-                    token.get_id(),
-                    token.get_kind(),
-                    kind
+                    token_id = token.get_id(),
+                    token_kind = token.get_kind().to_string(),
+                    expected_kind = kind.to_string(),
+                    "checking token's kind",
                 );
                 return Err(Error::InvalidToken);
             }
@@ -107,21 +110,16 @@ impl<'a, T: TokenRepository> TokenApplication<'a, T> {
             let key = token.get_id();
             let present_data = self.token_repo.find(&key).await.map_err(|err| {
                 warn!(
-                    "{} finding token with id {}: {}",
-                    Error::InvalidToken,
-                    &key,
-                    err
+                    error = err.to_string(),
+                    token_id = key,
+                    "finding token by id",
                 );
                 Error::InvalidToken
             })?;
 
             let present_token = self.decode(&present_data).await?;
             if token != &present_token {
-                error!(
-                    "{} comparing tokens with id {}: do not match",
-                    Error::InvalidToken,
-                    &key
-                );
+                error!(token_id = key, "token does not match");
                 return Err(Error::InvalidToken);
             }
         }
@@ -129,14 +127,14 @@ impl<'a, T: TokenRepository> TokenApplication<'a, T> {
         Ok(())
     }
 
+    #[instrument(skip(self))]
     pub async fn revoke(&self, token: &Token) -> Result<()> {
         let key = token.get_id();
         self.token_repo.find(&key).await.map_err(|err| {
             warn!(
-                "{} finding token with id {}: {}",
-                Error::InvalidToken,
-                &key,
-                err
+                error = err.to_string(),
+                token_id = key,
+                "finding token by id",
             );
             Error::InvalidToken
         })?;

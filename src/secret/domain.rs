@@ -2,7 +2,7 @@ use crate::metadata::domain::Metadata;
 use crate::user::domain::User;
 use chrono::naive::NaiveDateTime;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Secret {
     pub(super) id: i32,
     pub(super) owner: i32,

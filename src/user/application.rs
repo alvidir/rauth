@@ -10,6 +10,7 @@ use crate::token::{
 };
 use async_trait::async_trait;
 use chrono::Utc;
+use std::num::ParseIntError;
 use std::sync::Arc;
 
 #[async_trait]
@@ -53,6 +54,7 @@ pub struct UserApplication<
 impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M: Mailer>
     UserApplication<'a, U, E, T, B, M>
 {
+    #[instrument(skip(self))]
     pub async fn verify_signup_email(&self, email: &str, pwd: &str) -> Result<()> {
         if self.user_repo.find_by_email(email).await.is_ok() {
             // returns Ok to not provide information about users
@@ -87,7 +89,8 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
         Ok(())
     }
 
-    pub async fn secure_signup(&self, token: &str) -> Result<String> {
+    #[instrument(skip(self))]
+    pub async fn signup_with_token(&self, token: &str) -> Result<String> {
         let claims: Token = self.token_app.decode(token).await?;
         self.token_app
             .verify(
@@ -111,12 +114,8 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
         Ok(token)
     }
 
+    #[instrument(skip(self))]
     pub async fn signup(&self, email: &str, pwd: &str) -> Result<String> {
-        info!(
-            "processing a \"signup\" request for user with email {} ",
-            email
-        );
-
         let mut user = User::new(email, pwd)?;
         self.user_repo.create(&mut user).await?;
         self.event_bus.emit_user_created(&user).await?;
@@ -131,26 +130,23 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
             .map(|token| token.signature().to_string())
     }
 
-    pub async fn secure_delete(&self, pwd: &str, totp: &str, token: &str) -> Result<()> {
+    #[instrument(skip(self))]
+    pub async fn delete_with_token(&self, token: &str, pwd: &str, totp: &str) -> Result<()> {
         let claims: Token = self.token_app.decode(token).await?;
         self.token_app
             .verify(&claims, VerifyOptions::new(TokenKind::Session))
             .await?;
 
-        let user_id = claims.sub.parse().map_err(|err| {
-            warn!("{} parsing str to i32: {}", Error::InvalidToken, err);
+        let user_id = claims.sub.parse().map_err(|err: ParseIntError| {
+            warn!(error = err.to_string(), "parsing str to i32");
             Error::InvalidToken
         })?;
 
         self.delete(user_id, pwd, totp).await
     }
 
+    #[instrument(skip(self))]
     pub async fn delete(&self, user_id: i32, pwd: &str, totp: &str) -> Result<()> {
-        info!(
-            "processing a \"delete\" request for user with id {} ",
-            user_id
-        );
-
         let user = self
             .user_repo
             .find(user_id)
@@ -183,31 +179,28 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
         Ok(())
     }
 
-    pub async fn secure_enable_totp(
+    #[instrument(skip(self))]
+    pub async fn enable_totp_with_token(
         &self,
+        token: &str,
         pwd: &str,
         totp: &str,
-        token: &str,
     ) -> Result<Option<String>> {
         let claims: Token = self.token_app.decode(token).await?;
         self.token_app
             .verify(&claims, VerifyOptions::new(TokenKind::Session))
             .await?;
 
-        let user_id = claims.sub.parse().map_err(|err| {
-            warn!("{} parsing str to i32: {}", Error::InvalidToken, err);
+        let user_id = claims.sub.parse().map_err(|err: ParseIntError| {
+            warn!(error = err.to_string(), "parsing str to i32");
             Error::InvalidToken
         })?;
 
         self.enable_totp(user_id, pwd, totp).await
     }
 
+    #[instrument(skip(self))]
     pub async fn enable_totp(&self, user_id: i32, pwd: &str, totp: &str) -> Result<Option<String>> {
-        info!(
-            "processing an \"enable totp\" request for user with id {} ",
-            user_id
-        );
-
         let user = self
             .user_repo
             .find(user_id)
@@ -249,26 +242,23 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
         Ok(Some(token))
     }
 
-    pub async fn secure_disable_totp(&self, pwd: &str, totp: &str, token: &str) -> Result<()> {
+    #[instrument(skip(self))]
+    pub async fn disable_totp_with_token(&self, token: &str, pwd: &str, totp: &str) -> Result<()> {
         let claims: Token = self.token_app.decode(token).await?;
         self.token_app
             .verify(&claims, VerifyOptions::new(TokenKind::Session))
             .await?;
 
-        let user_id = claims.sub.parse().map_err(|err| {
-            warn!("{} parsing str to i32: {}", Error::InvalidToken, err);
+        let user_id = claims.sub.parse().map_err(|err: ParseIntError| {
+            warn!(error = err.to_string(), "parsing str to i32",);
             Error::InvalidToken
         })?;
 
         self.disable_totp(user_id, pwd, totp).await
     }
 
+    #[instrument(skip(self))]
     pub async fn disable_totp(&self, user_id: i32, pwd: &str, totp: &str) -> Result<()> {
-        info!(
-            "processing an \"disable totp\" request for user with id {} ",
-            user_id
-        );
-
         let user = self
             .user_repo
             .find(user_id)
@@ -305,6 +295,7 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
         Err(Error::NotAvailable)
     }
 
+    #[instrument(skip(self))]
     pub async fn verify_reset_email(&self, email: &str) -> Result<()> {
         let user = match self.user_repo.find_by_email(email).await {
             Err(_) => return Ok(()), // returns Ok to not provide information about users
@@ -326,14 +317,15 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
         Ok(())
     }
 
-    pub async fn secure_reset(&self, new_pwd: &str, totp: &str, token: &str) -> Result<()> {
+    #[instrument(skip(self))]
+    pub async fn reset_with_token(&self, token: &str, new_pwd: &str, totp: &str) -> Result<()> {
         let claims: Token = self.token_app.decode(token).await?;
         self.token_app
             .verify(&claims, VerifyOptions::new(TokenKind::Reset))
             .await?;
 
-        let user_id = claims.sub.parse().map_err(|err| {
-            warn!("{} parsing str to i32: {}", Error::InvalidToken, err);
+        let user_id = claims.sub.parse().map_err(|err: ParseIntError| {
+            warn!(error = err.to_string(), "parsing str to i32",);
             Error::InvalidToken
         })?;
 
@@ -342,12 +334,8 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
         Ok(())
     }
 
+    #[instrument(skip(self))]
     pub async fn reset(&self, user_id: i32, new_pwd: &str, totp: &str) -> Result<()> {
-        info!(
-            "processing a \"reset password\" request for user with id {} ",
-            user_id
-        );
-
         let mut user = self
             .user_repo
             .find(user_id)
@@ -609,7 +597,7 @@ pub mod tests {
         let mut app = new_user_application(Some(&token_repo));
         app.user_repo = Arc::new(user_repo);
 
-        let token = app.secure_signup(&token_to_send).await.unwrap();
+        let token = app.signup_with_token(&token_to_send).await.unwrap();
         let claims: Token = crypto::decode_jwt(&PUBLIC_KEY, &token).unwrap();
         assert_eq!(claims.sub, TEST_CREATE_ID.to_string());
     }
@@ -635,7 +623,7 @@ pub mod tests {
         let mut app = new_user_application(None);
         app.user_repo = Arc::new(user_repo);
 
-        app.secure_signup(&token)
+        app.signup_with_token(&token)
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
             .unwrap_err();
@@ -662,7 +650,7 @@ pub mod tests {
         let mut app = new_user_application(None);
         app.user_repo = Arc::new(user_repo);
 
-        app.secure_signup(&token)
+        app.signup_with_token(&token)
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
             .unwrap_err();
@@ -745,7 +733,7 @@ pub mod tests {
         let mut app = new_user_application(Some(&token_repo));
         app.secret_repo = Arc::new(secret_repo);
 
-        app.secure_delete(TEST_DEFAULT_USER_PASSWORD, "", &secure_token)
+        app.delete_with_token(&secure_token, TEST_DEFAULT_USER_PASSWORD, "")
             .await
             .unwrap();
     }
@@ -781,7 +769,7 @@ pub mod tests {
         let mut app = new_user_application(Some(&token_repo));
         app.secret_repo = Arc::new(secret_repo);
 
-        app.secure_delete(TEST_DEFAULT_USER_PASSWORD, "", &secure_token)
+        app.delete_with_token(&secure_token, TEST_DEFAULT_USER_PASSWORD, "")
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
             .unwrap_err();
@@ -812,7 +800,7 @@ pub mod tests {
         let mut app = new_user_application(Some(&token_repo));
         app.secret_repo = Arc::new(secret_repo);
 
-        app.secure_delete(TEST_DEFAULT_USER_PASSWORD, "", &secure_token)
+        app.delete_with_token(&secure_token, TEST_DEFAULT_USER_PASSWORD, "")
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
             .unwrap_err();
@@ -935,7 +923,7 @@ pub mod tests {
         app.secret_repo = Arc::new(secret_repo);
 
         let totp = app
-            .secure_enable_totp(TEST_DEFAULT_USER_PASSWORD, "", &secure_token)
+            .enable_totp_with_token(&secure_token, TEST_DEFAULT_USER_PASSWORD, "")
             .await
             .unwrap();
         assert!(totp.is_some());
@@ -973,7 +961,7 @@ pub mod tests {
         let mut app = new_user_application(Some(&token_repo));
         app.secret_repo = Arc::new(secret_repo);
 
-        app.secure_enable_totp(TEST_DEFAULT_USER_PASSWORD, "", &secure_token)
+        app.enable_totp_with_token(&secure_token, TEST_DEFAULT_USER_PASSWORD, "")
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
             .unwrap_err();
@@ -1003,7 +991,7 @@ pub mod tests {
         let mut app = new_user_application(Some(&token_repo));
         app.secret_repo = Arc::new(secret_repo);
 
-        app.secure_enable_totp(TEST_DEFAULT_USER_PASSWORD, "", &secure_token)
+        app.enable_totp_with_token(&secure_token, TEST_DEFAULT_USER_PASSWORD, "")
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
             .unwrap_err();
@@ -1132,7 +1120,7 @@ pub mod tests {
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
             .unwrap()
             .generate();
-        app.secure_disable_totp(TEST_DEFAULT_USER_PASSWORD, &code, &secure_token)
+        app.disable_totp_with_token(&secure_token, TEST_DEFAULT_USER_PASSWORD, &code)
             .await
             .unwrap();
     }
@@ -1160,7 +1148,7 @@ pub mod tests {
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
             .unwrap()
             .generate();
-        app.secure_disable_totp(TEST_DEFAULT_USER_PASSWORD, &code, &secure_token)
+        app.disable_totp_with_token(&secure_token, TEST_DEFAULT_USER_PASSWORD, &code)
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
             .unwrap_err();
@@ -1182,7 +1170,7 @@ pub mod tests {
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
             .unwrap()
             .generate();
-        app.secure_disable_totp(TEST_DEFAULT_USER_PASSWORD, &code, &secure_token)
+        app.disable_totp_with_token(&secure_token, TEST_DEFAULT_USER_PASSWORD, &code)
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
             .unwrap_err();
@@ -1292,7 +1280,7 @@ pub mod tests {
         let mut app = new_user_application(Some(&token_repo));
         app.secret_repo = Arc::new(secret_repo);
 
-        app.secure_reset("ABCDEF1234567891", "", &secure_token)
+        app.reset_with_token(&secure_token, "ABCDEF1234567891", "")
             .await
             .unwrap();
     }
@@ -1328,7 +1316,7 @@ pub mod tests {
         let mut app = new_user_application(Some(&token_repo));
         app.secret_repo = Arc::new(secret_repo);
 
-        app.secure_reset("another password", "", &secure_token)
+        app.reset_with_token(&secure_token, "another password", "")
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
             .unwrap_err();
@@ -1365,7 +1353,7 @@ pub mod tests {
         let mut app = new_user_application(Some(&token_repo));
         app.secret_repo = Arc::new(secret_repo);
 
-        app.secure_reset("another password", "", &secure_token)
+        app.reset_with_token(&secure_token, "another password", "")
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
             .unwrap_err();

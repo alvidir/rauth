@@ -10,7 +10,7 @@ pub const BASE64: &str = r"^[A-Fa-f0-9]{8,64}$";
 /// Returns ok if, and only if, the given string s matches the provided regex.
 pub fn match_regex(r: &str, s: &str) -> Result<()> {
     let regex = Regex::new(r).map_err(|err| {
-        error!("{} building regex: {:?}", Error::Unknown, err);
+        error!(error = err.to_string(), "building regex");
         Error::Unknown
     })?;
 

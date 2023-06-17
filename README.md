@@ -268,8 +268,8 @@ The server expects a set of environment variables to work properly. Although som
 
 | Environment variable    |           Default value           | Description                                                                                                                                          |
 | :---------------------- | :-------------------------------: | :--------------------------------------------------------------------------------------------------------------------------------------------------- |
-| SERVICE_PORT            |               8000                | Port where to expose the gRPC service                                                                                                                |
-| SERVICE_ADDR            |             127.0.0.1             | Address where to expose the gRPC service                                                                                                             |
+| SERVICE_PORT            |               8000                | Port where to expose the service service                                                                                                                |
+| SERVICE_ADDR            |             127.0.0.1             | Address where to expose the service service                                                                                                             |
 | POSTGRES_DSN            |                                   | `Postgres` data source name                                                                                                                          |
 | POSTGRES_POOL           |                10                 | `Postgres` connection pool size                                                                                                                      |
 | REDIS_URL               |                                   | `Redis` URL                                                                                                                                          |
