@@ -2,6 +2,7 @@ use super::{application::SecretRepository, domain::Secret};
 use crate::metadata::application::MetadataRepository;
 use crate::result::{Error, Result};
 use async_trait::async_trait;
+use sqlx::error::Error as SqlError;
 use sqlx::postgres::PgPool;
 use std::sync::Arc;
 
@@ -74,6 +75,10 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRe
                 .fetch_one(self.pool)
                 .await
                 .map_err(|err| {
+                    if matches!(err, SqlError::RowNotFound) {
+                        return Error::NotFound;
+                    }
+
                     error!(
                         error = err.to_string(),
                         "performing select by user and name query on postgres",
