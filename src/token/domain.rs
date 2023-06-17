@@ -25,7 +25,7 @@ impl SignedToken {
     }
 }
 
-#[derive(Serialize, Deserialize, Hash, PartialEq, Eq, Debug, Clone)]
+#[derive(Serialize, Deserialize, Hash, PartialEq, Eq, Debug, Clone, strum_macros::Display)]
 pub enum TokenKind {
     Session = 0,
     Verification = 1,

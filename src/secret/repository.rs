@@ -40,6 +40,7 @@ impl<'a, M: MetadataRepository> PostgresSecretRepository<'a, M> {
 impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRepository
     for PostgresSecretRepository<'a, M>
 {
+    #[instrument(skip(self))]
     async fn find(&self, target: i32) -> Result<Secret> {
         let row: PostgresSecretRow = {
             // block is required because of connection release
@@ -49,9 +50,8 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRe
                 .await
                 .map_err(|err| {
                     error!(
-                        "{} performing select by id query on postgres: {:?}",
-                        Error::Unknown,
-                        err
+                        error = err.to_string(),
+                        "performing select by id query on postgres",
                     );
                     Error::Unknown
                 })?
@@ -64,6 +64,7 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRe
         self.build(&row).await // another connection consumed here
     }
 
+    #[instrument(skip(self))]
     async fn find_by_user_and_name(&self, user: i32, secret_name: &str) -> Result<Secret> {
         let row: PostgresSecretRow = {
             // block is required because of connection release
@@ -74,9 +75,8 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRe
                 .await
                 .map_err(|err| {
                     error!(
-                        "{} performing select by user and name query on postgres: {:?}",
-                        Error::Unknown,
-                        err
+                        error = err.to_string(),
+                        "performing select by user and name query on postgres",
                     );
                     Error::Unknown
                 })?
@@ -89,6 +89,7 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRe
         self.build(&row).await // another connection consumed here
     }
 
+    #[instrument(skip(self))]
     async fn create(&self, secret: &mut Secret) -> Result<()> {
         self.metadata_repo.create(&mut secret.meta).await?;
 
@@ -101,9 +102,8 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRe
             .await
             .map_err(|err| {
                 error!(
-                    "{} performing insert query on postgres: {:?}",
-                    Error::Unknown,
-                    err
+                    error = err.to_string(),
+                    "performing insert query on postgres",
                 );
                 Error::Unknown
             })?;
@@ -112,6 +112,7 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRe
         Ok(())
     }
 
+    #[instrument(skip(self))]
     async fn save(&self, secret: &Secret) -> Result<()> {
         sqlx::query(QUERY_UPDATE_SECRET)
             .bind(secret.id)
@@ -123,9 +124,8 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRe
             .await
             .map_err(|err| {
                 error!(
-                    "{} performing update query on postgres: {:?}",
-                    Error::Unknown,
-                    err
+                    error = err.to_string(),
+                    "performing update query on postgres",
                 );
                 Error::Unknown
             })?;
@@ -133,6 +133,7 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRe
         Ok(())
     }
 
+    #[instrument(skip(self))]
     async fn delete(&self, secret: &Secret) -> Result<()> {
         {
             // block is required because of connection release
@@ -142,9 +143,8 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRe
                 .await
                 .map_err(|err| {
                     error!(
-                        "{} performing delete query on postgres: {:?}",
-                        Error::Unknown,
-                        err
+                        error = err.to_string(),
+                        "performing delete query on postgres",
                     );
                     Error::Unknown
                 })?;

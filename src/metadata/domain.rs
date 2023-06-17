@@ -1,7 +1,7 @@
 use chrono::naive::NaiveDateTime;
 use chrono::Utc;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Metadata {
     pub id: i32,
     pub created_at: NaiveDateTime,

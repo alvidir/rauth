@@ -1,5 +1,5 @@
 #[macro_use]
-extern crate log;
+extern crate tracing;
 
 use actix_web::web::Data;
 use actix_web::{middleware, App, HttpServer};
@@ -14,10 +14,11 @@ use std::time::Duration;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    env_logger::init();
+    let subscriber = tracing_subscriber::FmtSubscriber::new();
+    tracing::subscriber::set_global_default(subscriber)?;
 
     if let Err(err) = dotenv::dotenv() {
-        warn!("processing dotenv file {}", err);
+        warn!(error = err.to_string(), "processing dotenv file",);
     }
 
     let token_repo = Arc::new(RedisTokenRepository {
@@ -37,7 +38,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
         jwt_header: &config::JWT_HEADER,
     });
 
-    info!("server listening on {}", *config::SERVER_ADDR);
+    info!(
+        address = *config::SERVER_ADDR,
+        "server ready to accept connections"
+    );
+
     HttpServer::new(move || {
         App::new()
             .wrap(middleware::Logger::default())

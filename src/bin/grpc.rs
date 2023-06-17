@@ -1,5 +1,5 @@
 #[macro_use]
-extern crate log;
+extern crate tracing;
 
 use rauth::{
     config,
@@ -18,17 +18,18 @@ use rauth::{
         repository::PostgresUserRepository,
     },
 };
-use std::error::Error;
 use std::sync::Arc;
 use std::time::Duration;
+use std::{error::Error, net::SocketAddr};
 use tonic::transport::Server;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    env_logger::init();
+    let subscriber = tracing_subscriber::FmtSubscriber::new();
+    tracing::subscriber::set_global_default(subscriber)?;
 
     if let Err(err) = dotenv::dotenv() {
-        warn!("processing dotenv file {}", err);
+        warn!(error = err.to_string(), "processing dotenv file");
     }
 
     let metadata_repo = Arc::new(PostgresMetadataRepository {
@@ -63,13 +64,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
         None
     };
 
-    let mut mailer = Smtp::new(
+    let mailer = Smtp::new(
+        &config::SMTP_ORIGIN,
         &config::SMTP_TEMPLATES,
         &config::SMTP_TRANSPORT,
         credentials,
-    )?;
-    mailer.issuer = &*config::SMTP_ISSUER;
-    mailer.origin = &*config::SMTP_ORIGIN;
+    )?
+    .with_issuer(&config::SMTP_ISSUER);
 
     let token_app = Arc::new(TokenApplication {
         token_repo: token_repo.clone(),
@@ -109,8 +110,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
         jwt_header: &config::JWT_HEADER,
     };
 
-    let addr = config::SERVER_ADDR.parse().unwrap();
-    info!("server listening on {}", addr);
+    let addr: SocketAddr = config::SERVER_ADDR.parse().unwrap();
+    info!(
+        address = addr.to_string(),
+        "server ready to accept connections"
+    );
+
     Server::builder()
         .add_service(UserServer::new(user_grpc_service))
         .add_service(SessionServer::new(session_grpc_service))

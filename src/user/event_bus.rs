@@ -25,6 +25,7 @@ pub struct RabbitMqUserBus<'a> {
 
 #[async_trait]
 impl<'a> EventBus for RabbitMqUserBus<'a> {
+    #[instrument(skip(self))]
     async fn emit_user_created(&self, user: &User) -> Result<()> {
         let event = UserEventPayload {
             user_id: user.get_id(),
@@ -38,18 +39,16 @@ impl<'a> EventBus for RabbitMqUserBus<'a> {
             .map(|str| str.into_bytes())
             .map_err(|err| {
                 error!(
-                    "{} serializing \"user created\" event data to json: {}",
-                    Error::Unknown,
-                    err
+                    error = err.to_string(),
+                    "serializing \"user created\" event data to json",
                 );
                 Error::Unknown
             })?;
 
         let connection = self.pool.get().await.map_err(|err| {
             error!(
-                "{} pulling connection from rabbitmq pool: {}",
-                Error::Unknown,
-                err
+                error = err.to_string(),
+                "pulling connection from rabbitmq pool",
             );
             Error::Unknown
         })?;
@@ -58,7 +57,7 @@ impl<'a> EventBus for RabbitMqUserBus<'a> {
             .create_channel()
             .await
             .map_err(|err| {
-                error!("{} creating rabbitmq channel: {}", Error::Unknown, err);
+                error!(error = err.to_string(), "creating rabbitmq channel",);
                 Error::Unknown
             })?
             .basic_publish(
@@ -70,19 +69,14 @@ impl<'a> EventBus for RabbitMqUserBus<'a> {
             )
             .await
             .map_err(|err| {
-                error!(
-                    "{} emititng \"user created\" event: {}",
-                    Error::Unknown,
-                    err
-                );
+                error!(error = err.to_string(), "emititng \"user created\" event",);
                 Error::Unknown
             })?
             .await
             .map_err(|err| {
                 error!(
-                    "{} confirming \"user created\" event reception: {}",
-                    Error::Unknown,
-                    err
+                    error = err.to_string(),
+                    "confirming \"user created\" event reception",
                 );
                 Error::Unknown
             })?;

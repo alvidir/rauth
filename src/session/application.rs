@@ -21,11 +21,8 @@ pub struct SessionApplication<'a, T: TokenRepository, U: UserRepository, E: Secr
 impl<'a, T: TokenRepository, U: UserRepository, E: SecretRepository>
     SessionApplication<'a, T, U, E>
 {
+    #[instrument(skip(self))]
     pub async fn login(&self, ident: &str, pwd: &str, totp: &str) -> Result<String> {
-        info!(
-            "processing a \"login\" request for user identified by {} ",
-            ident
-        );
         let user = {
             if regex::match_regex(regex::EMAIL, ident).is_ok() {
                 self.user_repo.find_by_email(ident).await
@@ -65,8 +62,8 @@ impl<'a, T: TokenRepository, U: UserRepository, E: SecretRepository>
             .map(|token| token.signature().to_string())
     }
 
+    #[instrument(skip(self))]
     pub async fn logout(&self, token: &str) -> Result<()> {
-        info!("processing a \"logout\" request for token {} ", token);
         logout_strategy::<T>(&self.token_app, token).await
     }
 }

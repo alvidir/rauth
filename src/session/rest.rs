@@ -21,6 +21,7 @@ impl<T: 'static + TokenRepository + Sync + Send> SessionRestService<T> {
         }
     }
 
+    #[instrument(skip(app_data))]
     async fn get_session(
         app_data: web::Data<Arc<SessionRestService<T>>>,
         req: HttpRequest,
@@ -42,6 +43,7 @@ impl<T: 'static + TokenRepository + Sync + Send> SessionRestService<T> {
         }
     }
 
+    #[instrument(skip(app_data))]
     async fn delete_session(
         app_data: web::Data<Arc<SessionRestService<T>>>,
         req: HttpRequest,

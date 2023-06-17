@@ -16,15 +16,14 @@ pub fn decode_str(s: &str) -> Result<String> {
     B64_CUSTOM_ENGINE
         .decode(s)
         .map_err(|err| {
-            warn!("{} decoding base64 string: {}", Error::Unknown, err);
+            warn!(error = err.to_string(), "decoding base64 string");
             Error::Unknown
         })
         .and_then(|value| {
             String::from_utf8(value).map_err(|err| {
                 warn!(
-                    "{} getting string from base64 decoded data: {}",
-                    Error::Unknown,
-                    err
+                    error = err.to_string(),
+                    "getting string from base64 decoded data",
                 );
 
                 Error::Unknown

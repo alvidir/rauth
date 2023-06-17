@@ -23,16 +23,12 @@ const SECURE_CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
 pub fn sign_jwt<S: Serialize>(secret: &[u8], payload: S) -> Result<String> {
     let header = Header::new(Algorithm::ES256);
     let key = EncodingKey::from_ec_pem(secret).map_err(|err| {
-        error!(
-            "{} encoding elliptic curve keypair: {}",
-            Error::Unknown,
-            err
-        );
+        error!(error = err.to_string(), "encoding elliptic curve keypair",);
         Error::Unknown
     })?;
 
     let token = jsonwebtoken::encode(&header, &payload, &key).map_err(|err| {
-        error!("{} signing json web token: {}", Error::Unknown, err);
+        error!(error = err.to_string(), "signing json web token");
         Error::Unknown
     })?;
 
@@ -44,20 +40,12 @@ pub fn sign_jwt<S: Serialize>(secret: &[u8], payload: S) -> Result<String> {
 pub fn decode_jwt<T: DeserializeOwned>(public: &[u8], token: &str) -> Result<T> {
     let validation = Validation::new(Algorithm::ES256);
     let key = DecodingKey::from_ec_pem(public).map_err(|err| {
-        error!(
-            "{} decoding elliptic curve keypair: {}",
-            Error::Unknown,
-            err
-        );
+        error!(error = err.to_string(), "decoding elliptic curve keypair",);
         Error::Unknown
     })?;
 
     let token = jsonwebtoken::decode::<T>(token, &key, &validation).map_err(|err| {
-        error!(
-            "{} checking token's signature: {}",
-            Error::InvalidToken,
-            err
-        );
+        error!(error = err.to_string(), "checking token's signature",);
         Error::InvalidToken
     })?;
 
@@ -85,9 +73,8 @@ pub fn generate_totp(secret: &[u8]) -> Result<TOTP> {
         .finalize()
         .map_err(|err| {
             error!(
-                "{} genereting time-based one time password: {:?}",
-                Error::Unknown,
-                err
+                error = err.to_string(),
+                "genereting time-based one time password",
             );
             Error::Unknown
         })
@@ -109,29 +96,29 @@ pub fn obfuscate(subject: &str, sufix: &str) -> String {
 /// Given a RSA public key in PEM format returns the value of data encrypted by that key,
 pub fn _encrypt(public: &[u8], data: &[u8]) -> Result<Vec<u8>> {
     let pkey = PKey::public_key_from_pem(public).map_err(|err| {
-        error!("{} parsing public key from pem: {:?}", Error::Unknown, err);
+        error!(error = err.to_string(), "parsing public key from pem");
         Error::Unknown
     })?;
 
     let mut encrypter = Encrypter::new(&pkey).map_err(|err| {
-        error!("{} building encrypter: {:?}", Error::Unknown, err);
+        error!(error = err.to_string(), "building encrypter");
         Error::Unknown
     })?;
 
     encrypter.set_rsa_padding(Padding::PKCS1).map_err(|err| {
-        error!("{} setting up rsa padding: {:?}", Error::Unknown, err);
+        error!(error = err.to_string(), "setting up rsa padding");
         Error::Unknown
     })?;
 
     let buffer_len = encrypter.encrypt_len(data).map_err(|err| {
-        error!("{} computing encription length: {:?}", Error::Unknown, err);
+        error!(error = err.to_string(), "computing encription length");
         Error::Unknown
     })?;
 
     let mut encrypted = vec![0; buffer_len];
 
     let encrypted_len = encrypter.encrypt(data, &mut encrypted).map_err(|err| {
-        error!("{} encripting data: {:?}", Error::Unknown, err);
+        error!(error = err.to_string(), "encripting data");
         Error::Unknown
     })?;
 
@@ -142,29 +129,29 @@ pub fn _encrypt(public: &[u8], data: &[u8]) -> Result<Vec<u8>> {
 /// Given a RSA private key in PEM format returns the value of data decrypted by that key.
 pub fn _decrypt(private: &[u8], data: &[u8]) -> Result<Vec<u8>> {
     let key = PKey::private_key_from_pem(private).map_err(|err| {
-        error!("{} parsing private key from pem: {:?}", Error::Unknown, err);
+        error!(error = err.to_string(), "parsing private key from pem");
         Error::Unknown
     })?;
 
     let mut decrypter = Decrypter::new(&key).map_err(|err| {
-        error!("{} building decrypter: {:?}", Error::Unknown, err);
+        error!(error = err.to_string(), "building decrypter");
         Error::Unknown
     })?;
 
     decrypter.set_rsa_padding(Padding::PKCS1).map_err(|err| {
-        error!("{} setting up rsa padding: {:?}", Error::Unknown, err);
+        error!(error = err.to_string(), "setting up rsa padding");
         Error::Unknown
     })?;
 
     let buffer_len = decrypter.decrypt_len(data).map_err(|err| {
-        error!("{} computing decryption length: {:?}", Error::Unknown, err);
+        error!(error = err.to_string(), "computing decryption length");
         Error::Unknown
     })?;
 
     let mut decrypted = vec![0; buffer_len];
 
     let decrypted_len = decrypter.decrypt(data, &mut decrypted).map_err(|err| {
-        error!("{} decrypting data: {:?}", Error::Unknown, err);
+        error!(error = err.to_string(), "decrypting data");
         Error::Unknown
     })?;
 
