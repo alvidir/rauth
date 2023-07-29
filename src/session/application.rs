@@ -2,6 +2,7 @@ use crate::crypto;
 use crate::regex;
 use crate::result::{Error, Result};
 use crate::secret::application::SecretRepository;
+use crate::secret::domain::SecretKind;
 use crate::token::application::GenerateOptions;
 use crate::token::application::TokenApplication;
 use crate::token::application::TokenRepository;
@@ -14,7 +15,6 @@ pub struct SessionApplication<'a, T: TokenRepository, U: UserRepository, E: Secr
     pub user_repo: Arc<U>,
     pub secret_repo: Arc<E>,
     pub token_app: Arc<TokenApplication<'a, T>>,
-    pub totp_secret_name: &'a str,
     pub pwd_sufix: &'a str,
 }
 
@@ -40,7 +40,7 @@ impl<'a, T: TokenRepository, U: UserRepository, E: SecretRepository>
         // if, and only if, the user has activated the totp
         if let Ok(secret) = self
             .secret_repo
-            .find_by_user_and_name(user.get_id(), self.totp_secret_name)
+            .find_by_user_and_kind(user.get_id(), SecretKind::Totp)
             .await
         {
             if !secret.is_deleted() {
@@ -86,7 +86,7 @@ pub mod tests {
     use super::{SessionApplication, TokenRepository};
     use crate::secret::application::tests::SecretRepositoryMock;
     use crate::secret::domain::tests::TEST_DEFAULT_SECRET_DATA;
-    use crate::secret::domain::Secret;
+    use crate::secret::domain::{Secret, SecretKind};
     use crate::token::application::tests::{
         new_token, new_token_application, PRIVATE_KEY, PUBLIC_KEY,
     };
@@ -158,7 +158,6 @@ pub mod tests {
             user_repo: Arc::new(user_repo),
             secret_repo: Arc::new(secret_repo),
             token_app: Arc::new(token_app),
-            totp_secret_name: ".dummy_totp_secret",
             pwd_sufix: TEST_DEFAULT_PWD_SUFIX,
         }
     }
@@ -166,8 +165,8 @@ pub mod tests {
     #[tokio::test]
     async fn login_by_email_should_not_fail() {
         let secret_repo = SecretRepositoryMock {
-            fn_find_by_user_and_name: Some(
-                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret> {
+            fn_find_by_user_and_kind: Some(
+                |_: &SecretRepositoryMock, _: i32, _: SecretKind| -> Result<Secret> {
                     Err(Error::NotFound)
                 },
             ),
@@ -195,8 +194,8 @@ pub mod tests {
     #[tokio::test]
     async fn login_by_username_should_not_fail() {
         let secret_repo = SecretRepositoryMock {
-            fn_find_by_user_and_name: Some(
-                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret> {
+            fn_find_by_user_and_kind: Some(
+                |_: &SecretRepositoryMock, _: i32, _: SecretKind| -> Result<Secret> {
                     Err(Error::NotFound)
                 },
             ),

@@ -19,6 +19,7 @@ mod email;
 mod grpc;
 #[cfg(feature = "rest")]
 mod http;
+#[cfg(feature = "rabbitmq")]
 mod rabbitmq;
 mod regex;
 mod result;

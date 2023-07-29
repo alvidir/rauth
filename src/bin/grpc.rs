@@ -25,29 +25,28 @@ use tonic::transport::Server;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let subscriber = tracing_subscriber::FmtSubscriber::new();
-    tracing::subscriber::set_global_default(subscriber)?;
-
     if let Err(err) = dotenv::dotenv() {
         warn!(error = err.to_string(), "processing dotenv file");
     }
 
+    config::init_global_tracer()?;
+
     let metadata_repo = Arc::new(PostgresMetadataRepository {
-        pool: config::POSTGRES_POOL.get().await,
+        pool: &config::POSTGRES_POOL,
     });
 
     let secret_repo = Arc::new(PostgresSecretRepository {
-        pool: config::POSTGRES_POOL.get().await,
+        pool: &config::POSTGRES_POOL,
         metadata_repo: metadata_repo.clone(),
     });
 
     let user_repo = Arc::new(PostgresUserRepository {
-        pool: config::POSTGRES_POOL.get().await,
+        pool: &config::POSTGRES_POOL,
         metadata_repo: metadata_repo.clone(),
     });
 
     let user_event_bus = Arc::new(RabbitMqUserBus {
-        pool: config::RABBITMQ_POOL.get().await,
+        pool: &config::RABBITMQ_POOL,
         exchange: &config::RABBITMQ_USERS_EXCHANGE,
         issuer: &config::EVENT_ISSUER,
     });
@@ -87,7 +86,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         mailer: Arc::new(mailer),
         event_bus: user_event_bus.clone(),
         totp_secret_len: *config::TOTP_SECRET_LEN,
-        totp_secret_name: &config::TOTP_SECRET_NAME,
         pwd_sufix: &config::PWD_SUFIX,
     };
 
@@ -101,7 +99,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         user_repo: user_repo.clone(),
         secret_repo: secret_repo.clone(),
         token_app: token_app.clone(),
-        totp_secret_name: &config::TOTP_SECRET_NAME,
         pwd_sufix: &config::PWD_SUFIX,
     };
 
@@ -110,7 +107,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         jwt_header: &config::JWT_HEADER,
     };
 
-    let addr: SocketAddr = config::SERVER_ADDR.parse().unwrap();
+    let addr: SocketAddr = config::SERVICE_ADDR.parse().unwrap();
     info!(
         address = addr.to_string(),
         "server ready to accept connections"
@@ -122,5 +119,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .serve(addr)
         .await?;
 
+    config::shutdown_global_tracer();
     Ok(())
 }

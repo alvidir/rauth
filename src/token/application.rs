@@ -155,18 +155,21 @@ pub mod tests {
     };
     use async_trait::async_trait;
     use base64::{engine::general_purpose, Engine as _};
-    use lazy_static::lazy_static;
+    use once_cell::sync::Lazy;
     use std::sync::Arc;
     use std::time::{Duration, SystemTime};
 
-    lazy_static! {
-        pub static ref PRIVATE_KEY: Vec<u8> = general_purpose::STANDARD.decode(
+    pub static PRIVATE_KEY: Lazy<Vec<u8>> = Lazy::new(|| {
+        general_purpose::STANDARD.decode(
             b"LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR0hBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJHMHdhd0lCQVFRZy9JMGJTbVZxL1BBN2FhRHgKN1FFSGdoTGxCVS9NcWFWMUJab3ZhM2Y5aHJxaFJBTkNBQVJXZVcwd3MydmlnWi96SzRXcGk3Rm1mK0VPb3FybQpmUlIrZjF2azZ5dnBGd0gzZllkMlllNXl4b3ZsaTROK1ZNNlRXVFErTmVFc2ZmTWY2TkFBMloxbQotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg=="
-        ).unwrap();
-        pub static ref PUBLIC_KEY: Vec<u8> = general_purpose::STANDARD.decode(
+        ).unwrap()
+    });
+
+    pub static PUBLIC_KEY: Lazy<Vec<u8>> = Lazy::new(|| {
+        general_purpose::STANDARD.decode(
             b"LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFVm5sdE1MTnI0b0dmOHl1RnFZdXhabi9oRHFLcQo1bjBVZm45YjVPc3I2UmNCOTMySGRtSHVjc2FMNVl1RGZsVE9rMWswUGpYaExIM3pIK2pRQU5tZFpnPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg=="
-        ).unwrap();
-    }
+        ).unwrap()
+    });
 
     type MockFnFind = Option<fn(this: &TokenRepositoryMock, key: &str) -> Result<String>>;
     type MockFnSave = Option<

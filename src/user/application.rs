@@ -1,6 +1,7 @@
 use super::domain::User;
 use crate::crypto;
 use crate::result::{Error, Result};
+use crate::secret::domain::SecretKind;
 use crate::secret::{application::SecretRepository, domain::Secret};
 use crate::token::application::{GenerateOptions, VerifyOptions};
 use crate::token::domain::TokenDefinition;
@@ -47,7 +48,6 @@ pub struct UserApplication<
     pub mailer: Arc<M>,
     pub event_bus: Arc<B>,
     pub totp_secret_len: usize,
-    pub totp_secret_name: &'a str,
     pub pwd_sufix: &'a str,
 }
 
@@ -161,7 +161,7 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
         // if, and only if, the user has activated the totp
         let secret_lookup = self
             .secret_repo
-            .find_by_user_and_name(user.id, self.totp_secret_name)
+            .find_by_user_and_kind(user.id, SecretKind::Totp)
             .await
             .ok();
 
@@ -215,7 +215,7 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
         // if, and only if, the user has activated the totp
         let mut secret_lookup = self
             .secret_repo
-            .find_by_user_and_name(user.id, self.totp_secret_name)
+            .find_by_user_and_kind(user.id, SecretKind::Totp)
             .await
             .ok();
 
@@ -236,7 +236,7 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
         }
 
         let token = crypto::get_random_string(self.totp_secret_len);
-        let mut secret = Secret::new(&user, self.totp_secret_name, token.as_bytes());
+        let mut secret = Secret::new(SecretKind::Totp, token.as_bytes(), &user);
         secret.set_deleted_at(Some(Utc::now().naive_utc())); // unavailable till confirmed
         self.secret_repo.create(&mut secret).await?;
         Ok(Some(token))
@@ -273,7 +273,7 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
         // if, and only if, the user has activated the totp
         let mut secret_lookup = self
             .secret_repo
-            .find_by_user_and_name(user.id, self.totp_secret_name)
+            .find_by_user_and_kind(user.id, SecretKind::Totp)
             .await
             .ok();
 
@@ -350,7 +350,7 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
         // if, and only if, the user has activated the totp
         if let Ok(secret) = self
             .secret_repo
-            .find_by_user_and_name(user.get_id(), self.totp_secret_name)
+            .find_by_user_and_kind(user.get_id(), SecretKind::Totp)
             .await
         {
             if !secret.is_deleted() {
@@ -371,6 +371,7 @@ pub mod tests {
     use super::super::domain::tests::{TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD};
     use super::super::domain::{tests::new_user_custom, User};
     use super::{EventBus, UserApplication, UserRepository};
+    use crate::secret::domain::SecretKind;
     use crate::secret::{
         application::tests::SecretRepositoryMock,
         domain::{
@@ -508,7 +509,6 @@ pub mod tests {
             mailer: Arc::new(mailer_mock),
             event_bus: Arc::new(event_bus),
             totp_secret_len: 32_usize,
-            totp_secret_name: ".dummy_totp_secret",
             pwd_sufix: TEST_DEFAULT_PWD_SUFIX,
         }
     }
@@ -705,8 +705,8 @@ pub mod tests {
     #[tokio::test]
     async fn user_secure_delete_should_not_fail() {
         let secret_repo = SecretRepositoryMock {
-            fn_find_by_user_and_name: Some(
-                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret> {
+            fn_find_by_user_and_kind: Some(
+                |_: &SecretRepositoryMock, _: i32, _: SecretKind| -> Result<Secret> {
                     Err(Error::NotFound)
                 },
             ),
@@ -741,8 +741,8 @@ pub mod tests {
     #[tokio::test]
     async fn user_secure_delete_verification_token_kind_should_fail() {
         let secret_repo = SecretRepositoryMock {
-            fn_find_by_user_and_name: Some(
-                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret> {
+            fn_find_by_user_and_kind: Some(
+                |_: &SecretRepositoryMock, _: i32, _: SecretKind| -> Result<Secret> {
                     Err(Error::NotFound)
                 },
             ),
@@ -778,8 +778,8 @@ pub mod tests {
     #[tokio::test]
     async fn user_secure_delete_reset_token_kind_should_fail() {
         let secret_repo = SecretRepositoryMock {
-            fn_find_by_user_and_name: Some(
-                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret> {
+            fn_find_by_user_and_kind: Some(
+                |_: &SecretRepositoryMock, _: i32, _: SecretKind| -> Result<Secret> {
                     Err(Error::NotFound)
                 },
             ),
@@ -809,8 +809,8 @@ pub mod tests {
     #[tokio::test]
     async fn user_delete_should_not_fail() {
         let secret_repo = SecretRepositoryMock {
-            fn_find_by_user_and_name: Some(
-                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret> {
+            fn_find_by_user_and_kind: Some(
+                |_: &SecretRepositoryMock, _: i32, _: SecretKind| -> Result<Secret> {
                     Err(Error::NotFound)
                 },
             ),
@@ -844,8 +844,8 @@ pub mod tests {
         };
 
         let secret_repo = SecretRepositoryMock {
-            fn_find_by_user_and_name: Some(
-                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret> {
+            fn_find_by_user_and_kind: Some(
+                |_: &SecretRepositoryMock, _: i32, _: SecretKind| -> Result<Secret> {
                     Err(Error::NotFound)
                 },
             ),
@@ -865,8 +865,8 @@ pub mod tests {
     #[tokio::test]
     async fn user_delete_wrong_password_should_fail() {
         let secret_repo = SecretRepositoryMock {
-            fn_find_by_user_and_name: Some(
-                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret> {
+            fn_find_by_user_and_kind: Some(
+                |_: &SecretRepositoryMock, _: i32, _: SecretKind| -> Result<Secret> {
                     Err(Error::NotFound)
                 },
             ),
@@ -894,8 +894,8 @@ pub mod tests {
     #[tokio::test]
     async fn user_secure_enable_totp_should_not_fail() {
         let secret_repo = SecretRepositoryMock {
-            fn_find_by_user_and_name: Some(
-                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret> {
+            fn_find_by_user_and_kind: Some(
+                |_: &SecretRepositoryMock, _: i32, _: SecretKind| -> Result<Secret> {
                     Err(Error::NotFound)
                 },
             ),
@@ -933,8 +933,8 @@ pub mod tests {
     #[tokio::test]
     async fn user_secure_enable_totp_verification_token_kind_should_fail() {
         let secret_repo = SecretRepositoryMock {
-            fn_find_by_user_and_name: Some(
-                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret> {
+            fn_find_by_user_and_kind: Some(
+                |_: &SecretRepositoryMock, _: i32, _: SecretKind| -> Result<Secret> {
                     Err(Error::NotFound)
                 },
             ),
@@ -970,8 +970,8 @@ pub mod tests {
     #[tokio::test]
     async fn user_secure_enable_totp_reset_token_kind_should_fail() {
         let secret_repo = SecretRepositoryMock {
-            fn_find_by_user_and_name: Some(
-                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret> {
+            fn_find_by_user_and_kind: Some(
+                |_: &SecretRepositoryMock, _: i32, _: SecretKind| -> Result<Secret> {
                     Err(Error::NotFound)
                 },
             ),
@@ -1000,8 +1000,8 @@ pub mod tests {
     #[tokio::test]
     async fn user_enable_totp_should_not_fail() {
         let mut secret_repo = SecretRepositoryMock {
-            fn_find_by_user_and_name: Some(
-                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret> {
+            fn_find_by_user_and_kind: Some(
+                |_: &SecretRepositoryMock, _: i32, _: SecretKind| -> Result<Secret> {
                     Err(Error::NotFound)
                 },
             ),
@@ -1030,8 +1030,8 @@ pub mod tests {
     #[tokio::test]
     async fn user_enable_totp_verify_should_not_fail() {
         let secret_repo = SecretRepositoryMock {
-            fn_find_by_user_and_name: Some(
-                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret> {
+            fn_find_by_user_and_kind: Some(
+                |_: &SecretRepositoryMock, _: i32, _: SecretKind| -> Result<Secret> {
                     let mut secret = new_secret();
                     secret.set_deleted_at(Some(Utc::now().naive_utc()));
                     Ok(secret)
@@ -1063,8 +1063,8 @@ pub mod tests {
     #[tokio::test]
     async fn user_enable_totp_wrong_password_should_fail() {
         let secret_repo = SecretRepositoryMock {
-            fn_find_by_user_and_name: Some(
-                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret> {
+            fn_find_by_user_and_kind: Some(
+                |_: &SecretRepositoryMock, _: i32, _: SecretKind| -> Result<Secret> {
                     let mut secret = new_secret();
                     secret.set_deleted_at(Some(Utc::now().naive_utc()));
                     Ok(secret)
@@ -1211,8 +1211,8 @@ pub mod tests {
     #[tokio::test]
     async fn user_disable_totp_not_enabled_should_fail() {
         let secret_repo = SecretRepositoryMock {
-            fn_find_by_user_and_name: Some(
-                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret> {
+            fn_find_by_user_and_kind: Some(
+                |_: &SecretRepositoryMock, _: i32, _: SecretKind| -> Result<Secret> {
                     Err(Error::NotFound)
                 },
             ),
@@ -1234,8 +1234,8 @@ pub mod tests {
     #[tokio::test]
     async fn user_disable_totp_not_verified_should_fail() {
         let secret_repo = SecretRepositoryMock {
-            fn_find_by_user_and_name: Some(
-                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret> {
+            fn_find_by_user_and_kind: Some(
+                |_: &SecretRepositoryMock, _: i32, _: SecretKind| -> Result<Secret> {
                     let mut secret = new_secret();
                     secret.set_deleted_at(Some(Utc::now().naive_utc()));
                     Ok(secret)
@@ -1259,8 +1259,8 @@ pub mod tests {
     #[tokio::test]
     async fn user_secure_reset_should_not_fail() {
         let secret_repo = SecretRepositoryMock {
-            fn_find_by_user_and_name: Some(
-                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret> {
+            fn_find_by_user_and_kind: Some(
+                |_: &SecretRepositoryMock, _: i32, _: SecretKind| -> Result<Secret> {
                     Err(Error::NotFound)
                 },
             ),
@@ -1288,8 +1288,8 @@ pub mod tests {
     #[tokio::test]
     async fn user_secure_reset_verification_token_kind_should_fail() {
         let secret_repo = SecretRepositoryMock {
-            fn_find_by_user_and_name: Some(
-                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret> {
+            fn_find_by_user_and_kind: Some(
+                |_: &SecretRepositoryMock, _: i32, _: SecretKind| -> Result<Secret> {
                     Err(Error::NotFound)
                 },
             ),
@@ -1325,8 +1325,8 @@ pub mod tests {
     #[tokio::test]
     async fn user_secure_reset_session_token_kind_should_fail() {
         let secret_repo = SecretRepositoryMock {
-            fn_find_by_user_and_name: Some(
-                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret> {
+            fn_find_by_user_and_kind: Some(
+                |_: &SecretRepositoryMock, _: i32, _: SecretKind| -> Result<Secret> {
                     Err(Error::NotFound)
                 },
             ),
@@ -1362,8 +1362,8 @@ pub mod tests {
     #[tokio::test]
     async fn user_reset_should_not_fail() {
         let secret_repo = SecretRepositoryMock {
-            fn_find_by_user_and_name: Some(
-                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret> {
+            fn_find_by_user_and_kind: Some(
+                |_: &SecretRepositoryMock, _: i32, _: SecretKind| -> Result<Secret> {
                     Err(Error::NotFound)
                 },
             ),
@@ -1379,8 +1379,8 @@ pub mod tests {
     #[tokio::test]
     async fn user_reset_same_password_should_fail() {
         let secret_repo = SecretRepositoryMock {
-            fn_find_by_user_and_name: Some(
-                |_: &SecretRepositoryMock, _: i32, _: &str| -> Result<Secret> {
+            fn_find_by_user_and_kind: Some(
+                |_: &SecretRepositoryMock, _: i32, _: SecretKind| -> Result<Secret> {
                     Err(Error::NotFound)
                 },
             ),

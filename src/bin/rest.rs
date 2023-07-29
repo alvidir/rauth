@@ -14,12 +14,11 @@ use std::time::Duration;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let subscriber = tracing_subscriber::FmtSubscriber::new();
-    tracing::subscriber::set_global_default(subscriber)?;
-
     if let Err(err) = dotenv::dotenv() {
         warn!(error = err.to_string(), "processing dotenv file",);
     }
+
+    config::init_global_tracer()?;
 
     let token_repo = Arc::new(RedisTokenRepository {
         pool: &config::REDIS_POOL,
@@ -39,7 +38,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     });
 
     info!(
-        address = *config::SERVER_ADDR,
+        address = *config::SERVICE_ADDR,
         "server ready to accept connections"
     );
 
@@ -49,10 +48,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .app_data(Data::new(session_server.clone()))
             .configure(session_server.router())
     })
-    .bind(&*config::SERVER_ADDR)?
+    .bind(&*config::SERVICE_ADDR)?
     .run()
     .await
     .unwrap();
 
+    config::shutdown_global_tracer();
     Ok(())
 }

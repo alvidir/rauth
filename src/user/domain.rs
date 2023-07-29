@@ -18,12 +18,12 @@ pub struct User {
 impl User {
     pub fn new(email: &str, password: &str) -> Result<Self> {
         regex::match_regex(regex::EMAIL, email).map_err(|err| {
-            warn!(error = err.to_string(), "validating email's format",);
+            warn!(error = err.to_string(), "validating email format",);
             Error::InvalidFormat
         })?;
 
         regex::match_regex(regex::BASE64, password).map_err(|err| {
-            warn!(error = err.to_string(), "validating password's format",);
+            warn!(error = err.to_string(), "validating password format",);
             Error::InvalidFormat
         })?;
 

@@ -1,7 +1,7 @@
 services:
   postgres:
     container_name: rauth-postgres
-    image: docker.io/postgres:alpine3.17
+    image: docker.io/postgres:alpine3.18
     restart: on-failure
     volumes:
       - dbdata:/data/postgres
@@ -13,7 +13,7 @@ services:
 
   redis:
     container_name: rauth-redis
-    image: docker.io/redis:alpine3.17
+    image: docker.io/redis:alpine3.18
     restart: always
     volumes:
       - ./redis:/usr/local/etc/redis:ro

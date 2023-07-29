@@ -1,22 +1,20 @@
-use async_once::AsyncOnce;
 use base64::{engine::general_purpose, Engine as _};
 use deadpool_lapin::{Config, Pool, Runtime};
 use lapin::{options, types::FieldTable, ExchangeKind};
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use reool::RedisPool;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::env;
 use tokio::runtime::Handle;
 
-const DEFAULT_ADDR: &str = "127.0.0.1";
 const DEFAULT_PORT: &str = "8000";
+const DEFAULT_ADDR: &str = "127.0.0.1";
 const DEFAULT_TEMPLATES_PATH: &str = "/etc/rauth/smtp/templates/*.html";
 const DEFAULT_JWT_HEADER: &str = "authorization";
 const DEFAULT_TOTP_HEADER: &str = "x-totp-secret";
 const DEFAULT_TOKEN_TIMEOUT: u64 = 7200;
 const DEFAULT_POOL_SIZE: u32 = 10;
 const DEFAULT_TOTP_SECRET_LEN: usize = 32_usize;
-const DEFAULT_TOTP_SECRET_NAME: &str = "totp";
 
 const ENV_SERVICE_PORT: &str = "SERVICE_PORT";
 const ENV_SERVICE_ADDR: &str = "SERVICE_ADDR";
@@ -41,40 +39,62 @@ const ENV_RABBITMQ_URL: &str = "RABBITMQ_URL";
 const ENV_RABBITMQ_POOL: &str = "RABBITMQ_POOL";
 const ENV_EVENT_ISSUER: &str = "EVENT_ISSUER";
 const ENV_TOTP_SECRET_LEN: &str = "TOTP_SECRET_LEN";
-const ENV_TOTP_SECRET_NAME: &str = "TOTP_SECRET_NAME";
 const ENV_TOKEN_ISSUER: &str = "TOKEN_ISSUER";
 
-lazy_static! {
-    pub static ref SERVER_ADDR: String = {
-        let netw = env::var(ENV_SERVICE_ADDR).unwrap_or_else(|_| DEFAULT_ADDR.to_string());
-        let port = env::var(ENV_SERVICE_PORT).unwrap_or_else(|_| DEFAULT_PORT.to_string());
-        format!("{}:{}", netw, port)
-    };
-    pub static ref TOKEN_TIMEOUT: u64 = env::var(ENV_TOKEN_TIMEOUT)
+pub static SERVICE_ADDR: Lazy<String> = Lazy::new(|| {
+    let netw = env::var(ENV_SERVICE_ADDR).unwrap_or_else(|_| DEFAULT_ADDR.to_string());
+    let port = env::var(ENV_SERVICE_PORT).unwrap_or_else(|_| DEFAULT_PORT.to_string());
+    format!("{}:{}", netw, port)
+});
+
+pub static TOKEN_TIMEOUT: Lazy<u64> = Lazy::new(|| {
+    env::var(ENV_TOKEN_TIMEOUT)
         .map(|timeout| timeout.parse().unwrap())
-        .unwrap_or(DEFAULT_TOKEN_TIMEOUT);
-    pub static ref JWT_SECRET: Vec<u8> = env::var(ENV_JWT_SECRET)
+        .unwrap_or(DEFAULT_TOKEN_TIMEOUT)
+});
+
+pub static JWT_SECRET: Lazy<Vec<u8>> = Lazy::new(|| {
+    env::var(ENV_JWT_SECRET)
         .map(|secret| general_purpose::STANDARD.decode(secret).unwrap())
-        .expect("jwt secret must be set");
-    pub static ref JWT_PUBLIC: Vec<u8> = env::var(ENV_JWT_PUBLIC)
+        .expect("jwt secret must be set")
+});
+
+pub static JWT_PUBLIC: Lazy<Vec<u8>> = Lazy::new(|| {
+    env::var(ENV_JWT_PUBLIC)
         .map(|secret| general_purpose::STANDARD.decode(secret).unwrap())
-        .expect("jwt public key must be set");
-    pub static ref JWT_HEADER: String =
-        env::var(ENV_JWT_HEADER).unwrap_or_else(|_| DEFAULT_JWT_HEADER.to_string());
-    pub static ref TOTP_HEADER: String =
-        env::var(ENV_TOTP_HEADER).unwrap_or_else(|_| DEFAULT_TOTP_HEADER.to_string());
-    pub static ref SMTP_TRANSPORT: String =
-        env::var(ENV_SMTP_TRANSPORT).expect("smtp transport must be set");
-    pub static ref SMTP_USERNAME: String = env::var(ENV_SMTP_USERNAME).unwrap_or_default();
-    pub static ref SMTP_PASSWORD: String = env::var(ENV_SMTP_PASSWORD).unwrap_or_default();
-    pub static ref SMTP_ORIGIN: String =
-        env::var(ENV_SMTP_ORIGIN).expect("smpt origin must be set");
-    pub static ref SMTP_ISSUER: String =
-        env::var(ENV_SMTP_ISSUER).expect("smtp issuer must be set");
-    pub static ref SMTP_TEMPLATES: String =
-        env::var(ENV_SMTP_TEMPLATES).unwrap_or_else(|_| DEFAULT_TEMPLATES_PATH.to_string());
-    pub static ref PWD_SUFIX: String = env::var(ENV_PWD_SUFIX).expect("password sufix must be set");
-    pub static ref POSTGRES_POOL: AsyncOnce<PgPool> = AsyncOnce::new(async {
+        .expect("jwt public key must be set")
+});
+
+pub static JWT_HEADER: Lazy<String> =
+    Lazy::new(|| env::var(ENV_JWT_HEADER).unwrap_or_else(|_| DEFAULT_JWT_HEADER.to_string()));
+
+pub static TOTP_HEADER: Lazy<String> =
+    Lazy::new(|| env::var(ENV_TOTP_HEADER).unwrap_or_else(|_| DEFAULT_TOTP_HEADER.to_string()));
+
+pub static SMTP_TRANSPORT: Lazy<String> =
+    Lazy::new(|| env::var(ENV_SMTP_TRANSPORT).expect("smtp transport must be set"));
+
+pub static SMTP_USERNAME: Lazy<String> =
+    Lazy::new(|| env::var(ENV_SMTP_USERNAME).unwrap_or_default());
+
+pub static SMTP_PASSWORD: Lazy<String> =
+    Lazy::new(|| env::var(ENV_SMTP_PASSWORD).unwrap_or_default());
+
+pub static SMTP_ORIGIN: Lazy<String> =
+    Lazy::new(|| env::var(ENV_SMTP_ORIGIN).expect("smpt origin must be set"));
+
+pub static SMTP_ISSUER: Lazy<String> =
+    Lazy::new(|| env::var(ENV_SMTP_ISSUER).expect("smtp issuer must be set"));
+
+pub static SMTP_TEMPLATES: Lazy<String> = Lazy::new(|| {
+    env::var(ENV_SMTP_TEMPLATES).unwrap_or_else(|_| DEFAULT_TEMPLATES_PATH.to_string())
+});
+
+pub static PWD_SUFIX: Lazy<String> =
+    Lazy::new(|| env::var(ENV_PWD_SUFIX).expect("password sufix must be set"));
+
+pub static POSTGRES_POOL: Lazy<PgPool> = Lazy::new(|| {
+    futures::executor::block_on(async {
         let postgres_dsn = env::var(ENV_POSTGRES_DSN).expect("postgres dns must be set");
 
         let postgres_pool = env::var(ENV_POSTGRES_POOL)
@@ -86,23 +106,29 @@ lazy_static! {
             .connect(&postgres_dsn)
             .await
             .unwrap()
-    });
-    pub static ref REDIS_POOL: RedisPool = {
-        let redis_url: String = env::var(ENV_REDIS_URL).expect("redis url must be set");
-        let redis_pool: usize = env::var(ENV_REDIS_POOL)
-            .map(|pool_size| pool_size.parse().unwrap())
-            .unwrap_or_else(|_| DEFAULT_POOL_SIZE.try_into().unwrap());
+    })
+});
 
-        RedisPool::builder()
-            .connect_to_node(redis_url)
-            .desired_pool_size(redis_pool)
-            .task_executor(Handle::current())
-            .finish_redis_rs()
-            .unwrap()
-    };
-    pub static ref RABBITMQ_USERS_EXCHANGE: String =
-        env::var(ENV_RABBITMQ_USERS_EXCHANGE).expect("rabbitmq users bus name must be set");
-    pub static ref RABBITMQ_POOL: AsyncOnce<Pool> = AsyncOnce::new(async {
+pub static REDIS_POOL: Lazy<RedisPool> = Lazy::new(|| {
+    let redis_url: String = env::var(ENV_REDIS_URL).expect("redis url must be set");
+    let redis_pool: usize = env::var(ENV_REDIS_POOL)
+        .map(|pool_size| pool_size.parse().unwrap())
+        .unwrap_or_else(|_| DEFAULT_POOL_SIZE.try_into().unwrap());
+
+    RedisPool::builder()
+        .connect_to_node(redis_url)
+        .desired_pool_size(redis_pool)
+        .task_executor(Handle::current())
+        .finish_redis_rs()
+        .unwrap()
+});
+
+pub static RABBITMQ_USERS_EXCHANGE: Lazy<String> = Lazy::new(|| {
+    env::var(ENV_RABBITMQ_USERS_EXCHANGE).expect("rabbitmq users bus name must be set")
+});
+
+pub static RABBITMQ_POOL: Lazy<Pool> = Lazy::new(|| {
+    futures::executor::block_on(async {
         let rabbitmq_url = env::var(ENV_RABBITMQ_URL).expect("rabbitmq url must be set");
         let rabbitmq_pool = env::var(ENV_RABBITMQ_POOL)
             .map(|pool_size| pool_size.parse().unwrap())
@@ -138,14 +164,93 @@ lazy_static! {
             .unwrap();
 
         pool
-    });
-    pub static ref EVENT_ISSUER: String =
-        env::var(ENV_EVENT_ISSUER).expect("event issuer must be set");
-    pub static ref TOTP_SECRET_LEN: usize = env::var(ENV_TOTP_SECRET_LEN)
+    })
+});
+
+pub static EVENT_ISSUER: Lazy<String> =
+    Lazy::new(|| env::var(ENV_EVENT_ISSUER).expect("event issuer must be set"));
+
+pub static TOTP_SECRET_LEN: Lazy<usize> = Lazy::new(|| {
+    env::var(ENV_TOTP_SECRET_LEN)
         .map(|len| len.parse().unwrap())
-        .unwrap_or_else(|_| DEFAULT_TOTP_SECRET_LEN);
-    pub static ref TOTP_SECRET_NAME: String =
-        env::var(ENV_TOTP_SECRET_NAME).unwrap_or_else(|_| DEFAULT_TOTP_SECRET_NAME.to_string());
-    pub static ref TOKEN_ISSUER: String =
-        env::var(ENV_TOKEN_ISSUER).expect("token issuer must be set");
+        .unwrap_or_else(|_| DEFAULT_TOTP_SECRET_LEN)
+});
+
+pub static TOKEN_ISSUER: Lazy<String> =
+    Lazy::new(|| env::var(ENV_TOKEN_ISSUER).expect("token issuer must be set"));
+
+#[cfg(feature = "trace")]
+pub use trace::*;
+
+#[cfg(feature = "trace")]
+mod trace {
+    use std::env;
+
+    use once_cell::sync::Lazy;
+    use opentelemetry_api::global;
+    use opentelemetry_api::KeyValue;
+    use opentelemetry_otlp::WithExportConfig;
+    use opentelemetry_sdk::{runtime, trace as sdktrace, Resource};
+    use opentelemetry_semantic_conventions::resource;
+    use tonic::codegen::http::HeaderMap;
+    use tonic::metadata::MetadataMap;
+    use tracing::subscriber::SetGlobalDefaultError;
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::Registry;
+
+    const DEFAULT_SERVICE_NAME: &str = "rauth";
+    const DEFAULT_COLLECTOR_API_KEY_HEADER: &str = "api-key";
+
+    const ENV_SERVICE_NAME: &str = "SERVICE_NAME";
+    const ENV_COLLECTOR_URL: &str = "COLLECTOR_URL";
+    const ENV_COLLECTOR_API_KEY_HEADER: &str = "COLLECTOR_API_KEY_HEADER";
+    const ENV_COLLECTOR_API_KEY: &str = "COLLECTOR_API_KEY";
+
+    static SERVICE_NAME: Lazy<String> = Lazy::new(|| {
+        env::var(ENV_SERVICE_NAME).unwrap_or_else(|_| DEFAULT_SERVICE_NAME.to_string())
+    });
+
+    static COLLECTOR_URL: Lazy<String> =
+        Lazy::new(|| env::var(ENV_COLLECTOR_URL).expect("collector url must be set"));
+
+    static COLLECTOR_API_KEY_HEADER: Lazy<String> = Lazy::new(|| {
+        env::var(ENV_COLLECTOR_API_KEY_HEADER)
+            .unwrap_or_else(|_| DEFAULT_COLLECTOR_API_KEY_HEADER.to_string())
+    });
+
+    static COLLECTOR_API_KEY: Lazy<Option<String>> =
+        Lazy::new(|| env::var(ENV_COLLECTOR_API_KEY).ok());
+
+    pub fn init_global_tracer() -> Result<(), SetGlobalDefaultError> {
+        let metadata = MetadataMap::from_headers({
+            let mut metadata = HeaderMap::new();
+            if let Some(api_key) = &*COLLECTOR_API_KEY {
+                metadata.insert(COLLECTOR_API_KEY_HEADER.as_str(), api_key.parse().unwrap());
+            }
+
+            metadata
+        });
+
+        let tracer = opentelemetry_otlp::new_pipeline()
+            .tracing()
+            .with_exporter(
+                opentelemetry_otlp::new_exporter()
+                    .tonic()
+                    .with_endpoint(&*COLLECTOR_URL)
+                    .with_metadata(metadata),
+            )
+            .with_trace_config(sdktrace::config().with_resource(Resource::new(vec![
+                KeyValue::new(resource::SERVICE_NAME, SERVICE_NAME.clone()),
+            ])))
+            .install_batch(runtime::Tokio)
+            .unwrap();
+
+        let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
+        let subscriber = Registry::default().with(telemetry);
+        tracing::subscriber::set_global_default(subscriber)
+    }
+
+    pub fn shutdown_global_tracer() {
+        global::shutdown_tracer_provider()
+    }
 }

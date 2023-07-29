@@ -2,21 +2,27 @@ use crate::metadata::domain::Metadata;
 use crate::user::domain::User;
 use chrono::naive::NaiveDateTime;
 
+#[derive(Debug, Clone, Copy, strum_macros::EnumString, strum_macros::Display)]
+#[strum(serialize_all = "lowercase")]
+pub enum SecretKind {
+    Totp,
+}
+
 #[derive(Debug, Clone)]
 pub struct Secret {
     pub(super) id: i32,
     pub(super) owner: i32,
-    pub(super) name: String,
+    pub(super) kind: SecretKind,
     pub(super) data: Vec<u8>,
     pub(super) meta: Metadata,
 }
 
 impl Secret {
-    pub fn new(user: &User, name: &str, data: &[u8]) -> Self {
+    pub fn new(kind: SecretKind, data: &[u8], user: &User) -> Self {
         Secret {
             id: 0,
             owner: user.get_id(),
-            name: name.to_string(),
+            kind,
             data: data.to_vec(),
             meta: Metadata::default(),
         }
@@ -41,11 +47,10 @@ impl Secret {
 
 #[cfg(test)]
 pub mod tests {
-    use super::Secret;
+    use super::{Secret, SecretKind};
     use crate::metadata::domain::Metadata;
     use crate::user::domain::tests::new_user;
 
-    pub const TEST_DEFAULT_SECRET_NAME: &str = "dummysecret";
     pub const TEST_DEFAULT_SECRET_DATA: &str = "this is a secret";
 
     pub fn new_secret() -> Secret {
@@ -54,7 +59,7 @@ pub mod tests {
         Secret {
             id: 999_i32,
             owner: 0_i32,
-            name: TEST_DEFAULT_SECRET_NAME.to_string(),
+            kind: SecretKind::Totp,
             data: TEST_DEFAULT_SECRET_DATA.as_bytes().to_vec(),
             meta: inner_meta,
         }
@@ -62,13 +67,12 @@ pub mod tests {
 
     #[test]
     fn secret_new_should_not_fail() {
-        let name = "dummy secret";
         let data = "secret_new_should_success".as_bytes();
         let user = new_user();
-        let secret = Secret::new(&user, name, data);
+        let secret = Secret::new(SecretKind::Totp, data, &user);
 
         assert_eq!(0, secret.id);
-        assert_eq!(name, secret.name);
+        assert!(matches!(secret.kind, SecretKind::Totp));
         assert_eq!(data, secret.data);
     }
 }
