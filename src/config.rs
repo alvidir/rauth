@@ -238,7 +238,7 @@ mod trace {
                     .tonic()
                     .with_endpoint(&*COLLECTOR_URL),
                 // TODO: wait for opentelemetry_otlp v0.20.0
-                // .with_metadata(metadata),
+                // .with_metadata(metadata),s
             )
             .with_trace_config(sdktrace::config().with_resource(Resource::new(vec![
                 KeyValue::new(resource::SERVICE_NAME, SERVICE_NAME.clone()),
