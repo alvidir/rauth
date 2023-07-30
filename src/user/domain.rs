@@ -3,9 +3,9 @@ use crate::{
     email, regex,
     result::{Error, Result},
 };
+use serde::{Deserialize, Serialize};
 
-///
-#[derive(Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub(super) struct UserBuilder<'a> {
     email: Option<&'a str>,
     password: Option<&'a str>,

@@ -4,26 +4,6 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::time::{Duration, SystemTime};
 
-pub trait TokenDefinition {
-    fn get_id(&self) -> String;
-    fn get_kind(&self) -> &TokenKind;
-}
-
-pub struct SignedToken {
-    pub(super) id: String,
-    pub(super) signature: String,
-}
-
-impl SignedToken {
-    pub fn id(&self) -> &str {
-        &self.id
-    }
-
-    pub fn signature(&self) -> &str {
-        &self.signature
-    }
-}
-
 #[derive(Serialize, Deserialize, Hash, PartialEq, Eq, Debug, Clone, strum_macros::Display)]
 pub enum TokenKind {
     Session = 0,
@@ -43,10 +23,6 @@ pub struct Token {
 }
 
 impl Token {
-    fn default_secret_value() -> Option<String> {
-        None
-    }
-
     pub fn new(kind: TokenKind, iss: &str, sub: &str, timeout: Duration) -> Self {
         let mut token = Token {
             jti: rand::thread_rng().gen::<u64>().to_string(), // noise
@@ -63,16 +39,6 @@ impl Token {
         token.jti = hasher.finish().to_string();
 
         token
-    }
-}
-
-impl TokenDefinition for Token {
-    fn get_id(&self) -> String {
-        format!("{:?}::{}", self.knd, self.jti)
-    }
-
-    fn get_kind(&self) -> &TokenKind {
-        &self.knd
     }
 }
 

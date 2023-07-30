@@ -27,7 +27,7 @@ pub fn get_header<T>(req: &Request<T>, header: &str) -> Result<String, Error> {
     let data = req
         .metadata()
         .get(header)
-        .ok_or_else(|| Error::NotFound)
+        .ok_or(Error::NotFound)
         .map(|data| data.to_str())?;
 
     data.map(|data| data.to_string()).map_err(|err| {

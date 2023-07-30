@@ -1,7 +1,7 @@
 use super::application::Mailer;
 use crate::base64::B64_CUSTOM_ENGINE;
+use crate::cache::Cache;
 use crate::secret::application::SecretRepository;
-use crate::token::application::TokenRepository;
 use crate::user::application::{EventBus, UserApplication, UserRepository};
 use crate::{grpc, result::Error};
 use base64::Engine;
@@ -26,11 +26,11 @@ use proto::{DeleteRequest, Empty, ResetRequest, SignupRequest, TotpRequest};
 pub struct UserGrpcService<
     U: UserRepository + Sync + Send,
     S: SecretRepository + Sync + Send,
-    T: TokenRepository + Sync + Send,
     B: EventBus + Sync + Send,
     M: Mailer,
+    C: Cache,
 > {
-    pub user_app: UserApplication<'static, U, S, T, B, M>,
+    pub user_app: UserApplication<'static, U, S, B, M, C>,
     pub jwt_header: &'static str,
     pub totp_header: &'static str,
 }
@@ -38,10 +38,10 @@ pub struct UserGrpcService<
 impl<
         U: 'static + UserRepository + Sync + Send,
         S: 'static + SecretRepository + Sync + Send,
-        T: 'static + TokenRepository + Sync + Send,
         B: 'static + EventBus + Sync + Send,
         M: 'static + Mailer + Sync + Send,
-    > UserGrpcService<U, S, T, B, M>
+        C: 'static + Cache + Sync + Send,
+    > UserGrpcService<U, S, B, M, C>
 {
     #[instrument(skip(self))]
     async fn signup_with_token(&self, token: &str) -> Result<Response<Empty>, Status> {
@@ -80,10 +80,10 @@ impl<
 impl<
         U: 'static + UserRepository + Sync + Send,
         S: 'static + SecretRepository + Sync + Send,
-        T: 'static + TokenRepository + Sync + Send,
         B: 'static + EventBus + Sync + Send,
         M: 'static + Mailer + Sync + Send,
-    > User for UserGrpcService<U, S, T, B, M>
+        C: 'static + Cache + Sync + Send,
+    > User for UserGrpcService<U, S, B, M, C>
 {
     #[instrument(skip(self))]
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<Empty>, Status> {

@@ -72,7 +72,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     .with_issuer(&config::SMTP_ISSUER);
 
     let token_app = Arc::new(TokenApplication {
-        token_repo: token_repo.clone(),
+        cache: token_repo.clone(),
         timeout: Duration::from_secs(*config::TOKEN_TIMEOUT),
         token_issuer: &config::TOKEN_ISSUER,
         private_key: &config::JWT_SECRET,

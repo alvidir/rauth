@@ -1,7 +1,7 @@
 use super::application::SessionApplication;
 use crate::base64::B64_CUSTOM_ENGINE;
+use crate::cache::Cache;
 use crate::secret::application::SecretRepository;
-use crate::token::application::TokenRepository;
 use crate::user::application::UserRepository;
 use crate::{grpc, result::Error};
 use base64::Engine;
@@ -21,20 +21,20 @@ pub use proto::session_server::SessionServer;
 use proto::{Empty, LoginRequest};
 
 pub struct SessionGrpcService<
-    T: TokenRepository + Sync + Send,
     U: UserRepository + Sync + Send,
     S: SecretRepository + Sync + Send,
+    C: Cache + Sync + Send,
 > {
-    pub session_app: SessionApplication<'static, T, U, S>,
+    pub session_app: SessionApplication<'static, U, S, C>,
     pub jwt_header: &'static str,
 }
 
 #[tonic::async_trait]
 impl<
-        T: 'static + TokenRepository + Sync + Send,
         U: 'static + UserRepository + Sync + Send,
         S: 'static + SecretRepository + Sync + Send,
-    > Session for SessionGrpcService<T, U, S>
+        C: 'static + Cache + Sync + Send,
+    > Session for SessionGrpcService<U, S, C>
 {
     #[instrument(skip(self))]
     async fn login(&self, request: Request<LoginRequest>) -> Result<Response<Empty>, Status> {

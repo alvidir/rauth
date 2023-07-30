@@ -1,20 +1,12 @@
-use super::domain::SignedToken;
-use super::domain::{Token, TokenDefinition, TokenKind};
+use super::domain::{Token, TokenKind};
+use crate::cache::Cache;
 use crate::crypto;
 use crate::result::{Error, Result};
-use async_trait::async_trait;
 use std::sync::Arc;
 use std::time::Duration;
 
-#[async_trait]
-pub trait TokenRepository {
-    async fn find(&self, key: &str) -> Result<String>;
-    async fn save(&self, key: &str, token: &str, expire: Option<u64>) -> Result<()>;
-    async fn delete(&self, key: &str) -> Result<()>;
-}
-
-pub struct TokenApplication<'a, T: TokenRepository> {
-    pub token_repo: Arc<T>,
+pub struct TokenApplication<'a, C: Cache> {
+    pub cache: Arc<C>,
     pub timeout: Duration,
     pub token_issuer: &'a str,
     pub private_key: &'a [u8],
@@ -57,27 +49,21 @@ impl VerifyOptions {
     }
 }
 
-impl<'a, T: TokenRepository> TokenApplication<'a, T> {
+impl<'a, T: Cache> TokenApplication<'a, T> {
     #[instrument(skip(self))]
-    pub async fn generate(
-        &self,
-        kind: TokenKind,
-        sub: &str,
-        options: GenerateOptions,
-    ) -> Result<SignedToken> {
-        let token = Token::new(kind, self.token_issuer, sub, self.timeout);
-        let signed = crypto::sign_jwt(self.private_key, &token)?;
+    pub async fn generate(&self, kind: TokenKind, sub: &str) -> Result<Token> {
+        Ok(Token::new(kind, self.token_issuer, sub, self.timeout))
+    }
 
-        if options.store {
-            self.token_repo
-                .save(&token.get_id(), &signed, Some(self.timeout.as_secs()))
-                .await?;
-        }
+    #[instrument(skip(self))]
+    pub async fn store(&self, token: &Token) -> Result<String> {
+        let signed = crypto::sign_jwt(self.private_key, token)?;
 
-        Ok(SignedToken {
-            id: token.get_id(),
-            signature: signed,
-        })
+        self.cache
+            .save(&token.jti, &signed, Some(self.timeout.as_secs()))
+            .await?;
+
+        Ok(signed)
     }
 
     #[instrument(skip(self))]
@@ -86,8 +72,8 @@ impl<'a, T: TokenRepository> TokenApplication<'a, T> {
     }
 
     #[instrument(skip(self))]
-    pub async fn retrieve(&self, key: &str) -> Result<Token> {
-        let token = self.token_repo.find(key).await?;
+    pub async fn find(&self, key: &str) -> Result<Token> {
+        let token: String = self.cache.find(key).await?;
         let claims = self.decode(&token).await?;
         Ok(claims)
     }
@@ -95,10 +81,10 @@ impl<'a, T: TokenRepository> TokenApplication<'a, T> {
     #[instrument(skip(self))]
     pub async fn verify(&self, token: &Token, options: VerifyOptions) -> Result<()> {
         if let Some(kind) = options.kind {
-            if *token.get_kind() != kind {
+            if token.knd != kind {
                 warn!(
-                    token_id = token.get_id(),
-                    token_kind = token.get_kind().to_string(),
+                    token_id = token.jti,
+                    token_kind = token.knd.to_string(),
                     expected_kind = kind.to_string(),
                     "checking token's kind",
                 );
@@ -107,11 +93,10 @@ impl<'a, T: TokenRepository> TokenApplication<'a, T> {
         }
 
         if options.must_exists {
-            let key = token.get_id();
-            let present_data = self.token_repo.find(&key).await.map_err(|err| {
+            let present_data: String = self.cache.find(&token.jti).await.map_err(|err| {
                 warn!(
                     error = err.to_string(),
-                    token_id = key,
+                    token_id = token.jti,
                     "finding token by id",
                 );
                 Error::InvalidToken
@@ -119,7 +104,7 @@ impl<'a, T: TokenRepository> TokenApplication<'a, T> {
 
             let present_token = self.decode(&present_data).await?;
             if token != &present_token {
-                error!(token_id = key, "token does not match");
+                error!(token_id = token.jti, "token does not match");
                 return Err(Error::InvalidToken);
             }
         }
@@ -129,31 +114,27 @@ impl<'a, T: TokenRepository> TokenApplication<'a, T> {
 
     #[instrument(skip(self))]
     pub async fn revoke(&self, token: &Token) -> Result<()> {
-        let key = token.get_id();
-        self.token_repo.find(&key).await.map_err(|err| {
+        self.cache.find(&token.jti).await.map_err(|err| {
             warn!(
                 error = err.to_string(),
-                token_id = key,
+                token_id = token.jti,
                 "finding token by id",
             );
             Error::InvalidToken
         })?;
 
-        self.token_repo.delete(&key).await
+        self.cache.delete(&token.jti).await
     }
 }
 
 #[cfg(test)]
 pub mod tests {
-    use super::{TokenApplication, TokenRepository};
+    use super::TokenApplication;
+    use crate::cache::tests::InMemoryCache;
     use crate::time;
     use crate::token::application::VerifyOptions;
     use crate::token::domain::{Token, TokenKind};
-    use crate::{
-        crypto,
-        result::{Error, Result},
-    };
-    use async_trait::async_trait;
+    use crate::{crypto, result::Error};
     use base64::{engine::general_purpose, Engine as _};
     use once_cell::sync::Lazy;
     use std::sync::Arc;
@@ -171,12 +152,6 @@ pub mod tests {
         ).unwrap()
     });
 
-    type MockFnFind = Option<fn(this: &TokenRepositoryMock, key: &str) -> Result<String>>;
-    type MockFnSave = Option<
-        fn(this: &TokenRepositoryMock, key: &str, token: &str, expire: Option<u64>) -> Result<()>,
-    >;
-    type MockFnDelete = Option<fn(this: &TokenRepositoryMock, key: &str) -> Result<()>>;
-
     pub const TEST_DEFAULT_TOKEN_TIMEOUT: u64 = 60;
 
     pub fn new_token(kind: TokenKind) -> Token {
@@ -187,46 +162,9 @@ pub mod tests {
         Token::new(kind, ISS, &SUB.to_string(), timeout)
     }
 
-    #[derive(Default, Clone)]
-    pub struct TokenRepositoryMock {
-        pub fn_find: MockFnFind,
-        pub fn_save: MockFnSave,
-        pub fn_delete: MockFnDelete,
-        pub token: String,
-    }
-
-    #[async_trait]
-    impl TokenRepository for TokenRepositoryMock {
-        async fn find(&self, key: &str) -> Result<String> {
-            if let Some(fn_find) = self.fn_find {
-                return fn_find(self, key);
-            }
-
-            Ok(self.token.clone())
-        }
-
-        async fn save(&self, key: &str, token: &str, expire: Option<u64>) -> Result<()> {
-            if let Some(fn_save) = self.fn_save {
-                return fn_save(self, key, token, expire);
-            }
-
-            Ok(())
-        }
-
-        async fn delete(&self, key: &str) -> Result<()> {
-            if let Some(fn_delete) = self.fn_delete {
-                return fn_delete(self, key);
-            }
-
-            Ok(())
-        }
-    }
-
-    pub fn new_token_application<'a, T: TokenRepository + Default>(
-        token_repo: Option<T>,
-    ) -> TokenApplication<'a, T> {
+    pub fn new_token_application<'a>() -> TokenApplication<'a, InMemoryCache> {
         TokenApplication {
-            token_repo: Arc::new(token_repo.unwrap_or_default()),
+            cache: Arc::new(InMemoryCache),
             timeout: Duration::from_secs(999),
             token_issuer: "dummy",
             private_key: &PRIVATE_KEY,
@@ -237,15 +175,7 @@ pub mod tests {
     #[tokio::test]
     async fn verify_token_should_not_fail() {
         let token = crypto::sign_jwt(&PRIVATE_KEY, new_token(TokenKind::Session)).unwrap();
-        let token_repo = TokenRepositoryMock {
-            token: token.clone(),
-            fn_find: Some(|this: &TokenRepositoryMock, _: &str| -> Result<String> {
-                Ok(this.token.clone())
-            }),
-            ..Default::default()
-        };
-
-        let app = new_token_application(Some(token_repo));
+        let app = new_token_application();
         let claims = app.decode(&token).await.unwrap();
         app.verify(&claims, VerifyOptions::new(TokenKind::Session))
             .await
@@ -258,7 +188,7 @@ pub mod tests {
         claim.exp = time::unix_timestamp(SystemTime::now() - Duration::from_secs(61));
 
         let token = crypto::sign_jwt(&PRIVATE_KEY, claim).unwrap();
-        let app = new_token_application::<TokenRepositoryMock>(None);
+        let app = new_token_application();
 
         app.decode(&token)
             .await
@@ -271,15 +201,8 @@ pub mod tests {
         let token = crypto::sign_jwt(&PRIVATE_KEY, new_token(TokenKind::Session))
             .unwrap()
             .replace('A', "a");
-        let token_repo = TokenRepositoryMock {
-            token: token.clone(),
-            fn_find: Some(|this: &TokenRepositoryMock, _: &str| -> Result<String> {
-                Ok(this.token.clone())
-            }),
-            ..Default::default()
-        };
 
-        let app = new_token_application(Some(token_repo));
+        let app = new_token_application();
         app.decode(&token)
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
@@ -289,15 +212,7 @@ pub mod tests {
     #[tokio::test]
     async fn verify_token_wrong_kind_should_fail() {
         let token = crypto::sign_jwt(&PRIVATE_KEY, new_token(TokenKind::Session)).unwrap();
-        let token_repo = TokenRepositoryMock {
-            token: token.clone(),
-            fn_find: Some(|this: &TokenRepositoryMock, _: &str| -> Result<String> {
-                Ok(this.token.clone())
-            }),
-            ..Default::default()
-        };
-
-        let app = new_token_application(Some(token_repo));
+        let app = new_token_application();
         let claims = app.decode(&token).await.unwrap();
         app.verify(&claims, VerifyOptions::new(TokenKind::Verification))
             .await
@@ -308,15 +223,7 @@ pub mod tests {
     #[tokio::test]
     async fn verify_token_not_present_should_fail() {
         let token = crypto::sign_jwt(&PRIVATE_KEY, new_token(TokenKind::Session)).unwrap();
-        let token_repo = TokenRepositoryMock {
-            token: token.clone(),
-            fn_find: Some(|_: &TokenRepositoryMock, _: &str| -> Result<String> {
-                Err(Error::NotFound)
-            }),
-            ..Default::default()
-        };
-
-        let app = new_token_application(Some(token_repo));
+        let app = new_token_application();
         let claims = app.decode(&token).await.unwrap();
         app.verify(&claims, VerifyOptions::new(TokenKind::Verification))
             .await
@@ -327,15 +234,7 @@ pub mod tests {
     #[tokio::test]
     async fn verify_token_mismatch_should_fail() {
         let token = crypto::sign_jwt(&PRIVATE_KEY, new_token(TokenKind::Session)).unwrap();
-        let token_repo = TokenRepositoryMock {
-            token: token.clone(),
-            fn_find: Some(|_: &TokenRepositoryMock, _: &str| -> Result<String> {
-                Ok("hello world".to_string())
-            }),
-            ..Default::default()
-        };
-
-        let app = new_token_application(Some(token_repo));
+        let app = new_token_application();
         let claims = app.decode(&token).await.unwrap();
         app.verify(&claims, VerifyOptions::new(TokenKind::Verification))
             .await

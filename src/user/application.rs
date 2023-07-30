@@ -1,11 +1,12 @@
 use super::domain::{User, UserBuilder};
+use crate::cache::Cache;
 use crate::crypto;
 use crate::result::{Error, Result};
 use crate::secret::domain::SecretKind;
 use crate::secret::{application::SecretRepository, domain::Secret};
-use crate::token::application::{GenerateOptions, VerifyOptions};
+use crate::token::application::VerifyOptions;
 use crate::token::{
-    application::{TokenApplication, TokenRepository},
+    application::TokenApplication,
     domain::{Token, TokenKind},
 };
 use async_trait::async_trait;
@@ -37,21 +38,22 @@ pub struct UserApplication<
     'a,
     U: UserRepository,
     S: SecretRepository,
-    T: TokenRepository,
     B: EventBus,
     M: Mailer,
+    C: Cache,
 > {
     pub user_repo: Arc<U>,
     pub secret_repo: Arc<S>,
-    pub token_app: Arc<TokenApplication<'a, T>>,
+    pub token_app: Arc<TokenApplication<'a, C>>,
     pub mailer: Arc<M>,
     pub event_bus: Arc<B>,
     pub totp_secret_len: usize,
     pub pwd_sufix: &'a str,
+    pub cache: Arc<C>,
 }
 
-impl<'a, U: UserRepository, S: SecretRepository, T: TokenRepository, B: EventBus, M: Mailer>
-    UserApplication<'a, U, S, T, B, M>
+impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cache>
+    UserApplication<'a, U, S, B, M, C>
 {
     /// Stores temporally the given credentials and sends an email with the corresponding
     /// token to proceed with the signup.
@@ -70,22 +72,17 @@ impl<'a, U: UserRepository, S: SecretRepository, T: TokenRepository, B: EventBus
             .with_email(email)?
             .with_password(&pwd)?;
 
-        let token_to_keep = self
-            .token_app
-            .generate(TokenKind::Verification, email, GenerateOptions::default())
+        self.cache
+            .save(email, &user_builder, Some(self.token_app.timeout.as_secs()))
             .await?;
 
-        let token_to_send = self
+        let token = self
             .token_app
-            .generate(
-                TokenKind::Verification,
-                token_to_keep.id(),
-                GenerateOptions { store: false },
-            )
+            .generate(TokenKind::Verification, email)
             .await?;
 
-        self.mailer
-            .send_verification_signup_email(email, token_to_send.signature())?;
+        let signed = self.token_app.store(&token).await?;
+        self.mailer.send_verification_signup_email(email, &signed)?;
 
         Ok(())
     }
@@ -103,16 +100,17 @@ impl<'a, U: UserRepository, S: SecretRepository, T: TokenRepository, B: EventBus
             )
             .await?;
 
-        let claims: Token = self.token_app.retrieve(&claims.sub).await?;
+        let claims: Token = self.token_app.find(&claims.sub).await?;
         self.token_app
             .verify(&claims, VerifyOptions::new(TokenKind::Verification))
             .await?;
 
-        let password = &claims.get_secret().ok_or(Error::InvalidToken)?;
-        let token = self.signup(&claims.sub, password).await?;
-        self.token_app.revoke(&claims).await?;
+        // let password = claims.get_secret().ok_or(Error::InvalidToken)?;
+        // let token = self.signup(&claims.sub, password).await?;
+        // self.token_app.revoke(&claims).await?;
 
-        Ok(token)
+        // Ok(token)
+        todo!()
     }
 
     #[instrument(skip(self))]
@@ -120,14 +118,13 @@ impl<'a, U: UserRepository, S: SecretRepository, T: TokenRepository, B: EventBus
         let mut user = User::new(email, pwd)?;
         self.user_repo.create(&mut user).await?;
         self.event_bus.emit_user_created(&user).await?;
-        self.token_app
-            .generate(
-                TokenKind::Session,
-                &user.get_id().to_string(),
-                GenerateOptions::default(),
-            )
-            .await
-            .map(|token| token.signature().to_string())
+
+        let token = self
+            .token_app
+            .generate(TokenKind::Session, &user.get_id().to_string())
+            .await?;
+
+        self.token_app.store(&token).await
     }
 
     #[instrument(skip(self))]
@@ -304,15 +301,12 @@ impl<'a, U: UserRepository, S: SecretRepository, T: TokenRepository, B: EventBus
 
         let token = self
             .token_app
-            .generate(
-                TokenKind::Reset,
-                &user.get_id().to_string(),
-                GenerateOptions::default(),
-            )
+            .generate(TokenKind::Reset, &user.get_id().to_string())
             .await?;
 
-        self.mailer
-            .send_verification_reset_email(email, token.signature())?;
+        let signed = self.token_app.store(&token).await?;
+        self.mailer.send_verification_reset_email(email, &signed)?;
+
         Ok(())
     }
 
@@ -370,6 +364,7 @@ pub mod tests {
     use super::super::domain::tests::{TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD};
     use super::super::domain::{tests::new_user_custom, User};
     use super::{EventBus, UserApplication, UserRepository};
+    use crate::cache::tests::InMemoryCache;
     use crate::secret::domain::SecretKind;
     use crate::secret::{
         application::tests::SecretRepositoryMock,
@@ -380,10 +375,7 @@ pub mod tests {
     };
     use crate::smtp::tests::MailerMock;
     use crate::token::application::tests::{new_token_application, PRIVATE_KEY, PUBLIC_KEY};
-    use crate::token::{
-        application::tests::TokenRepositoryMock,
-        domain::{Token, TokenDefinition, TokenKind},
-    };
+    use crate::token::domain::{Token, TokenKind};
     use crate::user::domain::tests::TEST_DEFAULT_PWD_SUFIX;
     use crate::{
         crypto,
@@ -485,25 +477,24 @@ pub mod tests {
         }
     }
 
-    pub fn new_user_application(
-        token_repo: Option<&TokenRepositoryMock>,
-    ) -> UserApplication<
+    pub fn new_user_application() -> UserApplication<
         'static,
         UserRepositoryMock,
         SecretRepositoryMock,
-        TokenRepositoryMock,
         EventBusMock,
         MailerMock,
+        InMemoryCache,
     > {
         let user_repo = UserRepositoryMock::default();
         let secret_repo = SecretRepositoryMock::default();
         let mailer_mock = MailerMock::default();
-        let token_app = new_token_application(token_repo.cloned());
+        let token_app = new_token_application();
 
         let event_bus = EventBusMock::default();
         UserApplication {
             user_repo: Arc::new(user_repo),
             secret_repo: Arc::new(secret_repo),
+            cache: Arc::new(InMemoryCache),
             token_app: Arc::new(token_app),
             mailer: Arc::new(mailer_mock),
             event_bus: Arc::new(event_bus),
@@ -521,7 +512,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application(None);
+        let mut app = new_user_application();
         app.user_repo = Arc::new(user_repo);
 
         app.signup_with_credentials(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD)
@@ -531,7 +522,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_verify_already_exists_should_not_fail() {
-        let app = new_user_application(None);
+        let app = new_user_application();
         app.signup_with_credentials(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD)
             .await
             .unwrap();
@@ -546,7 +537,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application(None);
+        let mut app = new_user_application();
         app.user_repo = Arc::new(user_repo);
 
         app.signup_with_credentials("this is not an email", TEST_DEFAULT_USER_PASSWORD)
@@ -569,31 +560,20 @@ pub mod tests {
             "test",
             TEST_DEFAULT_USER_EMAIL,
             Duration::from_secs(60),
-            Some(TEST_DEFAULT_USER_PASSWORD),
+            // FIXME: update code to add the following statement:
+            // Some(TEST_DEFAULT_USER_PASSWORD),
         );
 
         let token_to_send = Token::new(
-            "test",
-            &token_to_keep.get_id(),
-            Duration::from_secs(60),
             TokenKind::Verification,
-            None,
+            "test",
+            &token_to_keep.jti,
+            Duration::from_secs(60),
         );
 
         let token_to_keep = crypto::sign_jwt(&PRIVATE_KEY, token_to_keep).unwrap();
         let token_to_send = crypto::sign_jwt(&PRIVATE_KEY, token_to_send).unwrap();
-
-        let token_repo = TokenRepositoryMock {
-            token: token_to_keep.clone(),
-            fn_find: Some(|this: &TokenRepositoryMock, tid: &str| -> Result<String> {
-                let claims: Token = crypto::decode_jwt(&PUBLIC_KEY, &this.token)?;
-                assert_eq!(claims.get_id(), tid);
-
-                Ok(this.token.clone())
-            }),
-            ..Default::default()
-        };
-        let mut app = new_user_application(Some(&token_repo));
+        let mut app = new_user_application();
         app.user_repo = Arc::new(user_repo);
 
         let token = app.signup_with_token(&token_to_send).await.unwrap();
@@ -611,15 +591,14 @@ pub mod tests {
         };
 
         let token = Token::new(
+            TokenKind::Verification,
             "test",
             "test",
             Duration::from_secs(60),
-            TokenKind::Verification,
-            None,
         );
 
         let token = crypto::sign_jwt(&PRIVATE_KEY, token).unwrap();
-        let mut app = new_user_application(None);
+        let mut app = new_user_application();
         app.user_repo = Arc::new(user_repo);
 
         app.signup_with_token(&token)
@@ -637,16 +616,9 @@ pub mod tests {
             ..Default::default()
         };
 
-        let token = Token::new(
-            "test",
-            "test",
-            Duration::from_secs(60),
-            TokenKind::Reset,
-            None,
-        );
-
+        let token = Token::new(TokenKind::Reset, "test", "test", Duration::from_secs(60));
         let token = crypto::sign_jwt(&PRIVATE_KEY, token).unwrap();
-        let mut app = new_user_application(None);
+        let mut app = new_user_application();
         app.user_repo = Arc::new(user_repo);
 
         app.signup_with_token(&token)
@@ -664,7 +636,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application(None);
+        let mut app = new_user_application();
         app.user_repo = Arc::new(user_repo);
 
         let token = app
@@ -677,7 +649,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_signup_wrong_email_should_fail() {
-        let app = new_user_application(None);
+        let app = new_user_application();
         app.signup("this is not an email", TEST_DEFAULT_USER_PASSWORD)
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidFormat.to_string()))
@@ -686,7 +658,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_signup_wrong_password_should_fail() {
-        let app = new_user_application(None);
+        let app = new_user_application();
         app.signup(TEST_DEFAULT_USER_EMAIL, "bad password")
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidFormat.to_string()))
@@ -695,7 +667,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_signup_already_exists_should_not_fail() {
-        let app = new_user_application(None);
+        let app = new_user_application();
         app.signup(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD)
             .await
             .unwrap();
@@ -712,24 +684,9 @@ pub mod tests {
             ..Default::default()
         };
 
-        let token = Token::new(
-            "test",
-            "0",
-            Duration::from_secs(60),
-            TokenKind::Session,
-            None,
-        );
-
+        let token = Token::new(TokenKind::Session, "test", "0", Duration::from_secs(60));
         let secure_token = crypto::sign_jwt(&PRIVATE_KEY, token).unwrap();
-        let token_repo = TokenRepositoryMock {
-            token: secure_token.clone(),
-            fn_find: Some(|this: &TokenRepositoryMock, _: &str| -> Result<String> {
-                Ok(this.token.clone())
-            }),
-            ..Default::default()
-        };
-
-        let mut app = new_user_application(Some(&token_repo));
+        let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
 
         app.delete_with_token(&secure_token, TEST_DEFAULT_USER_PASSWORD, "")
@@ -749,23 +706,14 @@ pub mod tests {
         };
 
         let token = Token::new(
+            TokenKind::Verification,
             "test",
             "0",
             Duration::from_secs(60),
-            TokenKind::Verification,
-            None,
         );
 
         let secure_token = crypto::sign_jwt(&PRIVATE_KEY, token).unwrap();
-        let token_repo = TokenRepositoryMock {
-            token: secure_token.clone(),
-            fn_find: Some(|this: &TokenRepositoryMock, _: &str| -> Result<String> {
-                Ok(this.token.clone())
-            }),
-            ..Default::default()
-        };
-
-        let mut app = new_user_application(Some(&token_repo));
+        let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
 
         app.delete_with_token(&secure_token, TEST_DEFAULT_USER_PASSWORD, "")
@@ -785,18 +733,9 @@ pub mod tests {
             ..Default::default()
         };
 
-        let token = Token::new("test", "0", Duration::from_secs(60), TokenKind::Reset, None);
-
+        let token = Token::new(TokenKind::Reset, "test", "0", Duration::from_secs(60));
         let secure_token = crypto::sign_jwt(&PRIVATE_KEY, token).unwrap();
-        let token_repo = TokenRepositoryMock {
-            token: secure_token.clone(),
-            fn_find: Some(|this: &TokenRepositoryMock, _: &str| -> Result<String> {
-                Ok(this.token.clone())
-            }),
-            ..Default::default()
-        };
-
-        let mut app = new_user_application(Some(&token_repo));
+        let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
 
         app.delete_with_token(&secure_token, TEST_DEFAULT_USER_PASSWORD, "")
@@ -816,7 +755,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application(None);
+        let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
 
         app.delete(0, TEST_DEFAULT_USER_PASSWORD, "").await.unwrap();
@@ -824,7 +763,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_delete_totp_should_not_fail() {
-        let app = new_user_application(None);
+        let app = new_user_application();
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
             .unwrap()
             .generate();
@@ -851,7 +790,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application(None);
+        let mut app = new_user_application();
         app.user_repo = Arc::new(user_repo);
         app.secret_repo = Arc::new(secret_repo);
 
@@ -872,7 +811,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application(None);
+        let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
 
         app.delete(0, "bad password", "")
@@ -883,7 +822,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_delete_wrong_totp_should_fail() {
-        let app = new_user_application(None);
+        let app = new_user_application();
         app.delete(0, TEST_DEFAULT_USER_PASSWORD, "bad totp")
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::Unauthorized.to_string()))
@@ -901,24 +840,9 @@ pub mod tests {
             ..Default::default()
         };
 
-        let token = Token::new(
-            "test",
-            "0",
-            Duration::from_secs(60),
-            TokenKind::Session,
-            None,
-        );
-
+        let token = Token::new(TokenKind::Session, "test", "0", Duration::from_secs(60));
         let secure_token = crypto::sign_jwt(&PRIVATE_KEY, token).unwrap();
-        let token_repo = TokenRepositoryMock {
-            token: secure_token.clone(),
-            fn_find: Some(|this: &TokenRepositoryMock, _: &str| -> Result<String> {
-                Ok(this.token.clone())
-            }),
-            ..Default::default()
-        };
-
-        let mut app = new_user_application(Some(&token_repo));
+        let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
 
         let totp = app
@@ -941,23 +865,14 @@ pub mod tests {
         };
 
         let token = Token::new(
+            TokenKind::Verification,
             "test",
             "0",
             Duration::from_secs(60),
-            TokenKind::Verification,
-            None,
         );
 
         let secure_token = crypto::sign_jwt(&PRIVATE_KEY, token).unwrap();
-        let token_repo = TokenRepositoryMock {
-            token: secure_token.clone(),
-            fn_find: Some(|this: &TokenRepositoryMock, _: &str| -> Result<String> {
-                Ok(this.token.clone())
-            }),
-            ..Default::default()
-        };
-
-        let mut app = new_user_application(Some(&token_repo));
+        let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
 
         app.enable_totp_with_token(&secure_token, TEST_DEFAULT_USER_PASSWORD, "")
@@ -977,17 +892,9 @@ pub mod tests {
             ..Default::default()
         };
 
-        let token = Token::new("test", "0", Duration::from_secs(60), TokenKind::Reset, None);
+        let token = Token::new(TokenKind::Reset, "test", "0", Duration::from_secs(60));
         let secure_token = crypto::sign_jwt(&PRIVATE_KEY, token).unwrap();
-        let token_repo = TokenRepositoryMock {
-            token: secure_token.clone(),
-            fn_find: Some(|this: &TokenRepositoryMock, _: &str| -> Result<String> {
-                Ok(this.token.clone())
-            }),
-            ..Default::default()
-        };
-
-        let mut app = new_user_application(Some(&token_repo));
+        let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
 
         app.enable_totp_with_token(&secure_token, TEST_DEFAULT_USER_PASSWORD, "")
@@ -1015,7 +922,7 @@ pub mod tests {
             Ok(())
         });
 
-        let mut app = new_user_application(None);
+        let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
 
         let totp = app
@@ -1046,7 +953,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application(None);
+        let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
 
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
@@ -1072,7 +979,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application(None);
+        let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
 
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
@@ -1086,7 +993,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_enable_totp_already_enabled_should_fail() {
-        let app = new_user_application(None);
+        let app = new_user_application();
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
             .unwrap()
             .generate();
@@ -1098,24 +1005,10 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_secure_disable_totp_should_not_fail() {
-        let token = Token::new(
-            "test",
-            "0",
-            Duration::from_secs(60),
-            TokenKind::Session,
-            None,
-        );
+        let token = Token::new(TokenKind::Session, "test", "0", Duration::from_secs(60));
 
         let secure_token = crypto::sign_jwt(&PRIVATE_KEY, token).unwrap();
-        let token_repo = TokenRepositoryMock {
-            token: secure_token.clone(),
-            fn_find: Some(|this: &TokenRepositoryMock, _: &str| -> Result<String> {
-                Ok(this.token.clone())
-            }),
-            ..Default::default()
-        };
-
-        let app = new_user_application(Some(&token_repo));
+        let app = new_user_application();
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
             .unwrap()
             .generate();
@@ -1127,23 +1020,14 @@ pub mod tests {
     #[tokio::test]
     async fn user_secure_disable_totp_verification_token_kind_should_fail() {
         let token = Token::new(
+            TokenKind::Verification,
             "test",
             "0",
             Duration::from_secs(60),
-            TokenKind::Verification,
-            None,
         );
 
         let secure_token = crypto::sign_jwt(&PRIVATE_KEY, token).unwrap();
-        let token_repo = TokenRepositoryMock {
-            token: secure_token.clone(),
-            fn_find: Some(|this: &TokenRepositoryMock, _: &str| -> Result<String> {
-                Ok(this.token.clone())
-            }),
-            ..Default::default()
-        };
-
-        let app = new_user_application(Some(&token_repo));
+        let app = new_user_application();
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
             .unwrap()
             .generate();
@@ -1155,17 +1039,9 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_secure_disable_totp_reset_token_kind_should_fail() {
-        let token = Token::new("test", "0", Duration::from_secs(60), TokenKind::Reset, None);
+        let token = Token::new(TokenKind::Reset, "test", "0", Duration::from_secs(60));
         let secure_token = crypto::sign_jwt(&PRIVATE_KEY, token).unwrap();
-        let token_repo = TokenRepositoryMock {
-            token: secure_token.clone(),
-            fn_find: Some(|this: &TokenRepositoryMock, _: &str| -> Result<String> {
-                Ok(this.token.clone())
-            }),
-            ..Default::default()
-        };
-
-        let app = new_user_application(Some(&token_repo));
+        let app = new_user_application();
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
             .unwrap()
             .generate();
@@ -1177,7 +1053,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_disable_totp_should_not_fail() {
-        let app = new_user_application(None);
+        let app = new_user_application();
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
             .unwrap()
             .generate();
@@ -1188,7 +1064,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_disable_totp_wrong_password_should_fail() {
-        let app = new_user_application(None);
+        let app = new_user_application();
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
             .unwrap()
             .generate();
@@ -1200,7 +1076,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn user_disable_totp_wrong_totp_should_fail() {
-        let app = new_user_application(None);
+        let app = new_user_application();
         app.disable_totp(0, TEST_DEFAULT_USER_PASSWORD, "bad totp")
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::Unauthorized.to_string()))
@@ -1218,7 +1094,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application(None);
+        let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
 
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
@@ -1243,7 +1119,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application(None);
+        let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
 
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
@@ -1266,17 +1142,9 @@ pub mod tests {
             ..Default::default()
         };
 
-        let token = Token::new("test", "0", Duration::from_secs(60), TokenKind::Reset, None);
+        let token = Token::new(TokenKind::Reset, "test", "0", Duration::from_secs(60));
         let secure_token = crypto::sign_jwt(&PRIVATE_KEY, token).unwrap();
-        let token_repo = TokenRepositoryMock {
-            token: secure_token.clone(),
-            fn_find: Some(|this: &TokenRepositoryMock, _: &str| -> Result<String> {
-                Ok(this.token.clone())
-            }),
-            ..Default::default()
-        };
-
-        let mut app = new_user_application(Some(&token_repo));
+        let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
 
         app.reset_with_token(&secure_token, "ABCDEF1234567891", "")
@@ -1296,23 +1164,14 @@ pub mod tests {
         };
 
         let token = Token::new(
+            TokenKind::Verification,
             "test",
             "0",
             Duration::from_secs(60),
-            TokenKind::Verification,
-            None,
         );
 
         let secure_token = crypto::sign_jwt(&PRIVATE_KEY, token).unwrap();
-        let token_repo = TokenRepositoryMock {
-            token: secure_token.clone(),
-            fn_find: Some(|this: &TokenRepositoryMock, _: &str| -> Result<String> {
-                Ok(this.token.clone())
-            }),
-            ..Default::default()
-        };
-
-        let mut app = new_user_application(Some(&token_repo));
+        let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
 
         app.reset_with_token(&secure_token, "another password", "")
@@ -1332,24 +1191,9 @@ pub mod tests {
             ..Default::default()
         };
 
-        let token = Token::new(
-            "test",
-            "0",
-            Duration::from_secs(60),
-            TokenKind::Session,
-            None,
-        );
-
+        let token = Token::new(TokenKind::Session, "test", "0", Duration::from_secs(60));
         let secure_token = crypto::sign_jwt(&PRIVATE_KEY, token).unwrap();
-        let token_repo = TokenRepositoryMock {
-            token: secure_token.clone(),
-            fn_find: Some(|this: &TokenRepositoryMock, _: &str| -> Result<String> {
-                Ok(this.token.clone())
-            }),
-            ..Default::default()
-        };
-
-        let mut app = new_user_application(Some(&token_repo));
+        let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
 
         app.reset_with_token(&secure_token, "another password", "")
@@ -1369,7 +1213,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application(None);
+        let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
 
         app.reset(0, "ABCDEF12345678901", "").await.unwrap();
@@ -1386,7 +1230,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_user_application(None);
+        let mut app = new_user_application();
         app.secret_repo = Arc::new(secret_repo);
 
         app.reset(0, TEST_DEFAULT_USER_PASSWORD, "")

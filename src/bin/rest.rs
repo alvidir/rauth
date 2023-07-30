@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     });
 
     let token_app = TokenApplication {
-        token_repo: token_repo.clone(),
+        cache: token_repo.clone(),
         timeout: Duration::from_secs(*config::TOKEN_TIMEOUT),
         token_issuer: &config::TOKEN_ISSUER,
         private_key: &config::JWT_SECRET,

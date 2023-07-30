@@ -1,6 +1,7 @@
 use crate::{
+    cache::Cache,
     http,
-    token::application::{TokenApplication, TokenRepository},
+    token::application::TokenApplication,
     token::{application::VerifyOptions, domain::TokenKind},
 };
 use actix_web::{web, HttpRequest, HttpResponse, Responder};
@@ -8,12 +9,12 @@ use std::sync::Arc;
 
 use super::application;
 
-pub struct SessionRestService<T: TokenRepository + Sync + Send> {
-    pub token_app: TokenApplication<'static, T>,
+pub struct SessionRestService<C: Cache + Sync + Send> {
+    pub token_app: TokenApplication<'static, C>,
     pub jwt_header: &'static str,
 }
 
-impl<T: 'static + TokenRepository + Sync + Send> SessionRestService<T> {
+impl<C: 'static + Cache + Sync + Send> SessionRestService<C> {
     pub fn router(&self) -> impl Fn(&mut web::ServiceConfig) {
         |cfg: &mut web::ServiceConfig| {
             cfg.service(web::resource("/session").route(web::get().to(Self::get_session)));
@@ -23,7 +24,7 @@ impl<T: 'static + TokenRepository + Sync + Send> SessionRestService<T> {
 
     #[instrument(skip(app_data))]
     async fn get_session(
-        app_data: web::Data<Arc<SessionRestService<T>>>,
+        app_data: web::Data<Arc<SessionRestService<C>>>,
         req: HttpRequest,
     ) -> impl Responder {
         match async move {
@@ -45,12 +46,12 @@ impl<T: 'static + TokenRepository + Sync + Send> SessionRestService<T> {
 
     #[instrument(skip(app_data))]
     async fn delete_session(
-        app_data: web::Data<Arc<SessionRestService<T>>>,
+        app_data: web::Data<Arc<SessionRestService<C>>>,
         req: HttpRequest,
     ) -> impl Responder {
         match async move {
             let token = http::get_encoded_header(req, app_data.jwt_header)?;
-            application::logout_strategy::<T>(&app_data.token_app, &token).await
+            application::logout_strategy::<C>(&app_data.token_app, &token).await
         }
         .await
         {

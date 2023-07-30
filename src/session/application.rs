@@ -1,26 +1,23 @@
+use crate::cache::Cache;
 use crate::crypto;
 use crate::regex;
 use crate::result::{Error, Result};
 use crate::secret::application::SecretRepository;
 use crate::secret::domain::SecretKind;
-use crate::token::application::GenerateOptions;
 use crate::token::application::TokenApplication;
-use crate::token::application::TokenRepository;
 use crate::token::application::VerifyOptions;
 use crate::token::domain::TokenKind;
 use crate::user::application::UserRepository;
 use std::sync::Arc;
 
-pub struct SessionApplication<'a, T: TokenRepository, U: UserRepository, S: SecretRepository> {
+pub struct SessionApplication<'a, U: UserRepository, S: SecretRepository, C: Cache> {
     pub user_repo: Arc<U>,
     pub secret_repo: Arc<S>,
-    pub token_app: Arc<TokenApplication<'a, T>>,
+    pub token_app: Arc<TokenApplication<'a, C>>,
     pub pwd_sufix: &'a str,
 }
 
-impl<'a, T: TokenRepository, U: UserRepository, S: SecretRepository>
-    SessionApplication<'a, T, U, S>
-{
+impl<'a, U: UserRepository, S: SecretRepository, C: Cache> SessionApplication<'a, U, S, C> {
     #[instrument(skip(self))]
     pub async fn login(&self, ident: &str, pwd: &str, totp: &str) -> Result<String> {
         let user = {
@@ -51,25 +48,26 @@ impl<'a, T: TokenRepository, U: UserRepository, S: SecretRepository>
             }
         }
 
-        self.token_app
-            .generate(
-                TokenKind::Session,
-                &user.get_id().to_string(),
-                None,
-                GenerateOptions::default(),
-            )
-            .await
-            .map(|token| token.signature().to_string())
+        // FIXME:generate and store token
+        // self.token_app
+        //     .generate(
+        //         TokenKind::Session,
+        //         &user.get_id().to_string(),
+        //         GenerateOptions::default(),
+        //     )
+        //     .await
+        //     .map(|token| token.signature().to_string())
+        todo!()
     }
 
     #[instrument(skip(self))]
     pub async fn logout(&self, token: &str) -> Result<()> {
-        logout_strategy::<T>(&self.token_app, token).await
+        logout_strategy::<C>(&self.token_app, token).await
     }
 }
 
-pub(super) async fn logout_strategy<'b, R: TokenRepository>(
-    token_app: &TokenApplication<'b, R>,
+pub(super) async fn logout_strategy<'b, C: Cache>(
+    token_app: &TokenApplication<'b, C>,
     token: &str,
 ) -> Result<()> {
     let token = token_app.decode(token).await?;
@@ -83,7 +81,8 @@ pub(super) async fn logout_strategy<'b, R: TokenRepository>(
 
 #[cfg(test)]
 pub mod tests {
-    use super::{SessionApplication, TokenRepository};
+    use super::SessionApplication;
+    use crate::cache::tests::InMemoryCache;
     use crate::secret::application::tests::SecretRepositoryMock;
     use crate::secret::domain::tests::TEST_DEFAULT_SECRET_DATA;
     use crate::secret::domain::{Secret, SecretKind};
@@ -103,56 +102,13 @@ pub mod tests {
         crypto,
         result::{Error, Result},
     };
-    use async_trait::async_trait;
     use std::sync::Arc;
 
-    type MockFnFind = Option<fn(this: &TokenRepositoryMock, key: &str) -> Result<String>>;
-    type MockFnSave = Option<
-        fn(this: &TokenRepositoryMock, key: &str, token: &str, expire: Option<u64>) -> Result<()>,
-    >;
-    type MockFnDelete = Option<fn(this: &TokenRepositoryMock, key: &str) -> Result<()>>;
-
-    #[derive(Default, Clone)]
-    pub struct TokenRepositoryMock {
-        pub fn_find: MockFnFind,
-        pub fn_save: MockFnSave,
-        pub fn_delete: MockFnDelete,
-        pub token: String,
-    }
-
-    #[async_trait]
-    impl TokenRepository for TokenRepositoryMock {
-        async fn find(&self, key: &str) -> Result<String> {
-            if let Some(fn_find) = self.fn_find {
-                return fn_find(self, key);
-            }
-
-            Ok(self.token.clone())
-        }
-
-        async fn save(&self, key: &str, token: &str, expire: Option<u64>) -> Result<()> {
-            if let Some(fn_save) = self.fn_save {
-                return fn_save(self, key, token, expire);
-            }
-
-            Ok(())
-        }
-
-        async fn delete(&self, key: &str) -> Result<()> {
-            if let Some(fn_delete) = self.fn_delete {
-                return fn_delete(self, key);
-            }
-
-            Ok(())
-        }
-    }
-
-    pub fn new_session_application<'a, T: TokenRepository + Default>(
-        token_repo: Option<T>,
-    ) -> SessionApplication<'a, T, UserRepositoryMock, SecretRepositoryMock> {
+    pub fn new_session_application<'a>(
+    ) -> SessionApplication<'a, UserRepositoryMock, SecretRepositoryMock, InMemoryCache> {
         let user_repo = UserRepositoryMock::default();
         let secret_repo = SecretRepositoryMock::default();
-        let token_app = new_token_application(token_repo);
+        let token_app = new_token_application();
 
         SessionApplication {
             user_repo: Arc::new(user_repo),
@@ -173,7 +129,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_session_application::<TokenRepositoryMock>(None);
+        let mut app = new_session_application();
         app.secret_repo = Arc::new(secret_repo);
 
         let token = app
@@ -202,7 +158,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_session_application::<TokenRepositoryMock>(None);
+        let mut app = new_session_application();
         app.secret_repo = Arc::new(secret_repo);
         let token = app
             .login(TEST_DEFAULT_USER_NAME, TEST_DEFAULT_USER_PASSWORD, "")
@@ -220,7 +176,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn login_with_totp_should_not_fail() {
-        let app = new_session_application::<TokenRepositoryMock>(None);
+        let app = new_session_application();
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
             .unwrap()
             .generate();
@@ -247,7 +203,7 @@ pub mod tests {
             ..Default::default()
         };
 
-        let mut app = new_session_application::<TokenRepositoryMock>(None);
+        let mut app = new_session_application();
         app.user_repo = Arc::new(user_repo);
 
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
@@ -262,7 +218,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn login_wrong_password_should_fail() {
-        let app = new_session_application::<TokenRepositoryMock>(None);
+        let app = new_session_application();
         let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
             .unwrap()
             .generate();
@@ -274,7 +230,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn login_wrong_totp_should_fail() {
-        let app = new_session_application::<TokenRepositoryMock>(None);
+        let app = new_session_application();
 
         app.login(
             TEST_DEFAULT_USER_NAME,
@@ -289,12 +245,8 @@ pub mod tests {
     #[tokio::test]
     async fn logout_should_not_fail() {
         let token = crypto::sign_jwt(&PRIVATE_KEY, new_token(TokenKind::Session)).unwrap();
-        let token_repo = TokenRepositoryMock {
-            token: token.clone(),
-            ..Default::default()
-        };
+        let app = new_session_application();
 
-        let app = new_session_application::<TokenRepositoryMock>(Some(token_repo));
         app.logout(&token)
             .await
             .map_err(|err| println!("-\tlogout_should_not_fail has failed with error {}", err))
@@ -305,12 +257,8 @@ pub mod tests {
     async fn logout_verification_token_kind_should_fail() {
         let token = new_token(TokenKind::Verification);
         let token = crypto::sign_jwt(&PRIVATE_KEY, token).unwrap();
-        let token_repo = TokenRepositoryMock {
-            token: token.clone(),
-            ..Default::default()
-        };
+        let app = new_session_application();
 
-        let app = new_session_application::<TokenRepositoryMock>(Some(token_repo));
         app.logout(&token)
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
@@ -321,12 +269,8 @@ pub mod tests {
     async fn logout_reset_token_kind_should_fail() {
         let token = new_token(TokenKind::Reset);
         let token = crypto::sign_jwt(&PRIVATE_KEY, token).unwrap();
-        let token_repo = TokenRepositoryMock {
-            token: token.clone(),
-            ..Default::default()
-        };
+        let app = new_session_application();
 
-        let app = new_session_application::<TokenRepositoryMock>(Some(token_repo));
         app.logout(&token)
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))

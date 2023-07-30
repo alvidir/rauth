@@ -3,6 +3,7 @@ extern crate tracing;
 #[macro_use]
 extern crate serde;
 
+pub mod cache;
 #[cfg(feature = "config")]
 pub mod config;
 pub mod metadata;
