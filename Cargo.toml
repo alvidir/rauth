@@ -24,10 +24,7 @@ opentelemetry_api = { version = "0.19.0", features = [
 opentelemetry_sdk = { version = "0.19.0", features = [
     "rt-tokio",
 ], optional = true }
-opentelemetry-otlp = { version = "0.12.0", features = [
-    "tonic",
-    "metrics",
-], optional = true }
+opentelemetry-otlp = { version = "0.12.0", optional = true }
 opentelemetry-semantic-conventions = { version = "0.11.0", optional = true }
 prost = { version = "0.11.9", optional = true } # protobuf
 protoc = { version = "2.28.0", optional = true }
@@ -47,7 +44,7 @@ strum = "0.25.0"
 strum_macros = "0.25.0"
 tera = "1.19.0" # template engine
 tokio = { version = "1.28.2", features = ["macros", "rt", "rt-multi-thread"] }
-tonic = { version = "0.8.3", optional = true } # gRPC - OUTDATED! follows tonic version from opentelemetry-otlp 
+tonic = { version = "0.9", optional = true } # gRPC
 tracing = { version = "0.1.37" }
 tracing-subscriber = { version = "0.3.17", optional = true }
 tracing-opentelemetry = { version = "0.19.0", optional = true }
@@ -60,13 +57,22 @@ name = "rauth"
 path = "src/lib.rs"
 
 [features]
-default = ["config", "grpc", "rest", "postgres", "rabbitmq", "redis-cache"]
+default = ["grpc", "rest", "postgres", "rabbitmq", "redis-cache"]
 config = []
 grpc = ["prost", "protoc", "tonic"]
+grpc-service = [
+    "grpc",
+    "postgres",
+    "redis-cache",
+    "rabbitmq",
+    "config",
+    "trace",
+]
 postgres = ["sqlx"]
 rabbitmq = ["deadpool-lapin", "lapin"]
 redis-cache = ["redis", "reool"]
 rest = ["actix-web"]
+rest-service = ["rest", "config", "trace"]
 trace = [
     "tracing-subscriber",
     "tracing-opentelemetry",
@@ -79,9 +85,9 @@ trace = [
 [[bin]]
 name = "grpc"
 path = "src/bin/grpc.rs"
-required-features = ["grpc", "trace"]
+required-features = ["grpc-service"]
 
 [[bin]]
 name = "rest"
 path = "src/bin/rest.rs"
-required-features = ["rest", "trace"]
+required-features = ["rest-service"]

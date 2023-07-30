@@ -222,7 +222,7 @@ mod trace {
         Lazy::new(|| env::var(ENV_COLLECTOR_API_KEY).ok());
 
     pub fn init_global_tracer() -> Result<(), SetGlobalDefaultError> {
-        let metadata = MetadataMap::from_headers({
+        let _metadata = MetadataMap::from_headers({
             let mut metadata = HeaderMap::new();
             if let Some(api_key) = &*COLLECTOR_API_KEY {
                 metadata.insert(COLLECTOR_API_KEY_HEADER.as_str(), api_key.parse().unwrap());
@@ -236,8 +236,9 @@ mod trace {
             .with_exporter(
                 opentelemetry_otlp::new_exporter()
                     .tonic()
-                    .with_endpoint(&*COLLECTOR_URL)
-                    .with_metadata(metadata),
+                    .with_endpoint(&*COLLECTOR_URL),
+                // TODO: wait for opentelemetry_otlp v0.20.0
+                // .with_metadata(metadata),
             )
             .with_trace_config(sdktrace::config().with_resource(Resource::new(vec![
                 KeyValue::new(resource::SERVICE_NAME, SERVICE_NAME.clone()),
