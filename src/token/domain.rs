@@ -6,7 +6,6 @@ use std::time::{Duration, SystemTime};
 
 pub trait TokenDefinition {
     fn get_id(&self) -> String;
-    fn get_secret(&self) -> Option<&str>;
     fn get_kind(&self) -> &TokenKind;
 }
 
@@ -41,9 +40,6 @@ pub struct Token {
     pub iss: String,     // issuer
     pub sub: String,     // subject
     pub knd: TokenKind,  // kind - required
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default = "Token::default_secret_value")]
-    pub scr: Option<String>, // secret data
 }
 
 impl Token {
@@ -51,13 +47,7 @@ impl Token {
         None
     }
 
-    pub fn new(
-        iss: &str,
-        sub: &str,
-        timeout: Duration,
-        kind: TokenKind,
-        secret: Option<&str>,
-    ) -> Self {
+    pub fn new(kind: TokenKind, iss: &str, sub: &str, timeout: Duration) -> Self {
         let mut token = Token {
             jti: rand::thread_rng().gen::<u64>().to_string(), // noise
             exp: time::unix_timestamp(SystemTime::now() + timeout),
@@ -66,7 +56,6 @@ impl Token {
             iss: iss.to_string(),
             sub: sub.to_string(),
             knd: kind,
-            scr: secret.map(ToString::to_string),
         };
 
         let mut hasher = DefaultHasher::new();
@@ -84,10 +73,6 @@ impl TokenDefinition for Token {
 
     fn get_kind(&self) -> &TokenKind {
         &self.knd
-    }
-
-    fn get_secret(&self) -> Option<&str> {
-        self.scr.as_deref()
     }
 }
 
@@ -111,7 +96,7 @@ pub mod tests {
         let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
 
         let before = SystemTime::now();
-        let claim = Token::new(ISS, &SUB.to_string(), timeout, TokenKind::Session, None);
+        let claim = Token::new(TokenKind::Session, ISS, &SUB.to_string(), timeout);
         let after = SystemTime::now();
 
         assert!(claim.iat >= before && claim.iat <= after);
@@ -129,7 +114,7 @@ pub mod tests {
         let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
 
         let before = SystemTime::now();
-        let claim = Token::new(ISS, &SUB.to_string(), timeout, TokenKind::Session, None);
+        let claim = Token::new(TokenKind::Session, ISS, &SUB.to_string(), timeout);
 
         let after = SystemTime::now();
 
@@ -154,7 +139,7 @@ pub mod tests {
         const SUB: i32 = 999;
 
         let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
-        let mut claim = Token::new(ISS, &SUB.to_string(), timeout, TokenKind::Session, None);
+        let mut claim = Token::new(TokenKind::Session, ISS, &SUB.to_string(), timeout);
         claim.exp = time::unix_timestamp(SystemTime::now() - Duration::from_secs(61));
 
         let secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();

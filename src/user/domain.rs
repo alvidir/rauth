@@ -4,7 +4,47 @@ use crate::{
     result::{Error, Result},
 };
 
-/// Represents a user and all its personal data
+///
+#[derive(Default)]
+pub(super) struct UserBuilder<'a> {
+    email: Option<&'a str>,
+    password: Option<&'a str>,
+}
+
+impl<'a> UserBuilder<'a> {
+    pub fn with_email(mut self, email: &'a str) -> Result<Self> {
+        regex::match_regex(regex::EMAIL, email).map_err(|err| {
+            warn!(error = err.to_string(), "validating email format",);
+            Error::InvalidFormat
+        })?;
+
+        self.email = Some(email);
+        Ok(self)
+    }
+
+    pub fn with_password(mut self, password: &'a str) -> Result<Self> {
+        if password.is_empty() {
+            return Ok(self);
+        }
+
+        regex::match_regex(regex::BASE64, password).map_err(|err| {
+            warn!(error = err.to_string(), "validating password format",);
+            Error::InvalidFormat
+        })?;
+
+        self.password = Some(password);
+        Ok(self)
+    }
+
+    pub fn build(self) -> Result<User> {
+        User::new(
+            self.email.unwrap_or_default(),
+            self.password.unwrap_or_default(),
+        )
+    }
+}
+
+/// Represents a signed up user
 #[derive(Debug)]
 pub struct User {
     pub(super) id: i32,

@@ -1,10 +1,9 @@
-use super::domain::User;
+use super::domain::{User, UserBuilder};
 use crate::crypto;
 use crate::result::{Error, Result};
 use crate::secret::domain::SecretKind;
 use crate::secret::{application::SecretRepository, domain::Secret};
 use crate::token::application::{GenerateOptions, VerifyOptions};
-use crate::token::domain::TokenDefinition;
 use crate::token::{
     application::{TokenApplication, TokenRepository},
     domain::{Token, TokenKind},
@@ -37,13 +36,13 @@ pub trait Mailer {
 pub struct UserApplication<
     'a,
     U: UserRepository,
-    E: SecretRepository,
+    S: SecretRepository,
     T: TokenRepository,
     B: EventBus,
     M: Mailer,
 > {
     pub user_repo: Arc<U>,
-    pub secret_repo: Arc<E>,
+    pub secret_repo: Arc<S>,
     pub token_app: Arc<TokenApplication<'a, T>>,
     pub mailer: Arc<M>,
     pub event_bus: Arc<B>,
@@ -51,26 +50,29 @@ pub struct UserApplication<
     pub pwd_sufix: &'a str,
 }
 
-impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus, M: Mailer>
-    UserApplication<'a, U, E, T, B, M>
+impl<'a, U: UserRepository, S: SecretRepository, T: TokenRepository, B: EventBus, M: Mailer>
+    UserApplication<'a, U, S, T, B, M>
 {
+    /// Stores temporally the given credentials and sends an email with the corresponding
+    /// token to proceed with the signup.
     #[instrument(skip(self))]
-    pub async fn verify_signup_email(&self, email: &str, pwd: &str) -> Result<()> {
+    pub async fn signup_with_credentials(&self, email: &str, pwd: &str) -> Result<()> {
         if self.user_repo.find_by_email(email).await.is_ok() {
-            // returns Ok to not provide information about users
+            // returns Ok to avoid giving information about existing emails
             return Ok(());
         }
 
-        let pwd = crypto::obfuscate(pwd, self.pwd_sufix);
-        User::new(email, &pwd)?;
+        let pwd = (!pwd.is_empty())
+            .then_some(crypto::obfuscate(pwd, self.pwd_sufix))
+            .unwrap_or_default();
+
+        let user_builder = UserBuilder::default()
+            .with_email(email)?
+            .with_password(&pwd)?;
+
         let token_to_keep = self
             .token_app
-            .generate(
-                TokenKind::Verification,
-                email,
-                Some(&pwd),
-                GenerateOptions::default(),
-            )
+            .generate(TokenKind::Verification, email, GenerateOptions::default())
             .await?;
 
         let token_to_send = self
@@ -78,7 +80,6 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
             .generate(
                 TokenKind::Verification,
                 token_to_keep.id(),
-                None,
                 GenerateOptions { store: false },
             )
             .await?;
@@ -123,7 +124,6 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
             .generate(
                 TokenKind::Session,
                 &user.get_id().to_string(),
-                None,
                 GenerateOptions::default(),
             )
             .await
@@ -307,7 +307,6 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
             .generate(
                 TokenKind::Reset,
                 &user.get_id().to_string(),
-                None,
                 GenerateOptions::default(),
             )
             .await?;
@@ -525,7 +524,7 @@ pub mod tests {
         let mut app = new_user_application(None);
         app.user_repo = Arc::new(user_repo);
 
-        app.verify_signup_email(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD)
+        app.signup_with_credentials(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD)
             .await
             .unwrap();
     }
@@ -533,7 +532,7 @@ pub mod tests {
     #[tokio::test]
     async fn user_verify_already_exists_should_not_fail() {
         let app = new_user_application(None);
-        app.verify_signup_email(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD)
+        app.signup_with_credentials(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD)
             .await
             .unwrap();
     }
@@ -550,7 +549,7 @@ pub mod tests {
         let mut app = new_user_application(None);
         app.user_repo = Arc::new(user_repo);
 
-        app.verify_signup_email("this is not an email", TEST_DEFAULT_USER_PASSWORD)
+        app.signup_with_credentials("this is not an email", TEST_DEFAULT_USER_PASSWORD)
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidFormat.to_string()))
             .unwrap_err();
@@ -566,10 +565,10 @@ pub mod tests {
         };
 
         let token_to_keep = Token::new(
+            TokenKind::Verification,
             "test",
             TEST_DEFAULT_USER_EMAIL,
             Duration::from_secs(60),
-            TokenKind::Verification,
             Some(TEST_DEFAULT_USER_PASSWORD),
         );
 

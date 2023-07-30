@@ -11,15 +11,15 @@ use crate::token::domain::TokenKind;
 use crate::user::application::UserRepository;
 use std::sync::Arc;
 
-pub struct SessionApplication<'a, T: TokenRepository, U: UserRepository, E: SecretRepository> {
+pub struct SessionApplication<'a, T: TokenRepository, U: UserRepository, S: SecretRepository> {
     pub user_repo: Arc<U>,
-    pub secret_repo: Arc<E>,
+    pub secret_repo: Arc<S>,
     pub token_app: Arc<TokenApplication<'a, T>>,
     pub pwd_sufix: &'a str,
 }
 
-impl<'a, T: TokenRepository, U: UserRepository, E: SecretRepository>
-    SessionApplication<'a, T, U, E>
+impl<'a, T: TokenRepository, U: UserRepository, S: SecretRepository>
+    SessionApplication<'a, T, U, S>
 {
     #[instrument(skip(self))]
     pub async fn login(&self, ident: &str, pwd: &str, totp: &str) -> Result<String> {

@@ -23,6 +23,7 @@ pub struct TokenApplication<'a, T: TokenRepository> {
 
 #[derive(Debug, Clone)]
 pub struct GenerateOptions {
+    /// Determines if the [Token] to be generated must be persisted or not.
     pub store: bool,
 }
 
@@ -62,10 +63,9 @@ impl<'a, T: TokenRepository> TokenApplication<'a, T> {
         &self,
         kind: TokenKind,
         sub: &str,
-        secret: Option<&str>,
         options: GenerateOptions,
     ) -> Result<SignedToken> {
-        let token = Token::new(self.token_issuer, sub, self.timeout, kind, secret);
+        let token = Token::new(kind, self.token_issuer, sub, self.timeout);
         let signed = crypto::sign_jwt(self.private_key, &token)?;
 
         if options.store {
@@ -184,7 +184,7 @@ pub mod tests {
         const SUB: i32 = 999;
 
         let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
-        Token::new(ISS, &SUB.to_string(), timeout, kind, None)
+        Token::new(kind, ISS, &SUB.to_string(), timeout)
     }
 
     #[derive(Default, Clone)]

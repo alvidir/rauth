@@ -23,9 +23,9 @@ use proto::{Empty, LoginRequest};
 pub struct SessionGrpcService<
     T: TokenRepository + Sync + Send,
     U: UserRepository + Sync + Send,
-    E: SecretRepository + Sync + Send,
+    S: SecretRepository + Sync + Send,
 > {
-    pub session_app: SessionApplication<'static, T, U, E>,
+    pub session_app: SessionApplication<'static, T, U, S>,
     pub jwt_header: &'static str,
 }
 
@@ -33,8 +33,8 @@ pub struct SessionGrpcService<
 impl<
         T: 'static + TokenRepository + Sync + Send,
         U: 'static + UserRepository + Sync + Send,
-        E: 'static + SecretRepository + Sync + Send,
-    > Session for SessionGrpcService<T, U, E>
+        S: 'static + SecretRepository + Sync + Send,
+    > Session for SessionGrpcService<T, U, S>
 {
     #[instrument(skip(self))]
     async fn login(&self, request: Request<LoginRequest>) -> Result<Response<Empty>, Status> {
