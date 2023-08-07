@@ -55,15 +55,7 @@ name = "rauth"
 path = "src/lib.rs"
 
 [features]
-default = [
-    "grpc",
-    "rest",
-    "postgres",
-    "rabbitmq",
-    "redis-cache",
-    "grpc-service",
-    "rest-service",
-]
+default = ["grpc-service", "rest-service"]
 config = []
 grpc = ["prost", "protoc", "tonic"]
 grpc-service = [
@@ -77,9 +69,10 @@ grpc-service = [
 postgres = ["sqlx"]
 rabbitmq = ["deadpool-lapin", "lapin"]
 redis-cache = ["redis", "reool"]
-rest = ["actix-web"]
+rest = ["actix-web", "redis-cache"]
 rest-service = ["rest", "config", "trace"]
 trace = [
+    "tonic",
     "tracing-subscriber",
     "tracing-opentelemetry",
     "opentelemetry_api",
