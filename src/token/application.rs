@@ -1,129 +1,55 @@
 use super::domain::{Token, TokenKind};
 use crate::cache::Cache;
 use crate::crypto;
-use crate::result::{Error, Result};
+use crate::result::Result;
 use std::sync::Arc;
 use std::time::Duration;
 
 pub struct TokenApplication<'a, C: Cache> {
-    pub cache: Arc<C>,
     pub timeout: Duration,
     pub token_issuer: &'a str,
     pub private_key: &'a [u8],
     pub public_key: &'a [u8],
-}
-
-#[derive(Debug, Clone)]
-pub struct GenerateOptions {
-    /// Determines if the [Token] to be generated must be persisted or not.
-    pub store: bool,
-}
-
-impl Default for GenerateOptions {
-    fn default() -> Self {
-        Self { store: true }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct VerifyOptions {
-    pub must_exists: bool,
-    pub kind: Option<TokenKind>,
-}
-
-impl Default for VerifyOptions {
-    fn default() -> Self {
-        Self {
-            must_exists: true,
-            kind: None,
-        }
-    }
-}
-
-impl VerifyOptions {
-    pub fn new(kind: TokenKind) -> Self {
-        VerifyOptions {
-            kind: Some(kind),
-            ..Default::default()
-        }
-    }
+    pub cache: Arc<C>,
 }
 
 impl<'a, T: Cache> TokenApplication<'a, T> {
+    /// Returns a new token with the given kind and subject.
     #[instrument(skip(self))]
-    pub async fn generate(&self, kind: TokenKind, sub: &str) -> Result<Token> {
+    pub fn generate(&self, kind: TokenKind, sub: &str) -> Result<Token> {
         Ok(Token::new(kind, self.token_issuer, sub, self.timeout))
     }
 
+    /// Returns the resulting string of signing the given token.
     #[instrument(skip(self))]
-    pub async fn store(&self, token: &Token) -> Result<String> {
-        let signed = crypto::sign_jwt(self.private_key, token)?;
-
-        self.cache
-            .save(&token.jti, &signed, Some(self.timeout.as_secs()))
-            .await?;
-
-        Ok(signed)
+    pub fn sign(&self, token: &Token) -> Result<String> {
+        crypto::sign_jwt(self.private_key, token)
     }
 
+    /// Stores the given token in the cache for a limited amount of time.
     #[instrument(skip(self))]
-    pub async fn decode(&self, token: &str) -> Result<Token> {
+    pub async fn store(&self, token: &Token) -> Result<()> {
+        self.cache
+            .save(&token.jti, token, Some(token.timeout()))
+            .await
+    }
+
+    /// Returns the paylod of the given JWT string.
+    #[instrument(skip(self))]
+    pub fn decode(&self, token: &str) -> Result<Token> {
         crypto::decode_jwt(self.public_key, token)
     }
 
+    /// Retrives the token associated to the given key, if any.
     #[instrument(skip(self))]
-    pub async fn find(&self, key: &str) -> Result<Token> {
-        let token: String = self.cache.find(key).await?;
-        let claims = self.decode(&token).await?;
-        Ok(claims)
+    pub async fn find(&self, jti: &str) -> Result<Token> {
+        self.cache.find(jti).await
     }
 
+    /// Removes the token with the given ID from the cache, making it invalid.
     #[instrument(skip(self))]
-    pub async fn verify(&self, token: &Token, options: VerifyOptions) -> Result<()> {
-        if let Some(kind) = options.kind {
-            if token.knd != kind {
-                warn!(
-                    token_id = token.jti,
-                    token_kind = token.knd.to_string(),
-                    expected_kind = kind.to_string(),
-                    "checking token's kind",
-                );
-                return Err(Error::InvalidToken);
-            }
-        }
-
-        if options.must_exists {
-            let present_data: String = self.cache.find(&token.jti).await.map_err(|err| {
-                warn!(
-                    error = err.to_string(),
-                    token_id = token.jti,
-                    "finding token by id",
-                );
-                Error::InvalidToken
-            })?;
-
-            let present_token = self.decode(&present_data).await?;
-            if token != &present_token {
-                error!(token_id = token.jti, "token does not match");
-                return Err(Error::InvalidToken);
-            }
-        }
-
-        Ok(())
-    }
-
-    #[instrument(skip(self))]
-    pub async fn revoke(&self, token: &Token) -> Result<()> {
-        self.cache.find(&token.jti).await.map_err(|err| {
-            warn!(
-                error = err.to_string(),
-                token_id = token.jti,
-                "finding token by id",
-            );
-            Error::InvalidToken
-        })?;
-
-        self.cache.delete(&token.jti).await
+    pub async fn revoke(&self, jti: &str) -> Result<()> {
+        self.cache.delete(jti).await
     }
 }
 
@@ -131,8 +57,6 @@ impl<'a, T: Cache> TokenApplication<'a, T> {
 pub mod tests {
     use super::TokenApplication;
     use crate::cache::tests::InMemoryCache;
-    use crate::time;
-    use crate::token::application::VerifyOptions;
     use crate::token::domain::{Token, TokenKind};
     use crate::{crypto, result::Error};
     use base64::{engine::general_purpose, Engine as _};
@@ -166,7 +90,7 @@ pub mod tests {
         TokenApplication {
             cache: Arc::new(InMemoryCache),
             timeout: Duration::from_secs(999),
-            token_issuer: "dummy",
+            token_issuer: "unit_tests",
             private_key: &PRIVATE_KEY,
             public_key: &PUBLIC_KEY,
         }
@@ -174,24 +98,25 @@ pub mod tests {
 
     #[tokio::test]
     async fn verify_token_should_not_fail() {
-        let token = crypto::sign_jwt(&PRIVATE_KEY, new_token(TokenKind::Session)).unwrap();
         let app = new_token_application();
-        let claims = app.decode(&token).await.unwrap();
-        app.verify(&claims, VerifyOptions::new(TokenKind::Session))
-            .await
-            .unwrap();
+        let token = new_token(TokenKind::Session);
+        let signed = app.sign(&token).unwrap();
+        println!(">>>>>>>>>>>>>> {}", signed);
+
+        let claims = app.decode(&signed).unwrap();
+
+        assert!(matches!(&claims.knd, TokenKind::Session));
     }
 
     #[tokio::test]
     async fn decode_token_expired_should_fail() {
         let mut claim = new_token(TokenKind::Session);
-        claim.exp = time::unix_timestamp(SystemTime::now() - Duration::from_secs(61));
+        claim.exp = SystemTime::now() - Duration::from_secs(61);
 
         let token = crypto::sign_jwt(&PRIVATE_KEY, claim).unwrap();
         let app = new_token_application();
 
         app.decode(&token)
-            .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
             .unwrap_err();
     }
@@ -204,40 +129,6 @@ pub mod tests {
 
         let app = new_token_application();
         app.decode(&token)
-            .await
-            .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
-            .unwrap_err();
-    }
-
-    #[tokio::test]
-    async fn verify_token_wrong_kind_should_fail() {
-        let token = crypto::sign_jwt(&PRIVATE_KEY, new_token(TokenKind::Session)).unwrap();
-        let app = new_token_application();
-        let claims = app.decode(&token).await.unwrap();
-        app.verify(&claims, VerifyOptions::new(TokenKind::Verification))
-            .await
-            .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
-            .unwrap_err();
-    }
-
-    #[tokio::test]
-    async fn verify_token_not_present_should_fail() {
-        let token = crypto::sign_jwt(&PRIVATE_KEY, new_token(TokenKind::Session)).unwrap();
-        let app = new_token_application();
-        let claims = app.decode(&token).await.unwrap();
-        app.verify(&claims, VerifyOptions::new(TokenKind::Verification))
-            .await
-            .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
-            .unwrap_err();
-    }
-
-    #[tokio::test]
-    async fn verify_token_mismatch_should_fail() {
-        let token = crypto::sign_jwt(&PRIVATE_KEY, new_token(TokenKind::Session)).unwrap();
-        let app = new_token_application();
-        let claims = app.decode(&token).await.unwrap();
-        app.verify(&claims, VerifyOptions::new(TokenKind::Verification))
-            .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
             .unwrap_err();
     }

@@ -24,4 +24,3 @@ mod http;
 mod rabbitmq;
 mod regex;
 mod result;
-mod time;

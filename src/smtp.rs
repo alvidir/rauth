@@ -114,7 +114,7 @@ impl<'a> Smtp<'a> {
 
 impl<'a> user_app::Mailer for Smtp<'a> {
     #[instrument(skip(self))]
-    fn send_verification_signup_email(&self, email: &str, token: &str) -> Result<()> {
+    fn send_credentials_verification_email(&self, email: &str, token: &str) -> Result<()> {
         let mut context = Context::new();
         context.insert("name", email.split('@').collect::<Vec<&str>>()[0]);
         context.insert("token", &B64_CUSTOM_ENGINE.encode(token));
@@ -134,7 +134,7 @@ impl<'a> user_app::Mailer for Smtp<'a> {
     }
 
     #[instrument(skip(self))]
-    fn send_verification_reset_email(&self, email: &str, token: &str) -> Result<()> {
+    fn send_credentials_recovery_email(&self, email: &str, token: &str) -> Result<()> {
         let mut context = Context::new();
         context.insert("name", email.split('@').collect::<Vec<&str>>()[0]);
         context.insert("token", &B64_CUSTOM_ENGINE.encode(token));
@@ -165,7 +165,7 @@ pub mod tests {
     }
 
     impl Mailer for MailerMock {
-        fn send_verification_signup_email(&self, _: &str, _: &str) -> Result<()> {
+        fn send_credentials_verification_email(&self, _: &str, _: &str) -> Result<()> {
             if self.force_fail {
                 return Err(Error::Unknown);
             }
@@ -173,7 +173,7 @@ pub mod tests {
             Ok(())
         }
 
-        fn send_verification_reset_email(&self, _: &str, _: &str) -> Result<()> {
+        fn send_credentials_recovery_email(&self, _: &str, _: &str) -> Result<()> {
             if self.force_fail {
                 return Err(Error::Unknown);
             }

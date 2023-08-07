@@ -8,6 +8,7 @@ pub enum SecretKind {
     Totp,
 }
 
+/// Represent some sensitive data that cannot be updated.
 #[derive(Debug, Clone)]
 pub struct Secret {
     pub(super) id: i32,

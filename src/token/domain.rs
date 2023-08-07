@@ -1,52 +1,107 @@
-use crate::time;
-use rand::Rng;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
-use std::time::{Duration, SystemTime};
+use crate::crypto;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::hash::Hash;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-#[derive(Serialize, Deserialize, Hash, PartialEq, Eq, Debug, Clone, strum_macros::Display)]
+#[derive(Debug, Hash, Serialize, Deserialize)]
 pub enum TokenKind {
-    Session = 0,
-    Verification = 1,
-    Reset = 2,
+    Session,
+    Verification,
+    Reset,
 }
 
-#[derive(Serialize, Deserialize, Hash, Debug, Clone, PartialEq)]
+impl TokenKind {
+    pub fn is_session(&self) -> bool {
+        matches!(self, TokenKind::Session)
+    }
+
+    pub fn is_verification(&self) -> bool {
+        matches!(self, TokenKind::Verification)
+    }
+
+    pub fn is_reset(&self) -> bool {
+        matches!(self, TokenKind::Reset)
+    }
+}
+
+#[derive(Debug, Hash, Serialize, Deserialize)]
 pub struct Token {
-    pub jti: String,     // JWT ID
-    pub exp: usize,      // expiration time (as UTC timestamp) - required
-    pub nbf: usize,      // not before time (as UTC timestamp) - non required
+    pub jti: String, // JWT ID
+    #[serde(
+        serialize_with = "as_unix_timestamp",
+        deserialize_with = "from_unix_timestamp"
+    )]
+    pub exp: SystemTime, // expiration time - required
+    #[serde(
+        serialize_with = "as_unix_timestamp",
+        deserialize_with = "from_unix_timestamp"
+    )]
+    pub nbf: SystemTime, // not before time - non required
+    #[serde(
+        serialize_with = "as_unix_timestamp",
+        deserialize_with = "from_unix_timestamp"
+    )]
     pub iat: SystemTime, // issued at: creation time
-    pub iss: String,     // issuer
-    pub sub: String,     // subject
-    pub knd: TokenKind,  // kind - required
+    pub iss: String, // issuer
+    pub sub: String, // subject
+    pub knd: TokenKind, // kind - required
+}
+
+fn as_unix_timestamp<S>(timestamp: &SystemTime, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    use serde::ser::Error;
+
+    timestamp
+        .duration_since(UNIX_EPOCH)
+        .map_err(|err| Error::custom(err.to_string()))
+        .and_then(|timestamp| serializer.serialize_u64(timestamp.as_secs()))
+}
+
+fn from_unix_timestamp<'de, D>(deserializer: D) -> Result<SystemTime, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde::de::Error;
+
+    u64::deserialize(deserializer)
+        .map(Duration::from_secs)
+        .and_then(|duration| {
+            UNIX_EPOCH
+                .checked_add(duration)
+                .ok_or_else(|| Error::custom("cannot be represented as SystemTime".to_string()))
+        })
 }
 
 impl Token {
     pub fn new(kind: TokenKind, iss: &str, sub: &str, timeout: Duration) -> Self {
         let mut token = Token {
-            jti: rand::thread_rng().gen::<u64>().to_string(), // noise
-            exp: time::unix_timestamp(SystemTime::now() + timeout),
-            nbf: time::unix_timestamp(SystemTime::now()),
+            jti: crypto::get_random_string(8), // noise
+            exp: SystemTime::now() + timeout,
+            nbf: SystemTime::now(),
             iat: SystemTime::now(),
             iss: iss.to_string(),
             sub: sub.to_string(),
             knd: kind,
         };
 
-        let mut hasher = DefaultHasher::new();
-        token.hash(&mut hasher);
-        token.jti = hasher.finish().to_string();
-
+        token.jti = crypto::hash(&token).to_string();
         token
+    }
+
+    /// Returns the [Duration] from now for which the [Token] is valid.
+    pub fn timeout(&self) -> Duration {
+        self.exp
+            .duration_since(SystemTime::now())
+            .unwrap_or_default()
     }
 }
 
 #[cfg(test)]
 pub mod tests {
     use super::{Token, TokenKind};
-    use crate::time::unix_timestamp;
-    use crate::{crypto, time};
+    use crate::crypto;
     use base64::{engine::general_purpose, Engine as _};
     use std::time::{Duration, SystemTime};
 
@@ -66,9 +121,9 @@ pub mod tests {
         let after = SystemTime::now();
 
         assert!(claim.iat >= before && claim.iat <= after);
-        assert!(claim.exp >= unix_timestamp(before + timeout));
-        assert!(claim.exp <= unix_timestamp(after + timeout));
-        assert_eq!(claim.knd, TokenKind::Session);
+        assert!(claim.exp >= before + timeout);
+        assert!(claim.exp <= after + timeout);
+        assert!(matches!(claim.knd, TokenKind::Session));
         assert_eq!(ISS, claim.iss);
         assert_eq!(SUB.to_string(), claim.sub);
     }
@@ -91,8 +146,8 @@ pub mod tests {
         let claim = crypto::decode_jwt::<Token>(&public, &token).unwrap();
 
         assert!(claim.iat >= before && claim.iat <= after);
-        assert!(claim.exp >= unix_timestamp(before + timeout));
-        assert!(claim.exp <= unix_timestamp(after + timeout));
+        assert!(claim.exp >= before + timeout);
+        assert!(claim.exp <= after + timeout);
         assert_eq!(ISS, claim.iss);
         assert_eq!(SUB.to_string(), claim.sub);
     }
@@ -106,7 +161,7 @@ pub mod tests {
 
         let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
         let mut claim = Token::new(TokenKind::Session, ISS, &SUB.to_string(), timeout);
-        claim.exp = time::unix_timestamp(SystemTime::now() - Duration::from_secs(61));
+        claim.exp = SystemTime::now() - Duration::from_secs(61);
 
         let secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let token = crypto::sign_jwt(&secret, claim).unwrap();

@@ -1,11 +1,13 @@
 //! Defintion and implementations of the [Cache] trait.
 
-use std::{collections::HashMap, fmt::Debug, num::TryFromIntError};
-
-use crate::result::{Error, Result};
+use crate::result::Result;
 use async_trait::async_trait;
-use reool::{AsyncCommands, PoolDefault, RedisPool};
 use serde::{de::DeserializeOwned, Serialize};
+use std::fmt::Debug;
+use std::time::Duration;
+
+#[cfg(feature = "redis-cache")]
+pub use redis_cache::*;
 
 /// Represents a general purpose cache.
 #[async_trait]
@@ -15,92 +17,105 @@ pub trait Cache {
         &self,
         key: &str,
         value: T,
-        expire: Option<u64>,
+        expire: Option<Duration>,
     ) -> Result<()>;
     async fn delete(&self, key: &str) -> Result<()>;
 }
 
-/// Redis implementation of [`Cache`].
-pub struct RedisCache<'a> {
-    pub pool: &'a RedisPool,
-}
+mod redis_cache {
+    use super::Cache;
+    use crate::result::{Error, Result};
+    use async_trait::async_trait;
+    use reool::{AsyncCommands, PoolDefault, RedisPool};
+    use serde::{de::DeserializeOwned, Serialize};
+    use std::time::Duration;
+    use std::{fmt::Debug, num::TryFromIntError};
 
-#[async_trait]
-impl<'a> Cache for RedisCache<'a> {
-    #[instrument(skip(self))]
-    async fn find<T: DeserializeOwned>(&self, key: &str) -> Result<T> {
-        let mut conn = self.pool.check_out(PoolDefault).await.map_err(|err| {
-            error!(error = err.to_string(), "pulling connection for redis",);
-            Error::Unknown
-        })?;
-
-        let data: String = conn.get(key).await.map_err(|err| {
-            error!(error = err.to_string(), "performing GET command on redis",);
-            Error::Unknown
-        })?;
-
-        serde_json::from_str(&data).map_err(|err| {
-            error!(error = err.to_string(), "deserializing data of type T",);
-            Error::Unknown
-        })
+    /// Redis implementation of [`Cache`].
+    pub struct RedisCache<'a> {
+        pub pool: &'a RedisPool,
     }
 
-    #[instrument(skip(self))]
-    async fn save<T: Serialize + Send + Sync + Debug>(
-        &self,
-        key: &str,
-        value: T,
-        expire: Option<u64>,
-    ) -> Result<()> {
-        let mut conn = self.pool.check_out(PoolDefault).await.map_err(|err| {
-            error!(error = err.to_string(), "pulling connection for redis",);
-            Error::Unknown
-        })?;
-
-        let data = serde_json::to_string(&value).map_err(|err| {
-            error!(error = err.to_string(), "serializing data of type T",);
-            Error::Unknown
-        })?;
-
-        conn.set(key, data).await.map_err(|err| {
-            error!(error = err.to_string(), "performing SET command on redis",);
-            Error::Unknown
-        })?;
-
-        if let Some(expire) = expire {
-            let expire = expire.try_into().map_err(|err: TryFromIntError| {
-                error!(error = err.to_string(), "parsing expiration time to usize",);
+    #[async_trait]
+    impl<'a> Cache for RedisCache<'a> {
+        #[instrument(skip(self))]
+        async fn find<T: DeserializeOwned>(&self, key: &str) -> Result<T> {
+            let mut conn = self.pool.check_out(PoolDefault).await.map_err(|err| {
+                error!(error = err.to_string(), "pulling connection for redis",);
                 Error::Unknown
             })?;
 
-            conn.expire(key, expire).await.map_err(|err| {
+            let data: String = conn.get(key).await.map_err(|err| {
+                error!(error = err.to_string(), "performing GET command on redis",);
+                Error::Unknown
+            })?;
+
+            serde_json::from_str(&data).map_err(|err| {
+                error!(error = err.to_string(), "deserializing data of type T",);
+                Error::Unknown
+            })
+        }
+
+        #[instrument(skip(self))]
+        async fn save<T: Serialize + Send + Sync + Debug>(
+            &self,
+            key: &str,
+            value: T,
+            expire: Option<Duration>,
+        ) -> Result<()> {
+            let mut conn = self.pool.check_out(PoolDefault).await.map_err(|err| {
+                error!(error = err.to_string(), "pulling connection for redis",);
+                Error::Unknown
+            })?;
+
+            let data = serde_json::to_string(&value).map_err(|err| {
+                error!(error = err.to_string(), "serializing data of type T",);
+                Error::Unknown
+            })?;
+
+            conn.set(key, data).await.map_err(|err| {
+                error!(error = err.to_string(), "performing SET command on redis",);
+                Error::Unknown
+            })?;
+
+            if let Some(expire) = expire {
+                let expire = expire
+                    .as_secs()
+                    .try_into()
+                    .map_err(|err: TryFromIntError| {
+                        error!(error = err.to_string(), "parsing expiration time to usize",);
+                        Error::Unknown
+                    })?;
+
+                conn.expire(key, expire).await.map_err(|err| {
+                    error!(
+                        error = err.to_string(),
+                        "performing EXPIRE command on redis",
+                    );
+                    Error::Unknown
+                })?;
+            }
+
+            Ok(())
+        }
+
+        #[instrument(skip(self))]
+        async fn delete(&self, key: &str) -> Result<()> {
+            let mut conn = self.pool.check_out(PoolDefault).await.map_err(|err| {
+                error!(error = err.to_string(), "pulling connection for redis",);
+                Error::Unknown
+            })?;
+
+            conn.del(key).await.map_err(|err| {
                 error!(
                     error = err.to_string(),
-                    "performing EXPIRE command on redis",
+                    "performing DELETE command on redis",
                 );
                 Error::Unknown
             })?;
+
+            Ok(())
         }
-
-        Ok(())
-    }
-
-    #[instrument(skip(self))]
-    async fn delete(&self, key: &str) -> Result<()> {
-        let mut conn = self.pool.check_out(PoolDefault).await.map_err(|err| {
-            error!(error = err.to_string(), "pulling connection for redis",);
-            Error::Unknown
-        })?;
-
-        conn.del(key).await.map_err(|err| {
-            error!(
-                error = err.to_string(),
-                "performing DELETE command on redis",
-            );
-            Error::Unknown
-        })?;
-
-        Ok(())
     }
 }
 
@@ -111,6 +126,7 @@ pub mod tests {
     use async_trait::async_trait;
     use once_cell::sync::Lazy;
     use serde::{de::DeserializeOwned, Serialize};
+    use std::time::Duration;
     use std::{
         collections::HashMap,
         sync::{Arc, Mutex},
@@ -119,6 +135,7 @@ pub mod tests {
     pub static IN_MEMORY_CACHE: Lazy<Arc<Mutex<HashMap<String, String>>>> =
         Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
 
+    /// In memory implementation of [`Cache`].
     #[derive(Default)]
     pub struct InMemoryCache;
 
@@ -142,7 +159,7 @@ pub mod tests {
             &self,
             key: &str,
             value: T,
-            expire: Option<u64>,
+            _expire: Option<Duration>,
         ) -> Result<()> {
             let data = serde_json::to_string(&value).map_err(|err| {
                 error!(error = err.to_string(), "serializing data of type T",);

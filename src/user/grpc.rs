@@ -68,7 +68,7 @@ impl<
         request: SignupRequest,
     ) -> Result<Response<Empty>, Status> {
         self.user_app
-            .signup_with_credentials(&request.email, &request.pwd)
+            .verify_credentials(&request.email, &request.pwd)
             .await
             .map_err(|err| Status::aborted(err.to_string()))?;
 

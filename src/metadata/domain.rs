@@ -13,10 +13,6 @@ impl Metadata {
     pub fn get_id(&self) -> i32 {
         self.id
     }
-
-    pub fn touch(&mut self) {
-        self.updated_at = Utc::now().naive_utc();
-    }
 }
 
 impl Default for Metadata {

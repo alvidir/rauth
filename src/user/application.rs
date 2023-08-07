@@ -4,7 +4,6 @@ use crate::crypto;
 use crate::result::{Error, Result};
 use crate::secret::domain::SecretKind;
 use crate::secret::{application::SecretRepository, domain::Secret};
-use crate::token::application::VerifyOptions;
 use crate::token::{
     application::TokenApplication,
     domain::{Token, TokenKind},
@@ -30,8 +29,8 @@ pub trait EventBus {
 }
 
 pub trait Mailer {
-    fn send_verification_signup_email(&self, to: &str, token: &str) -> Result<()>;
-    fn send_verification_reset_email(&self, to: &str, token: &str) -> Result<()>;
+    fn send_credentials_verification_email(&self, to: &str, token: &str) -> Result<()>;
+    fn send_credentials_recovery_email(&self, to: &str, token: &str) -> Result<()>;
 }
 
 pub struct UserApplication<
@@ -55,10 +54,10 @@ pub struct UserApplication<
 impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cache>
     UserApplication<'a, U, S, B, M, C>
 {
-    /// Stores temporally the given credentials and sends an email with the corresponding
-    /// token to proceed with the signup.
+    /// Stores the given credentials temporally and sends an email with the corresponding
+    /// token to be passed as parameter to the signup_with_token method.
     #[instrument(skip(self))]
-    pub async fn signup_with_credentials(&self, email: &str, pwd: &str) -> Result<()> {
+    pub async fn verify_credentials(&self, email: &str, pwd: &str) -> Result<()> {
         if self.user_repo.find_by_email(email).await.is_ok() {
             // returns Ok to avoid giving information about existing emails
             return Ok(());
@@ -72,67 +71,64 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
             .with_email(email)?
             .with_password(&pwd)?;
 
-        self.cache
-            .save(email, &user_builder, Some(self.token_app.timeout.as_secs()))
-            .await?;
+        let key = crypto::hash(&user_builder);
 
         let token = self
             .token_app
-            .generate(TokenKind::Verification, email)
+            .generate(TokenKind::Verification, &key.to_string())?;
+
+        self.cache
+            .save(&key.to_string(), &user_builder, Some(token.timeout()))
             .await?;
 
-        let signed = self.token_app.store(&token).await?;
-        self.mailer.send_verification_signup_email(email, &signed)?;
+        let signed: String = self.token_app.sign(&token)?;
+        self.mailer
+            .send_credentials_verification_email(email, &signed)?;
 
         Ok(())
     }
 
+    /// Given a valid verification token, performs the signup of the corresponding user.
     #[instrument(skip(self))]
     pub async fn signup_with_token(&self, token: &str) -> Result<String> {
-        let claims: Token = self.token_app.decode(token).await?;
-        self.token_app
-            .verify(
-                &claims,
-                VerifyOptions {
-                    must_exists: false,
-                    kind: Some(TokenKind::Verification),
-                },
-            )
-            .await?;
+        let claims: Token = self.token_app.decode(token)?;
+        if !claims.knd.is_verification() {
+            return Err(Error::InvalidToken);
+        }
 
-        let claims: Token = self.token_app.find(&claims.sub).await?;
-        self.token_app
-            .verify(&claims, VerifyOptions::new(TokenKind::Verification))
-            .await?;
+        let mut user = self
+            .cache
+            .find(&claims.sub)
+            .await
+            .and_then(|builder: UserBuilder| builder.build())?;
 
-        // let password = claims.get_secret().ok_or(Error::InvalidToken)?;
-        // let token = self.signup(&claims.sub, password).await?;
-        // self.token_app.revoke(&claims).await?;
-
-        // Ok(token)
-        todo!()
+        self.signup(&mut user).await
     }
 
+    /// Performs the signup for the given user.
     #[instrument(skip(self))]
-    pub async fn signup(&self, email: &str, pwd: &str) -> Result<String> {
-        let mut user = User::new(email, pwd)?;
-        self.user_repo.create(&mut user).await?;
+    pub async fn signup(&self, user: &mut User) -> Result<String> {
+        self.user_repo.create(user).await?;
         self.event_bus.emit_user_created(&user).await?;
 
         let token = self
             .token_app
-            .generate(TokenKind::Session, &user.get_id().to_string())
-            .await?;
+            .generate(TokenKind::Session, &user.get_id().to_string())?;
 
-        self.token_app.store(&token).await
+        self.token_app.store(&token).await?;
+        self.token_app.sign(&token)
     }
 
+    /// Given a valid session token and passwords, performs the deletion of the user.
     #[instrument(skip(self))]
     pub async fn delete_with_token(&self, token: &str, pwd: &str, totp: &str) -> Result<()> {
-        let claims: Token = self.token_app.decode(token).await?;
-        self.token_app
-            .verify(&claims, VerifyOptions::new(TokenKind::Session))
-            .await?;
+        let claims: Token = self.token_app.decode(token)?;
+        if !claims.knd.is_session() {
+            return Err(Error::InvalidToken);
+        }
+
+        // make sure the token is still valid
+        self.token_app.find(&claims.jti).await?;
 
         let user_id = claims.sub.parse().map_err(|err: ParseIntError| {
             warn!(error = err.to_string(), "parsing str to i32");
@@ -142,6 +138,7 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
         self.delete(user_id, pwd, totp).await
     }
 
+    /// Given a valid user ID and passwords, performs the deletion of the corresponding user.
     #[instrument(skip(self))]
     pub async fn delete(&self, user_id: i32, pwd: &str, totp: &str) -> Result<()> {
         let user = self
@@ -183,10 +180,13 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
         pwd: &str,
         totp: &str,
     ) -> Result<Option<String>> {
-        let claims: Token = self.token_app.decode(token).await?;
-        self.token_app
-            .verify(&claims, VerifyOptions::new(TokenKind::Session))
-            .await?;
+        let claims: Token = self.token_app.decode(token)?;
+        if !claims.knd.is_session() {
+            return Err(Error::InvalidToken);
+        }
+
+        // make sure the token is still valid
+        self.token_app.find(&claims.jti).await?;
 
         let user_id = claims.sub.parse().map_err(|err: ParseIntError| {
             warn!(error = err.to_string(), "parsing str to i32");
@@ -241,10 +241,13 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
 
     #[instrument(skip(self))]
     pub async fn disable_totp_with_token(&self, token: &str, pwd: &str, totp: &str) -> Result<()> {
-        let claims: Token = self.token_app.decode(token).await?;
-        self.token_app
-            .verify(&claims, VerifyOptions::new(TokenKind::Session))
-            .await?;
+        let claims: Token = self.token_app.decode(token)?;
+        if !claims.knd.is_session() {
+            return Err(Error::InvalidToken);
+        }
+
+        // make sure the token is still valid
+        self.token_app.find(&claims.jti).await?;
 
         let user_id = claims.sub.parse().map_err(|err: ParseIntError| {
             warn!(error = err.to_string(), "parsing str to i32",);
@@ -301,21 +304,26 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
 
         let token = self
             .token_app
-            .generate(TokenKind::Reset, &user.get_id().to_string())
-            .await?;
+            .generate(TokenKind::Reset, &user.get_id().to_string())?;
 
-        let signed = self.token_app.store(&token).await?;
-        self.mailer.send_verification_reset_email(email, &signed)?;
+        self.token_app.store(&token).await?;
+        let signed = self.token_app.sign(&token)?;
+
+        self.mailer
+            .send_credentials_recovery_email(email, &signed)?;
 
         Ok(())
     }
 
     #[instrument(skip(self))]
     pub async fn reset_with_token(&self, token: &str, new_pwd: &str, totp: &str) -> Result<()> {
-        let claims: Token = self.token_app.decode(token).await?;
-        self.token_app
-            .verify(&claims, VerifyOptions::new(TokenKind::Reset))
-            .await?;
+        let claims: Token = self.token_app.decode(token)?;
+        if !claims.knd.is_reset() {
+            return Err(Error::InvalidToken);
+        }
+
+        // make sure the token is still valid
+        self.token_app.find(&claims.jti).await?;
 
         let user_id = claims.sub.parse().map_err(|err: ParseIntError| {
             warn!(error = err.to_string(), "parsing str to i32",);
@@ -323,7 +331,7 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
         })?;
 
         self.reset(user_id, new_pwd, totp).await?;
-        self.token_app.revoke(&claims).await?;
+        self.token_app.revoke(&claims.jti).await?;
         Ok(())
     }
 
@@ -390,21 +398,21 @@ pub mod tests {
     pub const TEST_FIND_BY_EMAIL_ID: i32 = 888;
     pub const TEST_FIND_BY_NAME_ID: i32 = 777;
 
-    type MockFnFind = Option<fn(this: &UserRepositoryMock, id: i32) -> Result<User>>;
-    type MockFnFindByEmail = Option<fn(this: &UserRepositoryMock, email: &str) -> Result<User>>;
-    type MockFnFindByName = Option<fn(this: &UserRepositoryMock, name: &str) -> Result<User>>;
-    type MockFnCreate = Option<fn(this: &UserRepositoryMock, user: &mut User) -> Result<()>>;
-    type MockFnSave = Option<fn(this: &UserRepositoryMock, user: &User) -> Result<()>>;
-    type MockFnDelete = Option<fn(this: &UserRepositoryMock, user: &User) -> Result<()>>;
+    type MockFnFind = fn(this: &UserRepositoryMock, id: i32) -> Result<User>;
+    type MockFnFindByEmail = fn(this: &UserRepositoryMock, email: &str) -> Result<User>;
+    type MockFnFindByName = fn(this: &UserRepositoryMock, name: &str) -> Result<User>;
+    type MockFnCreate = fn(this: &UserRepositoryMock, user: &mut User) -> Result<()>;
+    type MockFnSave = fn(this: &UserRepositoryMock, user: &User) -> Result<()>;
+    type MockFnDelete = fn(this: &UserRepositoryMock, user: &User) -> Result<()>;
 
     #[derive(Default)]
     pub struct UserRepositoryMock {
-        pub fn_find: MockFnFind,
-        pub fn_find_by_email: MockFnFindByEmail,
-        pub fn_find_by_name: MockFnFindByName,
-        pub fn_create: MockFnCreate,
-        pub fn_save: MockFnSave,
-        pub fn_delete: MockFnDelete,
+        pub fn_find: Option<MockFnFind>,
+        pub fn_find_by_email: Option<MockFnFindByEmail>,
+        pub fn_find_by_name: Option<MockFnFindByName>,
+        pub fn_create: Option<MockFnCreate>,
+        pub fn_save: Option<MockFnSave>,
+        pub fn_delete: Option<MockFnDelete>,
     }
 
     #[async_trait]
@@ -515,7 +523,7 @@ pub mod tests {
         let mut app = new_user_application();
         app.user_repo = Arc::new(user_repo);
 
-        app.signup_with_credentials(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD)
+        app.verify_credentials(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD)
             .await
             .unwrap();
     }
@@ -523,7 +531,7 @@ pub mod tests {
     #[tokio::test]
     async fn user_verify_already_exists_should_not_fail() {
         let app = new_user_application();
-        app.signup_with_credentials(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD)
+        app.verify_credentials(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD)
             .await
             .unwrap();
     }
@@ -540,7 +548,7 @@ pub mod tests {
         let mut app = new_user_application();
         app.user_repo = Arc::new(user_repo);
 
-        app.signup_with_credentials("this is not an email", TEST_DEFAULT_USER_PASSWORD)
+        app.verify_credentials("this is not an email", TEST_DEFAULT_USER_PASSWORD)
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidFormat.to_string()))
             .unwrap_err();
@@ -567,7 +575,7 @@ pub mod tests {
         let token_to_send = Token::new(
             TokenKind::Verification,
             "test",
-            &token_to_keep.jti,
+            &token_to_keep.jti.to_string(),
             Duration::from_secs(60),
         );
 
@@ -639,39 +647,21 @@ pub mod tests {
         let mut app = new_user_application();
         app.user_repo = Arc::new(user_repo);
 
-        let token = app
-            .signup(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD)
-            .await
-            .unwrap();
+        let mut user = User::new(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD).unwrap();
+        let token = app.signup(&mut user).await.unwrap();
+
         let claims: Token = crypto::decode_jwt(&PUBLIC_KEY, &token).unwrap();
         assert_eq!(claims.sub, TEST_CREATE_ID.to_string());
     }
 
-    #[tokio::test]
-    async fn user_signup_wrong_email_should_fail() {
-        let app = new_user_application();
-        app.signup("this is not an email", TEST_DEFAULT_USER_PASSWORD)
-            .await
-            .map_err(|err| assert_eq!(err.to_string(), Error::InvalidFormat.to_string()))
-            .unwrap_err();
-    }
-
-    #[tokio::test]
-    async fn user_signup_wrong_password_should_fail() {
-        let app = new_user_application();
-        app.signup(TEST_DEFAULT_USER_EMAIL, "bad password")
-            .await
-            .map_err(|err| assert_eq!(err.to_string(), Error::InvalidFormat.to_string()))
-            .unwrap_err();
-    }
-
-    #[tokio::test]
-    async fn user_signup_already_exists_should_not_fail() {
-        let app = new_user_application();
-        app.signup(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD)
-            .await
-            .unwrap();
-    }
+    // #[tokio::test]
+    // async fn user_signup_already_exists_should_not_fail() {
+    //     // FIXME: mock UserRepo to return an instance on find.
+    //     let app = new_user_application();
+    //     app.signup_with_credentials(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD)
+    //         .await
+    //         .unwrap();
+    // }
 
     #[tokio::test]
     async fn user_secure_delete_should_not_fail() {

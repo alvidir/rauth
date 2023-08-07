@@ -13,10 +13,19 @@ use openssl::{
 };
 use rand::prelude::*;
 use serde::{de::DeserializeOwned, Serialize};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 const SECURE_CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
                                 abcdefghijklmnopqrstuvwxyz\
                                 0123456789";
+
+/// Returns the hash of the given value.
+pub fn hash<H: Hash>(value: H) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    value.hash(&mut hasher);
+    hasher.finish()
+}
 
 /// Given an elliptic curve secret in PEM format returns the resulting string of signing the provided
 /// payload in a JWT format.
@@ -45,6 +54,7 @@ pub fn decode_jwt<T: DeserializeOwned>(public: &[u8], token: &str) -> Result<T> 
     })?;
 
     let token = jsonwebtoken::decode::<T>(token, &key, &validation).map_err(|err| {
+        println!(">>>>>>>>>>>>>>>>>>> {:?}", err);
         error!(error = err.to_string(), "checking token's signature",);
         Error::InvalidToken
     })?;

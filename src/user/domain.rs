@@ -5,24 +5,25 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Default, Serialize, Deserialize)]
-pub(super) struct UserBuilder<'a> {
-    email: Option<&'a str>,
-    password: Option<&'a str>,
+/// Serializable builder for the [User] struture.
+#[derive(Debug, Default, Hash, Serialize, Deserialize)]
+pub(super) struct UserBuilder {
+    email: Option<String>,
+    password: Option<String>,
 }
 
-impl<'a> UserBuilder<'a> {
-    pub fn with_email(mut self, email: &'a str) -> Result<Self> {
+impl UserBuilder {
+    pub fn with_email(mut self, email: &str) -> Result<Self> {
         regex::match_regex(regex::EMAIL, email).map_err(|err| {
             warn!(error = err.to_string(), "validating email format",);
             Error::InvalidFormat
         })?;
 
-        self.email = Some(email);
+        self.email = Some(email.to_string());
         Ok(self)
     }
 
-    pub fn with_password(mut self, password: &'a str) -> Result<Self> {
+    pub fn with_password(mut self, password: &str) -> Result<Self> {
         if password.is_empty() {
             return Ok(self);
         }
@@ -32,14 +33,17 @@ impl<'a> UserBuilder<'a> {
             Error::InvalidFormat
         })?;
 
-        self.password = Some(password);
+        self.password = Some(password.to_string());
         Ok(self)
     }
 
     pub fn build(self) -> Result<User> {
+        // TODO: yield an error like FieldsRequired(String) when any of the required
+        //       fields are not set.
+
         User::new(
-            self.email.unwrap_or_default(),
-            self.password.unwrap_or_default(),
+            &self.email.unwrap_or_default(),
+            &self.password.unwrap_or_default(),
         )
     }
 }
@@ -142,7 +146,7 @@ pub mod tests {
     }
 
     #[test]
-    fn user_new_should_not_fail() {
+    fn new_user_with_valid_credentials_must_not_fail() {
         let user = User::new(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD).unwrap();
 
         assert_eq!(user.id, 0);
@@ -152,7 +156,7 @@ pub mod tests {
     }
 
     #[test]
-    fn user_new_wrong_email_should_fail() {
+    fn new_user_with_wrong_email_must_fail() {
         const EMAIL: &str = "not_an_email";
 
         let result = User::new(EMAIL, TEST_DEFAULT_USER_PASSWORD)
@@ -162,7 +166,7 @@ pub mod tests {
     }
 
     #[test]
-    fn user_new_wrong_password_should_fail() {
+    fn new_user_with_wrong_password_must_fail() {
         const PWD: &str = "ABCDEFG1234567890";
 
         let result = User::new(TEST_DEFAULT_USER_EMAIL, PWD)
@@ -172,14 +176,34 @@ pub mod tests {
     }
 
     #[test]
-    fn user_match_password_should_not_fail() {
-        let user = new_user();
-        assert!(user.match_password(TEST_DEFAULT_USER_PASSWORD));
-    }
+    fn match_user_password() {
+        struct Test<'a> {
+            name: &'a str,
+            password: &'a str,
+            matches: bool,
+        }
 
-    #[test]
-    fn user_match_password_should_fail() {
-        let user = new_user();
-        assert!(!user.match_password("wrong password"));
+        vec![
+            Test {
+                name: "Correct password must match",
+                password: TEST_DEFAULT_USER_PASSWORD,
+                matches: true,
+            },
+            Test {
+                name: "Wrong password must not match",
+                password: "wrong password",
+                matches: false,
+            },
+        ]
+        .into_iter()
+        .for_each(|test| {
+            let user = new_user();
+            assert_eq!(
+                user.match_password(test.password),
+                test.matches,
+                "{}",
+                test.name
+            );
+        })
     }
 }

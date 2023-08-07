@@ -1,9 +1,4 @@
-use crate::{
-    cache::Cache,
-    http,
-    token::application::TokenApplication,
-    token::{application::VerifyOptions, domain::TokenKind},
-};
+use crate::{cache::Cache, http, result::Error, token::application::TokenApplication};
 use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use std::sync::Arc;
 
@@ -29,13 +24,12 @@ impl<C: 'static + Cache + Sync + Send> SessionRestService<C> {
     ) -> impl Responder {
         match async move {
             let token = http::get_encoded_header(req, app_data.jwt_header)?;
-            let token = app_data.token_app.decode(&token).await?;
+            let token = app_data.token_app.decode(&token)?;
+            if !token.knd.is_session() {
+                return Err(Error::InvalidToken);
+            }
 
-            app_data
-                .token_app
-                .verify(&token, VerifyOptions::new(TokenKind::Session))
-                .await
-                .map(|_| token)
+            app_data.token_app.find(&token.jti).await
         }
         .await
         {

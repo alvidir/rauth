@@ -5,7 +5,6 @@ use crate::result::{Error, Result};
 use crate::secret::application::SecretRepository;
 use crate::secret::domain::SecretKind;
 use crate::token::application::TokenApplication;
-use crate::token::application::VerifyOptions;
 use crate::token::domain::TokenKind;
 use crate::user::application::UserRepository;
 use std::sync::Arc;
@@ -48,16 +47,12 @@ impl<'a, U: UserRepository, S: SecretRepository, C: Cache> SessionApplication<'a
             }
         }
 
-        // FIXME:generate and store token
-        // self.token_app
-        //     .generate(
-        //         TokenKind::Session,
-        //         &user.get_id().to_string(),
-        //         GenerateOptions::default(),
-        //     )
-        //     .await
-        //     .map(|token| token.signature().to_string())
-        todo!()
+        let token = self
+            .token_app
+            .generate(TokenKind::Session, &user.get_id().to_string())?;
+
+        self.token_app.store(&token).await?;
+        self.token_app.sign(&token)
     }
 
     #[instrument(skip(self))]
@@ -70,13 +65,12 @@ pub(super) async fn logout_strategy<'b, C: Cache>(
     token_app: &TokenApplication<'b, C>,
     token: &str,
 ) -> Result<()> {
-    let token = token_app.decode(token).await?;
+    let token = token_app.decode(token)?;
+    if !token.knd.is_session() {
+        return Err(Error::InvalidToken);
+    }
 
-    token_app
-        .verify(&token, VerifyOptions::new(TokenKind::Session))
-        .await?;
-
-    token_app.revoke(&token).await
+    token_app.revoke(&token.jti).await
 }
 
 #[cfg(test)]
