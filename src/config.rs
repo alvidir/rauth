@@ -184,27 +184,29 @@ pub use trace::*;
 
 #[cfg(feature = "trace")]
 mod trace {
-    use std::env;
-
+    use actix_web::http::header::HeaderName;
     use once_cell::sync::Lazy;
     use opentelemetry_api::global;
     use opentelemetry_api::KeyValue;
     use opentelemetry_otlp::WithExportConfig;
     use opentelemetry_sdk::{runtime, trace as sdktrace, Resource};
     use opentelemetry_semantic_conventions::resource;
+    use std::env;
     use tonic::codegen::http::HeaderMap;
     use tonic::metadata::MetadataMap;
     use tracing::subscriber::SetGlobalDefaultError;
     use tracing_subscriber::layer::SubscriberExt;
     use tracing_subscriber::Registry;
 
+    const KEY_VALUE_SEPARATOR: &str = "=";
+
     const DEFAULT_SERVICE_NAME: &str = "rauth";
-    const DEFAULT_COLLECTOR_API_KEY_HEADER: &str = "api-key";
+    const DEFAULT_HEADERS_SEPARATOR: &str = ";";
 
     const ENV_SERVICE_NAME: &str = "SERVICE_NAME";
     const ENV_COLLECTOR_URL: &str = "COLLECTOR_URL";
-    const ENV_COLLECTOR_API_KEY_HEADER: &str = "COLLECTOR_API_KEY_HEADER";
-    const ENV_COLLECTOR_API_KEY: &str = "COLLECTOR_API_KEY";
+    const ENV_COLLECTOR_HEADERS: &str = "COLLECTOR_HEADERS";
+    const ENV_HEADERS_SEPARATOR: &str = "HEADERS_SEPARATOR";
 
     static SERVICE_NAME: Lazy<String> = Lazy::new(|| {
         env::var(ENV_SERVICE_NAME).unwrap_or_else(|_| DEFAULT_SERVICE_NAME.to_string())
@@ -213,23 +215,23 @@ mod trace {
     static COLLECTOR_URL: Lazy<String> =
         Lazy::new(|| env::var(ENV_COLLECTOR_URL).expect("collector url must be set"));
 
-    static COLLECTOR_API_KEY_HEADER: Lazy<String> = Lazy::new(|| {
-        env::var(ENV_COLLECTOR_API_KEY_HEADER)
-            .unwrap_or_else(|_| DEFAULT_COLLECTOR_API_KEY_HEADER.to_string())
+    static COLLECTOR_HEADERS: Lazy<String> =
+        Lazy::new(|| env::var(ENV_COLLECTOR_HEADERS).unwrap_or_default());
+
+    static HEADERS_SEPARATOR: Lazy<String> = Lazy::new(|| {
+        env::var(ENV_HEADERS_SEPARATOR).unwrap_or(DEFAULT_HEADERS_SEPARATOR.to_string())
     });
 
-    static COLLECTOR_API_KEY: Lazy<Option<String>> =
-        Lazy::new(|| env::var(ENV_COLLECTOR_API_KEY).ok());
-
     pub fn init_global_tracer() -> Result<(), SetGlobalDefaultError> {
-        let metadata = MetadataMap::from_headers({
-            let mut metadata = HeaderMap::new();
-            if let Some(api_key) = &*COLLECTOR_API_KEY {
-                metadata.insert(COLLECTOR_API_KEY_HEADER.as_str(), api_key.parse().unwrap());
-            }
-
-            metadata
-        });
+        let metadata = MetadataMap::from_headers(HeaderMap::from_iter(
+            COLLECTOR_HEADERS.split(&*HEADERS_SEPARATOR).map(|split| {
+                let header: Vec<&str> = split.split(KEY_VALUE_SEPARATOR).collect();
+                (
+                    HeaderName::try_from(header[0]).expect("header name must be valid"),
+                    header[1].try_into().expect("header value must be valid"),
+                )
+            }),
+        ));
 
         let tracer = opentelemetry_otlp::new_pipeline()
             .tracing()
@@ -240,7 +242,7 @@ mod trace {
                     .with_metadata(metadata),
             )
             .with_trace_config(sdktrace::config().with_resource(Resource::new(vec![
-                KeyValue::new(resource::SERVICE_NAME.into(), SERVICE_NAME.clone()),
+                KeyValue::new(resource::SERVICE_NAME, SERVICE_NAME.clone()),
             ])))
             .install_batch(runtime::Tokio)
             .unwrap();
