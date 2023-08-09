@@ -87,5 +87,18 @@ services:
   #   environment:
   #     - SERVICE_PORT=8001
 
+  jaeger:
+    container_name: rauth-jaeger
+    image: docker.io/jaegertracing/all-in-one:latest
+    restart: always
+    ports:
+      - 16686:16686
+      - 4317:4317
+      - 4318:4318
+    security_opt:
+      label: disable
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+
 volumes:
   dbdata:
