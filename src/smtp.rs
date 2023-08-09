@@ -202,32 +202,3 @@ impl<'a> user_app::Mailer for Smtp<'a> {
         self.send_email(email, self.reset_subject, body)
     }
 }
-
-#[cfg(test)]
-pub mod tests {
-    use crate::result::{Error, Result};
-    use crate::user::application::Mailer;
-
-    #[derive(Default)]
-    pub struct MailerMock {
-        pub force_fail: bool,
-    }
-
-    impl Mailer for MailerMock {
-        fn send_verification_signup_email(&self, _: &str, _: &str) -> Result<()> {
-            if self.force_fail {
-                return Err(Error::Unknown);
-            }
-
-            Ok(())
-        }
-
-        fn send_verification_reset_email(&self, _: &str, _: &str) -> Result<()> {
-            if self.force_fail {
-                return Err(Error::Unknown);
-            }
-
-            Ok(())
-        }
-    }
-}

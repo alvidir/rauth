@@ -55,7 +55,6 @@ name = "rauth"
 path = "src/lib.rs"
 
 [features]
-default = ["grpc-service", "rest-service"]
 grpc = ["prost", "protoc", "tonic"]
 grpc-service = ["grpc", "postgres", "redis-cache", "rabbitmq", "smtp", "tracer"]
 postgres = ["sqlx"]

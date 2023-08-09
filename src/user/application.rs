@@ -370,7 +370,7 @@ impl<'a, U: UserRepository, E: SecretRepository, T: TokenRepository, B: EventBus
 pub mod tests {
     use super::super::domain::tests::{TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD};
     use super::super::domain::{tests::new_user_custom, User};
-    use super::{EventBus, UserApplication, UserRepository};
+    use super::{EventBus, Mailer, UserApplication, UserRepository};
     use crate::secret::domain::SecretKind;
     use crate::secret::{
         application::tests::SecretRepositoryMock,
@@ -379,7 +379,6 @@ pub mod tests {
             Secret,
         },
     };
-    use crate::smtp::tests::MailerMock;
     use crate::token::application::tests::{new_token_application, PRIVATE_KEY, PUBLIC_KEY};
     use crate::token::{
         application::tests::TokenRepositoryMock,
@@ -480,6 +479,29 @@ pub mod tests {
         async fn emit_user_created(&self, user: &User) -> Result<()> {
             if let Some(f) = self.fn_emit_user_created {
                 return f(self, user);
+            }
+
+            Ok(())
+        }
+    }
+
+    #[derive(Default)]
+    pub struct MailerMock {
+        pub force_fail: bool,
+    }
+
+    impl Mailer for MailerMock {
+        fn send_verification_signup_email(&self, _: &str, _: &str) -> Result<()> {
+            if self.force_fail {
+                return Err(Error::Unknown);
+            }
+
+            Ok(())
+        }
+
+        fn send_verification_reset_email(&self, _: &str, _: &str) -> Result<()> {
+            if self.force_fail {
+                return Err(Error::Unknown);
             }
 
             Ok(())
