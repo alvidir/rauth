@@ -66,3 +66,63 @@ pub static TOTP_SECRET_LEN: Lazy<usize> = Lazy::new(|| {
 
 pub static TOKEN_ISSUER: Lazy<String> =
     Lazy::new(|| env::var(ENV_TOKEN_ISSUER).expect("token issuer must be set"));
+
+#[cfg(test)]
+mod tests {
+    use crate::config::{
+        DEFAULT_ADDR, DEFAULT_JWT_HEADER, DEFAULT_PORT, DEFAULT_TOKEN_TIMEOUT, DEFAULT_TOTP_HEADER,
+        DEFAULT_TOTP_SECRET_LEN, JWT_HEADER, PWD_SUFIX, SERVICE_ADDR, TOKEN_ISSUER, TOKEN_TIMEOUT,
+        TOTP_HEADER, TOTP_SECRET_LEN,
+    };
+
+    use super::{JWT_PUBLIC, JWT_SECRET};
+
+    #[test]
+    fn default_service_addr_must_not_fail() {
+        assert_eq!(*SERVICE_ADDR, format!("{DEFAULT_ADDR}:{DEFAULT_PORT}"));
+    }
+
+    #[test]
+    fn default_token_timeout_must_not_fail() {
+        assert_eq!(*TOKEN_TIMEOUT, DEFAULT_TOKEN_TIMEOUT);
+    }
+
+    #[test]
+    #[should_panic]
+    fn default_jwt_secret_must_fail() {
+        let _ = &*JWT_SECRET;
+    }
+
+    #[test]
+    #[should_panic]
+    fn default_jwt_public_must_fail() {
+        let _ = &*JWT_PUBLIC;
+    }
+
+    #[test]
+    fn default_jwt_header_must_not_fail() {
+        assert_eq!(*JWT_HEADER, DEFAULT_JWT_HEADER);
+    }
+
+    #[test]
+    fn default_totp_header_must_not_fail() {
+        assert_eq!(*TOTP_HEADER, DEFAULT_TOTP_HEADER);
+    }
+
+    #[test]
+    #[should_panic]
+    fn default_pwd_sufix_must_fail() {
+        let _ = &*PWD_SUFIX;
+    }
+
+    #[test]
+    fn default_totp_secret_len_must_not_fail() {
+        assert_eq!(*TOTP_SECRET_LEN, DEFAULT_TOTP_SECRET_LEN);
+    }
+
+    #[test]
+    #[should_panic]
+    fn default_token_issuer_must_fail() {
+        let _ = &*TOKEN_ISSUER;
+    }
+}
