@@ -56,12 +56,10 @@ path = "src/lib.rs"
 
 [features]
 grpc = ["prost", "protoc", "tonic"]
-grpc-service = ["grpc", "postgres", "redis-cache", "rabbitmq", "smtp", "tracer"]
 postgres = ["sqlx"]
 rabbitmq = ["deadpool-lapin", "lapin"]
 redis-cache = ["redis", "reool"]
 rest = ["actix-web", "redis-cache"]
-rest-service = ["rest", "tracer"]
 smtp = ["lettre", "tera"]
 tracer = [
     "tonic",
@@ -76,9 +74,9 @@ tracer = [
 [[bin]]
 name = "grpc"
 path = "src/bin/grpc.rs"
-required-features = ["grpc-service"]
+required-features = ["postgres", "redis-cache", "rabbitmq", "smtp", "tracer"]
 
 [[bin]]
 name = "rest"
 path = "src/bin/rest.rs"
-required-features = ["rest-service"]
+required-features = ["rest", "tracer"]
