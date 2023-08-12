@@ -10,3 +10,9 @@ CREATE TABLE Users (
     FOREIGN KEY (meta_id)
         REFERENCES Metadata(id)
 );
+
+CREATE TRIGGER trg_update_metadata_once_user_updated
+    AFTER UPDATE OF *
+    ON Users
+    FOR EACH ROW
+    EXECUTE PROCEDURE fn_update_metadata;

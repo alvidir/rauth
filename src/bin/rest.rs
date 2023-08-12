@@ -4,9 +4,10 @@ extern crate tracing;
 use actix_web::web::Data;
 use actix_web::{middleware, App, HttpServer};
 use rauth::{
-    config,
+    config, redis,
     session::rest::SessionRestService,
     token::{application::TokenApplication, repository::RedisTokenRepository},
+    tracer,
 };
 use std::error::Error;
 use std::sync::Arc;
@@ -14,15 +15,14 @@ use std::time::Duration;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let subscriber = tracing_subscriber::FmtSubscriber::new();
-    tracing::subscriber::set_global_default(subscriber)?;
-
     if let Err(err) = dotenv::dotenv() {
         warn!(error = err.to_string(), "processing dotenv file",);
     }
 
+    tracer::init()?;
+
     let token_repo = Arc::new(RedisTokenRepository {
-        pool: &config::REDIS_POOL,
+        pool: &redis::REDIS_POOL,
     });
 
     let token_app = TokenApplication {
@@ -39,7 +39,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     });
 
     info!(
-        address = *config::SERVER_ADDR,
+        address = *config::SERVICE_ADDR,
         "server ready to accept connections"
     );
 
@@ -49,10 +49,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .app_data(Data::new(session_server.clone()))
             .configure(session_server.router())
     })
-    .bind(&*config::SERVER_ADDR)?
+    .bind(&*config::SERVICE_ADDR)?
     .run()
     .await
     .unwrap();
 
+    tracer::shutdown();
     Ok(())
 }

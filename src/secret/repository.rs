@@ -1,22 +1,24 @@
+use super::domain::SecretKind;
 use super::{application::SecretRepository, domain::Secret};
 use crate::metadata::application::MetadataRepository;
 use crate::result::{Error, Result};
 use async_trait::async_trait;
 use sqlx::error::Error as SqlError;
 use sqlx::postgres::PgPool;
+use std::str::FromStr;
 use std::sync::Arc;
 
 const QUERY_INSERT_SECRET: &str =
-    "INSERT INTO secrets (name, data, user_id, meta_id) VALUES ($1, $2, $3, $4) RETURNING id";
+    "INSERT INTO secrets (kind, data, user_id, meta_id) VALUES ($1, $2, $3, $4) RETURNING id";
 const QUERY_FIND_SECRET: &str =
-    "SELECT id, name, data, user_id, meta_id FROM secrets WHERE id = $1";
-const QUERY_FIND_SECRET_BY_USER_AND_NAME: &str =
-    "SELECT id, name, data, user_id, meta_id FROM secrets WHERE user_id = $1 AND name = $2";
+    "SELECT id, kind, data, user_id, meta_id FROM secrets WHERE id = $1";
+const QUERY_FIND_SECRET_BY_USER_AND_KIND: &str =
+    "SELECT id, kind, data, user_id, meta_id FROM secrets WHERE user_id = $1 AND kind = $2";
 const QUERY_UPDATE_SECRET: &str =
-    "UPDATE secrets SET name = $2, data = $3, user_id = $4, meta_id = $5, password = $4 FROM secrets WHERE id = $1";
+    "UPDATE secrets SET kind = $2, data = $3, user_id = $4, meta_id = $5, password = $4 FROM secrets WHERE id = $1";
 const QUERY_DELETE_SECRET: &str = "DELETE FROM secrets WHERE id = $1";
 
-type PostgresSecretRow = (i32, String, String, i32, i32); // id, name, data, user_id, meta_id
+type PostgresSecretRow = (i32, String, String, i32, i32); // id, kind, data, user_id, meta_id
 
 pub struct PostgresSecretRepository<'a, M: MetadataRepository> {
     pub pool: &'a PgPool,
@@ -29,7 +31,10 @@ impl<'a, M: MetadataRepository> PostgresSecretRepository<'a, M> {
 
         Ok(Secret {
             id: secret_row.0,
-            name: secret_row.1.clone(),
+            kind: SecretKind::from_str(&secret_row.1).map_err(|err| {
+                error!(error = err.to_string(), "converting string into SecretKind",);
+                Error::Unknown
+            })?,
             data: secret_row.2.as_bytes().to_vec(),
             owner: secret_row.3,
             meta,
@@ -66,12 +71,12 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRe
     }
 
     #[instrument(skip(self))]
-    async fn find_by_user_and_name(&self, user: i32, secret_name: &str) -> Result<Secret> {
+    async fn find_by_user_and_kind(&self, user: i32, kind: SecretKind) -> Result<Secret> {
         let row: PostgresSecretRow = {
             // block is required because of connection release
-            sqlx::query_as(QUERY_FIND_SECRET_BY_USER_AND_NAME)
+            sqlx::query_as(QUERY_FIND_SECRET_BY_USER_AND_KIND)
                 .bind(user)
-                .bind(secret_name)
+                .bind(kind.to_string())
                 .fetch_one(self.pool)
                 .await
                 .map_err(|err| {
@@ -99,7 +104,7 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRe
         self.metadata_repo.create(&mut secret.meta).await?;
 
         let row: (i32,) = sqlx::query_as(QUERY_INSERT_SECRET)
-            .bind(&secret.name)
+            .bind(&secret.kind.to_string())
             .bind(&secret.data)
             .bind(secret.owner)
             .bind(secret.meta.get_id())
@@ -121,7 +126,7 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRe
     async fn save(&self, secret: &Secret) -> Result<()> {
         sqlx::query(QUERY_UPDATE_SECRET)
             .bind(secret.id)
-            .bind(&secret.name)
+            .bind(&secret.kind.to_string())
             .bind(&secret.data)
             .bind(secret.owner)
             .bind(secret.meta.get_id())

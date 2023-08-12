@@ -268,8 +268,8 @@ The server expects a set of environment variables to work properly. Although som
 
 | Environment variable    |           Default value           | Description                                                                                                                                          |
 | :---------------------- | :-------------------------------: | :--------------------------------------------------------------------------------------------------------------------------------------------------- |
-| SERVICE_PORT            |               8000                | Port where to expose the service service                                                                                                                |
-| SERVICE_ADDR            |             127.0.0.1             | Address where to expose the service service                                                                                                             |
+| SERVICE_PORT            |               8000                | Port where to expose the service service                                                                                                             |
+| SERVICE_ADDR            |             127.0.0.1             | Address where to expose the service service                                                                                                          |
 | POSTGRES_DSN            |                                   | `Postgres` data source name                                                                                                                          |
 | POSTGRES_POOL           |                10                 | `Postgres` connection pool size                                                                                                                      |
 | REDIS_URL               |                                   | `Redis` URL                                                                                                                                          |
@@ -282,7 +282,7 @@ The server expects a set of environment variables to work properly. Although som
 | SMTP_ISSUER             |               rauth               | Name to identify where the emails are sent from                                                                                                      |
 | SMTP_ORIGIN             |                                   | Email to set as the `from` for all sent emails                                                                                                       |
 | SMTP_TRANSPORT          |                                   | Smtp transporter URL (ex.: smtp.gmail.com)                                                                                                           |
-| SMTP_TEMPLATES          | /etc/rauth/smtp/templates/\*.html | Path where to find all email's templates                                                                                                             |
+| SMTP_TEMPLATES          | /etc/rauth/smtp/templates/\*.html | Path where to find all email templates                                                                                                               |
 | SMTP_USERNAME           |                                   | If required, a username to enable the application to send emails                                                                                     |
 | SMTP_PASSWORD           |                                   | If required, an application password to enable the application to send emails                                                                        |
 | PWD_SUFIX               |           ::PWD::RAUTH            | A suffix to append to all passwords before hashing and storing them                                                                                  |
@@ -290,9 +290,10 @@ The server expects a set of environment variables to work properly. Although som
 | RABBITMQ_URL            |                                   | `RabbitMQ` URL                                                                                                                                       |
 | RABBITMQ_POOL           |                10                 | `RabbitMQ` connection pool size                                                                                                                      |
 | EVENT_ISSUER            |                                   | Issuer name for all emited events                                                                                                                    |
-| TOTP_SECRET_LEN         |                                   | Length of the random generated secret to be used for the TOTP                                                                                        |
-| TOTP_SECRET_NAME        |                                   | Name by which every TOTP secret will be stored in the database                                                                                       |
+| TOTP_SECRET_LEN         |                32                 | Bytes of the random generated secret to be used for the Time-based One Time Password                                                                 |
 | TOKEN_ISSUER            |                                   | Issuer value for the `iss` field of any generated token                                                                                              |
+| SERVICE_NAME            |               rauth               | Service identification to be emited with every trace                                                                                                 |
+| COLLECTOR_URL           |                                   | Url of the collector where to send all the traces using the [Opentelemetry Protocol](https://opentelemetry.io/docs/specs/otel/protocol/)             |
 
 > All these environment variables can be set in a .env file, since Rauth uses dotenv to set up the environment
 

@@ -1,7 +1,7 @@
 services:
   postgres:
     container_name: rauth-postgres
-    image: docker.io/postgres:alpine3.17
+    image: docker.io/postgres:alpine3.18
     restart: on-failure
     volumes:
       - dbdata:/data/postgres
@@ -13,7 +13,7 @@ services:
 
   redis:
     container_name: rauth-redis
-    image: docker.io/redis:alpine3.17
+    image: docker.io/redis:alpine3.18
     restart: always
     volumes:
       - ./redis:/usr/local/etc/redis:ro
@@ -26,6 +26,15 @@ services:
     image: docker.io/rabbitmq:3.10.2-alpine
     hostname: rauth-rabbitmq
     restart: always
+    security_opt:
+      label: disable
+
+  mailhog:
+    container_name: rauth-mailhog
+    image: docker.io/mailhog/mailhog:v1.0.1
+    restart: always
+    ports:
+      - 8025:8025
     security_opt:
       label: disable
 
@@ -48,44 +57,48 @@ services:
     environment:
       - SERVICE_PORT=8000
 
-  rest:
-    container_name: rauth-rest
-    image: localhost/alvidir/rauth:latest-rest
+  # envoy:
+  #   container_name: rauth-envoy
+  #   image: docker.io/envoyproxy/envoy-alpine:v1.21-latest
+  #   restart: always
+  #   ports:
+  #     - 8080:8080
+  #     - 9901:9901
+  #   volumes:
+  #     - ./envoy:/etc/envoy:ro
+  #   security_opt:
+  #     label: disable
+  #   depends_on:
+  #     - grpc
+  #   command: /usr/local/bin/envoy --log-level debug -c /etc/envoy/envoy.yaml
+
+  # rest:
+  #   container_name: rauth-rest
+  #   image: localhost/alvidir/rauth:latest-rest
+  #   restart: always
+  #   ports:
+  #     - 8001:8001
+  #   security_opt:
+  #     label: disable
+  #   depends_on:
+  #     - redis
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     - SERVICE_PORT=8001
+
+  jaeger:
+    container_name: rauth-jaeger
+    image: docker.io/jaegertracing/all-in-one:latest
     restart: always
     ports:
-      - 8001:8001
+      - 16686:16686
+      - 4317:4317
+      - 4318:4318
     security_opt:
       label: disable
-    depends_on:
-      - redis
-    env_file:
-      - .env
     environment:
-      - SERVICE_PORT=8001
-
-  envoy:
-    container_name: rauth-envoy
-    image: docker.io/envoyproxy/envoy-alpine:v1.21-latest
-    restart: always
-    ports:
-      - 8080:8080
-      - 9901:9901
-    volumes:
-      - ./envoy:/etc/envoy:ro
-    security_opt:
-      label: disable
-    depends_on:
-      - grpc
-    command: /usr/local/bin/envoy --log-level debug -c /etc/envoy/envoy.yaml
-
-  mailhog:
-    container_name: mailhog
-    image: docker.io/mailhog/mailhog:v1.0.1
-    restart: always
-    ports:
-      - 8025:8025
-    security_opt:
-      label: disable
+      - COLLECTOR_OTLP_ENABLED=true
 
 volumes:
   dbdata:

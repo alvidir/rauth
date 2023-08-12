@@ -1,151 +1,128 @@
-use async_once::AsyncOnce;
 use base64::{engine::general_purpose, Engine as _};
-use deadpool_lapin::{Config, Pool, Runtime};
-use lapin::{options, types::FieldTable, ExchangeKind};
-use lazy_static::lazy_static;
-use reool::RedisPool;
-use sqlx::postgres::{PgPool, PgPoolOptions};
+use once_cell::sync::Lazy;
 use std::env;
-use tokio::runtime::Handle;
 
-const DEFAULT_ADDR: &str = "127.0.0.1";
-const DEFAULT_PORT: &str = "8000";
-const DEFAULT_TEMPLATES_PATH: &str = "/etc/rauth/smtp/templates/*.html";
-const DEFAULT_JWT_HEADER: &str = "authorization";
-const DEFAULT_TOTP_HEADER: &str = "x-totp-secret";
-const DEFAULT_TOKEN_TIMEOUT: u64 = 7200;
-const DEFAULT_POOL_SIZE: u32 = 10;
-const DEFAULT_TOTP_SECRET_LEN: usize = 32_usize;
-const DEFAULT_TOTP_SECRET_NAME: &str = "totp";
+pub const DEFAULT_PORT: &str = "8000";
+pub const DEFAULT_ADDR: &str = "127.0.0.1";
+pub const DEFAULT_JWT_HEADER: &str = "authorization";
+pub const DEFAULT_TOTP_HEADER: &str = "x-totp-secret";
+pub const DEFAULT_TOKEN_TIMEOUT: u64 = 7200;
+pub const DEFAULT_TOTP_SECRET_LEN: usize = 32_usize;
+#[allow(dead_code)]
+pub const DEFAULT_POOL_SIZE: u32 = 10;
+#[allow(dead_code)]
+pub const DEFAULT_CONN_TIMEOUT: u32 = 100; //ms
 
 const ENV_SERVICE_PORT: &str = "SERVICE_PORT";
 const ENV_SERVICE_ADDR: &str = "SERVICE_ADDR";
-const ENV_POSTGRES_DSN: &str = "POSTGRES_DSN";
-const ENV_POSTGRES_POOL: &str = "POSTGRES_POOL";
 const ENV_JWT_SECRET: &str = "JWT_SECRET";
 const ENV_JWT_PUBLIC: &str = "JWT_PUBLIC";
 const ENV_JWT_HEADER: &str = "JWT_HEADER";
 const ENV_TOTP_HEADER: &str = "TOTP_HEADER";
-const ENV_REDIS_URL: &str = "REDIS_URL";
-const ENV_REDIS_POOL: &str = "REDIS_POOL";
 const ENV_TOKEN_TIMEOUT: &str = "TOKEN_TIMEOUT";
-const ENV_SMTP_TRANSPORT: &str = "SMTP_TRANSPORT";
-const ENV_SMTP_USERNAME: &str = "SMTP_USERNAME";
-const ENV_SMTP_PASSWORD: &str = "SMTP_PASSWORD";
-const ENV_SMTP_ISSUER: &str = "SMTP_ISSUER";
-const ENV_SMTP_TEMPLATES: &str = "SMTP_TEMPLATES";
-const ENV_SMTP_ORIGIN: &str = "SMTP_ORIGIN";
+
 const ENV_PWD_SUFIX: &str = "PWD_SUFIX";
-const ENV_RABBITMQ_USERS_EXCHANGE: &str = "RABBITMQ_USERS_EXCHANGE";
-const ENV_RABBITMQ_URL: &str = "RABBITMQ_URL";
-const ENV_RABBITMQ_POOL: &str = "RABBITMQ_POOL";
-const ENV_EVENT_ISSUER: &str = "EVENT_ISSUER";
 const ENV_TOTP_SECRET_LEN: &str = "TOTP_SECRET_LEN";
-const ENV_TOTP_SECRET_NAME: &str = "TOTP_SECRET_NAME";
 const ENV_TOKEN_ISSUER: &str = "TOKEN_ISSUER";
 
-lazy_static! {
-    pub static ref SERVER_ADDR: String = {
-        let netw = env::var(ENV_SERVICE_ADDR).unwrap_or_else(|_| DEFAULT_ADDR.to_string());
-        let port = env::var(ENV_SERVICE_PORT).unwrap_or_else(|_| DEFAULT_PORT.to_string());
-        format!("{}:{}", netw, port)
-    };
-    pub static ref TOKEN_TIMEOUT: u64 = env::var(ENV_TOKEN_TIMEOUT)
+pub static SERVICE_ADDR: Lazy<String> = Lazy::new(|| {
+    let netw = env::var(ENV_SERVICE_ADDR).unwrap_or_else(|_| DEFAULT_ADDR.to_string());
+    let port = env::var(ENV_SERVICE_PORT).unwrap_or_else(|_| DEFAULT_PORT.to_string());
+    format!("{}:{}", netw, port)
+});
+
+pub static TOKEN_TIMEOUT: Lazy<u64> = Lazy::new(|| {
+    env::var(ENV_TOKEN_TIMEOUT)
         .map(|timeout| timeout.parse().unwrap())
-        .unwrap_or(DEFAULT_TOKEN_TIMEOUT);
-    pub static ref JWT_SECRET: Vec<u8> = env::var(ENV_JWT_SECRET)
+        .unwrap_or(DEFAULT_TOKEN_TIMEOUT)
+});
+
+pub static JWT_SECRET: Lazy<Vec<u8>> = Lazy::new(|| {
+    env::var(ENV_JWT_SECRET)
         .map(|secret| general_purpose::STANDARD.decode(secret).unwrap())
-        .expect("jwt secret must be set");
-    pub static ref JWT_PUBLIC: Vec<u8> = env::var(ENV_JWT_PUBLIC)
+        .expect("jwt secret must be set")
+});
+
+pub static JWT_PUBLIC: Lazy<Vec<u8>> = Lazy::new(|| {
+    env::var(ENV_JWT_PUBLIC)
         .map(|secret| general_purpose::STANDARD.decode(secret).unwrap())
-        .expect("jwt public key must be set");
-    pub static ref JWT_HEADER: String =
-        env::var(ENV_JWT_HEADER).unwrap_or_else(|_| DEFAULT_JWT_HEADER.to_string());
-    pub static ref TOTP_HEADER: String =
-        env::var(ENV_TOTP_HEADER).unwrap_or_else(|_| DEFAULT_TOTP_HEADER.to_string());
-    pub static ref SMTP_TRANSPORT: String =
-        env::var(ENV_SMTP_TRANSPORT).expect("smtp transport must be set");
-    pub static ref SMTP_USERNAME: String = env::var(ENV_SMTP_USERNAME).unwrap_or_default();
-    pub static ref SMTP_PASSWORD: String = env::var(ENV_SMTP_PASSWORD).unwrap_or_default();
-    pub static ref SMTP_ORIGIN: String =
-        env::var(ENV_SMTP_ORIGIN).expect("smpt origin must be set");
-    pub static ref SMTP_ISSUER: String =
-        env::var(ENV_SMTP_ISSUER).expect("smtp issuer must be set");
-    pub static ref SMTP_TEMPLATES: String =
-        env::var(ENV_SMTP_TEMPLATES).unwrap_or_else(|_| DEFAULT_TEMPLATES_PATH.to_string());
-    pub static ref PWD_SUFIX: String = env::var(ENV_PWD_SUFIX).expect("password sufix must be set");
-    pub static ref POSTGRES_POOL: AsyncOnce<PgPool> = AsyncOnce::new(async {
-        let postgres_dsn = env::var(ENV_POSTGRES_DSN).expect("postgres dns must be set");
+        .expect("jwt public key must be set")
+});
 
-        let postgres_pool = env::var(ENV_POSTGRES_POOL)
-            .map(|pool_size| pool_size.parse().unwrap())
-            .unwrap_or(DEFAULT_POOL_SIZE);
+pub static JWT_HEADER: Lazy<String> =
+    Lazy::new(|| env::var(ENV_JWT_HEADER).unwrap_or_else(|_| DEFAULT_JWT_HEADER.to_string()));
 
-        PgPoolOptions::new()
-            .max_connections(postgres_pool)
-            .connect(&postgres_dsn)
-            .await
-            .unwrap()
-    });
-    pub static ref REDIS_POOL: RedisPool = {
-        let redis_url: String = env::var(ENV_REDIS_URL).expect("redis url must be set");
-        let redis_pool: usize = env::var(ENV_REDIS_POOL)
-            .map(|pool_size| pool_size.parse().unwrap())
-            .unwrap_or_else(|_| DEFAULT_POOL_SIZE.try_into().unwrap());
+pub static TOTP_HEADER: Lazy<String> =
+    Lazy::new(|| env::var(ENV_TOTP_HEADER).unwrap_or_else(|_| DEFAULT_TOTP_HEADER.to_string()));
 
-        RedisPool::builder()
-            .connect_to_node(redis_url)
-            .desired_pool_size(redis_pool)
-            .task_executor(Handle::current())
-            .finish_redis_rs()
-            .unwrap()
-    };
-    pub static ref RABBITMQ_USERS_EXCHANGE: String =
-        env::var(ENV_RABBITMQ_USERS_EXCHANGE).expect("rabbitmq users bus name must be set");
-    pub static ref RABBITMQ_POOL: AsyncOnce<Pool> = AsyncOnce::new(async {
-        let rabbitmq_url = env::var(ENV_RABBITMQ_URL).expect("rabbitmq url must be set");
-        let rabbitmq_pool = env::var(ENV_RABBITMQ_POOL)
-            .map(|pool_size| pool_size.parse().unwrap())
-            .unwrap_or_else(|_| DEFAULT_POOL_SIZE.try_into().unwrap());
+pub static PWD_SUFIX: Lazy<String> =
+    Lazy::new(|| env::var(ENV_PWD_SUFIX).expect("password sufix must be set"));
 
-        let pool = Config {
-            url: Some(rabbitmq_url),
-            ..Default::default()
-        }
-        .builder(Some(Runtime::Tokio1))
-        .max_size(rabbitmq_pool)
-        .build()
-        .unwrap();
-
-        let channel = pool.get().await.unwrap().create_channel().await.unwrap();
-
-        let exchange_options = options::ExchangeDeclareOptions {
-            durable: true,
-            auto_delete: false,
-            internal: false,
-            nowait: false,
-            passive: false,
-        };
-
-        channel
-            .exchange_declare(
-                &RABBITMQ_USERS_EXCHANGE,
-                ExchangeKind::Fanout,
-                exchange_options,
-                FieldTable::default(),
-            )
-            .await
-            .unwrap();
-
-        pool
-    });
-    pub static ref EVENT_ISSUER: String =
-        env::var(ENV_EVENT_ISSUER).expect("event issuer must be set");
-    pub static ref TOTP_SECRET_LEN: usize = env::var(ENV_TOTP_SECRET_LEN)
+pub static TOTP_SECRET_LEN: Lazy<usize> = Lazy::new(|| {
+    env::var(ENV_TOTP_SECRET_LEN)
         .map(|len| len.parse().unwrap())
-        .unwrap_or_else(|_| DEFAULT_TOTP_SECRET_LEN);
-    pub static ref TOTP_SECRET_NAME: String =
-        env::var(ENV_TOTP_SECRET_NAME).unwrap_or_else(|_| DEFAULT_TOTP_SECRET_NAME.to_string());
-    pub static ref TOKEN_ISSUER: String =
-        env::var(ENV_TOKEN_ISSUER).expect("token issuer must be set");
+        .unwrap_or_else(|_| DEFAULT_TOTP_SECRET_LEN)
+});
+
+pub static TOKEN_ISSUER: Lazy<String> =
+    Lazy::new(|| env::var(ENV_TOKEN_ISSUER).expect("token issuer must be set"));
+
+#[cfg(test)]
+mod tests {
+    use crate::config::{
+        DEFAULT_ADDR, DEFAULT_JWT_HEADER, DEFAULT_PORT, DEFAULT_TOKEN_TIMEOUT, DEFAULT_TOTP_HEADER,
+        DEFAULT_TOTP_SECRET_LEN, JWT_HEADER, PWD_SUFIX, SERVICE_ADDR, TOKEN_ISSUER, TOKEN_TIMEOUT,
+        TOTP_HEADER, TOTP_SECRET_LEN,
+    };
+
+    use super::{JWT_PUBLIC, JWT_SECRET};
+
+    #[test]
+    fn default_service_addr_must_not_fail() {
+        assert_eq!(*SERVICE_ADDR, format!("{DEFAULT_ADDR}:{DEFAULT_PORT}"));
+    }
+
+    #[test]
+    fn default_token_timeout_must_not_fail() {
+        assert_eq!(*TOKEN_TIMEOUT, DEFAULT_TOKEN_TIMEOUT);
+    }
+
+    #[test]
+    #[should_panic]
+    fn default_jwt_secret_must_fail() {
+        let _ = &*JWT_SECRET;
+    }
+
+    #[test]
+    #[should_panic]
+    fn default_jwt_public_must_fail() {
+        let _ = &*JWT_PUBLIC;
+    }
+
+    #[test]
+    fn default_jwt_header_must_not_fail() {
+        assert_eq!(*JWT_HEADER, DEFAULT_JWT_HEADER);
+    }
+
+    #[test]
+    fn default_totp_header_must_not_fail() {
+        assert_eq!(*TOTP_HEADER, DEFAULT_TOTP_HEADER);
+    }
+
+    #[test]
+    #[should_panic]
+    fn default_pwd_sufix_must_fail() {
+        let _ = &*PWD_SUFIX;
+    }
+
+    #[test]
+    fn default_totp_secret_len_must_not_fail() {
+        assert_eq!(*TOTP_SECRET_LEN, DEFAULT_TOTP_SECRET_LEN);
+    }
+
+    #[test]
+    #[should_panic]
+    fn default_token_issuer_must_fail() {
+        let _ = &*TOKEN_ISSUER;
+    }
 }

@@ -4,13 +4,16 @@ extern crate tracing;
 use rauth::{
     config,
     metadata::repository::PostgresMetadataRepository,
+    postgres, rabbitmq, redis,
     secret::repository::PostgresSecretRepository,
     session::{
         application::SessionApplication,
         grpc::{SessionGrpcService, SessionServer},
     },
-    smtp::Smtp,
+    smtp,
+    smtp::SmtpBuilder,
     token::{application::TokenApplication, repository::RedisTokenRepository},
+    tracer,
     user::{
         application::UserApplication,
         event_bus::RabbitMqUserBus,
@@ -25,52 +28,46 @@ use tonic::transport::Server;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let subscriber = tracing_subscriber::FmtSubscriber::new();
-    tracing::subscriber::set_global_default(subscriber)?;
-
     if let Err(err) = dotenv::dotenv() {
         warn!(error = err.to_string(), "processing dotenv file");
     }
 
+    tracer::init()?;
+
     let metadata_repo = Arc::new(PostgresMetadataRepository {
-        pool: config::POSTGRES_POOL.get().await,
+        pool: &postgres::POSTGRES_POOL,
     });
 
     let secret_repo = Arc::new(PostgresSecretRepository {
-        pool: config::POSTGRES_POOL.get().await,
+        pool: &postgres::POSTGRES_POOL,
         metadata_repo: metadata_repo.clone(),
     });
 
     let user_repo = Arc::new(PostgresUserRepository {
-        pool: config::POSTGRES_POOL.get().await,
+        pool: &postgres::POSTGRES_POOL,
         metadata_repo: metadata_repo.clone(),
     });
 
     let user_event_bus = Arc::new(RabbitMqUserBus {
-        pool: config::RABBITMQ_POOL.get().await,
-        exchange: &config::RABBITMQ_USERS_EXCHANGE,
-        issuer: &config::EVENT_ISSUER,
+        pool: &rabbitmq::RABBITMQ_POOL,
+        exchange: &rabbitmq::RABBITMQ_USERS_EXCHANGE,
+        issuer: &rabbitmq::EVENT_ISSUER,
     });
 
     let token_repo = Arc::new(RedisTokenRepository {
-        pool: &config::REDIS_POOL,
+        pool: &redis::REDIS_POOL,
     });
-    let credentials = if config::SMTP_USERNAME.len() > 0 && config::SMTP_PASSWORD.len() > 0 {
-        Some((
-            config::SMTP_USERNAME.to_string(),
-            config::SMTP_PASSWORD.to_string(),
-        ))
-    } else {
-        None
-    };
 
-    let mailer = Smtp::new(
-        &config::SMTP_ORIGIN,
-        &config::SMTP_TEMPLATES,
-        &config::SMTP_TRANSPORT,
-        credentials,
-    )?
-    .with_issuer(&config::SMTP_ISSUER);
+    let smtp = SmtpBuilder {
+        issuer: &smtp::SMTP_ISSUER,
+        origin: &smtp::SMTP_ORIGIN,
+        templates: &smtp::SMTP_TEMPLATES,
+        transport: &smtp::SMTP_TRANSPORT,
+        username: &smtp::SMTP_USERNAME,
+        password: &smtp::SMTP_PASSWORD,
+        ..Default::default()
+    }
+    .build()?;
 
     let token_app = Arc::new(TokenApplication {
         token_repo: token_repo.clone(),
@@ -84,10 +81,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
         user_repo: user_repo.clone(),
         secret_repo: secret_repo.clone(),
         token_app: token_app.clone(),
-        mailer: Arc::new(mailer),
+        mailer: Arc::new(smtp),
         event_bus: user_event_bus.clone(),
         totp_secret_len: *config::TOTP_SECRET_LEN,
-        totp_secret_name: &config::TOTP_SECRET_NAME,
         pwd_sufix: &config::PWD_SUFIX,
     };
 
@@ -101,7 +97,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         user_repo: user_repo.clone(),
         secret_repo: secret_repo.clone(),
         token_app: token_app.clone(),
-        totp_secret_name: &config::TOTP_SECRET_NAME,
         pwd_sufix: &config::PWD_SUFIX,
     };
 
@@ -110,7 +105,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         jwt_header: &config::JWT_HEADER,
     };
 
-    let addr: SocketAddr = config::SERVER_ADDR.parse().unwrap();
+    let addr: SocketAddr = config::SERVICE_ADDR.parse().unwrap();
     info!(
         address = addr.to_string(),
         "server ready to accept connections"
@@ -122,5 +117,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .serve(addr)
         .await?;
 
+    tracer::shutdown();
     Ok(())
 }
