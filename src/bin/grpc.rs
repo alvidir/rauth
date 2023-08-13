@@ -2,15 +2,19 @@
 extern crate tracing;
 
 use rauth::{
+    cache::RedisCache,
     config,
     metadata::repository::PostgresMetadataRepository,
+    postgres, rabbitmq, redis,
     secret::repository::PostgresSecretRepository,
     session::{
         application::SessionApplication,
         grpc::{SessionGrpcService, SessionServer},
     },
-    smtp::Smtp,
-    token::{application::TokenApplication, repository::RedisTokenRepository},
+    smtp,
+    smtp::SmtpBuilder,
+    token::application::TokenApplication,
+    tracer,
     user::{
         application::UserApplication,
         event_bus::RabbitMqUserBus,
@@ -29,64 +33,60 @@ async fn main() -> Result<(), Box<dyn Error>> {
         warn!(error = err.to_string(), "processing dotenv file");
     }
 
-    config::init_global_tracer()?;
+    tracer::init()?;
 
     let metadata_repo = Arc::new(PostgresMetadataRepository {
-        pool: &config::POSTGRES_POOL,
+        pool: &postgres::POSTGRES_POOL,
     });
 
     let secret_repo = Arc::new(PostgresSecretRepository {
-        pool: &config::POSTGRES_POOL,
+        pool: &postgres::POSTGRES_POOL,
         metadata_repo: metadata_repo.clone(),
     });
 
     let user_repo = Arc::new(PostgresUserRepository {
-        pool: &config::POSTGRES_POOL,
+        pool: &postgres::POSTGRES_POOL,
         metadata_repo: metadata_repo.clone(),
     });
 
     let user_event_bus = Arc::new(RabbitMqUserBus {
-        pool: &config::RABBITMQ_POOL,
-        exchange: &config::RABBITMQ_USERS_EXCHANGE,
-        issuer: &config::EVENT_ISSUER,
+        pool: &rabbitmq::RABBITMQ_POOL,
+        exchange: &rabbitmq::RABBITMQ_USERS_EXCHANGE,
+        issuer: &rabbitmq::EVENT_ISSUER,
     });
 
-    let token_repo = Arc::new(RedisTokenRepository {
-        pool: &config::REDIS_POOL,
+    let cache = Arc::new(RedisCache {
+        pool: &redis::REDIS_POOL,
     });
-    let credentials = if config::SMTP_USERNAME.len() > 0 && config::SMTP_PASSWORD.len() > 0 {
-        Some((
-            config::SMTP_USERNAME.to_string(),
-            config::SMTP_PASSWORD.to_string(),
-        ))
-    } else {
-        None
-    };
 
-    let mailer = Smtp::new(
-        &config::SMTP_ORIGIN,
-        &config::SMTP_TEMPLATES,
-        &config::SMTP_TRANSPORT,
-        credentials,
-    )?
-    .with_issuer(&config::SMTP_ISSUER);
+    let smtp = SmtpBuilder {
+        issuer: &smtp::SMTP_ISSUER,
+        origin: &smtp::SMTP_ORIGIN,
+        templates: &smtp::SMTP_TEMPLATES,
+        transport: &smtp::SMTP_TRANSPORT,
+        username: &smtp::SMTP_USERNAME,
+        password: &smtp::SMTP_PASSWORD,
+        ..Default::default()
+    }
+    .build()?;
 
     let token_app = Arc::new(TokenApplication {
-        cache: token_repo.clone(),
         timeout: Duration::from_secs(*config::TOKEN_TIMEOUT),
         token_issuer: &config::TOKEN_ISSUER,
         private_key: &config::JWT_SECRET,
         public_key: &config::JWT_PUBLIC,
+        cache: cache.clone(),
     });
 
     let user_app = UserApplication {
         user_repo: user_repo.clone(),
         secret_repo: secret_repo.clone(),
         token_app: token_app.clone(),
-        mailer: Arc::new(mailer),
+        mailer: Arc::new(smtp),
         event_bus: user_event_bus.clone(),
         totp_secret_len: *config::TOTP_SECRET_LEN,
         pwd_sufix: &config::PWD_SUFIX,
+        cache: cache.clone(),
     };
 
     let user_grpc_service = UserGrpcService {
@@ -119,6 +119,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .serve(addr)
         .await?;
 
-    config::shutdown_global_tracer();
+    tracer::shutdown();
     Ok(())
 }

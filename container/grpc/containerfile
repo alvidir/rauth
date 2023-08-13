@@ -14,7 +14,7 @@ ADD . .
 RUN PKG_MANAGER=apt-get make all target=grpc
 
 ######## Start a new stage from scratch #######
-FROM docker.io/debian:stable-slim
+FROM docker.io/debian:bullseye-slim
 ARG APP=/usr/src/app
 
 RUN apt-get update \

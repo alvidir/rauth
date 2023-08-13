@@ -3,10 +3,9 @@ extern crate tracing;
 
 use actix_web::web::Data;
 use actix_web::{middleware, App, HttpServer};
+use rauth::cache::RedisCache;
 use rauth::{
-    config,
-    session::rest::SessionRestService,
-    token::{application::TokenApplication, repository::RedisTokenRepository},
+    config, redis, session::rest::SessionRestService, token::application::TokenApplication, tracer,
 };
 use std::error::Error;
 use std::sync::Arc;
@@ -18,18 +17,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
         warn!(error = err.to_string(), "processing dotenv file",);
     }
 
-    config::init_global_tracer()?;
+    tracer::init()?;
 
-    let token_repo = Arc::new(RedisTokenRepository {
-        pool: &config::REDIS_POOL,
+    let cache = Arc::new(RedisCache {
+        pool: &redis::REDIS_POOL,
     });
 
     let token_app = TokenApplication {
-        cache: token_repo.clone(),
         timeout: Duration::from_secs(*config::TOKEN_TIMEOUT),
         token_issuer: &config::TOKEN_ISSUER,
         private_key: &config::JWT_SECRET,
         public_key: &config::JWT_PUBLIC,
+        cache: cache.clone(),
     };
 
     let session_server = Arc::new(SessionRestService {
@@ -53,6 +52,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     .await
     .unwrap();
 
-    config::shutdown_global_tracer();
+    tracer::shutdown();
     Ok(())
 }

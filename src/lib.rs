@@ -4,13 +4,21 @@ extern crate tracing;
 extern crate serde;
 
 pub mod cache;
-#[cfg(feature = "config")]
 pub mod config;
 pub mod metadata;
+#[cfg(feature = "postgres")]
+pub mod postgres;
+#[cfg(feature = "rabbitmq")]
+pub mod rabbitmq;
+#[cfg(feature = "redis-cache")]
+pub mod redis;
 pub mod secret;
 pub mod session;
+#[cfg(feature = "smtp")]
 pub mod smtp;
 pub mod token;
+#[cfg(feature = "tracer")]
+pub mod tracer;
 pub mod user;
 
 mod base64;
@@ -20,7 +28,5 @@ mod email;
 mod grpc;
 #[cfg(feature = "rest")]
 mod http;
-#[cfg(feature = "rabbitmq")]
-mod rabbitmq;
 mod regex;
 mod result;

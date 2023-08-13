@@ -3,42 +3,83 @@
 use crate::base64::B64_CUSTOM_ENGINE;
 use crate::result::{Error, Result, StdResult};
 use crate::user::application as user_app;
+use crate::user::domain::Email;
 use base64::Engine;
 use lettre::address::AddressError;
 use lettre::message::{Mailbox, SinglePart};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::transport::smtp::client::Tls;
 use lettre::{Message, SmtpTransport, Transport};
+use once_cell::sync::Lazy;
+use std::env;
 use tera::{Context, Tera};
 
-const EMAIL_VERIFICATION_SUBJECT: &str = "Email verification";
-const EMAIL_VERIFICATION_TEMPLATE: &str = "verification_email.html";
-const EMAIL_RESET_SUBJECT: &str = "Reset password";
-const EMAIL_RESET_TEMPLATE: &str = "reset_email.html";
+const DEFAULT_TEMPLATES_PATH: &str = "/etc/rauth/smtp/templates/*.html";
+const DEFAULT_VERIFICATION_SUBJECT: &str = "Email verification";
+const DEFAULT_VERIFICATION_TEMPLATE: &str = "verification_email.html";
+const DEFAULT_RESET_SUBJECT: &str = "Reset password";
+const DEFAULT_RESET_TEMPLATE: &str = "reset_email.html";
 
-/// Smtp represents an email sender
-pub struct Smtp<'a> {
+const ENV_SMTP_TRANSPORT: &str = "SMTP_TRANSPORT";
+const ENV_SMTP_USERNAME: &str = "SMTP_USERNAME";
+const ENV_SMTP_PASSWORD: &str = "SMTP_PASSWORD";
+const ENV_SMTP_ISSUER: &str = "SMTP_ISSUER";
+const ENV_SMTP_TEMPLATES: &str = "SMTP_TEMPLATES";
+const ENV_SMTP_ORIGIN: &str = "SMTP_ORIGIN";
+
+pub static SMTP_TRANSPORT: Lazy<String> =
+    Lazy::new(|| env::var(ENV_SMTP_TRANSPORT).expect("smtp transport must be set"));
+
+pub static SMTP_USERNAME: Lazy<String> =
+    Lazy::new(|| env::var(ENV_SMTP_USERNAME).unwrap_or_default());
+
+pub static SMTP_PASSWORD: Lazy<String> =
+    Lazy::new(|| env::var(ENV_SMTP_PASSWORD).unwrap_or_default());
+
+pub static SMTP_ORIGIN: Lazy<String> =
+    Lazy::new(|| env::var(ENV_SMTP_ORIGIN).expect("smpt origin must be set"));
+
+pub static SMTP_ISSUER: Lazy<String> =
+    Lazy::new(|| env::var(ENV_SMTP_ISSUER).expect("smtp issuer must be set"));
+
+pub static SMTP_TEMPLATES: Lazy<String> = Lazy::new(|| {
+    env::var(ENV_SMTP_TEMPLATES).unwrap_or_else(|_| DEFAULT_TEMPLATES_PATH.to_string())
+});
+
+/// A builder for the [Smtp] struct.
+pub struct SmtpBuilder<'a> {
     pub issuer: &'a str,
-    pub origin: Mailbox,
+    pub origin: &'a str,
+    pub templates: &'a str,
+    pub transport: &'a str,
+    pub username: &'a str,
+    pub password: &'a str,
     pub verification_subject: &'a str,
     pub verification_template: &'a str,
     pub reset_subject: &'a str,
     pub reset_template: &'a str,
-    mailer: SmtpTransport,
-    tera: Tera,
 }
 
-impl<'a> Smtp<'a> {
-    pub fn new(
-        origin: &str,
-        templates_path: &str,
-        smtp_transport: &str,
-        smtp_credentials: Option<(String, String)>,
-    ) -> StdResult<Self> {
-        let origin = origin.parse()?;
-        let tera = Tera::new(templates_path)?;
+impl<'a> Default for SmtpBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            issuer: "",
+            origin: "",
+            templates: "",
+            transport: "",
+            username: "",
+            password: "",
+            verification_subject: DEFAULT_VERIFICATION_SUBJECT,
+            verification_template: DEFAULT_VERIFICATION_TEMPLATE,
+            reset_subject: DEFAULT_RESET_SUBJECT,
+            reset_template: DEFAULT_RESET_TEMPLATE,
+        }
+    }
+}
 
-        let transport_attrs: Vec<&str> = smtp_transport.split(':').collect();
+impl<'a> SmtpBuilder<'a> {
+    pub fn build(&self) -> StdResult<Smtp<'a>> {
+        let transport_attrs: Vec<&str> = self.transport.split(':').collect();
         if transport_attrs.is_empty() || transport_attrs[0].is_empty() {
             error!("smtp transport is not valid");
             return Err(Error::Unknown.to_string().into());
@@ -50,8 +91,8 @@ impl<'a> Smtp<'a> {
             mailer = mailer.port(transport_attrs[1].parse().unwrap());
         }
 
-        if let Some(credentials) = smtp_credentials {
-            let creds = Credentials::new(credentials.0, credentials.1);
+        if !self.username.is_empty() && !self.password.is_empty() {
+            let creds = Credentials::new(self.username.to_string(), self.password.to_string());
             mailer = mailer.credentials(creds);
         } else {
             warn!("transport layer security for smtp disabled");
@@ -59,33 +100,42 @@ impl<'a> Smtp<'a> {
         }
 
         Ok(Smtp {
-            issuer: "",
-            origin,
+            issuer: self.issuer,
+            origin: self.origin.parse()?,
             mailer: mailer.build(),
-            tera,
-            verification_subject: EMAIL_VERIFICATION_SUBJECT,
-            verification_template: EMAIL_VERIFICATION_TEMPLATE,
-            reset_subject: EMAIL_RESET_SUBJECT,
-            reset_template: EMAIL_RESET_TEMPLATE,
+            tera: Tera::new(self.templates)?,
+            verification_subject: DEFAULT_VERIFICATION_SUBJECT,
+            verification_template: DEFAULT_VERIFICATION_TEMPLATE,
+            reset_subject: DEFAULT_RESET_SUBJECT,
+            reset_template: DEFAULT_RESET_TEMPLATE,
         })
     }
+}
 
-    pub fn with_issuer(mut self, issuer: &'a str) -> Self {
-        self.issuer = issuer;
-        self
-    }
+/// Smtp represents an email sender.
+pub struct Smtp<'a> {
+    pub issuer: &'a str,
+    pub origin: Mailbox,
+    pub verification_subject: &'a str,
+    pub verification_template: &'a str,
+    pub reset_subject: &'a str,
+    pub reset_template: &'a str,
+    pub mailer: SmtpTransport,
+    pub tera: Tera,
+}
 
+impl<'a> Smtp<'a> {
     #[instrument(skip(self))]
-    fn send_email(&self, to: &str, subject: &str, body: String) -> Result<()> {
+    fn send_email(&self, to: &Email, subject: &str, body: String) -> Result<()> {
         let formated_subject = if !self.issuer.is_empty() {
             format!("[{}] {}", self.issuer, subject)
         } else {
             subject.to_string()
         };
 
-        let to = to.parse().map_err(|err: AddressError| {
+        let to = to.as_ref().parse().map_err(|err: AddressError| {
             error!(
-                to,
+                to = to.as_ref(),
                 from = self.origin.to_string(),
                 error = err.to_string(),
                 "parsing verification email destination"
@@ -114,9 +164,9 @@ impl<'a> Smtp<'a> {
 
 impl<'a> user_app::Mailer for Smtp<'a> {
     #[instrument(skip(self))]
-    fn send_credentials_verification_email(&self, email: &str, token: &str) -> Result<()> {
+    fn send_credentials_verification_email(&self, email: &Email, token: &str) -> Result<()> {
         let mut context = Context::new();
-        context.insert("name", email.split('@').collect::<Vec<&str>>()[0]);
+        context.insert("name", email.as_ref().split('@').collect::<Vec<&str>>()[0]);
         context.insert("token", &B64_CUSTOM_ENGINE.encode(token));
 
         let body = self
@@ -134,9 +184,9 @@ impl<'a> user_app::Mailer for Smtp<'a> {
     }
 
     #[instrument(skip(self))]
-    fn send_credentials_recovery_email(&self, email: &str, token: &str) -> Result<()> {
+    fn send_credentials_recovery_email(&self, email: &Email, token: &str) -> Result<()> {
         let mut context = Context::new();
-        context.insert("name", email.split('@').collect::<Vec<&str>>()[0]);
+        context.insert("name", email.as_ref().split('@').collect::<Vec<&str>>()[0]);
         context.insert("token", &B64_CUSTOM_ENGINE.encode(token));
 
         let body = self
@@ -151,34 +201,5 @@ impl<'a> user_app::Mailer for Smtp<'a> {
             })?;
 
         self.send_email(email, self.reset_subject, body)
-    }
-}
-
-#[cfg(test)]
-pub mod tests {
-    use crate::result::{Error, Result};
-    use crate::user::application::Mailer;
-
-    #[derive(Default)]
-    pub struct MailerMock {
-        pub force_fail: bool,
-    }
-
-    impl Mailer for MailerMock {
-        fn send_credentials_verification_email(&self, _: &str, _: &str) -> Result<()> {
-            if self.force_fail {
-                return Err(Error::Unknown);
-            }
-
-            Ok(())
-        }
-
-        fn send_credentials_recovery_email(&self, _: &str, _: &str) -> Result<()> {
-            if self.force_fail {
-                return Err(Error::Unknown);
-            }
-
-            Ok(())
-        }
     }
 }

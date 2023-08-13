@@ -6,9 +6,6 @@ use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;
 use std::time::Duration;
 
-#[cfg(feature = "redis-cache")]
-pub use redis_cache::*;
-
 /// Represents a general purpose cache.
 #[async_trait]
 pub trait Cache {
@@ -22,6 +19,10 @@ pub trait Cache {
     async fn delete(&self, key: &str) -> Result<()>;
 }
 
+#[cfg(feature = "redis-cache")]
+pub use redis_cache::*;
+
+#[cfg(feature = "redis-cache")]
 mod redis_cache {
     use super::Cache;
     use crate::result::{Error, Result};

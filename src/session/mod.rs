@@ -1,5 +1,5 @@
 pub mod application;
-#[cfg(all(feature = "grpc"))]
+#[cfg(feature = "grpc")]
 pub mod grpc;
-#[cfg(all(feature = "rest"))]
+#[cfg(feature = "rest")]
 pub mod rest;

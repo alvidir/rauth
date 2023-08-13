@@ -1,4 +1,4 @@
-use super::domain::{User, UserBuilder};
+use super::domain::{Credentials, Email, User};
 use crate::cache::Cache;
 use crate::crypto;
 use crate::result::{Error, Result};
@@ -10,13 +10,14 @@ use crate::token::{
 };
 use async_trait::async_trait;
 use chrono::Utc;
+use std::fmt::Debug;
 use std::num::ParseIntError;
 use std::sync::Arc;
 
 #[async_trait]
 pub trait UserRepository {
     async fn find(&self, id: i32) -> Result<User>;
-    async fn find_by_email(&self, email: &str) -> Result<User>;
+    async fn find_by_email(&self, email: &Email) -> Result<User>;
     async fn find_by_name(&self, name: &str) -> Result<User>;
     async fn create(&self, user: &mut User) -> Result<()>;
     async fn save(&self, user: &User) -> Result<()>;
@@ -29,8 +30,8 @@ pub trait EventBus {
 }
 
 pub trait Mailer {
-    fn send_credentials_verification_email(&self, to: &str, token: &str) -> Result<()>;
-    fn send_credentials_recovery_email(&self, to: &str, token: &str) -> Result<()>;
+    fn send_credentials_verification_email(&self, to: &Email, token: &str) -> Result<()>;
+    fn send_credentials_recovery_email(&self, to: &Email, token: &str) -> Result<()>;
 }
 
 pub struct UserApplication<
@@ -54,36 +55,37 @@ pub struct UserApplication<
 impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cache>
     UserApplication<'a, U, S, B, M, C>
 {
-    /// Stores the given credentials temporally and sends an email with the corresponding
-    /// token to be passed as parameter to the signup_with_token method.
+    /// Stores the given credentials in the cache and sends an email with the token to be
+    /// passed as parameter to the signup_with_token method.
     #[instrument(skip(self))]
-    pub async fn verify_credentials(&self, email: &str, pwd: &str) -> Result<()> {
-        if self.user_repo.find_by_email(email).await.is_ok() {
+    pub async fn verify_credentials(&self, credentials: Credentials) -> Result<()> {
+        if self
+            .user_repo
+            .find_by_email(&credentials.email)
+            .await
+            .is_ok()
+        {
             // returns Ok to avoid giving information about existing emails
             return Ok(());
         }
 
-        let pwd = (!pwd.is_empty())
-            .then_some(crypto::obfuscate(pwd, self.pwd_sufix))
-            .unwrap_or_default();
+        if let Some(password) = credentials.password {
+            password.obfuscate(self.pwd_sufix);
+        }
 
-        let user_builder = UserBuilder::default()
-            .with_email(email)?
-            .with_password(&pwd)?;
-
-        let key = crypto::hash(&user_builder);
+        let key = crypto::hash(&credentials);
 
         let token = self
             .token_app
             .generate(TokenKind::Verification, &key.to_string())?;
 
         self.cache
-            .save(&key.to_string(), &user_builder, Some(token.timeout()))
+            .save(&key.to_string(), &credentials, Some(token.timeout()))
             .await?;
 
         let signed: String = self.token_app.sign(&token)?;
         self.mailer
-            .send_credentials_verification_email(email, &signed)?;
+            .send_credentials_verification_email(credentials.email, &signed)?;
 
         Ok(())
     }
@@ -100,7 +102,7 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
             .cache
             .find(&claims.sub)
             .await
-            .and_then(|builder: UserBuilder| builder.build())?;
+            .and_then(|builder: Credentials| builder.build())?;
 
         self.signup(&mut user).await
     }
@@ -109,7 +111,7 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
     #[instrument(skip(self))]
     pub async fn signup(&self, user: &mut User) -> Result<String> {
         self.user_repo.create(user).await?;
-        self.event_bus.emit_user_created(&user).await?;
+        self.event_bus.emit_user_created(user).await?;
 
         let token = self
             .token_app
@@ -371,7 +373,7 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
 pub mod tests {
     use super::super::domain::tests::{TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD};
     use super::super::domain::{tests::new_user_custom, User};
-    use super::{EventBus, UserApplication, UserRepository};
+    use super::{EventBus, Mailer, UserApplication, UserRepository};
     use crate::cache::tests::InMemoryCache;
     use crate::secret::domain::SecretKind;
     use crate::secret::{
@@ -381,7 +383,6 @@ pub mod tests {
             Secret,
         },
     };
-    use crate::smtp::tests::MailerMock;
     use crate::token::application::tests::{new_token_application, PRIVATE_KEY, PUBLIC_KEY};
     use crate::token::domain::{Token, TokenKind};
     use crate::user::domain::tests::TEST_DEFAULT_PWD_SUFIX;
@@ -479,6 +480,29 @@ pub mod tests {
         async fn emit_user_created(&self, user: &User) -> Result<()> {
             if let Some(f) = self.fn_emit_user_created {
                 return f(self, user);
+            }
+
+            Ok(())
+        }
+    }
+
+    #[derive(Default)]
+    pub struct MailerMock {
+        pub force_fail: bool,
+    }
+
+    impl Mailer for MailerMock {
+        fn send_credentials_verification_email(&self, _: &str, _: &str) -> Result<()> {
+            if self.force_fail {
+                return Err(Error::Unknown);
+            }
+
+            Ok(())
+        }
+
+        fn send_credentials_recovery_email(&self, _: &str, _: &str) -> Result<()> {
+            if self.force_fail {
+                return Err(Error::Unknown);
             }
 
             Ok(())

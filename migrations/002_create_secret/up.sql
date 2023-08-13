@@ -6,14 +6,13 @@ CREATE TABLE Secrets (
     type SECRET NOT NULL,
     data TEXT NOT NULL,
     user_id INTEGER NOT NULL,
-    meta_id INTEGER NOT NULL UNIQUE,
+    
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
 
     UNIQUE (type, user_id),
 
     FOREIGN KEY (user_id)
         REFERENCES Users(id),
-    FOREIGN KEY (meta_id)
-        REFERENCES Metadata(id)
 );
 
 CREATE OR REPLACE FUNCTION fn_prevent_update_secrets_data()

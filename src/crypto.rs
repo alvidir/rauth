@@ -54,7 +54,6 @@ pub fn decode_jwt<T: DeserializeOwned>(public: &[u8], token: &str) -> Result<T> 
     })?;
 
     let token = jsonwebtoken::decode::<T>(token, &key, &validation).map_err(|err| {
-        println!(">>>>>>>>>>>>>>>>>>> {:?}", err);
         error!(error = err.to_string(), "checking token's signature",);
         Error::InvalidToken
     })?;
@@ -95,12 +94,6 @@ pub fn generate_totp(secret: &[u8]) -> Result<TOTP> {
 pub fn verify_totp(secret: &[u8], pwd: &str) -> Result<bool> {
     let totp = generate_totp(secret)?;
     Ok(totp.is_valid(pwd))
-}
-
-/// Given a subject str and a sufix returns the sha256 digest of apending them both.
-pub fn obfuscate(subject: &str, sufix: &str) -> String {
-    let format_pwd = format!("{}{}", subject, sufix);
-    return sha256::digest(format_pwd.as_bytes());
 }
 
 /// Given a RSA public key in PEM format returns the value of data encrypted by that key,
