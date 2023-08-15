@@ -1,10 +1,6 @@
-use std::marker::PhantomData;
-
-use crate::metadata::domain::Metadata;
-use crate::{
-    regex,
-    result::{Error, Result},
-};
+use crate::result::{Error, Result};
+use ::regex::Regex;
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 /// Represents an email with, or without, sufix.
@@ -20,34 +16,44 @@ impl AsRef<str> for Email {
 impl TryFrom<&str> for Email {
     type Error = Error;
 
-    fn try_from(email: &str) -> Result<Self> {
-        regex::match_regex(Self::REGEX, email).map_err(|err| {
-            warn!(error = err.to_string(), "validating email format",);
-            Error::InvalidFormat
-        })?;
+    fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
+        Self::new(value.to_string())
+    }
+}
 
-        Ok(Self(email.to_string()))
+impl TryFrom<String> for Email {
+    type Error = Error;
+
+    fn try_from(email: String) -> std::result::Result<Email, Error> {
+        Self::new(email)
     }
 }
 
 impl Email {
-    const REGEX: &str = r"^[a-zA-Z0-9+._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,63}$";
+    const PATTERN: &str = r"^[a-zA-Z0-9+._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,63}$";
     const DOMAIN_SEPARATOR: char = '@';
     const SUFIX_SEPARATOR: char = '+';
 
-    /// Returns the email without the sufix, if any.
-    pub fn actual_email(&self) -> Self {
+    pub const REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(Self::PATTERN).unwrap());
+
+    /// Builds an [Email] from the given string if, and only if, the string matches the email's regex.
+    pub fn new(email: String) -> Result<Self> {
+        Self::REGEX
+            .is_match(&email)
+            .then_some(Self(email))
+            .ok_or(Error::InvalidFormat)
+    }
+
+    /// Returns an email resulting from substracting the sufix from self, if any, otherwise [Option::None] is returned.
+    pub fn actual_email(&self) -> Option<Self> {
         let email_parts: Vec<&str> = self
             .0
             .split(&[Self::SUFIX_SEPARATOR, Self::DOMAIN_SEPARATOR])
             .collect();
 
-        if email_parts.len() != 3 {
-            // the email has no sufix
-            return self.clone();
-        }
-
-        Self([email_parts[0], email_parts[2]].join(&Self::DOMAIN_SEPARATOR.to_string()))
+        (email_parts.len() == 3).then_some({
+            Self([email_parts[0], email_parts[2]].join(&Self::DOMAIN_SEPARATOR.to_string()))
+        })
     }
 
     /// Returns the username part from the email.
@@ -60,90 +66,67 @@ impl Email {
     }
 }
 
-/// Raw marker. Determines the password has not been digested.
-#[derive(Debug, Hash, PartialEq, Eq)]
-struct Raw;
-
-/// Opaque marker. Determines the password has been digested.
-#[derive(Debug, Hash, PartialEq, Eq)]
-struct Opaque;
-
 /// Represents a password.
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Password<State = Raw> {
-    value: String,
-    state: PhantomData<State>,
-}
+pub struct Password(String);
 
-impl AsRef<str> for Password<Opaque> {
+impl AsRef<str> for Password {
     fn as_ref(&self) -> &str {
-        &self.value
+        &self.0
     }
 }
 
-impl From<&str> for Password<Opaque> {
-    /// Converts an string containing the hash of a password into an instance of [Password].
-    fn from(password: &str) -> Self {
-        Self {
-            value: password.to_string(),
-            state: PhantomData,
-        }
-    }
-}
-
-impl TryFrom<&str> for Password<Raw> {
+impl TryFrom<&str> for Password {
     type Error = Error;
 
-    /// Converts an string containing a raw password into an instance of [Password].
-    fn try_from(password: &str) -> Result<Self> {
-        regex::match_regex(Self::REGEX, &password).map_err(|err| {
-            warn!(error = err.to_string(), "validating raw password format",);
-            Error::InvalidFormat
-        })?;
-
-        Ok(Self {
-            value: password.to_string(),
-            state: PhantomData,
-        })
+    fn try_from(raw: &str) -> std::result::Result<Self, Self::Error> {
+        Self::new(raw.to_string())
     }
 }
 
-impl Password<Raw> {
-    pub const REGEX: &str = r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$";
+impl TryFrom<String> for Password {
+    type Error = Error;
 
-    /// Build a new instance of raw password baypassing the preconditions.
-    #[cfg(test)]
-    pub fn new(value: String) -> Self {
-        Self {
-            value,
-            state: PhantomData,
-        }
+    fn try_from(raw: String) -> std::result::Result<Self, Self::Error> {
+        Self::new(raw)
+    }
+}
+
+impl Password {
+    const PATTERN: &str = r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$";
+
+    pub const REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(Self::PATTERN).unwrap());
+
+    /// Builds a [Password] from the given string if, and only if, the string matches the
+    /// password's regex.
+    pub fn new(raw: String) -> Result<Self> {
+        Self::REGEX
+            .is_match(&raw)
+            .then_some(Self(raw))
+            .ok_or(Error::InvalidFormat)
     }
 
-    /// Given a sufix digests the password and returns it as an opaque password.
-    pub fn opaque(mut self, sufix: &str) -> Password<Opaque> {
-        let digest = sha256::digest(self.value);
-        let sufixed = format!("{}{}", digest, sufix);
-        let digest = sha256::digest(sufixed.as_bytes());
-
-        Password::<Opaque> {
-            value: digest,
-            state: PhantomData,
-        }
+    /// Given a sufix to append to the hash of self, returns the password containing the digest of the
+    /// resulting concatenation.
+    pub fn digest(mut self, sufix: &str) -> Self {
+        self.0 = sha256::digest(self.0);
+        self.0 = format!("{}{}", self.0, sufix);
+        self.0 = sha256::digest(self.0);
+        self
     }
 }
 
 /// Represents the credentials of a [User].
 #[derive(Debug, Default, Hash, Serialize, Deserialize)]
 pub struct Credentials {
-    pub(super) email: Email,
-    pub(super) password: Option<Password>,
+    pub email: Email,
+    pub password: Option<Password>,
 }
 
 impl TryFrom<&str> for Credentials {
     type Error = Error;
 
-    fn try_from(email: &str) -> Result<Self> {
+    fn try_from(email: &str) -> std::result::Result<Self, Self::Error> {
         email.try_into().map(|email| Self::new(email))
     }
 }
@@ -174,26 +157,20 @@ impl Credentials {
 /// Represents a signed up user
 #[derive(Debug)]
 pub struct User {
-    pub(super) id: i32,
-    pub(super) credentials: Credentials,
-    pub(super) meta: Metadata,
+    pub id: i32,
+    pub credentials: Credentials,
 }
 
 impl From<Credentials> for User {
     fn from(credentials: Credentials) -> Self {
-        Self {
-            id: 0,
-            credentials,
-            meta: Metadata::default(),
-        }
+        Self { id: 0, credentials }
     }
 }
 
 #[cfg(test)]
 pub mod tests {
+    use crate::result::Result;
     use crate::user::domain::{Credentials, Email, Password};
-    use crate::{base64, result::Result};
-    use ::base64::Engine;
 
     #[test]
     fn email_from_str() {
@@ -208,13 +185,13 @@ pub mod tests {
             Test {
                 name: "email without sufix",
                 input: "username@server.domain",
-                output: Some(Email("username@server.domain".to_string())),
+                output: Some("username@server.domain".try_into().unwrap()),
                 must_fail: false,
             },
             Test {
                 name: "email with sufix",
                 input: "username+sufix@server.domain",
-                output: Some(Email("username+sufix@server.domain".to_string())),
+                output: Some("username+sufix@server.domain".try_into().unwrap()),
                 must_fail: false,
             },
             Test {
@@ -302,36 +279,33 @@ pub mod tests {
         }
 
         vec![
-            {
-                let encoded_pwd = base64::B64_CUSTOM_ENGINE.encode("abcABC123&");
-                Test {
-                    name: "valid password",
-                    input: &encoded_pwd,
-                    output: Some(Password::new(encoded_pwd)),
-                    must_fail: false,
-                }
+            Test {
+                name: "valid password",
+                input: "abcABC123&",
+                output: Some("abcABC123&".try_into().unwrap()),
+                must_fail: false,
             },
             Test {
                 name: "password without special characters",
-                input: &base64::B64_CUSTOM_ENGINE.encode("abcABC123"),
+                input: "abcABC123",
                 output: None,
                 must_fail: true,
             },
             Test {
                 name: "password without uppercase characters",
-                input: &base64::B64_CUSTOM_ENGINE.encode("abcabc123&"),
+                input: "abcabc123&",
                 output: None,
                 must_fail: true,
             },
             Test {
                 name: "password without lowercase characters",
-                input: &base64::B64_CUSTOM_ENGINE.encode("ABCABC123&"),
+                input: "ABCABC123&",
                 output: None,
                 must_fail: true,
             },
             Test {
                 name: "password with less than 8 characters",
-                input: &base64::B64_CUSTOM_ENGINE.encode("aB1&"),
+                input: "aB1&",
                 output: None,
                 must_fail: true,
             },
@@ -367,9 +341,6 @@ pub mod tests {
             credentials.email,
             Email("username@server.domain".to_string())
         );
-        assert_eq!(
-            credentials.password,
-            Some(Password::new("abcABC123&".to_string()))
-        );
+        assert_eq!(credentials.password, Some("abcABC123&".try_into().unwrap()));
     }
 }

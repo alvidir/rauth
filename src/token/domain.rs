@@ -24,6 +24,7 @@ impl TokenKind {
     }
 }
 
+// TODO: rename Token to Payload and create the Token(String) type
 #[derive(Debug, Hash, Serialize, Deserialize)]
 pub struct Token {
     pub jti: String, // JWT ID

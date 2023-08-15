@@ -5,7 +5,6 @@ extern crate serde;
 
 pub mod cache;
 pub mod config;
-pub mod metadata;
 #[cfg(feature = "postgres")]
 pub mod postgres;
 #[cfg(feature = "rabbitmq")]
@@ -28,5 +27,4 @@ mod email;
 mod grpc;
 #[cfg(feature = "rest")]
 mod http;
-mod regex;
 mod result;

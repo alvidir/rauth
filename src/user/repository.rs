@@ -1,136 +1,114 @@
+use super::domain::Email;
 use super::{application::UserRepository, domain::User};
-use crate::metadata::application::MetadataRepository;
 use crate::result::{Error, Result};
 use async_trait::async_trait;
 use sqlx::error::Error as SqlError;
 use sqlx::postgres::PgPool;
-use std::sync::Arc;
 
 const QUERY_INSERT_USER: &str =
-    "INSERT INTO users (name, email, actual_email, password, meta_id) VALUES ($1, $2, $3, $4, $5) RETURNING id";
-const QUERY_FIND_USER: &str =
-    "SELECT id, name, email, actual_email, password, meta_id FROM users WHERE id = $1";
+    "INSERT INTO users (name, email, actual_email, password) VALUES ($1, $2, $3, $4) RETURNING id";
+const QUERY_FIND_USER: &str = "SELECT id, email, password FROM users WHERE id = $1";
 const QUERY_FIND_USER_BY_EMAIL: &str =
-    "SELECT id, name, email, actual_email, password, meta_id FROM users WHERE email = $1 OR actual_email = $1";
-const QUERY_FIND_USER_BY_NAME: &str =
-    "SELECT id, name, email, actual_email, password, meta_id FROM users WHERE name = $1";
+    "SELECT id, email, password FROM users WHERE email = $1 OR actual_email = $1";
+const QUERY_FIND_USER_BY_NAME: &str = "SELECT id, email, password FROM users WHERE name = $1";
 const QUERY_UPDATE_USER: &str =
     "UPDATE users SET name = $1, email = $2, actual_email = $3, password = $4 WHERE id = $5";
 const QUERY_DELETE_USER: &str = "DELETE FROM users WHERE id = $1";
 
-type PostgresUserRow = (i32, String, String, String, String, i32); // id, name, email, actual_email, password, meta_id
+type PostgresUserRow = (i32, String, String); // id, email, password
 
-pub struct PostgresUserRepository<'a, M: MetadataRepository> {
-    pub pool: &'a PgPool,
-    pub metadata_repo: Arc<M>,
-}
+impl TryFrom<PostgresUserRow> for User {
+    type Error = Error;
 
-impl<'a, M: MetadataRepository> PostgresUserRepository<'a, M> {
-    async fn build(&self, user_raw: &PostgresUserRow) -> Result<User> {
-        let meta = self.metadata_repo.find(user_raw.5).await?;
-
+    fn try_from(value: PostgresUserRow) -> Result<Self> {
         Ok(User {
-            id: user_raw.0,
-            name: user_raw.1.clone(),
-            email: user_raw.2.clone(),
-            actual_email: user_raw.3.clone(),
-            password: user_raw.4.clone(),
-            meta,
+            id: value.0,
+            credentials: (value.1.as_str(), value.2.as_str()).try_into()?,
         })
     }
 }
 
+pub struct PostgresUserRepository<'a> {
+    pub pool: &'a PgPool,
+}
+
 #[async_trait]
-impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> UserRepository
-    for PostgresUserRepository<'a, M>
-{
+impl<'a> UserRepository for PostgresUserRepository<'a> {
     async fn find(&self, target: i32) -> Result<User> {
-        let row: PostgresUserRow = {
-            // block is required because of connection release
-            sqlx::query_as(QUERY_FIND_USER)
-                .bind(target)
-                .fetch_one(self.pool)
-                .await
-                .map_err(|err| {
+        sqlx::query_as(QUERY_FIND_USER)
+            .bind(target)
+            .fetch_one(self.pool)
+            .await
+            .map_err(|err| {
+                if matches!(err, SqlError::RowNotFound) {
+                    Error::NotFound
+                } else {
                     error!(
                         error = err.to_string(),
                         id = target,
                         "performing select by id query on postgres",
                     );
+
                     Error::Unknown
-                })?
-        };
-
-        if row.0 == 0 {
-            return Err(Error::NotFound);
-        }
-
-        self.build(&row).await // another connection consumed here
+                }
+            })
+            .and_then(PostgresUserRow::try_into)
     }
 
-    async fn find_by_email(&self, target: &str) -> Result<User> {
-        let row: PostgresUserRow = {
-            // block is required because of connection release
-            sqlx::query_as(QUERY_FIND_USER_BY_EMAIL)
-                .bind(target)
-                .fetch_one(self.pool)
-                .await
-                .map_err(|err| {
-                    if matches!(err, SqlError::RowNotFound) {
-                        return Error::NotFound;
-                    }
-
+    async fn find_by_email(&self, target: &Email) -> Result<User> {
+        sqlx::query_as(QUERY_FIND_USER_BY_EMAIL)
+            .bind(target.as_ref())
+            .fetch_one(self.pool)
+            .await
+            .map_err(|err| {
+                if matches!(err, SqlError::RowNotFound) {
+                    Error::NotFound
+                } else {
                     error!(
                         error = err.to_string(),
-                        email = target,
+                        email = target.as_ref(),
                         "performing select by email query on postgres",
                     );
-                    Error::Unknown
-                })?
-        };
 
-        if row.0 == 0 {
-            return Err(Error::NotFound);
-        }
-        self.build(&row).await // another connection consumed here
+                    Error::Unknown
+                }
+            })
+            .and_then(PostgresUserRow::try_into)
     }
 
     async fn find_by_name(&self, target: &str) -> Result<User> {
-        let row: PostgresUserRow = {
-            // block is required because of connection release
-            sqlx::query_as(QUERY_FIND_USER_BY_NAME)
-                .bind(target)
-                .fetch_one(self.pool)
-                .await
-                .map_err(|err| {
-                    if matches!(err, SqlError::RowNotFound) {
-                        return Error::NotFound;
-                    }
-
+        sqlx::query_as(QUERY_FIND_USER_BY_NAME)
+            .bind(target)
+            .fetch_one(self.pool)
+            .await
+            .map_err(|err| {
+                if matches!(err, SqlError::RowNotFound) {
+                    Error::NotFound
+                } else {
                     error!(
                         error = err.to_string(),
                         name = target,
                         "performing select by name query on postgres",
                     );
-                    Error::Unknown
-                })?
-        };
 
-        if row.0 == 0 {
-            return Err(Error::NotFound);
-        }
-        self.build(&row).await // another connection consumed here
+                    Error::Unknown
+                }
+            })
+            .and_then(PostgresUserRow::try_into)
     }
 
     async fn create(&self, user: &mut User) -> Result<()> {
-        self.metadata_repo.create(&mut user.meta).await?;
-
         let row: (i32,) = sqlx::query_as(QUERY_INSERT_USER)
-            .bind(&user.name)
-            .bind(&user.email)
-            .bind(&user.actual_email)
-            .bind(&user.password)
-            .bind(user.meta.get_id())
+            .bind(user.credentials.email.username())
+            .bind(user.credentials.email.as_ref())
+            .bind(
+                user.credentials
+                    .email
+                    .actual_email()
+                    .unwrap_or(user.credentials.email)
+                    .as_ref(),
+            )
+            .bind(user.credentials.password.ok_or(Error::Unknown)?)
             .fetch_one(self.pool)
             .await
             .map_err(|err| {
@@ -139,7 +117,8 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> UserRepo
                     "performing insert query on postgres",
                 );
                 Error::Unknown
-            })?;
+            })
+            .and_then(PostgresUserRow::try_into)?;
 
         user.id = row.0;
         Ok(())

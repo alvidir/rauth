@@ -1,113 +1,95 @@
 use super::domain::SecretKind;
 use super::{application::SecretRepository, domain::Secret};
-use crate::metadata::application::MetadataRepository;
 use crate::result::{Error, Result};
 use async_trait::async_trait;
 use sqlx::error::Error as SqlError;
 use sqlx::postgres::PgPool;
 use std::str::FromStr;
-use std::sync::Arc;
 
 const QUERY_INSERT_SECRET: &str =
-    "INSERT INTO secrets (kind, data, user_id, meta_id) VALUES ($1, $2, $3, $4) RETURNING id";
-const QUERY_FIND_SECRET: &str =
-    "SELECT id, kind, data, user_id, meta_id FROM secrets WHERE id = $1";
-const QUERY_FIND_SECRET_BY_USER_AND_KIND: &str =
-    "SELECT id, kind, data, user_id, meta_id FROM secrets WHERE user_id = $1 AND kind = $2";
-const QUERY_UPDATE_SECRET: &str =
-    "UPDATE secrets SET kind = $2, data = $3, user_id = $4, meta_id = $5, password = $4 FROM secrets WHERE id = $1";
+    "INSERT INTO secrets (owner, kind, data) VALUES ($1, $2, $3) RETURNING id";
+const QUERY_FIND_SECRET: &str = "SELECT id, owner, kind, data FROM secrets WHERE id = $1";
+const QUERY_FIND_SECRET_BY_OWNER_AND_KIND: &str =
+    "SELECT id, owner, kind, data FROM secrets WHERE owner = $1 AND kind = $2";
 const QUERY_DELETE_SECRET: &str = "DELETE FROM secrets WHERE id = $1";
 
-type PostgresSecretRow = (i32, String, String, i32, i32); // id, kind, data, user_id, meta_id
+type PostgresSecretRow = (i32, i32, String, String); // id, owner, kind, data
 
-pub struct PostgresSecretRepository<'a, M: MetadataRepository> {
-    pub pool: &'a PgPool,
-    pub metadata_repo: Arc<M>,
-}
+impl TryFrom<PostgresSecretRow> for Secret {
+    type Error = Error;
 
-impl<'a, M: MetadataRepository> PostgresSecretRepository<'a, M> {
-    async fn build(&self, secret_row: &PostgresSecretRow) -> Result<Secret> {
-        let meta = self.metadata_repo.find(secret_row.4).await?;
-
+    fn try_from(value: PostgresSecretRow) -> std::result::Result<Self, Self::Error> {
         Ok(Secret {
-            id: secret_row.0,
-            kind: SecretKind::from_str(&secret_row.1).map_err(|err| {
+            id: value.0,
+            owner: value.1,
+            kind: SecretKind::from_str(&value.2).map_err(|err| {
                 error!(error = err.to_string(), "converting string into SecretKind",);
                 Error::Unknown
             })?,
-            data: secret_row.2.as_bytes().to_vec(),
-            owner: secret_row.3,
-            meta,
+            data: value.3.as_bytes().to_vec(),
         })
     }
 }
 
+pub struct PostgresSecretRepository<'a> {
+    pub pool: &'a PgPool,
+}
+
 #[async_trait]
-impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRepository
-    for PostgresSecretRepository<'a, M>
-{
+impl<'a> SecretRepository for PostgresSecretRepository<'a> {
     #[instrument(skip(self))]
     async fn find(&self, target: i32) -> Result<Secret> {
-        let row: PostgresSecretRow = {
-            // block is required because of connection release
-            sqlx::query_as(QUERY_FIND_SECRET)
-                .bind(target)
-                .fetch_one(self.pool)
-                .await
-                .map_err(|err| {
+        sqlx::query_as(QUERY_FIND_SECRET)
+            .bind(target)
+            .fetch_one(self.pool)
+            .await
+            .map_err(|err| {
+                if matches!(err, SqlError::RowNotFound) {
+                    Error::NotFound
+                } else {
                     error!(
                         error = err.to_string(),
+                        id = target,
                         "performing select by id query on postgres",
                     );
+
                     Error::Unknown
-                })?
-        };
-
-        if row.0 == 0 {
-            return Err(Error::NotFound);
-        }
-
-        self.build(&row).await // another connection consumed here
+                }
+            })
+            .and_then(PostgresSecretRow::try_into)
     }
 
     #[instrument(skip(self))]
-    async fn find_by_user_and_kind(&self, user: i32, kind: SecretKind) -> Result<Secret> {
-        let row: PostgresSecretRow = {
-            // block is required because of connection release
-            sqlx::query_as(QUERY_FIND_SECRET_BY_USER_AND_KIND)
-                .bind(user)
-                .bind(kind.to_string())
-                .fetch_one(self.pool)
-                .await
-                .map_err(|err| {
-                    if matches!(err, SqlError::RowNotFound) {
-                        return Error::NotFound;
-                    }
-
+    async fn find_by_owner_and_kind(&self, owner: i32, kind: SecretKind) -> Result<Secret> {
+        sqlx::query_as(QUERY_FIND_SECRET_BY_OWNER_AND_KIND)
+            .bind(owner)
+            .bind(kind.as_ref())
+            .fetch_one(self.pool)
+            .await
+            .map_err(|err| {
+                // TODO: implement From<SqlError> for Error and return unkown when required.
+                if matches!(err, SqlError::RowNotFound) {
+                    Error::NotFound
+                } else {
                     error!(
                         error = err.to_string(),
-                        "performing select by user and name query on postgres",
+                        owner,
+                        kind = kind.as_ref(),
+                        "performing select by owner and kind query on postgres",
                     );
+
                     Error::Unknown
-                })?
-        };
-
-        if row.0 == 0 {
-            return Err(Error::NotFound);
-        }
-
-        self.build(&row).await // another connection consumed here
+                }
+            })
+            .and_then(PostgresSecretRow::try_into)
     }
 
     #[instrument(skip(self))]
     async fn create(&self, secret: &mut Secret) -> Result<()> {
-        self.metadata_repo.create(&mut secret.meta).await?;
-
         let row: (i32,) = sqlx::query_as(QUERY_INSERT_SECRET)
-            .bind(&secret.kind.to_string())
-            .bind(&secret.data)
+            .bind(secret.kind.as_ref())
             .bind(secret.owner)
-            .bind(secret.meta.get_id())
+            .bind(secret.data())
             .fetch_one(self.pool)
             .await
             .map_err(|err| {
@@ -123,44 +105,18 @@ impl<'a, M: MetadataRepository + std::marker::Sync + std::marker::Send> SecretRe
     }
 
     #[instrument(skip(self))]
-    async fn save(&self, secret: &Secret) -> Result<()> {
-        sqlx::query(QUERY_UPDATE_SECRET)
+    async fn delete(&self, secret: &Secret) -> Result<()> {
+        sqlx::query(QUERY_DELETE_SECRET)
             .bind(secret.id)
-            .bind(&secret.kind.to_string())
-            .bind(&secret.data)
-            .bind(secret.owner)
-            .bind(secret.meta.get_id())
             .fetch_one(self.pool)
             .await
             .map_err(|err| {
                 error!(
                     error = err.to_string(),
-                    "performing update query on postgres",
+                    "performing delete query on postgres",
                 );
                 Error::Unknown
-            })?;
-
-        Ok(())
-    }
-
-    #[instrument(skip(self))]
-    async fn delete(&self, secret: &Secret) -> Result<()> {
-        {
-            // block is required because of connection release
-            sqlx::query(QUERY_DELETE_SECRET)
-                .bind(secret.id)
-                .fetch_one(self.pool)
-                .await
-                .map_err(|err| {
-                    error!(
-                        error = err.to_string(),
-                        "performing delete query on postgres",
-                    );
-                    Error::Unknown
-                })?;
-        }
-
-        self.metadata_repo.delete(&secret.meta).await?; // another connection consumed here
-        Ok(())
+            })
+            .map(|_| ())
     }
 }

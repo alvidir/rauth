@@ -3,15 +3,13 @@ CREATE TYPE SECRET AS ENUM ('totp');
 
 CREATE TABLE Secrets (
     id SERIAL PRIMARY KEY,
-    type SECRET NOT NULL,
+    kind SECRET NOT NULL,
+    owner INTEGER NOT NULL,
     data TEXT NOT NULL,
-    user_id INTEGER NOT NULL,
-    
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
 
-    UNIQUE (type, user_id),
+    UNIQUE (kind, owner),
 
-    FOREIGN KEY (user_id)
+    FOREIGN KEY (owner)
         REFERENCES Users(id),
 );
 

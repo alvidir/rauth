@@ -1,12 +1,12 @@
 use crate::cache::Cache;
 use crate::crypto;
-use crate::regex;
 use crate::result::{Error, Result};
 use crate::secret::application::SecretRepository;
 use crate::secret::domain::SecretKind;
 use crate::token::application::TokenApplication;
 use crate::token::domain::TokenKind;
 use crate::user::application::UserRepository;
+use crate::user::domain::{Email, Password};
 use std::sync::Arc;
 
 pub struct SessionApplication<'a, U: UserRepository, S: SecretRepository, C: Cache> {
@@ -17,39 +17,39 @@ pub struct SessionApplication<'a, U: UserRepository, S: SecretRepository, C: Cac
 }
 
 impl<'a, U: UserRepository, S: SecretRepository, C: Cache> SessionApplication<'a, U, S, C> {
+    /// TODO: create entity Identity and use Credentials here + Totp
     #[instrument(skip(self))]
     pub async fn login(&self, ident: &str, pwd: &str, totp: &str) -> Result<String> {
         let user = {
-            if regex::match_regex(regex::EMAIL, ident).is_ok() {
-                self.user_repo.find_by_email(ident).await
+            if Email::REGEX.is_match(ident) {
+                self.user_repo.find_by_email(&ident.try_into()?).await
             } else {
                 self.user_repo.find_by_name(ident).await
             }
         }
         .map_err(|_| Error::WrongCredentials)?;
 
-        let pwd = crypto::obfuscate(pwd, self.pwd_sufix);
-        if !user.match_password(&pwd) {
+        if Password::try_from(pwd)
+            .map(|pwd| pwd.digest(self.pwd_sufix))
+            .is_ok_and(|pwd| {
+                user.credentials
+                    .password
+                    .map(|user_pwd| user_pwd == pwd)
+                    .unwrap_or_default()
+            })
+        {
             return Err(Error::WrongCredentials);
         }
 
-        // if, and only if, the user has activated the totp
-        if let Ok(secret) = self
-            .secret_repo
-            .find_by_user_and_kind(user.get_id(), SecretKind::Totp)
+        self.secret_repo
+            .find_by_owner_and_kind(user.id, SecretKind::Totp)
             .await
-        {
-            if !secret.is_deleted() {
-                let data = secret.get_data();
-                if !crypto::verify_totp(data, totp)? {
-                    return Err(Error::Unauthorized);
-                }
-            }
-        }
+            .and_then(|secret| crypto::verify_totp(secret.data(), totp))
+            .map_err(|_| Error::Unauthorized)?;
 
         let token = self
             .token_app
-            .generate(TokenKind::Session, &user.get_id().to_string())?;
+            .generate(TokenKind::Session, &user.id.to_string())?;
 
         self.token_app.store(&token).await?;
         self.token_app.sign(&token)
@@ -78,20 +78,12 @@ pub mod tests {
     use super::SessionApplication;
     use crate::cache::tests::InMemoryCache;
     use crate::secret::application::tests::SecretRepositoryMock;
-    use crate::secret::domain::tests::TEST_DEFAULT_SECRET_DATA;
     use crate::secret::domain::{Secret, SecretKind};
     use crate::token::application::tests::{
         new_token, new_token_application, PRIVATE_KEY, PUBLIC_KEY,
     };
     use crate::token::domain::{Token, TokenKind};
-    use crate::user::domain::tests::TEST_DEFAULT_PWD_SUFIX;
-    use crate::user::{
-        application::tests::{UserRepositoryMock, TEST_FIND_BY_EMAIL_ID, TEST_FIND_BY_NAME_ID},
-        domain::tests::{
-            TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_NAME, TEST_DEFAULT_USER_PASSWORD,
-        },
-        domain::User,
-    };
+    use crate::user::{application::tests::UserRepositoryMock, domain::User};
     use crate::{
         crypto,
         result::{Error, Result},
@@ -108,14 +100,14 @@ pub mod tests {
             user_repo: Arc::new(user_repo),
             secret_repo: Arc::new(secret_repo),
             token_app: Arc::new(token_app),
-            pwd_sufix: TEST_DEFAULT_PWD_SUFIX,
+            pwd_sufix: "::test",
         }
     }
 
     #[tokio::test]
     async fn login_by_email_should_not_fail() {
         let secret_repo = SecretRepositoryMock {
-            fn_find_by_user_and_kind: Some(
+            fn_find_by_owner_and_kind: Some(
                 |_: &SecretRepositoryMock, _: i32, _: SecretKind| -> Result<Secret> {
                     Err(Error::NotFound)
                 },
@@ -127,7 +119,7 @@ pub mod tests {
         app.secret_repo = Arc::new(secret_repo);
 
         let token = app
-            .login(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD, "")
+            .login("username@server.domain", "abcABC123&", "")
             .await
             .map_err(|err| {
                 println!(
@@ -138,13 +130,13 @@ pub mod tests {
             .unwrap();
         let session: Token = crypto::decode_jwt(&PUBLIC_KEY, &token).unwrap();
 
-        assert_eq!(session.sub, TEST_FIND_BY_EMAIL_ID.to_string());
+        assert_eq!(session.sub, "123".to_string());
     }
 
     #[tokio::test]
     async fn login_by_username_should_not_fail() {
         let secret_repo = SecretRepositoryMock {
-            fn_find_by_user_and_kind: Some(
+            fn_find_by_owner_and_kind: Some(
                 |_: &SecretRepositoryMock, _: i32, _: SecretKind| -> Result<Secret> {
                     Err(Error::NotFound)
                 },
@@ -155,7 +147,7 @@ pub mod tests {
         let mut app = new_session_application();
         app.secret_repo = Arc::new(secret_repo);
         let token = app
-            .login(TEST_DEFAULT_USER_NAME, TEST_DEFAULT_USER_PASSWORD, "")
+            .login("username", "abcABC123&", "")
             .await
             .map_err(|err| {
                 println!(
@@ -165,17 +157,15 @@ pub mod tests {
             })
             .unwrap();
         let session: Token = crypto::decode_jwt(&PUBLIC_KEY, &token).unwrap();
-        assert_eq!(session.sub, TEST_FIND_BY_NAME_ID.to_string());
+        assert_eq!(session.sub, "123".to_string());
     }
 
     #[tokio::test]
     async fn login_with_totp_should_not_fail() {
         let app = new_session_application();
-        let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
-            .unwrap()
-            .generate();
+        let code = crypto::generate_totp(b"secret_data").unwrap().generate();
         let token = app
-            .login(TEST_DEFAULT_USER_NAME, TEST_DEFAULT_USER_PASSWORD, &code)
+            .login("username", "abcABC123&", &code)
             .await
             .map_err(|err| {
                 println!(
@@ -185,7 +175,7 @@ pub mod tests {
             })
             .unwrap();
         let session: Token = crypto::decode_jwt(&PUBLIC_KEY, &token).unwrap();
-        assert_eq!(session.sub, TEST_FIND_BY_NAME_ID.to_string());
+        assert_eq!(session.sub, "123".to_string());
     }
 
     #[tokio::test]
@@ -200,11 +190,9 @@ pub mod tests {
         let mut app = new_session_application();
         app.user_repo = Arc::new(user_repo);
 
-        let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
-            .unwrap()
-            .generate();
+        let code = crypto::generate_totp(b"secret_data").unwrap().generate();
 
-        app.login(TEST_DEFAULT_USER_EMAIL, TEST_DEFAULT_USER_PASSWORD, &code)
+        app.login("username@server.domain", "abcABC123&", &code)
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::WrongCredentials.to_string()))
             .unwrap_err();
@@ -213,10 +201,8 @@ pub mod tests {
     #[tokio::test]
     async fn login_wrong_password_should_fail() {
         let app = new_session_application();
-        let code = crypto::generate_totp(TEST_DEFAULT_SECRET_DATA.as_bytes())
-            .unwrap()
-            .generate();
-        app.login(TEST_DEFAULT_USER_NAME, "fake_password", &code)
+        let code = crypto::generate_totp(b"secret_data").unwrap().generate();
+        app.login("username", "fake_password", &code)
             .await
             .map_err(|err| assert_eq!(err.to_string(), Error::WrongCredentials.to_string()))
             .unwrap_err();
@@ -226,14 +212,10 @@ pub mod tests {
     async fn login_wrong_totp_should_fail() {
         let app = new_session_application();
 
-        app.login(
-            TEST_DEFAULT_USER_NAME,
-            TEST_DEFAULT_USER_PASSWORD,
-            "fake_totp",
-        )
-        .await
-        .map_err(|err| assert_eq!(err.to_string(), Error::Unauthorized.to_string()))
-        .unwrap_err();
+        app.login("username", "abcABC123&", "fake_totp")
+            .await
+            .map_err(|err| assert_eq!(err.to_string(), Error::Unauthorized.to_string()))
+            .unwrap_err();
     }
 
     #[tokio::test]
