@@ -22,7 +22,6 @@ pub mod user;
 
 mod base64;
 mod crypto;
-mod email;
 #[cfg(feature = "grpc")]
 mod grpc;
 #[cfg(feature = "rest")]

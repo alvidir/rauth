@@ -2,6 +2,7 @@
 
 use crate::base64::B64_CUSTOM_ENGINE;
 use crate::result::{Error, Result, StdResult};
+use crate::token::domain::Token;
 use crate::user::application as user_app;
 use crate::user::domain::Email;
 use base64::Engine;
@@ -164,10 +165,10 @@ impl<'a> Smtp<'a> {
 
 impl<'a> user_app::Mailer for Smtp<'a> {
     #[instrument(skip(self))]
-    fn send_credentials_verification_email(&self, email: &Email, token: &str) -> Result<()> {
+    fn send_credentials_verification_email(&self, email: &Email, token: &Token) -> Result<()> {
         let mut context = Context::new();
         context.insert("name", email.as_ref().split('@').collect::<Vec<&str>>()[0]);
-        context.insert("token", &B64_CUSTOM_ENGINE.encode(token));
+        context.insert("token", &B64_CUSTOM_ENGINE.encode(token.as_ref()));
 
         let body = self
             .tera
@@ -184,10 +185,10 @@ impl<'a> user_app::Mailer for Smtp<'a> {
     }
 
     #[instrument(skip(self))]
-    fn send_credentials_reset_email(&self, email: &Email, token: &str) -> Result<()> {
+    fn send_credentials_reset_email(&self, email: &Email, token: &Token) -> Result<()> {
         let mut context = Context::new();
         context.insert("name", email.as_ref().split('@').collect::<Vec<&str>>()[0]);
-        context.insert("token", &B64_CUSTOM_ENGINE.encode(token));
+        context.insert("token", &B64_CUSTOM_ENGINE.encode(token.as_ref()));
 
         let body = self
             .tera

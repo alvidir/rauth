@@ -1,4 +1,4 @@
-use super::domain::{Token, TokenKind};
+use super::domain::{Payload, Token, TokenKind};
 use crate::cache::Cache;
 use crate::crypto;
 use crate::result::Result;
@@ -16,40 +16,40 @@ pub struct TokenApplication<'a, C: Cache> {
 impl<'a, T: Cache> TokenApplication<'a, T> {
     /// Returns a new token with the given kind and subject.
     #[instrument(skip(self))]
-    pub fn generate(&self, kind: TokenKind, sub: &str) -> Result<Token> {
-        Ok(Token::new(kind, self.token_issuer, sub, self.timeout))
+    pub fn generate(&self, kind: TokenKind, sub: &str) -> Result<Payload> {
+        Ok(Payload::new(kind, self.token_issuer, sub, self.timeout))
     }
 
-    /// Returns the resulting string of signing the given token.
+    /// Returns the resulting [Token] of signing the given [Payload].
     #[instrument(skip(self))]
-    pub fn sign(&self, token: &Token) -> Result<String> {
-        crypto::sign_jwt(self.private_key, token)
+    pub fn sign(&self, payload: Payload) -> Result<Token> {
+        payload.into_token(self.private_key)
     }
 
-    /// Stores the given token in the cache for a limited amount of time.
+    /// Stores the given [Payload] in the cache.
     #[instrument(skip(self))]
-    pub async fn store(&self, token: &Token) -> Result<()> {
+    pub async fn store(&self, payload: &Payload) -> Result<()> {
         self.cache
-            .save(&token.jti, token, Some(token.timeout()))
+            .save(&payload.jti, payload, Some(payload.timeout()))
             .await
     }
 
-    /// Returns the paylod of the given JWT string.
+    /// Returns the [Payload] of the given [Token].
     #[instrument(skip(self))]
-    pub fn decode(&self, token: &str) -> Result<Token> {
-        crypto::decode_jwt(self.public_key, token)
+    pub fn payload(&self, token: Token) -> Result<Payload> {
+        crypto::decode_jwt(self.public_key, token.as_ref())
     }
 
-    /// Retrives the token associated to the given key, if any.
+    /// Retrives the [Payload] associated to the given token ID, if any.
     #[instrument(skip(self))]
-    pub async fn find(&self, jti: &str) -> Result<Token> {
-        self.cache.find(jti).await
+    pub async fn find(&self, id: &str) -> Result<Payload> {
+        self.cache.find(id).await
     }
 
-    /// Removes the token with the given ID from the cache, making it invalid.
+    /// Removes the entry in the cache with the given token ID.
     #[instrument(skip(self))]
-    pub async fn revoke(&self, jti: &str) -> Result<()> {
-        self.cache.delete(jti).await
+    pub async fn remove(&self, id: &str) -> Result<()> {
+        self.cache.delete(id).await
     }
 }
 
@@ -57,7 +57,7 @@ impl<'a, T: Cache> TokenApplication<'a, T> {
 pub mod tests {
     use super::TokenApplication;
     use crate::cache::tests::InMemoryCache;
-    use crate::token::domain::{Token, TokenKind};
+    use crate::token::domain::{Payload, TokenKind};
     use crate::{crypto, result::Error};
     use base64::{engine::general_purpose, Engine as _};
     use once_cell::sync::Lazy;
@@ -78,12 +78,12 @@ pub mod tests {
 
     pub const TEST_DEFAULT_TOKEN_TIMEOUT: u64 = 60;
 
-    pub fn new_token(kind: TokenKind) -> Token {
+    pub fn new_token(kind: TokenKind) -> Payload {
         const ISS: &str = "test";
         const SUB: i32 = 999;
 
         let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
-        Token::new(kind, ISS, &SUB.to_string(), timeout)
+        Payload::new(kind, ISS, &SUB.to_string(), timeout)
     }
 
     pub fn new_token_application<'a>() -> TokenApplication<'a, InMemoryCache> {
@@ -100,10 +100,9 @@ pub mod tests {
     async fn verify_token_should_not_fail() {
         let app = new_token_application();
         let token = new_token(TokenKind::Session);
-        let signed = app.sign(&token).unwrap();
-        println!(">>>>>>>>>>>>>> {}", signed);
+        let signed = app.sign(token).unwrap();
 
-        let claims = app.decode(&signed).unwrap();
+        let claims = app.payload(signed).unwrap();
 
         assert!(matches!(&claims.knd, TokenKind::Session));
     }
@@ -116,7 +115,7 @@ pub mod tests {
         let token = crypto::sign_jwt(&PRIVATE_KEY, claim).unwrap();
         let app = new_token_application();
 
-        app.decode(&token)
+        app.payload(token.into())
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
             .unwrap_err();
     }
@@ -128,7 +127,7 @@ pub mod tests {
             .replace('A', "a");
 
         let app = new_token_application();
-        app.decode(&token)
+        app.payload(token.into())
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
             .unwrap_err();
     }

@@ -4,7 +4,7 @@ use crate::result::{Error, Result};
 use crate::secret::application::SecretRepository;
 use crate::secret::domain::SecretKind;
 use crate::token::application::TokenApplication;
-use crate::token::domain::TokenKind;
+use crate::token::domain::{Token, TokenKind};
 use crate::user::application::UserRepository;
 use crate::user::domain::{Email, Password};
 use std::sync::Arc;
@@ -19,7 +19,7 @@ pub struct SessionApplication<'a, U: UserRepository, S: SecretRepository, C: Cac
 impl<'a, U: UserRepository, S: SecretRepository, C: Cache> SessionApplication<'a, U, S, C> {
     /// TODO: create entity Identity and use Credentials here + Totp
     #[instrument(skip(self))]
-    pub async fn login(&self, ident: &str, pwd: &str, totp: &str) -> Result<String> {
+    pub async fn login(&self, ident: &str, pwd: &str, totp: &str) -> Result<Token> {
         let user = {
             if Email::REGEX.is_match(ident) {
                 self.user_repo.find_by_email(&ident.try_into()?).await
@@ -30,7 +30,7 @@ impl<'a, U: UserRepository, S: SecretRepository, C: Cache> SessionApplication<'a
         .map_err(|_| Error::WrongCredentials)?;
 
         if Password::try_from(pwd)
-            .map(|pwd| pwd.digest(self.pwd_sufix))
+            .map(|pwd| pwd.salt_and_hash(self.pwd_sufix))
             .is_ok_and(|pwd| {
                 user.credentials
                     .password
@@ -47,12 +47,12 @@ impl<'a, U: UserRepository, S: SecretRepository, C: Cache> SessionApplication<'a
             .and_then(|secret| crypto::verify_totp(secret.data(), totp))
             .map_err(|_| Error::Unauthorized)?;
 
-        let token = self
+        let payload = self
             .token_app
             .generate(TokenKind::Session, &user.id.to_string())?;
 
-        self.token_app.store(&token).await?;
-        self.token_app.sign(&token)
+        self.token_app.store(&payload).await?;
+        self.token_app.sign(payload)
     }
 
     #[instrument(skip(self))]
@@ -65,12 +65,12 @@ pub(super) async fn logout_strategy<'b, C: Cache>(
     token_app: &TokenApplication<'b, C>,
     token: &str,
 ) -> Result<()> {
-    let token = token_app.decode(token)?;
+    let token = token_app.payload(token.into())?;
     if !token.knd.is_session() {
         return Err(Error::InvalidToken);
     }
 
-    token_app.revoke(&token.jti).await
+    token_app.remove(&token.jti).await
 }
 
 #[cfg(test)]
@@ -82,7 +82,7 @@ pub mod tests {
     use crate::token::application::tests::{
         new_token, new_token_application, PRIVATE_KEY, PUBLIC_KEY,
     };
-    use crate::token::domain::{Token, TokenKind};
+    use crate::token::domain::{Payload, TokenKind};
     use crate::user::domain::Email;
     use crate::user::{application::tests::UserRepositoryMock, domain::User};
     use crate::{
@@ -129,8 +129,8 @@ pub mod tests {
                 )
             })
             .unwrap();
-        let session: Token = crypto::decode_jwt(&PUBLIC_KEY, &token).unwrap();
 
+        let session = token.into_payload(&PUBLIC_KEY).unwrap();
         assert_eq!(session.sub, "123".to_string());
     }
 
@@ -157,7 +157,8 @@ pub mod tests {
                 )
             })
             .unwrap();
-        let session: Token = crypto::decode_jwt(&PUBLIC_KEY, &token).unwrap();
+
+        let session = token.into_payload(&PUBLIC_KEY).unwrap();
         assert_eq!(session.sub, "123".to_string());
     }
 
@@ -175,7 +176,8 @@ pub mod tests {
                 )
             })
             .unwrap();
-        let session: Token = crypto::decode_jwt(&PUBLIC_KEY, &token).unwrap();
+
+        let session = token.into_payload(&PUBLIC_KEY).unwrap();
         assert_eq!(session.sub, "123".to_string());
     }
 

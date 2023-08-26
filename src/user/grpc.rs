@@ -65,7 +65,7 @@ impl<
             .user_app
             .signup_with_token(token)
             .await
-            .map(|token| B64_CUSTOM_ENGINE.encode(token))
+            .map(|token| B64_CUSTOM_ENGINE.encode(token.as_ref()))
             .map_err(Status::from)?;
 
         let mut res = Response::new(Empty {});

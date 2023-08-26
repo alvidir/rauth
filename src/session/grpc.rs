@@ -43,7 +43,7 @@ impl<
             .session_app
             .login(&msg_ref.identifier, &msg_ref.password, &msg_ref.otp)
             .await
-            .map(|token| B64_CUSTOM_ENGINE.encode(token))
+            .map(|token| B64_CUSTOM_ENGINE.encode(token.as_ref()))
             .map_err(|err| Status::aborted(err.to_string()))?;
 
         let mut res = Response::new(Empty {});

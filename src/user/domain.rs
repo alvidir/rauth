@@ -80,15 +80,20 @@ impl TryFrom<&str> for Password {
     type Error = Error;
 
     fn try_from(raw: &str) -> std::result::Result<Self, Self::Error> {
-        Self::new(raw.to_string())
+        raw.to_string().try_into()
     }
 }
 
 impl TryFrom<String> for Password {
     type Error = Error;
 
+    /// Builds a [Password] from the given string if, and only if, the string matches the
+    /// password's regex.
     fn try_from(raw: String) -> std::result::Result<Self, Self::Error> {
-        Self::new(raw)
+        Self::REGEX
+            .is_match(&raw)
+            .then_some(Self(raw))
+            .ok_or(Error::InvalidFormat)
     }
 }
 
@@ -97,18 +102,9 @@ impl Password {
 
     pub const REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(Self::PATTERN).unwrap());
 
-    /// Builds a [Password] from the given string if, and only if, the string matches the
-    /// password's regex.
-    pub fn new(raw: String) -> Result<Self> {
-        Self::REGEX
-            .is_match(&raw)
-            .then_some(Self(raw))
-            .ok_or(Error::InvalidFormat)
-    }
-
     /// Given a sufix to append to the hash of self, returns the password containing the digest of the
     /// resulting concatenation.
-    pub fn digest(mut self, sufix: &str) -> Self {
+    pub fn salt_and_hash(mut self, sufix: &str) -> Self {
         self.0 = sha256::digest(self.0);
         self.0 = format!("{}{}", self.0, sufix);
         self.0 = sha256::digest(self.0);
@@ -232,8 +228,8 @@ pub mod tests {
         .into_iter()
         .for_each(|test| {
             let result: Result<Email> = test.input.try_into();
-            assert_eq!(result.is_err(), test.must_fail);
-            assert_eq!(result.ok(), test.output);
+            assert_eq!(result.is_err(), test.must_fail, "{}", test.name);
+            assert_eq!(result.ok(), test.output, "{}", test.name);
         })
     }
 
@@ -242,24 +238,34 @@ pub mod tests {
         struct Test<'a> {
             name: &'a str,
             input: Email,
-            output: Email,
+            output: Option<Email>,
         }
 
         vec![
             Test {
                 name: "email without sufix",
                 input: Email("username@server.domain".to_string()),
-                output: Email("username@server.domain".to_string()),
+                output: None,
             },
             Test {
                 name: "email with sufix",
                 input: Email("username+sufix@server.domain".to_string()),
-                output: Email("username@server.domain".to_string()),
+                output: Some(Email("username@server.domain".to_string())),
+            },
+            Test {
+                name: "email with empty sufix",
+                input: Email("username+@server.domain".to_string()),
+                output: Some(Email("username@server.domain".to_string())),
             },
         ]
         .into_iter()
         .for_each(|test| {
-            assert_eq!(Email::try_from(test.input).unwrap(), test.output);
+            assert_eq!(
+                Email::try_from(test.input).unwrap().actual_email(),
+                test.output,
+                "{}",
+                test.name
+            );
         })
     }
 
@@ -323,8 +329,8 @@ pub mod tests {
         .into_iter()
         .for_each(|test| {
             let result: Result<Password> = test.input.try_into();
-            assert_eq!(result.is_err(), test.must_fail);
-            assert_eq!(result.ok(), test.output);
+            assert_eq!(result.is_err(), test.must_fail, "{}", test.name);
+            assert_eq!(result.ok(), test.output, "{}", test.name);
         })
     }
 

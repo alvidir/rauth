@@ -1,4 +1,4 @@
-use crate::crypto;
+use crate::{crypto, result::Result};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::hash::Hash;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -24,31 +24,34 @@ impl TokenKind {
     }
 }
 
-// TODO: rename Token to Payload and create the Token(String) type
+/// Represents the payload of a JWT, containing the claims.
 #[derive(Debug, Hash, Serialize, Deserialize)]
-pub struct Token {
-    pub jti: String, // JWT ID
+pub struct Payload {
+    pub jti: String,
     #[serde(
         serialize_with = "as_unix_timestamp",
         deserialize_with = "from_unix_timestamp"
     )]
-    pub exp: SystemTime, // expiration time - required
+    pub exp: SystemTime,
     #[serde(
         serialize_with = "as_unix_timestamp",
         deserialize_with = "from_unix_timestamp"
     )]
-    pub nbf: SystemTime, // not before time - non required
+    pub nbf: SystemTime,
     #[serde(
         serialize_with = "as_unix_timestamp",
         deserialize_with = "from_unix_timestamp"
     )]
-    pub iat: SystemTime, // issued at: creation time
-    pub iss: String, // issuer
-    pub sub: String, // subject
-    pub knd: TokenKind, // kind - required
+    pub iat: SystemTime,
+    pub iss: String,
+    pub sub: String,
+    pub knd: TokenKind,
 }
 
-fn as_unix_timestamp<S>(timestamp: &SystemTime, serializer: S) -> Result<S::Ok, S::Error>
+fn as_unix_timestamp<S>(
+    timestamp: &SystemTime,
+    serializer: S,
+) -> std::result::Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
@@ -60,7 +63,7 @@ where
         .and_then(|timestamp| serializer.serialize_u64(timestamp.as_secs()))
 }
 
-fn from_unix_timestamp<'de, D>(deserializer: D) -> Result<SystemTime, D::Error>
+fn from_unix_timestamp<'de, D>(deserializer: D) -> std::result::Result<SystemTime, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -75,9 +78,9 @@ where
         })
 }
 
-impl Token {
+impl Payload {
     pub fn new(kind: TokenKind, iss: &str, sub: &str, timeout: Duration) -> Self {
-        let mut token = Token {
+        let mut token = Payload {
             jti: crypto::get_random_string(8), // noise
             exp: SystemTime::now() + timeout,
             nbf: SystemTime::now(),
@@ -98,23 +101,44 @@ impl Token {
             .unwrap_or_default()
     }
 
-    // pub fn signed(&self, key: &str) -> Result<SignedToken> {
-    //     todo!()
-    // }
+    /// Give a private key with which sign the token containing self, returns the result wrap into an instance of [Token].
+    pub fn into_token(self, private_key: &[u8]) -> Result<Token> {
+        crypto::sign_jwt(private_key, self).map(Token::from)
+    }
 }
 
-/// Represents a [Token] that has been signed.
-pub struct SignedToken(String);
+/// Represents a signed token.
+#[derive(Debug)]
+pub struct Token(String);
 
-impl AsRef<str> for SignedToken {
+impl From<String> for Token {
+    fn from(value: String) -> Self {
+        Token(value)
+    }
+}
+
+impl From<&str> for Token {
+    fn from(value: &str) -> Self {
+        Token(value.to_string())
+    }
+}
+
+impl AsRef<str> for Token {
     fn as_ref(&self) -> &str {
         &self.0
     }
 }
 
+impl Token {
+    /// Given a public key with which verify the token, returns its corresponding [Payload].
+    pub fn into_payload(self, public_key: &[u8]) -> Result<Payload> {
+        crypto::decode_jwt(public_key, &self.0)
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
-    use super::{Token, TokenKind};
+    use super::{Payload, TokenKind};
     use crate::crypto;
     use base64::{engine::general_purpose, Engine as _};
     use std::time::{Duration, SystemTime};
@@ -131,7 +155,7 @@ pub mod tests {
         let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
 
         let before = SystemTime::now();
-        let claim = Token::new(TokenKind::Session, ISS, &SUB.to_string(), timeout);
+        let claim = Payload::new(TokenKind::Session, ISS, &SUB.to_string(), timeout);
         let after = SystemTime::now();
 
         assert!(claim.iat >= before && claim.iat <= after);
@@ -147,13 +171,13 @@ pub mod tests {
         const ISS: &str = "test";
         const SUB: i32 = 999;
         let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
-        let claim = Token::new(TokenKind::Session, ISS, &SUB.to_string(), timeout);
+        let claim = Payload::new(TokenKind::Session, ISS, &SUB.to_string(), timeout);
 
         let secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let token = crypto::sign_jwt(&secret, claim).unwrap();
 
         let public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
-        let _ = crypto::decode_jwt::<Token>(&public, &token).unwrap();
+        let _ = crypto::decode_jwt::<Payload>(&public, &token).unwrap();
     }
 
     #[test]
@@ -164,13 +188,13 @@ pub mod tests {
         const SUB: i32 = 999;
 
         let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
-        let mut claim = Token::new(TokenKind::Session, ISS, &SUB.to_string(), timeout);
+        let mut claim = Payload::new(TokenKind::Session, ISS, &SUB.to_string(), timeout);
         claim.exp = SystemTime::now() - Duration::from_secs(61);
 
         let secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
         let token = crypto::sign_jwt(&secret, claim).unwrap();
         let public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
 
-        assert!(crypto::decode_jwt::<Token>(&public, &token).is_err());
+        assert!(crypto::decode_jwt::<Payload>(&public, &token).is_err());
     }
 }
