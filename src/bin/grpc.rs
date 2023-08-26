@@ -3,9 +3,7 @@ extern crate tracing;
 
 use rauth::{
     cache::RedisCache,
-    config,
-    metadata::repository::PostgresMetadataRepository,
-    postgres, rabbitmq, redis,
+    config, postgres, rabbitmq, redis,
     secret::repository::PostgresSecretRepository,
     session::{
         application::SessionApplication,
@@ -35,18 +33,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     tracer::init()?;
 
-    let metadata_repo = Arc::new(PostgresMetadataRepository {
-        pool: &postgres::POSTGRES_POOL,
-    });
-
     let secret_repo = Arc::new(PostgresSecretRepository {
         pool: &postgres::POSTGRES_POOL,
-        metadata_repo: metadata_repo.clone(),
     });
 
     let user_repo = Arc::new(PostgresUserRepository {
         pool: &postgres::POSTGRES_POOL,
-        metadata_repo: metadata_repo.clone(),
     });
 
     let user_event_bus = Arc::new(RabbitMqUserBus {

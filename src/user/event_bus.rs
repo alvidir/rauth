@@ -28,9 +28,9 @@ impl<'a> EventBus for RabbitMqUserBus<'a> {
     #[instrument(skip(self))]
     async fn emit_user_created(&self, user: &User) -> Result<()> {
         let event = UserEventPayload {
-            user_id: user.get_id(),
-            user_name: user.get_name().split('@').collect::<Vec<&str>>()[0],
-            user_email: user.get_email(),
+            user_id: user.id,
+            user_name: user.credentials.email.username(),
+            user_email: user.credentials.email.as_ref(),
             event_issuer: self.issuer,
             event_kind: EventKind::Created,
         };

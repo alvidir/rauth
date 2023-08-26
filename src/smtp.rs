@@ -104,10 +104,10 @@ impl<'a> SmtpBuilder<'a> {
             origin: self.origin.parse()?,
             mailer: mailer.build(),
             tera: Tera::new(self.templates)?,
-            verification_subject: DEFAULT_VERIFICATION_SUBJECT,
-            verification_template: DEFAULT_VERIFICATION_TEMPLATE,
-            reset_subject: DEFAULT_RESET_SUBJECT,
-            reset_template: DEFAULT_RESET_TEMPLATE,
+            verification_subject: self.verification_subject,
+            verification_template: self.verification_template,
+            reset_subject: self.reset_subject,
+            reset_template: self.reset_template,
         })
     }
 }
@@ -184,7 +184,7 @@ impl<'a> user_app::Mailer for Smtp<'a> {
     }
 
     #[instrument(skip(self))]
-    fn send_credentials_recovery_email(&self, email: &Email, token: &str) -> Result<()> {
+    fn send_credentials_reset_email(&self, email: &Email, token: &str) -> Result<()> {
         let mut context = Context::new();
         context.insert("name", email.as_ref().split('@').collect::<Vec<&str>>()[0]);
         context.insert("token", &B64_CUSTOM_ENGINE.encode(token));

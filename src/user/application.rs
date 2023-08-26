@@ -1,6 +1,5 @@
 use super::domain::{Credentials, Email, Password, User};
 use crate::cache::Cache;
-use crate::crypto;
 use crate::result::{Error, Result};
 use crate::secret::domain::SecretKind;
 use crate::secret::{application::SecretRepository, domain::Secret};
@@ -8,6 +7,7 @@ use crate::token::{
     application::TokenApplication,
     domain::{Token, TokenKind},
 };
+use crate::{crypto, email};
 use async_trait::async_trait;
 use chrono::Utc;
 use std::num::ParseIntError;
@@ -30,7 +30,7 @@ pub trait EventBus {
 
 pub trait Mailer {
     fn send_credentials_verification_email(&self, to: &Email, token: &str) -> Result<()>;
-    fn send_credentials_recovery_email(&self, to: &Email, token: &str) -> Result<()>;
+    fn send_credentials_reset_email(&self, to: &Email, token: &str) -> Result<()>;
 }
 
 pub struct UserApplication<
@@ -222,33 +222,34 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
         }
 
         // if, and only if, the user has activated the totp
-        let mut secret_lookup = self
-            .secret_repo
-            .find_by_owner_and_kind(user.id, SecretKind::Totp)
-            .await
-            .ok();
+        // let mut secret_lookup = self
+        //     .secret_repo
+        //     .find_by_owner_and_kind(user.id, SecretKind::Totp)
+        //     .await
+        //     .ok();
 
-        if let Some(secret) = &mut secret_lookup {
-            if !secret.is_deleted() {
-                // the totp is already enabled
-                return Err(Error::NotAvailable);
-            }
+        // if let Some(secret) = &mut secret_lookup {
+        //     if !secret.is_deleted() {
+        //         // the totp is already enabled
+        //         return Err(Error::NotAvailable);
+        //     }
 
-            let data = secret.get_data();
-            if !crypto::verify_totp(data, totp)? {
-                return Err(Error::Unauthorized);
-            }
+        //     let data = secret.get_data();
+        //     if !crypto::verify_totp(data, totp)? {
+        //         return Err(Error::Unauthorized);
+        //     }
 
-            secret.set_deleted_at(None);
-            self.secret_repo.save(secret).await?;
-            return Ok(None);
-        }
+        //     secret.set_deleted_at(None);
+        //     self.secret_repo.save(secret).await?;
+        //     return Ok(None);
+        // }
 
-        let token = crypto::get_random_string(self.totp_secret_len);
-        let mut secret = Secret::new(SecretKind::Totp, token.as_bytes(), &user);
-        secret.set_deleted_at(Some(Utc::now().naive_utc())); // unavailable till confirmed
-        self.secret_repo.create(&mut secret).await?;
-        Ok(Some(token))
+        // let token = crypto::get_random_string(self.totp_secret_len);
+        // let mut secret = Secret::new(SecretKind::Totp, token.as_bytes(), &user);
+        // secret.set_deleted_at(Some(Utc::now().naive_utc())); // unavailable till confirmed
+        // self.secret_repo.create(&mut secret).await?;
+        // Ok(Some(token))
+        todo!()
     }
 
     #[instrument(skip(self))]
@@ -291,52 +292,60 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
         }
 
         // if, and only if, the user has activated the totp
-        let mut secret_lookup = self
-            .secret_repo
-            .find_by_user_and_kind(user.id, SecretKind::Totp)
-            .await
-            .ok();
+        // let mut secret_lookup = self
+        //     .secret_repo
+        //     .find_by_user_and_kind(user.id, SecretKind::Totp)
+        //     .await
+        //     .ok();
 
-        if let Some(secret) = &mut secret_lookup {
-            if secret.is_deleted() {
-                // the totp is not enabled yet
-                return Err(Error::NotAvailable);
-            }
+        // if let Some(secret) = &mut secret_lookup {
+        //     if secret.is_deleted() {
+        //         // the totp is not enabled yet
+        //         return Err(Error::NotAvailable);
+        //     }
 
-            let data = secret.get_data();
-            if !crypto::verify_totp(data, totp)? {
-                return Err(Error::Unauthorized);
-            }
+        //     let data = secret.get_data();
+        //     if !crypto::verify_totp(data, totp)? {
+        //         return Err(Error::Unauthorized);
+        //     }
 
-            self.secret_repo.delete(secret).await?;
-            return Ok(());
-        }
+        //     self.secret_repo.delete(secret).await?;
+        //     return Ok(());
+        // }
 
         Err(Error::NotAvailable)
     }
 
+    /// Sends an email with the token to be passed as parameter to the reset_credentials_with_token method.
     #[instrument(skip(self))]
-    pub async fn verify_reset_email(&self, email: &str) -> Result<()> {
-        let user = match self.user_repo.find_by_email(email).await {
-            Err(_) => return Ok(()), // returns Ok to not provide information about users
+    pub async fn verify_credentials_reset(&self, email: &str) -> Result<()> {
+        let email = email.try_into()?;
+        let user = match self.user_repo.find_by_email(&email).await {
+            // returns Ok to not provide information about users
+            // TODO: this "avoid giving information" should be done at the infrastucture level
+            Err(_) => return Ok(()),
             Ok(user) => user,
         };
 
         let token = self
             .token_app
-            .generate(TokenKind::Reset, &user.get_id().to_string())?;
+            .generate(TokenKind::Reset, &user.id.to_string())?;
 
         self.token_app.store(&token).await?;
         let signed = self.token_app.sign(&token)?;
 
-        self.mailer
-            .send_credentials_recovery_email(email, &signed)?;
+        self.mailer.send_credentials_reset_email(&email, &signed)?;
 
         Ok(())
     }
 
     #[instrument(skip(self))]
-    pub async fn reset_with_token(&self, token: &str, new_pwd: &str, totp: &str) -> Result<()> {
+    pub async fn reset_credentials_with_token(
+        &self,
+        token: &str,
+        new_pwd: &str,
+        totp: &str,
+    ) -> Result<()> {
         let claims: Token = self.token_app.decode(token)?;
         if !claims.knd.is_reset() {
             return Err(Error::InvalidToken);
@@ -350,39 +359,46 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
             Error::InvalidToken
         })?;
 
-        self.reset(user_id, new_pwd, totp).await?;
+        self.reset_credentials(user_id, new_pwd, totp).await?;
         self.token_app.revoke(&claims.jti).await?;
         Ok(())
     }
 
     #[instrument(skip(self))]
-    pub async fn reset(&self, user_id: i32, new_pwd: &str, totp: &str) -> Result<()> {
+    pub async fn reset_credentials(&self, user_id: i32, new_pwd: &str, totp: &str) -> Result<()> {
         let mut user = self
             .user_repo
             .find(user_id)
             .await
             .map_err(|_| Error::WrongCredentials)?;
 
-        let new_pwd = new_pwd.try_into()?.digest(self.pwd_sufix);
-        if user.match_password(&new_pwd) {
+        let new_pwd = Password::try_from(new_pwd)?.digest(self.pwd_sufix);
+
+        if user
+            .credentials
+            .password
+            .as_ref()
+            .map(|password| password == &new_pwd)
+            .unwrap_or_default()
+        {
             return Err(Error::WrongCredentials);
         }
 
         // if, and only if, the user has activated the totp
-        if let Ok(secret) = self
-            .secret_repo
-            .find_by_user_and_kind(user.get_id(), SecretKind::Totp)
-            .await
-        {
-            if !secret.is_deleted() {
-                let data = secret.get_data();
-                if !crypto::verify_totp(data, totp)? {
-                    return Err(Error::Unauthorized);
-                }
-            }
-        }
+        // if let Ok(secret) = self
+        //     .secret_repo
+        //     .find_by_user_and_kind(user.get_id(), SecretKind::Totp)
+        //     .await
+        // {
+        //     if !secret.is_deleted() {
+        //         let data = secret.get_data();
+        //         if !crypto::verify_totp(data, totp)? {
+        //             return Err(Error::Unauthorized);
+        //         }
+        //     }
+        // }
 
-        user.set_password(&new_pwd)?;
+        user.credentials.set_password(Some(new_pwd));
         self.user_repo.save(&user).await
     }
 }
@@ -396,6 +412,7 @@ pub mod tests {
     use crate::secret::{application::tests::SecretRepositoryMock, domain::Secret};
     use crate::token::application::tests::{new_token_application, PRIVATE_KEY, PUBLIC_KEY};
     use crate::token::domain::{Token, TokenKind};
+    use crate::user::domain::Email;
     use crate::{
         crypto,
         result::{Error, Result},
@@ -406,7 +423,7 @@ pub mod tests {
     use std::time::Duration;
 
     type MockFnFind = fn(this: &UserRepositoryMock, id: i32) -> Result<User>;
-    type MockFnFindByEmail = fn(this: &UserRepositoryMock, email: &str) -> Result<User>;
+    type MockFnFindByEmail = fn(this: &UserRepositoryMock, email: &Email) -> Result<User>;
     type MockFnFindByName = fn(this: &UserRepositoryMock, name: &str) -> Result<User>;
     type MockFnCreate = fn(this: &UserRepositoryMock, user: &mut User) -> Result<()>;
     type MockFnSave = fn(this: &UserRepositoryMock, user: &User) -> Result<()>;
@@ -432,7 +449,7 @@ pub mod tests {
             Err(Error::Unknown)
         }
 
-        async fn find_by_email(&self, email: &str) -> Result<User> {
+        async fn find_by_email(&self, email: &Email) -> Result<User> {
             if let Some(f) = self.fn_find_by_email {
                 return f(self, email);
             }
@@ -497,7 +514,7 @@ pub mod tests {
     }
 
     impl Mailer for MailerMock {
-        fn send_credentials_verification_email(&self, _: &str, _: &str) -> Result<()> {
+        fn send_credentials_verification_email(&self, _: &Email, _: &str) -> Result<()> {
             if self.force_fail {
                 return Err(Error::Unknown);
             }
@@ -505,7 +522,7 @@ pub mod tests {
             Ok(())
         }
 
-        fn send_credentials_recovery_email(&self, _: &str, _: &str) -> Result<()> {
+        fn send_credentials_reset_email(&self, _: &Email, _: &str) -> Result<()> {
             if self.force_fail {
                 return Err(Error::Unknown);
             }

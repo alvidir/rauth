@@ -83,6 +83,7 @@ pub mod tests {
         new_token, new_token_application, PRIVATE_KEY, PUBLIC_KEY,
     };
     use crate::token::domain::{Token, TokenKind};
+    use crate::user::domain::Email;
     use crate::user::{application::tests::UserRepositoryMock, domain::User};
     use crate::{
         crypto,
@@ -181,7 +182,7 @@ pub mod tests {
     #[tokio::test]
     async fn login_user_not_found_should_fail() {
         let user_repo = UserRepositoryMock {
-            fn_find_by_email: Some(|_: &UserRepositoryMock, _: &str| -> Result<User> {
+            fn_find_by_email: Some(|_: &UserRepositoryMock, _: &Email| -> Result<User> {
                 Err(Error::WrongCredentials)
             }),
             ..Default::default()

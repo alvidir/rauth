@@ -2,7 +2,10 @@ use super::application::Mailer;
 use crate::base64::B64_CUSTOM_ENGINE;
 use crate::cache::Cache;
 use crate::secret::application::SecretRepository;
-use crate::user::application::{EventBus, UserApplication, UserRepository};
+use crate::user::{
+    application::{EventBus, UserApplication, UserRepository},
+    domain::Credentials,
+};
 use crate::{grpc, result::Error};
 use base64::Engine;
 use tonic::metadata::errors::InvalidMetadataValue;
@@ -21,7 +24,20 @@ use proto::user_server::User;
 pub use proto::user_server::UserServer;
 
 // Proto message structs
-use proto::{DeleteRequest, Empty, ResetRequest, SignupRequest, TotpRequest};
+use proto::{DeleteRequest, Empty, MfaRequest, ResetRequest, SignupRequest};
+
+impl TryFrom<SignupRequest> for Credentials {
+    type Error = Status;
+
+    fn try_from(value: SignupRequest) -> Result<Self, Self::Error> {
+        if value.password.is_empty() {
+            (value.email.as_str()).try_into()
+        } else {
+            (value.email.as_str(), value.password.as_str()).try_into()
+        }
+        .map_err(|_| Status::from(Error::InvalidFormat))
+    }
+}
 
 pub struct UserGrpcService<
     U: UserRepository + Sync + Send,
@@ -68,7 +84,7 @@ impl<
         request: SignupRequest,
     ) -> Result<Response<Empty>, Status> {
         self.user_app
-            .verify_credentials(&request.email, &request.pwd)
+            .verify_credentials(request.try_into()?)
             .await
             .map_err(|err| Status::aborted(err.to_string()))?;
 
@@ -104,7 +120,7 @@ impl<
             let msg_ref = request.into_inner();
             return self
                 .user_app
-                .reset_with_token(&token, &msg_ref.pwd, &msg_ref.totp)
+                .reset_credentials_with_token(&token, &msg_ref.new_password, &msg_ref.otp)
                 .await
                 .map(|_| Response::new(Empty {}))
                 .map_err(|err| Status::aborted(err.to_string()));
@@ -112,7 +128,7 @@ impl<
 
         let msg_ref = request.into_inner();
         self.user_app
-            .verify_reset_email(&msg_ref.email)
+            .verify_credentials_reset(&msg_ref.email)
             .await
             .map_err(|err| Status::aborted(err.to_string()))?;
 
@@ -124,21 +140,21 @@ impl<
         let token = grpc::get_encoded_header(&request, self.jwt_header)?;
         let request = request.into_inner();
         self.user_app
-            .delete_with_token(&token, &request.pwd, &request.totp)
+            .delete_with_token(&token, &request.password, &request.otp)
             .await
             .map(|_| Response::new(Empty {}))
             .map_err(|err| Status::aborted(err.to_string()))
     }
 
     #[instrument(skip(self))]
-    async fn totp(&self, request: Request<TotpRequest>) -> Result<Response<Empty>, Status> {
+    async fn mfa(&self, request: Request<MfaRequest>) -> Result<Response<Empty>, Status> {
         let token = grpc::get_encoded_header(&request, self.jwt_header)?;
         let msg_ref = request.into_inner();
 
         if msg_ref.action == TOTP_ACTION_DISABLE {
             return self
                 .user_app
-                .disable_totp_with_token(&token, &msg_ref.pwd, &msg_ref.totp)
+                .disable_totp_with_token(&token, &msg_ref.password, &msg_ref.otp)
                 .await
                 .map(|_| Response::new(Empty {}))
                 .map_err(|err| Status::unknown(err.to_string()));
@@ -147,7 +163,7 @@ impl<
         if msg_ref.action == TOTP_ACTION_ENABLE {
             let token = self
                 .user_app
-                .enable_totp_with_token(&token, &msg_ref.pwd, &msg_ref.totp)
+                .enable_totp_with_token(&token, &msg_ref.password, &msg_ref.otp)
                 .await
                 .map_err(|err| Status::aborted(err.to_string()))?;
 

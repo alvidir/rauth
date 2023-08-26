@@ -41,7 +41,7 @@ impl<
         let msg_ref = request.into_inner();
         let token = self
             .session_app
-            .login(&msg_ref.ident, &msg_ref.pwd, &msg_ref.totp)
+            .login(&msg_ref.identifier, &msg_ref.password, &msg_ref.otp)
             .await
             .map(|token| B64_CUSTOM_ENGINE.encode(token))
             .map_err(|err| Status::aborted(err.to_string()))?;

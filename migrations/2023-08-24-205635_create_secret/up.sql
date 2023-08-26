@@ -1,7 +1,7 @@
 -- Your SQL goes here
-CREATE TYPE SECRET AS ENUM ('totp');
+CREATE TYPE IF NOT EXISTS SECRET AS ENUM ('totp');
 
-CREATE TABLE Secrets (
+CREATE TABLE IF NOT EXISTS Secrets (
     id SERIAL PRIMARY KEY,
     kind SECRET NOT NULL,
     owner INTEGER NOT NULL,
@@ -9,7 +9,8 @@ CREATE TABLE Secrets (
 
     UNIQUE (kind, owner),
 
-    FOREIGN KEY (owner)
+    CONSTRAINT fk_user_id
+        FOREIGN KEY (owner)
         REFERENCES Users(id),
 );
 

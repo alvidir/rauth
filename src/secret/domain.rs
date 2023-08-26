@@ -12,7 +12,7 @@ pub struct Secret {
     pub id: i32,
     pub owner: i32,
     pub kind: SecretKind,
-    data: Vec<u8>, // read-only data
+    pub(crate) data: Vec<u8>, // read-only data
 }
 
 impl Secret {

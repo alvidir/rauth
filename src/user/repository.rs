@@ -15,7 +15,7 @@ const QUERY_UPDATE_USER: &str =
     "UPDATE users SET name = $1, email = $2, actual_email = $3, password = $4 WHERE id = $5";
 const QUERY_DELETE_USER: &str = "DELETE FROM users WHERE id = $1";
 
-type PostgresUserRow = (i32, String, String); // id, email, password
+type PostgresUserRow = (i32, String, Option<String>); // id, email, password
 
 impl TryFrom<PostgresUserRow> for User {
     type Error = Error;
@@ -23,7 +23,10 @@ impl TryFrom<PostgresUserRow> for User {
     fn try_from(value: PostgresUserRow) -> Result<Self> {
         Ok(User {
             id: value.0,
-            credentials: (value.1.as_str(), value.2.as_str()).try_into()?,
+            credentials: value
+                .2
+                .map(|password| (value.1.as_str(), password.as_str()).try_into())
+                .unwrap_or_else(|| (value.1.as_str()).try_into())?,
         })
     }
 }
@@ -99,16 +102,22 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
 
     async fn create(&self, user: &mut User) -> Result<()> {
         let row: (i32,) = sqlx::query_as(QUERY_INSERT_USER)
-            .bind(user.credentials.email.username())
-            .bind(user.credentials.email.as_ref())
+            .bind(user.credentials.email.username().to_string())
+            .bind(user.credentials.email.as_ref().to_string())
             .bind(
                 user.credentials
                     .email
                     .actual_email()
-                    .unwrap_or(user.credentials.email)
-                    .as_ref(),
+                    .map(|email| email.as_ref().to_string())
+                    .unwrap_or(user.credentials.email.as_ref().to_string()),
             )
-            .bind(user.credentials.password.ok_or(Error::Unknown)?)
+            .bind(
+                user.credentials
+                    .password
+                    .as_ref()
+                    .map(|pwd| pwd.as_ref().to_string())
+                    .ok_or(Error::Unknown)?,
+            )
             .fetch_one(self.pool)
             .await
             .map_err(|err| {
@@ -117,8 +126,7 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
                     "performing insert query on postgres",
                 );
                 Error::Unknown
-            })
-            .and_then(PostgresUserRow::try_into)?;
+            })?;
 
         user.id = row.0;
         Ok(())
@@ -126,10 +134,22 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
 
     async fn save(&self, user: &User) -> Result<()> {
         sqlx::query(QUERY_UPDATE_USER)
-            .bind(&user.name)
-            .bind(&user.email)
-            .bind(&user.actual_email)
-            .bind(&user.password)
+            .bind(user.credentials.email.username())
+            .bind(user.credentials.email.as_ref())
+            .bind(
+                user.credentials
+                    .email
+                    .actual_email()
+                    .map(|email| email.as_ref().to_string())
+                    .unwrap_or(user.credentials.email.as_ref().to_string()),
+            )
+            .bind(
+                user.credentials
+                    .password
+                    .as_ref()
+                    .map(|pwd| pwd.as_ref().to_string())
+                    .ok_or(Error::Unknown)?,
+            )
             .bind(user.id)
             .execute(self.pool)
             .await
@@ -145,22 +165,19 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
     }
 
     async fn delete(&self, user: &User) -> Result<()> {
-        {
-            // block is required because of connection release
-            sqlx::query(QUERY_DELETE_USER)
-                .bind(user.id)
-                .execute(self.pool)
-                .await
-                .map_err(|err| {
-                    error!(
-                        error = err.to_string(),
-                        "performing delete query on postgres",
-                    );
-                    Error::Unknown
-                })?;
-        }
+        sqlx::query(QUERY_DELETE_USER)
+            .bind(user.id)
+            .execute(self.pool)
+            .await
+            .map_err(|err| {
+                error!(
+                    error = err.to_string(),
+                    "performing delete query on postgres",
+                );
 
-        self.metadata_repo.delete(&user.meta).await?; // another connection consumed here
+                Error::Unknown
+            })?;
+
         Ok(())
     }
 }

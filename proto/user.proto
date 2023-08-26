@@ -4,29 +4,29 @@ package user;
 
 message SignupRequest {
   string email = 1;
-  string pwd = 2;
+  string password = 2;
 }
 
 message ResetRequest {
   string email = 1;
-  string pwd = 2;
-  string totp = 3;
+  string new_password = 2;
+  string otp = 3;
 }
 
 message DeleteRequest {
-  string pwd = 1;
-  string totp = 2;
+  string password = 1;
+  string otp = 2;
 }
 
-message TotpRequest {
+message MfaRequest {
   enum actions {
     ENABLE = 0;
     DISABLE = 1;
   };
 
   actions action = 1;
-  string pwd = 2;
-  string totp = 3;
+  string password = 2;
+  string otp = 3;
 }
 
 message Empty {}
@@ -35,5 +35,5 @@ service User {
   rpc Signup(SignupRequest) returns (Empty);
   rpc Reset(ResetRequest) returns (Empty);
   rpc Delete(DeleteRequest) returns (Empty);
-  rpc Totp(TotpRequest) returns (Empty);
+  rpc Mfa(MfaRequest) returns (Empty);
 }

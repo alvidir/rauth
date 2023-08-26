@@ -152,6 +152,10 @@ impl Credentials {
         self.password = Some(password);
         self
     }
+
+    pub fn set_password(&mut self, password: Option<Password>) {
+        self.password = password;
+    }
 }
 
 /// Represents a signed up user
