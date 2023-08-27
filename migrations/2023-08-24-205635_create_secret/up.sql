@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS Secrets (
     id SERIAL PRIMARY KEY,
     kind SECRET NOT NULL,
     owner INTEGER NOT NULL,
-    data BYTEA NOT NULL,
+    data TEXT NOT NULL,
 
     UNIQUE (kind, owner),
 

@@ -70,8 +70,8 @@ impl Email {
 /// Represents a password.
 #[derive(Debug, Default, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Password {
-    hash: String,
-    salt: String,
+    pub(super) hash: Vec<u8>,
+    pub(super) salt: Vec<u8>,
 }
 
 impl TryFrom<&str> for Password {
@@ -99,8 +99,8 @@ impl TryFrom<String> for Password {
         Self::ARGON_CTX
             .hash_password_into(password.as_bytes(), &salt, &mut hash)
             .map(|_| Self {
-                hash: String::from_utf8_lossy(&hash).to_string(),
-                salt: String::from_utf8_lossy(&salt).to_string(),
+                hash: hash.to_vec(),
+                salt: salt.to_vec(),
             })
             .map_err(|_| Error::Unknown)
     }
@@ -122,15 +122,11 @@ impl Password {
     const ARGON_CTX: Lazy<Argon2<'_>> =
         Lazy::new(|| Argon2::new(Algorithm::Argon2id, Version::V0x13, Params::default()));
 
-    pub fn new(hash: String, salt: String) -> Self {
-        Self { hash, salt }
-    }
-
-    pub fn hash(&self) -> &str {
+    pub fn hash(&self) -> &[u8] {
         &self.hash
     }
 
-    pub fn salt(&self) -> &str {
+    pub fn salt(&self) -> &[u8] {
         &self.salt
     }
 }

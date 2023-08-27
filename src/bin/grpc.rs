@@ -39,6 +39,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let user_repo = Arc::new(PostgresUserRepository {
         pool: &postgres::POSTGRES_POOL,
+        secret_repo: secret_repo.clone(),
     });
 
     let user_event_bus = Arc::new(RabbitMqUserBus {

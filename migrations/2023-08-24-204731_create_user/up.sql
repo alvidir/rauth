@@ -4,5 +4,5 @@ CREATE TABLE IF NOT EXISTS Users (
     name VARCHAR(64) NOT NULL UNIQUE,
     email VARCHAR(64) NOT NULL UNIQUE,
     actual_email VARCHAR(64) NOT NULL UNIQUE,
-    password BYTEA,
+    password VARCHAR(128),
 );

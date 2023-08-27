@@ -1,6 +1,7 @@
 use super::domain::SecretKind;
 use super::{application::SecretRepository, domain::Secret};
 use crate::result::{Error, Result};
+use crate::user::domain::User;
 use async_trait::async_trait;
 use sqlx::error::Error as SqlError;
 use sqlx::postgres::PgPool;
@@ -12,6 +13,7 @@ const QUERY_FIND_SECRET: &str = "SELECT id, owner, kind, data FROM secrets WHERE
 const QUERY_FIND_SECRET_BY_OWNER_AND_KIND: &str =
     "SELECT id, owner, kind, data FROM secrets WHERE owner = $1 AND kind = $2";
 const QUERY_DELETE_SECRET: &str = "DELETE FROM secrets WHERE id = $1";
+const QUERY_DELETE_SECRET_BY_OWNER: &str = "DELETE FROM secrets WHERE owner = $1";
 
 type PostgresSecretRow = (i32, i32, String, String); // id, owner, kind, data
 
@@ -109,6 +111,22 @@ impl<'a> SecretRepository for PostgresSecretRepository<'a> {
         sqlx::query(QUERY_DELETE_SECRET)
             .bind(secret.id)
             .fetch_one(self.pool)
+            .await
+            .map_err(|err| {
+                error!(
+                    error = err.to_string(),
+                    "performing delete query on postgres",
+                );
+                Error::Unknown
+            })
+            .map(|_| ())
+    }
+
+    #[instrument(skip(self))]
+    async fn delete_by_owner(&self, owner: &User) -> Result<()> {
+        sqlx::query(QUERY_DELETE_SECRET_BY_OWNER)
+            .bind(owner.id)
+            .fetch_all(self.pool)
             .await
             .map_err(|err| {
                 error!(
