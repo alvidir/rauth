@@ -4,6 +4,7 @@ use crate::user::domain::User;
 #[strum(serialize_all = "lowercase")]
 pub enum SecretKind {
     Totp,
+    Salt,
 }
 
 /// Represent some sensitive data that cannot be updated.
@@ -16,7 +17,6 @@ pub struct Secret {
 }
 
 impl Secret {
-    /// Builds a new [Secret] with the id set to the default value.
     pub fn new(kind: SecretKind, owner: &User, data: &[u8]) -> Self {
         Secret {
             id: Default::default(),

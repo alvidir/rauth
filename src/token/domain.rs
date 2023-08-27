@@ -81,7 +81,7 @@ where
 impl Payload {
     pub fn new(kind: TokenKind, iss: &str, sub: &str, timeout: Duration) -> Self {
         let mut token = Payload {
-            jti: crypto::get_random_string(8), // noise
+            jti: Default::default(),
             exp: SystemTime::now() + timeout,
             nbf: SystemTime::now(),
             iat: SystemTime::now(),
@@ -103,7 +103,7 @@ impl Payload {
 
     /// Give a private key with which sign the token containing self, returns the result wrap into an instance of [Token].
     pub fn into_token(self, private_key: &[u8]) -> Result<Token> {
-        crypto::sign_jwt(private_key, self).map(Token::from)
+        crypto::encode_jwt(private_key, self).map(Token::from)
     }
 }
 
@@ -174,7 +174,7 @@ pub mod tests {
         let claim = Payload::new(TokenKind::Session, ISS, &SUB.to_string(), timeout);
 
         let secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
-        let token = crypto::sign_jwt(&secret, claim).unwrap();
+        let token = crypto::encode_jwt(&secret, claim).unwrap();
 
         let public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
         let _ = crypto::decode_jwt::<Payload>(&public, &token).unwrap();
@@ -192,7 +192,7 @@ pub mod tests {
         claim.exp = SystemTime::now() - Duration::from_secs(61);
 
         let secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
-        let token = crypto::sign_jwt(&secret, claim).unwrap();
+        let token = crypto::encode_jwt(&secret, claim).unwrap();
         let public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
 
         assert!(crypto::decode_jwt::<Payload>(&public, &token).is_err());

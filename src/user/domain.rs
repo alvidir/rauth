@@ -1,7 +1,11 @@
-use crate::result::{Error, Result};
+use crate::{
+    crypto,
+    result::{Error, Result},
+};
 use ::regex::Regex;
+use argon2::{Algorithm, Argon2, Params, Version};
 use once_cell::sync::Lazy;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// Represents an email with, or without, sufix.
 #[derive(Debug, Default, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -16,16 +20,21 @@ impl AsRef<str> for Email {
 impl TryFrom<&str> for Email {
     type Error = Error;
 
+    /// Builds an [Email] from the given string if, and only if, the string matches the email's regex.
     fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
-        Self::new(value.to_string())
+        value.to_string().try_into()
     }
 }
 
 impl TryFrom<String> for Email {
     type Error = Error;
 
+    /// Builds an [Email] from the given string if, and only if, the string matches the email's regex.
     fn try_from(email: String) -> std::result::Result<Email, Error> {
-        Self::new(email)
+        Self::REGEX
+            .is_match(&email)
+            .then_some(Self(email))
+            .ok_or(Error::InvalidFormat)
     }
 }
 
@@ -35,14 +44,6 @@ impl Email {
     const SUFIX_SEPARATOR: char = '+';
 
     pub const REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(Self::PATTERN).unwrap());
-
-    /// Builds an [Email] from the given string if, and only if, the string matches the email's regex.
-    pub fn new(email: String) -> Result<Self> {
-        Self::REGEX
-            .is_match(&email)
-            .then_some(Self(email))
-            .ok_or(Error::InvalidFormat)
-    }
 
     /// Returns an email resulting from substracting the sufix from self, if any, otherwise [Option::None] is returned.
     pub fn actual_email(&self) -> Option<Self> {
@@ -67,13 +68,10 @@ impl Email {
 }
 
 /// Represents a password.
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Password(String);
-
-impl AsRef<str> for Password {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
+#[derive(Debug, Default, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Password {
+    hash: String,
+    salt: String,
 }
 
 impl TryFrom<&str> for Password {
@@ -89,11 +87,30 @@ impl TryFrom<String> for Password {
 
     /// Builds a [Password] from the given string if, and only if, the string matches the
     /// password's regex.
-    fn try_from(raw: String) -> std::result::Result<Self, Self::Error> {
-        Self::REGEX
-            .is_match(&raw)
-            .then_some(Self(raw))
-            .ok_or(Error::InvalidFormat)
+    fn try_from(password: String) -> std::result::Result<Self, Self::Error> {
+        if !Self::REGEX.is_match(&password) {
+            return Err(Error::InvalidFormat);
+        }
+
+        let mut salt = [0_u8; 128];
+        crypto::randomize(&mut salt);
+
+        let mut hash = [0_u8; 128];
+        Self::ARGON_CTX
+            .hash_password_into(password.as_bytes(), &salt, &mut hash)
+            .map(|_| Self {
+                hash: String::from_utf8_lossy(&hash).to_string(),
+                salt: String::from_utf8_lossy(&salt).to_string(),
+            })
+            .map_err(|_| Error::Unknown)
+    }
+}
+
+impl PartialEq<str> for Password {
+    fn eq(&self, other: &str) -> bool {
+        Self::try_from(other.to_string())
+            .map(|pwd| &pwd == self)
+            .unwrap_or_default()
     }
 }
 
@@ -102,13 +119,19 @@ impl Password {
 
     pub const REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(Self::PATTERN).unwrap());
 
-    /// Given a sufix to append to the hash of self, returns the password containing the digest of the
-    /// resulting concatenation.
-    pub fn salt_and_hash(mut self, sufix: &str) -> Self {
-        self.0 = sha256::digest(self.0);
-        self.0 = format!("{}{}", self.0, sufix);
-        self.0 = sha256::digest(self.0);
-        self
+    const ARGON_CTX: Lazy<Argon2<'_>> =
+        Lazy::new(|| Argon2::new(Algorithm::Argon2id, Version::V0x13, Params::default()));
+
+    pub fn new(hash: String, salt: String) -> Self {
+        Self { hash, salt }
+    }
+
+    pub fn hash(&self) -> &str {
+        &self.hash
+    }
+
+    pub fn salt(&self) -> &str {
+        &self.salt
     }
 }
 
@@ -119,31 +142,22 @@ pub struct Credentials {
     pub password: Option<Password>,
 }
 
-impl TryFrom<&str> for Credentials {
-    type Error = Error;
-
-    fn try_from(email: &str) -> std::result::Result<Self, Self::Error> {
-        email.try_into().map(|email| Self::new(email))
-    }
-}
-
-impl TryFrom<(&str, &str)> for Credentials {
-    type Error = Error;
-
-    fn try_from((email, password): (&str, &str)) -> Result<Self> {
-        let password = password.try_into()?;
-        Self::try_from(email).map(|credentials| credentials.with_password(password))
-    }
-}
-
-impl Credentials {
-    pub fn new(email: Email) -> Self {
+impl From<Email> for Credentials {
+    fn from(email: Email) -> Self {
         Self {
             email,
             ..Default::default()
         }
     }
+}
 
+impl From<(Email, Password)> for Credentials {
+    fn from((email, password): (Email, Password)) -> Self {
+        Credentials::from(email).with_password(password)
+    }
+}
+
+impl Credentials {
     pub fn with_password(mut self, password: Password) -> Self {
         self.password = Some(password);
         self
@@ -336,7 +350,7 @@ pub mod tests {
 
     #[test]
     fn credentials_from_single_str() {
-        let credentials: Credentials = "username@server.domain".try_into().unwrap();
+        let credentials: Credentials = Email::try_from("username@server.domain").unwrap().into();
         assert_eq!(
             credentials.email,
             Email("username@server.domain".to_string())
@@ -346,7 +360,11 @@ pub mod tests {
 
     #[test]
     fn credentials_from_tuple_of_str() {
-        let credentials: Credentials = ("username@server.domain", "abcABC123&").try_into().unwrap();
+        let credentials: Credentials = (
+            Email::try_from("username@server.domain").unwrap(),
+            Password::try_from("abcABC123&").unwrap(),
+        )
+            .into();
         assert_eq!(
             credentials.email,
             Email("username@server.domain".to_string())

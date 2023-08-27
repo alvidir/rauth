@@ -112,7 +112,7 @@ pub mod tests {
         let mut claim = new_token(TokenKind::Session);
         claim.exp = SystemTime::now() - Duration::from_secs(61);
 
-        let token = crypto::sign_jwt(&PRIVATE_KEY, claim).unwrap();
+        let token = crypto::encode_jwt(&PRIVATE_KEY, claim).unwrap();
         let app = new_token_application();
 
         app.payload(token.into())
@@ -122,7 +122,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn decode_token_invalid_should_fail() {
-        let token = crypto::sign_jwt(&PRIVATE_KEY, new_token(TokenKind::Session))
+        let token = crypto::encode_jwt(&PRIVATE_KEY, new_token(TokenKind::Session))
             .unwrap()
             .replace('A', "a");
 

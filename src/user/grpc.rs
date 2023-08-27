@@ -1,4 +1,7 @@
+use std::ops::Not;
+
 use super::application::Mailer;
+use super::domain::{Email, Password};
 use crate::base64::B64_CUSTOM_ENGINE;
 use crate::cache::Cache;
 use crate::secret::application::SecretRepository;
@@ -30,12 +33,19 @@ impl TryFrom<SignupRequest> for Credentials {
     type Error = Status;
 
     fn try_from(value: SignupRequest) -> Result<Self, Self::Error> {
-        if value.password.is_empty() {
-            (value.email.as_str()).try_into()
-        } else {
-            (value.email.as_str(), value.password.as_str()).try_into()
-        }
-        .map_err(|_| Status::from(Error::InvalidFormat))
+        let email: Email = value.email.try_into()?;
+        let Some(password) = value
+            .password
+            .is_empty()
+            .not()
+            .then_some(value.password)
+            .map(Password::try_from)
+            .transpose()?
+        else {
+            return Ok(email.into());
+        };
+
+        Ok(Credentials::from(email).with_password(password))
     }
 }
 

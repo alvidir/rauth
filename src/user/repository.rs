@@ -1,4 +1,4 @@
-use super::domain::Email;
+use super::domain::{Credentials, Email, Password};
 use super::{application::UserRepository, domain::User};
 use crate::result::{Error, Result};
 use async_trait::async_trait;
@@ -15,18 +15,24 @@ const QUERY_UPDATE_USER: &str =
     "UPDATE users SET name = $1, email = $2, actual_email = $3, password = $4 WHERE id = $5";
 const QUERY_DELETE_USER: &str = "DELETE FROM users WHERE id = $1";
 
-type PostgresUserRow = (i32, String, Option<String>); // id, email, password
+// id, email, password, salt
+type SelectUserRow = (i32, String, Option<String>, Option<String>);
 
-impl TryFrom<PostgresUserRow> for User {
+impl TryFrom<SelectUserRow> for User {
     type Error = Error;
 
-    fn try_from(value: PostgresUserRow) -> Result<Self> {
+    fn try_from(value: SelectUserRow) -> Result<Self> {
+        let email: Email = value.1.try_into()?;
+        let credentials = if let (Some(hash), Some(salt)) = (value.2, value.3) {
+            let password = Password::new(hash, salt);
+            Credentials::from(email).with_password(password)
+        } else {
+            email.into()
+        };
+
         Ok(User {
             id: value.0,
-            credentials: value
-                .2
-                .map(|password| (value.1.as_str(), password.as_str()).try_into())
-                .unwrap_or_else(|| (value.1.as_str()).try_into())?,
+            credentials: credentials,
         })
     }
 }
@@ -55,7 +61,7 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
                     Error::Unknown
                 }
             })
-            .and_then(PostgresUserRow::try_into)
+            .and_then(SelectUserRow::try_into)
     }
 
     async fn find_by_email(&self, target: &Email) -> Result<User> {
@@ -76,7 +82,7 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
                     Error::Unknown
                 }
             })
-            .and_then(PostgresUserRow::try_into)
+            .and_then(SelectUserRow::try_into)
     }
 
     async fn find_by_name(&self, target: &str) -> Result<User> {
@@ -97,7 +103,7 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
                     Error::Unknown
                 }
             })
-            .and_then(PostgresUserRow::try_into)
+            .and_then(SelectUserRow::try_into)
     }
 
     async fn create(&self, user: &mut User) -> Result<()> {
@@ -111,13 +117,7 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
                     .map(|email| email.as_ref().to_string())
                     .unwrap_or(user.credentials.email.as_ref().to_string()),
             )
-            .bind(
-                user.credentials
-                    .password
-                    .as_ref()
-                    .map(|pwd| pwd.as_ref().to_string())
-                    .ok_or(Error::Unknown)?,
-            )
+            .bind(user.credentials.password.as_ref().map(|pwd| pwd.hash()))
             .fetch_one(self.pool)
             .await
             .map_err(|err| {
@@ -143,13 +143,7 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
                     .map(|email| email.as_ref().to_string())
                     .unwrap_or(user.credentials.email.as_ref().to_string()),
             )
-            .bind(
-                user.credentials
-                    .password
-                    .as_ref()
-                    .map(|pwd| pwd.as_ref().to_string())
-                    .ok_or(Error::Unknown)?,
-            )
+            .bind(user.credentials.password.as_ref().map(|pwd| pwd.hash()))
             .bind(user.id)
             .execute(self.pool)
             .await

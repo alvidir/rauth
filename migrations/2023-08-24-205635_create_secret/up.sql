@@ -1,11 +1,11 @@
 -- Your SQL goes here
-CREATE TYPE IF NOT EXISTS SECRET AS ENUM ('totp');
+CREATE TYPE IF NOT EXISTS SECRET AS ENUM ('totp', 'salt');
 
 CREATE TABLE IF NOT EXISTS Secrets (
     id SERIAL PRIMARY KEY,
     kind SECRET NOT NULL,
     owner INTEGER NOT NULL,
-    data TEXT NOT NULL,
+    data BYTEA NOT NULL,
 
     UNIQUE (kind, owner),
 

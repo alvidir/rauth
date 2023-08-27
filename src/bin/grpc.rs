@@ -77,7 +77,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         mailer: Arc::new(smtp),
         event_bus: user_event_bus.clone(),
         totp_secret_len: *config::TOTP_SECRET_LEN,
-        pwd_sufix: &config::PWD_SUFIX,
         cache: cache.clone(),
     };
 
@@ -91,7 +90,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         user_repo: user_repo.clone(),
         secret_repo: secret_repo.clone(),
         token_app: token_app.clone(),
-        pwd_sufix: &config::PWD_SUFIX,
     };
 
     let session_grpc_service = SessionGrpcService {

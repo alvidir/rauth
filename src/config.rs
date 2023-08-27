@@ -21,7 +21,6 @@ const ENV_JWT_HEADER: &str = "JWT_HEADER";
 const ENV_TOTP_HEADER: &str = "TOTP_HEADER";
 const ENV_TOKEN_TIMEOUT: &str = "TOKEN_TIMEOUT";
 
-const ENV_PWD_SUFIX: &str = "PWD_SUFIX";
 const ENV_TOTP_SECRET_LEN: &str = "TOTP_SECRET_LEN";
 const ENV_TOKEN_ISSUER: &str = "TOKEN_ISSUER";
 
@@ -55,9 +54,6 @@ pub static JWT_HEADER: Lazy<String> =
 pub static TOTP_HEADER: Lazy<String> =
     Lazy::new(|| env::var(ENV_TOTP_HEADER).unwrap_or_else(|_| DEFAULT_TOTP_HEADER.to_string()));
 
-pub static PWD_SUFIX: Lazy<String> =
-    Lazy::new(|| env::var(ENV_PWD_SUFIX).expect("password sufix must be set"));
-
 pub static TOTP_SECRET_LEN: Lazy<usize> = Lazy::new(|| {
     env::var(ENV_TOTP_SECRET_LEN)
         .map(|len| len.parse().unwrap())
@@ -71,7 +67,7 @@ pub static TOKEN_ISSUER: Lazy<String> =
 mod tests {
     use crate::config::{
         DEFAULT_ADDR, DEFAULT_JWT_HEADER, DEFAULT_PORT, DEFAULT_TOKEN_TIMEOUT, DEFAULT_TOTP_HEADER,
-        DEFAULT_TOTP_SECRET_LEN, JWT_HEADER, PWD_SUFIX, SERVICE_ADDR, TOKEN_ISSUER, TOKEN_TIMEOUT,
+        DEFAULT_TOTP_SECRET_LEN, JWT_HEADER, SERVICE_ADDR, TOKEN_ISSUER, TOKEN_TIMEOUT,
         TOTP_HEADER, TOTP_SECRET_LEN,
     };
 
@@ -107,12 +103,6 @@ mod tests {
     #[test]
     fn default_totp_header_must_not_fail() {
         assert_eq!(*TOTP_HEADER, DEFAULT_TOTP_HEADER);
-    }
-
-    #[test]
-    #[should_panic]
-    fn default_pwd_sufix_must_fail() {
-        let _ = &*PWD_SUFIX;
     }
 
     #[test]

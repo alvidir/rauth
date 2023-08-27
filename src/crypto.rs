@@ -16,9 +16,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-const SECURE_CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
-                                abcdefghijklmnopqrstuvwxyz\
-                                0123456789";
+const URL_SAFE: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
 /// Returns the hash of the given value.
 pub fn hash<H: Hash>(value: H) -> u64 {
@@ -29,14 +27,14 @@ pub fn hash<H: Hash>(value: H) -> u64 {
 
 /// Given an elliptic curve secret in PEM format returns the resulting string of signing the provided
 /// payload in a JWT format.
-pub fn sign_jwt<S: Serialize>(secret: &[u8], payload: S) -> Result<String> {
+pub fn encode_jwt<S: Serialize>(secret: &[u8], data: S) -> Result<String> {
     let header = Header::new(Algorithm::ES256);
     let key = EncodingKey::from_ec_pem(secret).map_err(|err| {
         error!(error = err.to_string(), "encoding elliptic curve keypair",);
         Error::Unknown
     })?;
 
-    let token = jsonwebtoken::encode(&header, &payload, &key).map_err(|err| {
+    let token = jsonwebtoken::encode(&header, &data, &key).map_err(|err| {
         error!(error = err.to_string(), "signing json web token");
         Error::Unknown
     })?;
@@ -46,14 +44,14 @@ pub fn sign_jwt<S: Serialize>(secret: &[u8], payload: S) -> Result<String> {
 
 /// Given an elliptic curve secret in PEM format returns the token's claim if, and only if, the provided token
 /// is valid. Otherwise an error is returned.
-pub fn decode_jwt<T: DeserializeOwned>(public: &[u8], token: &str) -> Result<T> {
+pub fn decode_jwt<T: DeserializeOwned>(public: &[u8], data: &str) -> Result<T> {
     let validation = Validation::new(Algorithm::ES256);
     let key = DecodingKey::from_ec_pem(public).map_err(|err| {
         error!(error = err.to_string(), "decoding elliptic curve keypair",);
         Error::Unknown
     })?;
 
-    let token = jsonwebtoken::decode::<T>(token, &key, &validation).map_err(|err| {
+    let token = jsonwebtoken::decode::<T>(data, &key, &validation).map_err(|err| {
         error!(error = err.to_string(), "checking token's signature",);
         Error::InvalidToken
     })?;
@@ -61,17 +59,13 @@ pub fn decode_jwt<T: DeserializeOwned>(public: &[u8], token: &str) -> Result<T> 
     Ok(token.claims)
 }
 
-/// Returns an url safe random string.
-pub fn get_random_string(size: usize) -> String {
-    let token: String = (0..size)
-        .map(|_| {
-            let mut rand = rand::thread_rng();
-            let idx = rand.gen_range(0..SECURE_CHARSET.len());
-            SECURE_CHARSET[idx] as char
-        })
-        .collect();
-
-    token
+/// Fills the given buffer with random data.
+pub fn randomize(buff: &mut [u8]) {
+    for index in 0..buff.len() {
+        let mut rand = rand::thread_rng();
+        let idx = rand.gen_range(0..URL_SAFE.len());
+        buff[index] = URL_SAFE[idx]
+    }
 }
 
 /// Given an array of bytes to use as secret, generates a TOTP instance.

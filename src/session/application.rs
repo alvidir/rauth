@@ -13,7 +13,6 @@ pub struct SessionApplication<'a, U: UserRepository, S: SecretRepository, C: Cac
     pub user_repo: Arc<U>,
     pub secret_repo: Arc<S>,
     pub token_app: Arc<TokenApplication<'a, C>>,
-    pub pwd_sufix: &'a str,
 }
 
 impl<'a, U: UserRepository, S: SecretRepository, C: Cache> SessionApplication<'a, U, S, C> {
@@ -29,15 +28,12 @@ impl<'a, U: UserRepository, S: SecretRepository, C: Cache> SessionApplication<'a
         }
         .map_err(|_| Error::WrongCredentials)?;
 
-        if Password::try_from(pwd)
-            .map(|pwd| pwd.salt_and_hash(self.pwd_sufix))
-            .is_ok_and(|pwd| {
-                user.credentials
-                    .password
-                    .map(|user_pwd| user_pwd == pwd)
-                    .unwrap_or_default()
-            })
-        {
+        if Password::try_from(pwd).is_ok_and(|pwd| {
+            user.credentials
+                .password
+                .map(|user_pwd| user_pwd == pwd)
+                .unwrap_or_default()
+        }) {
             return Err(Error::WrongCredentials);
         }
 
@@ -101,7 +97,6 @@ pub mod tests {
             user_repo: Arc::new(user_repo),
             secret_repo: Arc::new(secret_repo),
             token_app: Arc::new(token_app),
-            pwd_sufix: "::test",
         }
     }
 
@@ -223,7 +218,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn logout_should_not_fail() {
-        let token = crypto::sign_jwt(&PRIVATE_KEY, new_token(TokenKind::Session)).unwrap();
+        let token = crypto::encode_jwt(&PRIVATE_KEY, new_token(TokenKind::Session)).unwrap();
         let app = new_session_application();
 
         app.logout(&token)
@@ -235,7 +230,7 @@ pub mod tests {
     #[tokio::test]
     async fn logout_verification_token_kind_should_fail() {
         let token = new_token(TokenKind::Verification);
-        let token = crypto::sign_jwt(&PRIVATE_KEY, token).unwrap();
+        let token = crypto::encode_jwt(&PRIVATE_KEY, token).unwrap();
         let app = new_session_application();
 
         app.logout(&token)
@@ -247,7 +242,7 @@ pub mod tests {
     #[tokio::test]
     async fn logout_reset_token_kind_should_fail() {
         let token = new_token(TokenKind::Reset);
-        let token = crypto::sign_jwt(&PRIVATE_KEY, token).unwrap();
+        let token = crypto::encode_jwt(&PRIVATE_KEY, token).unwrap();
         let app = new_session_application();
 
         app.logout(&token)

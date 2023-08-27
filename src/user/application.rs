@@ -48,7 +48,6 @@ pub struct UserApplication<
     pub mailer: Arc<M>,
     pub event_bus: Arc<B>,
     pub totp_secret_len: usize,
-    pub pwd_sufix: &'a str,
     pub cache: Arc<C>,
 }
 
@@ -69,11 +68,6 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
             // TODO: this "avoid giving information" should be done at the infrastucture level
             return Ok(());
         }
-
-        credentials.password = credentials
-            .password
-            .take()
-            .map(|pwd| pwd.salt_and_hash(self.pwd_sufix));
 
         let key = crypto::hash(&credentials);
 
@@ -147,16 +141,13 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
             .map_err(|_| Error::WrongCredentials)?;
 
         // TODO: encapsulate this block in a method
-        if Password::try_from(password)
-            .map(|pwd| pwd.salt_and_hash(self.pwd_sufix))
-            .is_ok_and(|pwd| {
-                user.credentials
-                    .password
-                    .as_ref()
-                    .map(|user_pwd| user_pwd == &pwd)
-                    .unwrap_or_default()
-            })
-        {
+        if Password::try_from(password).is_ok_and(|pwd| {
+            user.credentials
+                .password
+                .as_ref()
+                .map(|user_pwd| user_pwd == &pwd)
+                .unwrap_or_default()
+        }) {
             return Err(Error::WrongCredentials);
         }
 
@@ -214,16 +205,13 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
             .await
             .map_err(|_| Error::WrongCredentials)?;
 
-        if Password::try_from(password)
-            .map(|pwd| pwd.salt_and_hash(self.pwd_sufix))
-            .is_ok_and(|pwd| {
-                user.credentials
-                    .password
-                    .as_ref()
-                    .map(|user_pwd| user_pwd == &pwd)
-                    .unwrap_or_default()
-            })
-        {
+        if Password::try_from(password).is_ok_and(|pwd| {
+            user.credentials
+                .password
+                .as_ref()
+                .map(|user_pwd| user_pwd == &pwd)
+                .unwrap_or_default()
+        }) {
             return Err(Error::WrongCredentials);
         }
 
@@ -289,16 +277,13 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
             .await
             .map_err(|_| Error::WrongCredentials)?;
 
-        if Password::try_from(password)
-            .map(|pwd| pwd.salt_and_hash(self.pwd_sufix))
-            .is_ok_and(|pwd| {
-                user.credentials
-                    .password
-                    .as_ref()
-                    .map(|user_pwd| user_pwd == &pwd)
-                    .unwrap_or_default()
-            })
-        {
+        if Password::try_from(password).is_ok_and(|pwd| {
+            user.credentials
+                .password
+                .as_ref()
+                .map(|user_pwd| user_pwd == &pwd)
+                .unwrap_or_default()
+        }) {
             return Err(Error::WrongCredentials);
         }
 
@@ -388,7 +373,7 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
             .await
             .map_err(|_| Error::WrongCredentials)?;
 
-        let new_pwd = Password::try_from(new_password)?.salt_and_hash(self.pwd_sufix);
+        let new_pwd = Password::try_from(new_password)?;
 
         if user
             .credentials
@@ -569,7 +554,6 @@ pub mod tests {
             mailer: Arc::new(mailer_mock),
             event_bus: Arc::new(event_bus),
             totp_secret_len: 32_usize,
-            pwd_sufix: "::test",
         }
     }
 
