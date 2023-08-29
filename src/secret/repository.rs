@@ -23,7 +23,7 @@ impl TryFrom<PostgresSecretRow> for Secret {
     fn try_from(value: PostgresSecretRow) -> std::result::Result<Self, Self::Error> {
         Ok(Secret {
             id: value.0,
-            owner: value.1,
+            owner: value.1.into(),
             kind: SecretKind::from_str(&value.2).map_err(|err| {
                 error!(error = err.to_string(), "converting string into SecretKind",);
                 Error::Unknown

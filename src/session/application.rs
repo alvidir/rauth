@@ -45,7 +45,7 @@ impl<'a, U: UserRepository, S: SecretRepository, C: Cache> SessionApplication<'a
 
         let payload = self
             .token_app
-            .generate(TokenKind::Session, &user.id.to_string())?;
+            .new_payload(TokenKind::Session, &user.id.to_string())?;
 
         self.token_app.store(&payload).await?;
         self.token_app.sign(payload)

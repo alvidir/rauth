@@ -11,7 +11,8 @@ CREATE TABLE IF NOT EXISTS Secrets (
 
     CONSTRAINT fk_user_id
         FOREIGN KEY (owner)
-        REFERENCES Users(id),
+        REFERENCES Users(id)
+        ON DELETE CASCADE,
 );
 
 CREATE OR REPLACE FUNCTION fn_prevent_update_secrets_data()

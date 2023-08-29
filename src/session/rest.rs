@@ -23,7 +23,7 @@ impl<C: 'static + Cache + Sync + Send> SessionRestService<C> {
         req: HttpRequest,
     ) -> impl Responder {
         match async move {
-            let token = http::get_encoded_header(req, app_data.jwt_header)?;
+            let token = http::get_header(req, app_data.jwt_header)?;
             let token = app_data.token_app.payload(token.into())?;
             if !token.knd.is_session() {
                 return Err(Error::InvalidToken);
@@ -44,7 +44,7 @@ impl<C: 'static + Cache + Sync + Send> SessionRestService<C> {
         req: HttpRequest,
     ) -> impl Responder {
         match async move {
-            let token = http::get_encoded_header(req, app_data.jwt_header)?;
+            let token = http::get_header(req, app_data.jwt_header)?;
             application::logout_strategy::<C>(&app_data.token_app, &token).await
         }
         .await

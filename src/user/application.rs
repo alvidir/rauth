@@ -57,7 +57,7 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
     /// Stores the given credentials in the cache and sends an email with the token to be
     /// passed as parameter to the signup_with_token method.
     #[instrument(skip(self))]
-    pub async fn verify_credentials(&self, mut credentials: Credentials) -> Result<()> {
+    pub async fn verify_credentials(&self, credentials: Credentials) -> Result<()> {
         if self
             .user_repo
             .find_by_email(&credentials.email)
@@ -73,7 +73,7 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
 
         let payload = self
             .token_app
-            .generate(TokenKind::Verification, &key.to_string())?;
+            .new_payload(TokenKind::Verification, &key.to_string())?;
 
         self.cache
             .save(&key.to_string(), &credentials, Some(payload.timeout()))
@@ -88,8 +88,8 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
 
     /// Given a valid verification token, performs the signup of the corresponding user.
     #[instrument(skip(self))]
-    pub async fn signup_with_token(&self, token: &str) -> Result<Token> {
-        let claims: Payload = self.token_app.payload(token.into())?;
+    pub async fn signup_with_token(&self, token: Token) -> Result<Token> {
+        let claims: Payload = self.token_app.payload(token)?;
         if !claims.knd.is_verification() {
             return Err(Error::InvalidToken);
         }
@@ -106,7 +106,7 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
 
         let payload = self
             .token_app
-            .generate(TokenKind::Session, &user.id.to_string())?;
+            .new_payload(TokenKind::Session, &user.id.to_string())?;
 
         self.token_app.store(&payload).await?;
         self.token_app.sign(payload)
@@ -114,8 +114,13 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
 
     /// Given a valid session token and passwords, performs the deletion of the user.
     #[instrument(skip(self))]
-    pub async fn delete_with_token(&self, token: &str, password: &str, otp: &str) -> Result<()> {
-        let claims: Payload = self.token_app.payload(token.into())?;
+    pub async fn delete_with_token(
+        &self,
+        token: Token,
+        password: Password,
+        otp: &str,
+    ) -> Result<()> {
+        let claims: Payload = self.token_app.payload(token)?;
         if !claims.knd.is_session() {
             return Err(Error::InvalidToken);
         }
@@ -133,7 +138,7 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
 
     /// Given a valid user ID and passwords, performs the deletion of the corresponding user.
     #[instrument(skip(self))]
-    pub async fn delete(&self, user_id: i32, password: &str, otp: &str) -> Result<()> {
+    pub async fn delete(&self, user_id: i32, password: Password, otp: &str) -> Result<()> {
         let user = self
             .user_repo
             .find(user_id)
@@ -325,7 +330,7 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
 
         let payload = self
             .token_app
-            .generate(TokenKind::Reset, &user.id.to_string())?;
+            .new_payload(TokenKind::Reset, &user.id.to_string())?;
 
         self.token_app.store(&payload).await?;
         let token = self.token_app.sign(payload)?;

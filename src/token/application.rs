@@ -16,7 +16,7 @@ pub struct TokenApplication<'a, C: Cache> {
 impl<'a, T: Cache> TokenApplication<'a, T> {
     /// Returns a new token with the given kind and subject.
     #[instrument(skip(self))]
-    pub fn generate(&self, kind: TokenKind, sub: &str) -> Result<Payload> {
+    pub fn new_payload(&self, kind: TokenKind, sub: &str) -> Result<Payload> {
         Ok(Payload::new(kind, self.token_issuer, sub, self.timeout))
     }
 

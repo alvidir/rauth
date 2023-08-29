@@ -1,11 +1,9 @@
 //! Smtp implementation for sending of predefined email templates.
 
-use crate::base64::B64_CUSTOM_ENGINE;
 use crate::result::{Error, Result, StdResult};
 use crate::token::domain::Token;
 use crate::user::application as user_app;
 use crate::user::domain::Email;
-use base64::Engine;
 use lettre::address::AddressError;
 use lettre::message::{Mailbox, SinglePart};
 use lettre::transport::smtp::authentication::Credentials;
@@ -113,6 +111,7 @@ impl<'a> SmtpBuilder<'a> {
     }
 }
 
+// TODO: make build a generic and 'static' form of SMT in order to build several mailers.
 /// Smtp represents an email sender.
 pub struct Smtp<'a> {
     pub issuer: &'a str,
@@ -168,7 +167,7 @@ impl<'a> user_app::Mailer for Smtp<'a> {
     fn send_credentials_verification_email(&self, email: &Email, token: &Token) -> Result<()> {
         let mut context = Context::new();
         context.insert("name", email.as_ref().split('@').collect::<Vec<&str>>()[0]);
-        context.insert("token", &B64_CUSTOM_ENGINE.encode(token.as_ref()));
+        context.insert("token", token.as_ref());
 
         let body = self
             .tera
@@ -188,7 +187,7 @@ impl<'a> user_app::Mailer for Smtp<'a> {
     fn send_credentials_reset_email(&self, email: &Email, token: &Token) -> Result<()> {
         let mut context = Context::new();
         context.insert("name", email.as_ref().split('@').collect::<Vec<&str>>()[0]);
-        context.insert("token", &B64_CUSTOM_ENGINE.encode(token.as_ref()));
+        context.insert("token", token.as_ref());
 
         let body = self
             .tera

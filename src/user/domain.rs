@@ -1,11 +1,9 @@
-use crate::{
-    crypto,
-    result::{Error, Result},
-};
+use crate::{base64, crypto, result::Error};
 use ::regex::Regex;
 use argon2::{Algorithm, Argon2, Params, Version};
+
 use once_cell::sync::Lazy;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
 /// Represents an email with, or without, sufix.
 #[derive(Debug, Default, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -45,16 +43,27 @@ impl Email {
 
     pub const REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(Self::PATTERN).unwrap());
 
-    /// Returns an email resulting from substracting the sufix from self, if any, otherwise [Option::None] is returned.
-    pub fn actual_email(&self) -> Option<Self> {
+    pub fn new(email: String) -> Self {
+        Self(email)
+    }
+
+    /// Returns an email resulting from substracting the sufix from self, if any.
+    pub fn actual_email(&self) -> Self {
         let email_parts: Vec<&str> = self
             .0
             .split(&[Self::SUFIX_SEPARATOR, Self::DOMAIN_SEPARATOR])
             .collect();
 
-        (email_parts.len() == 3).then_some({
-            Self([email_parts[0], email_parts[2]].join(&Self::DOMAIN_SEPARATOR.to_string()))
-        })
+        if email_parts.len() == 3 {
+            return Self(format!(
+                "{}{}{}",
+                email_parts[0],
+                Self::DOMAIN_SEPARATOR,
+                email_parts[2],
+            ));
+        }
+
+        self.clone()
     }
 
     /// Returns the username part from the email.
@@ -70,8 +79,8 @@ impl Email {
 /// Represents a password.
 #[derive(Debug, Default, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Password {
-    pub(super) hash: Vec<u8>,
-    pub(super) salt: Vec<u8>,
+    hash: String,
+    salt: String,
 }
 
 impl TryFrom<&str> for Password {
@@ -99,8 +108,8 @@ impl TryFrom<String> for Password {
         Self::ARGON_CTX
             .hash_password_into(password.as_bytes(), &salt, &mut hash)
             .map(|_| Self {
-                hash: hash.to_vec(),
-                salt: salt.to_vec(),
+                hash: base64::encode(&hash),
+                salt: base64::encode(&salt),
             })
             .map_err(|_| Error::Unknown)
     }
@@ -108,8 +117,18 @@ impl TryFrom<String> for Password {
 
 impl PartialEq<str> for Password {
     fn eq(&self, other: &str) -> bool {
-        Self::try_from(other.to_string())
-            .map(|pwd| &pwd == self)
+        let Ok(hash) = base64::decode(self.hash()) else {
+            return false;
+        };
+
+        let Ok(salt) = base64::decode(self.salt()) else {
+            return false;
+        };
+
+        let mut subject = [0_u8; 128];
+        Self::ARGON_CTX
+            .hash_password_into(other.as_bytes(), &salt, &mut subject)
+            .map(|_| subject == hash.as_slice())
             .unwrap_or_default()
     }
 }
@@ -122,11 +141,15 @@ impl Password {
     const ARGON_CTX: Lazy<Argon2<'_>> =
         Lazy::new(|| Argon2::new(Algorithm::Argon2id, Version::V0x13, Params::default()));
 
-    pub fn hash(&self) -> &[u8] {
+    pub fn new(hash: String, salt: String) -> Self {
+        Self { hash, salt }
+    }
+
+    pub fn hash(&self) -> &str {
         &self.hash
     }
 
-    pub fn salt(&self) -> &[u8] {
+    pub fn salt(&self) -> &str {
         &self.salt
     }
 }
@@ -248,24 +271,24 @@ pub mod tests {
         struct Test<'a> {
             name: &'a str,
             input: Email,
-            output: Option<Email>,
+            output: Email,
         }
 
         vec![
             Test {
                 name: "email without sufix",
                 input: Email("username@server.domain".to_string()),
-                output: None,
+                output: Email("username@server.domain".to_string()),
             },
             Test {
                 name: "email with sufix",
                 input: Email("username+sufix@server.domain".to_string()),
-                output: Some(Email("username@server.domain".to_string())),
+                output: Email("username@server.domain".to_string()),
             },
             Test {
                 name: "email with empty sufix",
                 input: Email("username+@server.domain".to_string()),
-                output: Some(Email("username@server.domain".to_string())),
+                output: Email("username@server.domain".to_string()),
             },
         ]
         .into_iter()

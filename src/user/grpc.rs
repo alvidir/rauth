@@ -2,7 +2,6 @@ use std::ops::Not;
 
 use super::application::Mailer;
 use super::domain::{Email, Password};
-use crate::base64::B64_CUSTOM_ENGINE;
 use crate::cache::Cache;
 use crate::secret::application::SecretRepository;
 use crate::user::{
@@ -10,7 +9,6 @@ use crate::user::{
     domain::Credentials,
 };
 use crate::{grpc, result::Error};
-use base64::Engine;
 use tonic::metadata::errors::InvalidMetadataValue;
 use tonic::{Request, Response, Status};
 
@@ -73,16 +71,18 @@ impl<
     async fn signup_with_token(&self, token: &str) -> Result<Response<Empty>, Status> {
         let token = self
             .user_app
-            .signup_with_token(token)
+            .signup_with_token(token.into())
             .await
-            .map(|token| B64_CUSTOM_ENGINE.encode(token.as_ref()))
             .map_err(Status::from)?;
 
         let mut res = Response::new(Empty {});
-        let token = token.parse().map_err(|err: InvalidMetadataValue| {
-            error!(error = err.to_string(), "parsing token to header");
-            Status::from(Error::Unknown)
-        })?;
+        let token = token
+            .as_ref()
+            .parse()
+            .map_err(|err: InvalidMetadataValue| {
+                error!(error = err.to_string(), "parsing token to header");
+                Status::from(Error::Unknown)
+            })?;
 
         res.metadata_mut().append(self.jwt_header, token);
         Ok(res)
@@ -113,7 +113,7 @@ impl<
 {
     #[instrument(skip(self))]
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<Empty>, Status> {
-        match grpc::get_encoded_header(&request, self.jwt_header) {
+        match grpc::get_header(&request, self.jwt_header) {
             Ok(token) => self.signup_with_token(&token).await,
             Err(err) if matches!(err, Error::NotFound) => {
                 let request = request.into_inner();
@@ -126,7 +126,7 @@ impl<
     #[instrument(skip(self))]
     async fn reset(&self, request: Request<ResetRequest>) -> Result<Response<Empty>, Status> {
         if request.metadata().get(self.jwt_header).is_some() {
-            let token = grpc::get_encoded_header(&request, self.jwt_header)?;
+            let token = grpc::get_header(&request, self.jwt_header)?;
             let msg_ref = request.into_inner();
             return self
                 .user_app
@@ -147,10 +147,10 @@ impl<
 
     #[instrument(skip(self))]
     async fn delete(&self, request: Request<DeleteRequest>) -> Result<Response<Empty>, Status> {
-        let token = grpc::get_encoded_header(&request, self.jwt_header)?;
+        let token = grpc::get_header(&request, self.jwt_header)?;
         let request = request.into_inner();
         self.user_app
-            .delete_with_token(&token, &request.password, &request.otp)
+            .delete_with_token(token.into(), request.password.try_into()?, &request.otp)
             .await
             .map(|_| Response::new(Empty {}))
             .map_err(|err| Status::aborted(err.to_string()))
@@ -158,7 +158,7 @@ impl<
 
     #[instrument(skip(self))]
     async fn mfa(&self, request: Request<MfaRequest>) -> Result<Response<Empty>, Status> {
-        let token = grpc::get_encoded_header(&request, self.jwt_header)?;
+        let token = grpc::get_header(&request, self.jwt_header)?;
         let msg_ref = request.into_inner();
 
         if msg_ref.action == TOTP_ACTION_DISABLE {

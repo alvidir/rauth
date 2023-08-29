@@ -1,10 +1,8 @@
 use super::application::SessionApplication;
-use crate::base64::B64_CUSTOM_ENGINE;
 use crate::cache::Cache;
 use crate::secret::application::SecretRepository;
 use crate::user::application::UserRepository;
 use crate::{grpc, result::Error};
-use base64::Engine;
 use tonic::metadata::errors::InvalidMetadataValue;
 use tonic::{Request, Response, Status};
 
@@ -43,14 +41,16 @@ impl<
             .session_app
             .login(&msg_ref.identifier, &msg_ref.password, &msg_ref.otp)
             .await
-            .map(|token| B64_CUSTOM_ENGINE.encode(token.as_ref()))
             .map_err(|err| Status::aborted(err.to_string()))?;
 
         let mut res = Response::new(Empty {});
-        let token = token.parse().map_err(|err: InvalidMetadataValue| {
-            error!(error = err.to_string(), "parsing token to header");
-            Into::<Status>::into(Error::Unknown)
-        })?;
+        let token = token
+            .as_ref()
+            .parse()
+            .map_err(|err: InvalidMetadataValue| {
+                error!(error = err.to_string(), "parsing token to header");
+                Into::<Status>::into(Error::Unknown)
+            })?;
 
         res.metadata_mut().append(self.jwt_header, token);
         Ok(res)
@@ -58,7 +58,7 @@ impl<
 
     #[instrument(skip(self))]
     async fn logout(&self, request: Request<Empty>) -> Result<Response<Empty>, Status> {
-        let token = grpc::get_encoded_header(&request, self.jwt_header)?;
+        let token = grpc::get_header(&request, self.jwt_header)?;
         if let Err(err) = self.session_app.logout(&token).await {
             return Err(Status::aborted(err.to_string()));
         }
