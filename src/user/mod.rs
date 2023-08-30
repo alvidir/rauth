@@ -6,3 +6,4 @@ pub mod event_bus;
 pub mod grpc;
 #[cfg(feature = "postgres")]
 pub mod repository;
+pub mod result;

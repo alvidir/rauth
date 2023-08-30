@@ -16,7 +16,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-const URL_SAFE: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+pub const URL_SAFE: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
 /// Returns the hash of the given value.
 pub fn hash<H: Hash>(value: H) -> u64 {
@@ -60,11 +60,11 @@ pub fn decode_jwt<T: DeserializeOwned>(public: &[u8], data: &str) -> Result<T> {
 }
 
 /// Fills the given buffer with random data.
-pub fn randomize(buff: &mut [u8]) {
+pub fn randomize_with(symbols: &[u8], buff: &mut [u8]) {
     for index in 0..buff.len() {
         let mut rand = rand::thread_rng();
-        let idx = rand.gen_range(0..URL_SAFE.len());
-        buff[index] = URL_SAFE[idx]
+        let idx = rand.gen_range(0..symbols.len());
+        buff[index] = symbols[idx]
     }
 }
 

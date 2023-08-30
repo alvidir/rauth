@@ -1,16 +1,15 @@
 use super::domain::{Credentials, Email, Password, User};
 use crate::cache::Cache;
 use crate::crypto;
-use crate::result::{Error, Result};
+use crate::secret::application::SecretRepository;
 use crate::secret::domain::SecretKind;
-use crate::secret::{application::SecretRepository, domain::Secret};
 use crate::token::domain::Token;
 use crate::token::{
     application::TokenApplication,
     domain::{Payload, TokenKind},
 };
+use crate::user::result::{Error, Result};
 use async_trait::async_trait;
-use chrono::Utc;
 use std::num::ParseIntError;
 use std::sync::Arc;
 
@@ -89,7 +88,7 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
     /// Given a valid verification token, performs the signup of the corresponding user.
     #[instrument(skip(self))]
     pub async fn signup_with_token(&self, token: Token) -> Result<Token> {
-        let claims: Payload = self.token_app.payload(token)?;
+        let claims: Payload = self.token_app.payload_from(token)?;
         if !claims.knd.is_verification() {
             return Err(Error::InvalidToken);
         }
@@ -102,6 +101,7 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
     #[instrument(skip(self))]
     pub async fn signup(&self, user: &mut User) -> Result<Token> {
         self.user_repo.create(user).await?;
+        // TODO: implement outbox pattern for events publishment
         self.event_bus.emit_user_created(user).await?;
 
         let payload = self
@@ -120,7 +120,7 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
         password: Password,
         otp: &str,
     ) -> Result<()> {
-        let claims: Payload = self.token_app.payload(token)?;
+        let claims: Payload = self.token_app.payload_from(token)?;
         if !claims.knd.is_session() {
             return Err(Error::InvalidToken);
         }
@@ -181,7 +181,7 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
         password: &str,
         otp: &str,
     ) -> Result<Option<String>> {
-        let claims: Payload = self.token_app.payload(token.into())?;
+        let claims: Payload = self.token_app.payload_from(token.into())?;
         if !claims.knd.is_session() {
             return Err(Error::InvalidToken);
         }
@@ -258,7 +258,7 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
         password: &str,
         otp: &str,
     ) -> Result<()> {
-        let claims: Payload = self.token_app.payload(token.into())?;
+        let claims: Payload = self.token_app.payload_from(token.into())?;
         if !claims.knd.is_session() {
             return Err(Error::InvalidToken);
         }
@@ -347,7 +347,7 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
         new_password: &str,
         otp: &str,
     ) -> Result<()> {
-        let claims: Payload = self.token_app.payload(token.into())?;
+        let claims: Payload = self.token_app.payload_from(token.into())?;
         if !claims.knd.is_reset() {
             return Err(Error::InvalidToken);
         }

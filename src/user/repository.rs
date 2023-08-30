@@ -1,6 +1,6 @@
 use super::domain::{Email, Password};
+use super::result::{Error, Result};
 use super::{application::UserRepository, domain::User};
-use crate::result::{Error, Result};
 use async_trait::async_trait;
 use sqlx::error::Error as SqlError;
 use sqlx::postgres::PgPool;
@@ -8,7 +8,7 @@ use sqlx::postgres::PgPool;
 const QUERY_INSERT_USER: &str =
     "INSERT INTO users (name, email, actual_email, password) VALUES ($1, $2, $3, $4) RETURNING id";
 const QUERY_INSERT_SALT_SECRET: &str =
-    "INSERT INTO secrets (owner, kind, data) VALUES ($1, 'salt', $2) RETURNING id";
+    "INSERT INTO secrets (owner, kind, data) VALUES ($1, 'salt', $2)";
 const QUERY_FIND_USER: &str = "SELECT u.id, u.email, u.password, s.data FROM users u LEFT JOIN secrets s ON u.id = s.owner WHERE s.id = $1 AND (s.kind = 'salt' OR s IS NULL)";
 const QUERY_FIND_USER_BY_EMAIL: &str =
     "SELECT u.id, u.email, u.password, s.data FROM users u LEFT JOIN secrets s ON u.id = s.owner WHERE (u.email = $1 OR u.actual_email = $1) AND (s.kind = 'salt' OR s IS NULL)";
@@ -40,6 +40,19 @@ pub struct PostgresUserRepository<'a> {
     pub pool: &'a PgPool,
 }
 
+macro_rules! on_error {
+    ($msg:tt) => {
+        |error: sqlx::Error| -> Error {
+            if matches!(error, SqlError::RowNotFound) {
+                return Error::NotFound;
+            }
+
+            error!(error = error.to_string(), $msg,);
+            Error::Unknown
+        }
+    };
+}
+
 #[async_trait]
 impl<'a> UserRepository for PostgresUserRepository<'a> {
     async fn find(&self, user_id: i32) -> Result<User> {
@@ -47,40 +60,18 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
             .bind(user_id)
             .fetch_one(self.pool)
             .await
-            .map_err(|err| {
-                if matches!(err, SqlError::RowNotFound) {
-                    Error::NotFound
-                } else {
-                    error!(
-                        error = err.to_string(),
-                        id = user_id,
-                        "performing select by id query on postgres",
-                    );
-
-                    Error::Unknown
-                }
-            })
+            .map_err(on_error!("performing select user by id query on postgres"))
             .map(SelectUserRow::into)
     }
 
-    async fn find_by_email(&self, target: &Email) -> Result<User> {
+    async fn find_by_email(&self, email: &Email) -> Result<User> {
         sqlx::query_as(QUERY_FIND_USER_BY_EMAIL)
-            .bind(target.as_ref())
+            .bind(email.as_ref())
             .fetch_one(self.pool)
             .await
-            .map_err(|err| {
-                if matches!(err, SqlError::RowNotFound) {
-                    Error::NotFound
-                } else {
-                    error!(
-                        error = err.to_string(),
-                        email = target.as_ref(),
-                        "performing select by email query on postgres",
-                    );
-
-                    Error::Unknown
-                }
-            })
+            .map_err(on_error!(
+                "performing select user by email query on postgres"
+            ))
             .map(SelectUserRow::into)
     }
 
@@ -89,19 +80,9 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
             .bind(target)
             .fetch_one(self.pool)
             .await
-            .map_err(|err| {
-                if matches!(err, SqlError::RowNotFound) {
-                    Error::NotFound
-                } else {
-                    error!(
-                        error = err.to_string(),
-                        name = target,
-                        "performing select by name query on postgres",
-                    );
-
-                    Error::Unknown
-                }
-            })
+            .map_err(on_error!(
+                "performing select user by name query on postgres"
+            ))
             .map(SelectUserRow::into)
     }
 
@@ -115,27 +96,15 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
             .bind(user.credentials.password.as_ref().map(|pwd| pwd.hash()))
             .fetch_one(&mut *tx)
             .await
-            .map_err(|err| {
-                error!(
-                    error = err.to_string(),
-                    "performing insert query on postgres",
-                );
-                Error::Unknown
-            })?;
+            .map_err(on_error!("performing insert user query on postgres"))?;
 
         if let Some(password) = &user.credentials.password {
-            let _: (i32,) = sqlx::query_as(QUERY_INSERT_SALT_SECRET)
+            sqlx::query(QUERY_INSERT_SALT_SECRET)
                 .bind(user_id)
                 .bind(password.salt())
-                .fetch_one(&mut *tx)
+                .execute(&mut *tx)
                 .await
-                .map_err(|err| {
-                    error!(
-                        error = err.to_string(),
-                        "performing insert query on postgres",
-                    );
-                    Error::Unknown
-                })?;
+                .map_err(on_error!("performing insert salt secret query on postgres"))?;
         }
 
         tx.commit().await.map_err(|_| Error::Unknown)?;
@@ -153,14 +122,9 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
             .bind(user.id)
             .execute(self.pool)
             .await
-            .map_err(|err| {
-                error!(
-                    error = err.to_string(),
-                    "performing update query on postgres",
-                );
-                Error::Unknown
-            })?;
+            .map_err(on_error!("performing update user query on postgres"))?;
 
+        // TODO: Update the password's salt if has changed.
         Ok(())
     }
 
@@ -169,14 +133,7 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
             .bind(user.id)
             .execute(self.pool)
             .await
-            .map_err(|err| {
-                error!(
-                    error = err.to_string(),
-                    "performing delete query on postgres",
-                );
-
-                Error::Unknown
-            })?;
+            .map_err(on_error!("performing delete query on postgres"))?;
 
         Ok(())
     }

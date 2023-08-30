@@ -61,7 +61,7 @@ pub(super) async fn logout_strategy<'b, C: Cache>(
     token_app: &TokenApplication<'b, C>,
     token: &str,
 ) -> Result<()> {
-    let token = token_app.payload(token.into())?;
+    let token = token_app.payload_from(token.into())?;
     if !token.knd.is_session() {
         return Err(Error::InvalidToken);
     }

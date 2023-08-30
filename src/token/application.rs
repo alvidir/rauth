@@ -14,7 +14,7 @@ pub struct TokenApplication<'a, C: Cache> {
 }
 
 impl<'a, T: Cache> TokenApplication<'a, T> {
-    /// Returns a new token with the given kind and subject.
+    /// Returns a new token payload with the given kind and subject.
     #[instrument(skip(self))]
     pub fn new_payload(&self, kind: TokenKind, sub: &str) -> Result<Payload> {
         Ok(Payload::new(kind, self.token_issuer, sub, self.timeout))
@@ -36,7 +36,7 @@ impl<'a, T: Cache> TokenApplication<'a, T> {
 
     /// Returns the [Payload] of the given [Token].
     #[instrument(skip(self))]
-    pub fn payload(&self, token: Token) -> Result<Payload> {
+    pub fn payload_from(&self, token: Token) -> Result<Payload> {
         crypto::decode_jwt(self.public_key, token.as_ref())
     }
 
@@ -102,7 +102,7 @@ pub mod tests {
         let token = new_token(TokenKind::Session);
         let signed = app.sign(token).unwrap();
 
-        let claims = app.payload(signed).unwrap();
+        let claims = app.payload_from(signed).unwrap();
 
         assert!(matches!(&claims.knd, TokenKind::Session));
     }
@@ -115,7 +115,7 @@ pub mod tests {
         let token = crypto::encode_jwt(&PRIVATE_KEY, claim).unwrap();
         let app = new_token_application();
 
-        app.payload(token.into())
+        app.payload_from(token.into())
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
             .unwrap_err();
     }
@@ -127,7 +127,7 @@ pub mod tests {
             .replace('A', "a");
 
         let app = new_token_application();
-        app.payload(token.into())
+        app.payload_from(token.into())
             .map_err(|err| assert_eq!(err.to_string(), Error::InvalidToken.to_string()))
             .unwrap_err();
     }

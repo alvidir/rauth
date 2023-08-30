@@ -42,11 +42,12 @@ sqlx = { version = "0.7.1", features = [
 strum = "0.25.0"
 strum_macros = "0.25.0"
 tera = { version = "1.19.0", optional = true } # template engine
+thiserror = "1.0.47"
 tokio = { version = "1.28.2", features = ["macros", "rt", "rt-multi-thread"] }
 tonic = { version = "0.9", optional = true } # gRPC
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.17", optional = true }
-tracing-opentelemetry = { version = "0.20.0", optional = true }
+tracing-opentelemetry = { version = "0.21.0", optional = true }
 
 [build-dependencies]
 tonic-build = "0.9.2"

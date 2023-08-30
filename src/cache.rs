@@ -1,10 +1,25 @@
 //! Defintion and implementations of the [Cache] trait.
 
-use crate::result::Result;
 use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;
 use std::time::Duration;
+
+pub type Result<T> = std::result::Result<T, Error>;
+
+impl<T> From<Error> for Result<T> {
+    fn from(value: Error) -> Self {
+        Self::Err(value)
+    }
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+    #[error("no entry for key `{0}` has been found")]
+    NotFound(String),
+    #[error("unexpected error")]
+    Unknown,
+}
 
 /// Represents a general purpose cache.
 #[async_trait]
@@ -24,8 +39,7 @@ pub use redis_cache::*;
 
 #[cfg(feature = "redis-cache")]
 mod redis_cache {
-    use super::Cache;
-    use crate::result::{Error, Result};
+    use super::{Cache, Error, Result};
     use async_trait::async_trait;
     use reool::{AsyncCommands, PoolDefault, RedisPool};
     use serde::{de::DeserializeOwned, Serialize};
@@ -46,10 +60,13 @@ mod redis_cache {
                 Error::Unknown
             })?;
 
-            let data: String = conn.get(key).await.map_err(|err| {
+            let Some(data): Option<String> = conn.get(key).await.map_err(|err| {
                 error!(error = err.to_string(), "performing GET command on redis",);
                 Error::Unknown
-            })?;
+            })?
+            else {
+                return Error::NotFound(key.to_string()).into();
+            };
 
             serde_json::from_str(&data).map_err(|err| {
                 error!(error = err.to_string(), "deserializing data of type T",);
@@ -122,8 +139,7 @@ mod redis_cache {
 
 #[cfg(test)]
 pub mod tests {
-    use super::Cache;
-    use crate::result::{Error, Result};
+    use super::{Cache, Error, Result};
     use async_trait::async_trait;
     use once_cell::sync::Lazy;
     use serde::{de::DeserializeOwned, Serialize};
@@ -148,7 +164,7 @@ pub mod tests {
                 .unwrap()
                 .get(key)
                 .map(ToString::to_string)
-                .ok_or(Error::NotFound)?;
+                .ok_or(Error::NotFound(key.to_string()))?;
 
             serde_json::from_str(&data).map_err(|err| {
                 error!(error = err.to_string(), "deserializing data of type T",);
