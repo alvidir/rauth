@@ -3,20 +3,18 @@
 use std::collections::hash_map::DefaultHasher;
 
 use crate::on_error;
-use argon2::{Algorithm as ArgonAlgorithm, Argon2, Params, Version};
+use argon2::{Algorithm as ArgonAlgorithm, Argon2, Error as ArgonError, Params, Version};
 use base64::{
     alphabet,
     engine::{self, general_purpose},
-    Engine,
+    DecodeError, Engine,
 };
-use jsonwebtoken::{Algorithm as JwtAlgorithm, DecodingKey, EncodingKey, Header, Validation};
 use libreauth::{
     hash::HashFunction::Sha256,
     oath::{TOTPBuilder, TOTP},
 };
 use once_cell::sync::Lazy;
 use rand::prelude::*;
-use serde::{de::DeserializeOwned, Serialize};
 use std::hash::{Hash, Hasher};
 
 const ARGON: Lazy<Argon2<'_>> =
@@ -35,7 +33,7 @@ pub fn encode_b64(v: &[u8]) -> String {
 /// Decodes a b64 string into a vector of u8.
 pub fn decode_b64<Err>(s: &str) -> Result<Vec<u8>, Err>
 where
-    Err: From<String>,
+    Err: From<DecodeError>,
 {
     B64_CUSTOM_ENGINE
         .decode(s)
@@ -43,13 +41,17 @@ where
 }
 
 /// Returns the salted hash of the given value.
-pub fn salt<const LEN: usize, Err>(value: &[u8], salt: &[u8; LEN]) -> Result<[u8; LEN], Err>
+pub fn salt<const LEN: usize, Err>(value: &[u8], salt: &[u8]) -> Result<[u8; LEN], Err>
 where
     Err: From<String>,
 {
+    let salt: [u8; LEN] = salt
+        .try_into()
+        .map_err(on_error!("converting into sized array"));
+
     let mut buffer = [0_u8; LEN];
     ARGON
-        .hash_password_into(value, salt, &mut buffer)
+        .hash_password_into(value, &salt, &mut buffer)
         .map(|_| buffer)
         .map_err(on_error!("salting and hashing password"))
 }

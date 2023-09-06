@@ -1,3 +1,6 @@
+use crate::on_error;
+use crate::postgres::on_query_error;
+
 use super::domain::{Email, Password};
 use super::error::{Error, Result};
 use super::{application::UserRepository, domain::User};
@@ -40,19 +43,6 @@ pub struct PostgresUserRepository<'a> {
     pub pool: &'a PgPool,
 }
 
-macro_rules! on_error {
-    ($msg:tt) => {
-        |error| {
-            if matches!(error, SqlError::RowNotFound) {
-                return Error::NotFound;
-            }
-
-            error!(error = error.to_string(), $msg,);
-            error.to_string().into()
-        }
-    };
-}
-
 #[async_trait]
 impl<'a> UserRepository for PostgresUserRepository<'a> {
     async fn find(&self, user_id: i32) -> Result<User> {
@@ -60,7 +50,9 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
             .bind(user_id)
             .fetch_one(self.pool)
             .await
-            .map_err(on_error!("performing select user by id query on postgres"))
+            .map_err(on_query_error!(
+                "performing select user by id query on postgres"
+            ))
             .map(SelectUserRow::into)
     }
 
@@ -69,7 +61,7 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
             .bind(email.as_ref())
             .fetch_one(self.pool)
             .await
-            .map_err(on_error!(
+            .map_err(on_query_error!(
                 "performing select user by email query on postgres"
             ))
             .map(SelectUserRow::into)
@@ -80,7 +72,7 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
             .bind(target)
             .fetch_one(self.pool)
             .await
-            .map_err(on_error!(
+            .map_err(on_query_error!(
                 "performing select user by name query on postgres"
             ))
             .map(SelectUserRow::into)
@@ -91,7 +83,7 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
             .pool
             .begin()
             .await
-            .map_err(on_error!("starting postgres transaction"))?;
+            .map_err(on_error!(Error, "starting postgres transaction"))?;
 
         let (user_id,) = sqlx::query_as(QUERY_INSERT_USER)
             .bind(user.credentials.email.username())
@@ -100,7 +92,7 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
             .bind(user.credentials.password.as_ref().map(|pwd| pwd.hash()))
             .fetch_one(&mut *tx)
             .await
-            .map_err(on_error!("performing insert user query on postgres"))?;
+            .map_err(on_error!(Error, "performing insert user query on postgres"))?;
 
         if let Some(password) = &user.credentials.password {
             sqlx::query(QUERY_INSERT_SALT_SECRET)
@@ -108,12 +100,16 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
                 .bind(password.salt())
                 .execute(&mut *tx)
                 .await
-                .map_err(on_error!("performing insert salt secret query on postgres"))?;
+                .map_err(on_error!(
+                    Error,
+                    "performing insert salt secret query on postgres"
+                ))?;
         }
 
         tx.commit()
             .await
-            .map_err(on_error!("commiting postgres transaction"))?;
+            .map_err(on_error!(Error, "commiting postgres transaction"))?;
+
         user.id = user_id;
 
         Ok(())
@@ -128,7 +124,7 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
             .bind(user.id)
             .execute(self.pool)
             .await
-            .map_err(on_error!("performing update user query on postgres"))?;
+            .map_err(on_error!(Error, "performing update user query on postgres"))?;
 
         // TODO: Update the password's salt if has changed.
         Ok(())
@@ -139,7 +135,7 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
             .bind(user.id)
             .execute(self.pool)
             .await
-            .map_err(on_error!("performing delete query on postgres"))?;
+            .map_err(on_error!(Error, "performing delete query on postgres"))?;
 
         Ok(())
     }

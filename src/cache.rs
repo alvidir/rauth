@@ -5,20 +5,33 @@ use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;
 use std::time::Duration;
 
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+    #[cfg(feature = "redis-cache")]
+    #[error("{0}")]
+    Redis(#[from] reool::RedisError),
+    #[error("{0}")]
+    Any(String),
+}
+
+impl From<String> for Error {
+    fn from(error: String) -> Self {
+        Self::Any(error)
+    }
+}
+
+pub type Result<T> = std::result::Result<T, Error>;
+
 /// Represents a general purpose cache.
 #[async_trait]
 pub trait Cache {
-    async fn find<T, Err>(&self, key: &str) -> Result<Option<T>, Err>
+    async fn find<T>(&self, key: &str) -> Result<Option<T>>
     where
-        T: DeserializeOwned,
-        Err: From<String>;
-    async fn save<T, Err>(&self, key: &str, value: T, expire: Option<Duration>) -> Result<(), Err>
+        T: DeserializeOwned;
+    async fn save<T>(&self, key: &str, value: T, expire: Option<Duration>) -> Result<()>
     where
-        T: Serialize + Send + Sync + Debug,
-        Err: From<String>;
-    async fn delete<Err>(&self, key: &str) -> Result<(), Err>
-    where
-        Err: From<String>;
+        T: Serialize + Send + Sync + Debug;
+    async fn delete(&self, key: &str) -> Result<()>;
 }
 
 #[cfg(feature = "redis-cache")]
@@ -26,10 +39,10 @@ pub use redis_cache::*;
 
 #[cfg(feature = "redis-cache")]
 mod redis_cache {
-    use super::Cache;
+    use super::{Cache, Result};
     use crate::on_error;
     use async_trait::async_trait;
-    use reool::{AsyncCommands, PoolDefault, RedisPool};
+    use reool::{AsyncCommands, PoolDefault, RedisError, RedisPool};
     use serde::{de::DeserializeOwned, Serialize};
     use std::fmt::Debug;
     use std::time::Duration;
@@ -42,10 +55,9 @@ mod redis_cache {
     #[async_trait]
     impl<'a> Cache for RedisCache<'a> {
         #[instrument(skip(self))]
-        async fn find<T, Err>(&self, key: &str) -> Result<Option<T>, Err>
+        async fn find<T>(&self, key: &str) -> Result<Option<T>>
         where
             T: DeserializeOwned,
-            Err: From<String>,
         {
             let mut conn = self
                 .pool
@@ -65,15 +77,9 @@ mod redis_cache {
         }
 
         #[instrument(skip(self))]
-        async fn save<T, Err>(
-            &self,
-            key: &str,
-            value: T,
-            expire: Option<Duration>,
-        ) -> Result<(), Err>
+        async fn save<T>(&self, key: &str, value: T, expire: Option<Duration>) -> Result<()>
         where
             T: Serialize + Send + Sync + Debug,
-            Err: From<String>,
         {
             let mut conn = self
                 .pool
@@ -103,19 +109,16 @@ mod redis_cache {
         }
 
         #[instrument(skip(self))]
-        async fn delete<Err>(&self, key: &str) -> Result<(), Err>
-        where
-            Err: From<String>,
-        {
+        async fn delete(&self, key: &str) -> Result<()> {
             let mut conn = self
                 .pool
                 .check_out(PoolDefault)
                 .await
-                .map_err(on_error!("pulling connection for redis"))?;
+                .map_err(on_error!(RedisError, "pulling connection for redis"))?;
 
             conn.del(key)
                 .await
-                .map_err(on_error!("performing DELETE command on redis"))?;
+                .map_err(on_error!(RedisError, "performing DELETE command on redis"))?;
 
             Ok(())
         }
@@ -124,7 +127,7 @@ mod redis_cache {
 
 #[cfg(test)]
 pub mod tests {
-    use super::Cache;
+    use super::{Cache, Result};
     use crate::on_error;
     use async_trait::async_trait;
     use once_cell::sync::Lazy;
@@ -145,10 +148,9 @@ pub mod tests {
 
     #[async_trait]
     impl Cache for InMemoryCache {
-        async fn find<T, Err>(&self, key: &str) -> Result<Option<T>, Err>
+        async fn find<T>(&self, key: &str) -> Result<Option<T>>
         where
             T: DeserializeOwned,
-            Err: From<String>,
         {
             let Some(data) = IN_MEMORY_CACHE
                 .lock()
@@ -162,18 +164,12 @@ pub mod tests {
             serde_json::from_str(&data).map_err(on_error!("deserializing data from json"))
         }
 
-        async fn save<T, Err>(
-            &self,
-            key: &str,
-            value: T,
-            expire: Option<Duration>,
-        ) -> Result<(), Err>
+        async fn save<T>(&self, key: &str, value: T, expire: Option<Duration>) -> Result<()>
         where
             T: Serialize + Send + Sync + Debug,
-            Err: From<String>,
         {
-            let data =
-                serde_json::to_string(&value).map_err(on_error!("serializing data to json"))?;
+            let data = serde_json::to_string(&value)
+                .map_err(on_error!(String, "serializing data to json"))?;
 
             IN_MEMORY_CACHE
                 .lock()
@@ -183,10 +179,7 @@ pub mod tests {
             Ok(())
         }
 
-        async fn delete<Err>(&self, key: &str) -> Result<(), Err>
-        where
-            Err: From<String>,
-        {
+        async fn delete(&self, key: &str) -> Result<()> {
             IN_MEMORY_CACHE.lock().unwrap().remove(key);
             Ok(())
         }

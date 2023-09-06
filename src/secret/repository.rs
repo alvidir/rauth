@@ -1,6 +1,8 @@
 use super::domain::SecretKind;
+use super::error::{Error, Result};
 use super::{application::SecretRepository, domain::Secret};
-use crate::result::{Error, Result};
+use crate::on_error;
+use crate::postgres::on_query_error;
 use crate::user::domain::User;
 use async_trait::async_trait;
 use sqlx::error::Error as SqlError;
@@ -20,14 +22,12 @@ type PostgresSecretRow = (i32, i32, String, String); // id, owner, kind, data
 impl TryFrom<PostgresSecretRow> for Secret {
     type Error = Error;
 
-    fn try_from(value: PostgresSecretRow) -> std::result::Result<Self, Self::Error> {
+    fn try_from(value: PostgresSecretRow) -> Result<Self> {
         Ok(Secret {
             id: value.0,
             owner: value.1.into(),
-            kind: SecretKind::from_str(&value.2).map_err(|err| {
-                error!(error = err.to_string(), "converting string into SecretKind",);
-                Error::Unknown
-            })?,
+            kind: SecretKind::from_str(&value.2)
+                .map_err(on_error!(Error, "converting string into SecretKind"))?,
             data: value.3.as_bytes().to_vec(),
         })
     }
@@ -45,19 +45,7 @@ impl<'a> SecretRepository for PostgresSecretRepository<'a> {
             .bind(target)
             .fetch_one(self.pool)
             .await
-            .map_err(|err| {
-                if matches!(err, SqlError::RowNotFound) {
-                    Error::NotFound
-                } else {
-                    error!(
-                        error = err.to_string(),
-                        id = target,
-                        "performing select by id query on postgres",
-                    );
-
-                    Error::Unknown
-                }
-            })
+            .map_err(on_query_error!("performing select by id query on postgres"))
             .and_then(PostgresSecretRow::try_into)
     }
 
@@ -68,21 +56,9 @@ impl<'a> SecretRepository for PostgresSecretRepository<'a> {
             .bind(kind.as_ref())
             .fetch_one(self.pool)
             .await
-            .map_err(|err| {
-                // TODO: implement From<SqlError> for Error and return unkown when required.
-                if matches!(err, SqlError::RowNotFound) {
-                    Error::NotFound
-                } else {
-                    error!(
-                        error = err.to_string(),
-                        owner,
-                        kind = kind.as_ref(),
-                        "performing select by owner and kind query on postgres",
-                    );
-
-                    Error::Unknown
-                }
-            })
+            .map_err(on_query_error!(
+                "performing select by owner and kind query on postgres"
+            ))
             .and_then(PostgresSecretRow::try_into)
     }
 
@@ -94,13 +70,7 @@ impl<'a> SecretRepository for PostgresSecretRepository<'a> {
             .bind(secret.data())
             .fetch_one(self.pool)
             .await
-            .map_err(|err| {
-                error!(
-                    error = err.to_string(),
-                    "performing insert query on postgres",
-                );
-                Error::Unknown
-            })?;
+            .map_err(on_error!(Error, "performing insert query on postgres"))?;
 
         secret.id = row.0;
         Ok(())
@@ -112,13 +82,7 @@ impl<'a> SecretRepository for PostgresSecretRepository<'a> {
             .bind(secret.id)
             .fetch_one(self.pool)
             .await
-            .map_err(|err| {
-                error!(
-                    error = err.to_string(),
-                    "performing delete query on postgres",
-                );
-                Error::Unknown
-            })
+            .map_err(on_error!("performing delete query on postgres"))
             .map(|_| ())
     }
 
@@ -128,13 +92,7 @@ impl<'a> SecretRepository for PostgresSecretRepository<'a> {
             .bind(owner.id)
             .fetch_all(self.pool)
             .await
-            .map_err(|err| {
-                error!(
-                    error = err.to_string(),
-                    "performing delete query on postgres",
-                );
-                Error::Unknown
-            })
+            .map_err(on_error!("performing delete query on postgres"))
             .map(|_| ())
     }
 }

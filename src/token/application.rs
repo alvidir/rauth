@@ -53,21 +53,19 @@ where
         self.cache
             .save(&payload.jti, payload, Some(payload.timeout()))
             .await
+            .map_err(Into::into)
     }
 
     /// Retrives the [Payload] associated to the given token ID, if any.
     #[instrument(skip(self))]
-    pub async fn find(&self, id: &str) -> Result<Payload> {
-        self.cache
-            .find::<_, Error>(id)
-            .await?
-            .ok_or(Error::NotFound)
+    pub async fn find(&self, id: &str) -> Result<Option<Payload>> {
+        self.cache.find(id).await.map_err(Into::into)
     }
 
     /// Removes the entry in the cache with the given token ID.
     #[instrument(skip(self))]
     pub async fn remove(&self, id: &str) -> Result<()> {
-        self.cache.delete(id).await
+        self.cache.delete(id).await.map_err(Into::into)
     }
 }
 
@@ -136,7 +134,7 @@ pub mod tests {
 
         app.decode(token.into())
             .map_err(|err| {
-                let want = Error::Invalid(JwtError::from(JwtErrorKind::ExpiredSignature));
+                let want: Error = JwtError::from(JwtErrorKind::ExpiredSignature).into();
                 assert!(matches!(err, want))
             })
             .unwrap_err();

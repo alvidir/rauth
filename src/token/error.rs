@@ -8,18 +8,10 @@ impl<T> From<Error> for Result<T> {
     }
 }
 
-impl From<String> for Error {
-    fn from(value: String) -> Self {
-        Self::Unknown(value)
-    }
-}
-
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("invalid token: {0}")]
-    Invalid(#[from] jsonwebtoken::errors::Error),
-    #[error("token does not exists")]
-    NotFound,
-    #[error("unexpected error: {0}")]
-    Unknown(String),
+    #[error("{0}")]
+    Jwt(#[from] jsonwebtoken::errors::Error),
+    #[error("{0}")]
+    Cache(#[from] crate::cache::Error),
 }

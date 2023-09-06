@@ -32,3 +32,18 @@ pub static POSTGRES_POOL: Lazy<PgPool> = Lazy::new(|| {
             .unwrap()
     })
 });
+
+macro_rules! on_query_error {
+    ($msg:tt) => {
+        |error| {
+            if matches!(error, SqlError::RowNotFound) {
+                return Error::NotFound;
+            }
+
+            error!(error = error.to_string(), $msg,);
+            error.into()
+        }
+    };
+}
+
+pub(crate) use on_query_error;

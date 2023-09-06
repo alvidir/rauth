@@ -1,6 +1,10 @@
 use tera::{Context, Tera};
 
-use super::{application::Mailer, domain::Email, error::Result};
+use super::{
+    application::Mailer,
+    domain::Email,
+    error::{Error, Result},
+};
 use crate::{on_error, smtp::Smtp, token::domain::Token};
 
 pub struct UserSmtp<'a> {
@@ -22,7 +26,10 @@ impl<'a> Mailer for UserSmtp<'a> {
         let body = self
             .tera
             .render(self.verification_template, &context)
-            .map_err(on_error!("rendering verification signup email template"))?;
+            .map_err(on_error!(
+                Error,
+                "rendering verification signup email template"
+            ))?;
 
         self.smtp.send(email, self.verification_subject, body)
     }
@@ -36,7 +43,10 @@ impl<'a> Mailer for UserSmtp<'a> {
         let body = self
             .tera
             .render(self.reset_template, &context)
-            .map_err(on_error!("rendering verification reset email template"))?;
+            .map_err(on_error!(
+                Error,
+                "rendering verification reset email template"
+            ))?;
 
         self.smtp.send(email, self.reset_subject, body)
     }

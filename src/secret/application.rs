@@ -1,5 +1,6 @@
 use super::domain::{Secret, SecretKind};
-use crate::{result::Result, user::domain::User};
+use super::error::Result;
+use crate::user::domain::User;
 use async_trait::async_trait;
 
 #[async_trait]
@@ -14,8 +15,8 @@ pub trait SecretRepository {
 #[cfg(test)]
 pub mod tests {
     use super::super::domain::Secret;
+    use super::super::error::{Error, Result};
     use super::SecretRepository;
-    use crate::result::{Error, Result};
     use crate::secret::domain::SecretKind;
     use crate::user::domain::User;
     use async_trait::async_trait;
@@ -46,7 +47,7 @@ pub mod tests {
                 return f(self, id);
             }
 
-            Err(Error::Unknown)
+            Err(Error::Debug)
         }
 
         async fn find_by_owner_and_kind(&self, owner: i32, kind: SecretKind) -> Result<Secret> {
@@ -54,7 +55,7 @@ pub mod tests {
                 return f(self, owner, kind);
             }
 
-            Err(Error::Unknown)
+            Err(Error::Debug)
         }
 
         async fn create(&self, secret: &mut Secret) -> Result<()> {
@@ -62,7 +63,7 @@ pub mod tests {
                 return f(self, secret);
             }
 
-            Err(Error::Unknown)
+            Err(Error::Debug)
         }
 
         async fn delete(&self, secret: &Secret) -> Result<()> {
@@ -70,7 +71,7 @@ pub mod tests {
                 return f(self, secret);
             }
 
-            Err(Error::Unknown)
+            Err(Error::Debug)
         }
 
         async fn delete_by_owner(&self, owner: &User) -> Result<()> {
@@ -78,7 +79,7 @@ pub mod tests {
                 return f(self, owner);
             }
 
-            Err(Error::Unknown)
+            Err(Error::Debug)
         }
     }
 }

@@ -32,7 +32,7 @@ impl TryFrom<String> for Password {
             return Error::NotAPassword.into();
         }
 
-        let mut salt = [0_u8; 128];
+        let mut salt = [0_u8; Self::HASH_LEN];
         crypto::randomize(&mut salt);
 
         crypto::salt(password.as_bytes(), &salt).map(|salted| Self {
@@ -42,10 +42,27 @@ impl TryFrom<String> for Password {
     }
 }
 
+impl PartialEq<&str> for Password {
+    fn eq(&self, other: &&str) -> bool {
+        let Ok(hash) = crypto::decode_b64::<Error>(self.hash()) else {
+            return false;
+        };
+
+        let Ok(salt) = crypto::decode_b64::<Error>(self.salt()) else {
+            return false;
+        };
+
+        crypto::salt::<{ Self::HASH_LEN }, Error>(other.as_bytes(), &salt)
+            .map(|salted| salted == hash.as_slice())
+            .unwrap_or_default()
+    }
+}
+
 impl Password {
     const PATTERN: &str = r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$";
+    const HASH_LEN: usize = 128;
 
-    pub const REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(Self::PATTERN).unwrap());
+    const REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(Self::PATTERN).unwrap());
 
     pub fn new(hash: String, salt: String) -> Self {
         Self { hash, salt }
@@ -57,13 +74,6 @@ impl Password {
 
     pub fn salt(&self) -> &str {
         &self.salt
-    }
-
-    pub fn matches(&self, other: &str) -> Result<bool> {
-        let hash: Vec<u8> = crypto::decode_b64(self.hash())?;
-        let salt = crypto::decode_b64(self.salt())?;
-
-        crypto::salt(other.as_bytes(), &salt).map(|salted| salted == hash.as_slice())
     }
 }
 

@@ -18,7 +18,7 @@ pub mod smtp;
 pub mod token;
 #[cfg(feature = "tracer")]
 pub mod tracer;
-// pub mod user;
+pub mod user;
 
 mod crypto;
 #[cfg(feature = "grpc")]
@@ -30,14 +30,14 @@ macro_rules! on_error {
     ($type:ty, $msg:tt) => {
         |error| -> $type {
             error!(error = error.to_string(), $msg,);
-            error.to_string().into()
+            <$type>::from(error)
         }
     };
 
     ($msg:tt) => {
         |error| {
             error!(error = error.to_string(), $msg,);
-            error.to_string().into()
+            error.into()
         }
     };
 }

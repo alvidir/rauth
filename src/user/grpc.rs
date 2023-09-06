@@ -30,12 +30,14 @@ use proto::{DeleteRequest, Empty, MfaRequest, ResetRequest, SignupRequest};
 
 impl From<Error> for Status {
     fn from(error: Error) -> Status {
-        match error {
-            Error::NotAnEmail => Status::invalid_argument("email"),
-            Error::NotAPassword => Status::invalid_argument("password"),
-            Error::NotFound => Status::not_found("user"),
-            Error::Unknown => Status::unknown(""),
-        }
+        // match error {
+        //     Error::NotAnEmail => Status::invalid_argument("email"),
+        //     Error::NotAPassword => Status::invalid_argument("password"),
+        //     Error::NotFound => Status::not_found("user"),
+        //     Error::Unknown => Status::unknown(""),
+        // }
+
+        Status::unknown("")
     }
 }
 
