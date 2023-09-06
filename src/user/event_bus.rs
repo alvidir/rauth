@@ -1,8 +1,5 @@
-use super::{application::EventBus, domain::User};
-use crate::{
-    rabbitmq::EventKind,
-    result::{Error, Result},
-};
+use super::{application::EventBus, domain::User, error::Result};
+use crate::{on_error, rabbitmq::EventKind};
 use async_trait::async_trait;
 use deadpool_lapin::Pool;
 use lapin::{options::*, BasicProperties};
@@ -37,29 +34,18 @@ impl<'a> EventBus for RabbitMqUserBus<'a> {
 
         let payload = serde_json::to_string(&event)
             .map(|str| str.into_bytes())
-            .map_err(|err| {
-                error!(
-                    error = err.to_string(),
-                    "serializing \"user created\" event data to json",
-                );
-                Error::Unknown
-            })?;
+            .map_err(on_error!("serializing user created event data to json"))?;
 
-        let connection = self.pool.get().await.map_err(|err| {
-            error!(
-                error = err.to_string(),
-                "pulling connection from rabbitmq pool",
-            );
-            Error::Unknown
-        })?;
+        let connection = self
+            .pool
+            .get()
+            .await
+            .map_err(on_error!("pulling connection from rabbitmq pool"))?;
 
         connection
             .create_channel()
             .await
-            .map_err(|err| {
-                error!(error = err.to_string(), "creating rabbitmq channel",);
-                Error::Unknown
-            })?
+            .map_err(on_error!("creating rabbitmq channel"))?
             .basic_publish(
                 self.exchange,
                 "",
@@ -68,18 +54,9 @@ impl<'a> EventBus for RabbitMqUserBus<'a> {
                 BasicProperties::default(),
             )
             .await
-            .map_err(|err| {
-                error!(error = err.to_string(), "emititng \"user created\" event",);
-                Error::Unknown
-            })?
+            .map_err("emititng user created event")?
             .await
-            .map_err(|err| {
-                error!(
-                    error = err.to_string(),
-                    "confirming \"user created\" event reception",
-                );
-                Error::Unknown
-            })?;
+            .map_err("confirming user created event reception")?;
 
         Ok(())
     }

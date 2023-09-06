@@ -1,17 +1,13 @@
 //! Smtp implementation for sending of predefined email templates.
 
-use crate::result::{Error, Result, StdResult};
-use crate::token::domain::Token;
-use crate::user::application as user_app;
+use crate::on_error;
 use crate::user::domain::Email;
-use lettre::address::AddressError;
 use lettre::message::{Mailbox, SinglePart};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::transport::smtp::client::Tls;
 use lettre::{Message, SmtpTransport, Transport};
 use once_cell::sync::Lazy;
 use std::env;
-use tera::{Context, Tera};
 
 const DEFAULT_TEMPLATES_PATH: &str = "/etc/rauth/smtp/templates/*.html";
 const DEFAULT_VERIFICATION_SUBJECT: &str = "Email verification";
@@ -53,10 +49,6 @@ pub struct SmtpBuilder<'a> {
     pub transport: &'a str,
     pub username: &'a str,
     pub password: &'a str,
-    pub verification_subject: &'a str,
-    pub verification_template: &'a str,
-    pub reset_subject: &'a str,
-    pub reset_template: &'a str,
 }
 
 impl<'a> Default for SmtpBuilder<'a> {
@@ -68,20 +60,15 @@ impl<'a> Default for SmtpBuilder<'a> {
             transport: "",
             username: "",
             password: "",
-            verification_subject: DEFAULT_VERIFICATION_SUBJECT,
-            verification_template: DEFAULT_VERIFICATION_TEMPLATE,
-            reset_subject: DEFAULT_RESET_SUBJECT,
-            reset_template: DEFAULT_RESET_TEMPLATE,
         }
     }
 }
 
 impl<'a> SmtpBuilder<'a> {
-    pub fn build(&self) -> StdResult<Smtp<'a>> {
+    pub fn build(&self) -> Result<Smtp<'a>, Box<dyn std::error::Error>> {
         let transport_attrs: Vec<&str> = self.transport.split(':').collect();
         if transport_attrs.is_empty() || transport_attrs[0].is_empty() {
-            error!("smtp transport is not valid");
-            return Err(Error::Unknown.to_string().into());
+            return Err("smtp transport is not valid".into());
         }
 
         let mut mailer = SmtpTransport::relay(transport_attrs[0])?;
@@ -94,7 +81,7 @@ impl<'a> SmtpBuilder<'a> {
             let creds = Credentials::new(self.username.to_string(), self.password.to_string());
             mailer = mailer.credentials(creds);
         } else {
-            warn!("transport layer security for smtp disabled");
+            warn!("tls is disabled for smtp");
             mailer = mailer.tls(Tls::None);
         }
 
@@ -102,11 +89,6 @@ impl<'a> SmtpBuilder<'a> {
             issuer: self.issuer,
             origin: self.origin.parse()?,
             mailer: mailer.build(),
-            tera: Tera::new(self.templates)?,
-            verification_subject: self.verification_subject,
-            verification_template: self.verification_template,
-            reset_subject: self.reset_subject,
-            reset_template: self.reset_template,
         })
     }
 }
@@ -116,90 +98,37 @@ impl<'a> SmtpBuilder<'a> {
 pub struct Smtp<'a> {
     pub issuer: &'a str,
     pub origin: Mailbox,
-    pub verification_subject: &'a str,
-    pub verification_template: &'a str,
-    pub reset_subject: &'a str,
-    pub reset_template: &'a str,
     pub mailer: SmtpTransport,
-    pub tera: Tera,
 }
 
 impl<'a> Smtp<'a> {
     #[instrument(skip(self))]
-    fn send_email(&self, to: &Email, subject: &str, body: String) -> Result<()> {
-        let formated_subject = if !self.issuer.is_empty() {
-            format!("[{}] {}", self.issuer, subject)
-        } else {
-            subject.to_string()
-        };
+    pub fn send<Err>(&self, to: &Email, subject: &str, body: String) -> Result<(), Err>
+    where
+        Err: From<String>,
+    {
+        let formated_subject = self
+            .issuer
+            .is_empty()
+            .then_some(subject.to_string())
+            .unwrap_or_else(|| format!("[{}] {}", self.issuer, subject));
 
-        let to = to.as_ref().parse().map_err(|err: AddressError| {
-            error!(
-                to = to.as_ref(),
-                from = self.origin.to_string(),
-                error = err.to_string(),
-                "parsing verification email destination"
-            );
-            Error::Unknown
-        })?;
+        let to = to
+            .as_ref()
+            .parse()
+            .map_err(on_error!("parsing email destination"))?;
 
         let email = Message::builder()
             .from(self.origin.clone())
             .to(to)
             .subject(formated_subject)
             .singlepart(SinglePart::html(body))
-            .map_err(|err| {
-                error!(error = err.to_string(), "building email");
-                Error::Unknown
-            })?;
+            .map_err(on_error!("building email message"))?;
 
-        self.mailer.send(&email).map_err(|err| {
-            error!(error = err.to_string(), "sending email");
-            Error::Unknown
-        })?;
+        self.mailer
+            .send(&email)
+            .map_err(on_error!("sending email"))?;
 
         Ok(())
-    }
-}
-
-impl<'a> user_app::Mailer for Smtp<'a> {
-    #[instrument(skip(self))]
-    fn send_credentials_verification_email(&self, email: &Email, token: &Token) -> Result<()> {
-        let mut context = Context::new();
-        context.insert("name", email.as_ref().split('@').collect::<Vec<&str>>()[0]);
-        context.insert("token", token.as_ref());
-
-        let body = self
-            .tera
-            .render(self.verification_template, &context)
-            .map_err(|err| {
-                error!(
-                    error = err.to_string(),
-                    "rendering verification signup email template",
-                );
-                Error::Unknown
-            })?;
-
-        self.send_email(email, self.verification_subject, body)
-    }
-
-    #[instrument(skip(self))]
-    fn send_credentials_reset_email(&self, email: &Email, token: &Token) -> Result<()> {
-        let mut context = Context::new();
-        context.insert("name", email.as_ref().split('@').collect::<Vec<&str>>()[0]);
-        context.insert("token", token.as_ref());
-
-        let body = self
-            .tera
-            .render(self.reset_template, &context)
-            .map_err(|err| {
-                error!(
-                    error = err.to_string(),
-                    "rendering verification reset email template",
-                );
-                Error::Unknown
-            })?;
-
-        self.send_email(email, self.reset_subject, body)
     }
 }

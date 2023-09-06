@@ -8,6 +8,12 @@ impl<T> From<Error> for Result<T> {
     }
 }
 
+impl From<String> for Error {
+    fn from(error: String) -> Self {
+        Self::Unknown(error)
+    }
+}
+
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     // #[error("data store disconnected")]
@@ -24,6 +30,12 @@ pub enum Error {
     NotAPassword,
     #[error("user does not exists")]
     NotFound,
-    #[error("unexpected error")]
-    Unknown,
+    #[error("unexpected error: {0}")]
+    Unknown(String),
+}
+
+impl Error {
+    pub fn is_not_found(&self) -> bool {
+        matches!(self, Error::NotFound)
+    }
 }

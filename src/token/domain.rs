@@ -1,4 +1,4 @@
-use crate::{crypto, result::Result};
+use crate::crypto;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::hash::Hash;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -100,11 +100,6 @@ impl Payload {
             .duration_since(SystemTime::now())
             .unwrap_or_default()
     }
-
-    /// Give a private key with which sign the token containing self, returns the result wrap into an instance of [Token].
-    pub fn into_token(self, private_key: &[u8]) -> Result<Token> {
-        crypto::encode_jwt(private_key, self).map(Token::from)
-    }
 }
 
 /// Represents a signed token.
@@ -129,18 +124,9 @@ impl AsRef<str> for Token {
     }
 }
 
-impl Token {
-    /// Given a public key with which verify the token, returns its corresponding [Payload].
-    pub fn into_payload(self, public_key: &[u8]) -> Result<Payload> {
-        crypto::decode_jwt(public_key, &self.0)
-    }
-}
-
 #[cfg(test)]
 pub mod tests {
     use super::{Payload, TokenKind};
-    use crate::crypto;
-    use base64::{engine::general_purpose, Engine as _};
     use std::time::{Duration, SystemTime};
 
     pub const TEST_DEFAULT_TOKEN_TIMEOUT: u64 = 60;
@@ -164,37 +150,5 @@ pub mod tests {
         assert!(matches!(claim.knd, TokenKind::Session));
         assert_eq!(ISS, claim.iss);
         assert_eq!(SUB.to_string(), claim.sub);
-    }
-
-    #[test]
-    fn token_encode_should_not_fail() {
-        const ISS: &str = "test";
-        const SUB: i32 = 999;
-        let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
-        let claim = Payload::new(TokenKind::Session, ISS, &SUB.to_string(), timeout);
-
-        let secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
-        let token = crypto::encode_jwt(&secret, claim).unwrap();
-
-        let public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
-        let _ = crypto::decode_jwt::<Payload>(&public, &token).unwrap();
-    }
-
-    #[test]
-    fn expired_token_verification_should_fail() {
-        use crate::crypto;
-
-        const ISS: &str = "test";
-        const SUB: i32 = 999;
-
-        let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
-        let mut claim = Payload::new(TokenKind::Session, ISS, &SUB.to_string(), timeout);
-        claim.exp = SystemTime::now() - Duration::from_secs(61);
-
-        let secret = general_purpose::STANDARD.decode(JWT_SECRET).unwrap();
-        let token = crypto::encode_jwt(&secret, claim).unwrap();
-        let public = general_purpose::STANDARD.decode(JWT_PUBLIC).unwrap();
-
-        assert!(crypto::decode_jwt::<Payload>(&public, &token).is_err());
     }
 }

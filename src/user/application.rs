@@ -8,7 +8,7 @@ use crate::token::{
     application::TokenApplication,
     domain::{Payload, TokenKind},
 };
-use crate::user::result::{Error, Result};
+use crate::user::error::{Error, Result};
 use async_trait::async_trait;
 use std::num::ParseIntError;
 use std::sync::Arc;
@@ -33,14 +33,14 @@ pub trait Mailer {
     fn send_credentials_reset_email(&self, to: &Email, token: &Token) -> Result<()>;
 }
 
-pub struct UserApplication<
-    'a,
+pub struct UserApplication<'a, U, S, B, M, C>
+where
     U: UserRepository,
     S: SecretRepository,
     B: EventBus,
     M: Mailer,
     C: Cache,
-> {
+{
     pub user_repo: Arc<U>,
     pub secret_repo: Arc<S>,
     pub token_app: Arc<TokenApplication<'a, C>>,
@@ -68,7 +68,7 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
             return Ok(());
         }
 
-        let key = crypto::hash(&credentials);
+        let key = crypto::salt(&credentials);
 
         let payload = self
             .token_app
@@ -411,18 +411,18 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
 
 #[cfg(test)]
 pub mod tests {
-    use super::super::domain::User;
+    use super::super::{
+        domain::User,
+        error::{Error, Result},
+    };
     use super::{EventBus, Mailer, UserApplication, UserRepository};
     use crate::cache::tests::InMemoryCache;
+    use crate::crypto;
     use crate::secret::domain::SecretKind;
     use crate::secret::{application::tests::SecretRepositoryMock, domain::Secret};
     use crate::token::application::tests::{new_token_application, PRIVATE_KEY, PUBLIC_KEY};
     use crate::token::domain::{Payload, Token, TokenKind};
     use crate::user::domain::Email;
-    use crate::{
-        crypto,
-        result::{Error, Result},
-    };
     use async_trait::async_trait;
     use chrono::Utc;
     use std::sync::Arc;

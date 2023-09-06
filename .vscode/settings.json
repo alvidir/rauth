@@ -1,6 +1,6 @@
 {
   "[rust]": {
-    "editor.defaultFormatter": "rust-lang.rust-analyzer",
+    "editor.defaultFormatter": "rust-lang.rust-analyzer"
     // "editor.rulers": [100]
   },
   "editor.formatOnSave": true,
@@ -11,5 +11,6 @@
     "./Cargo.toml",
     "./Cargo.toml",
     "./Cargo.toml"
-  ]
+  ],
+  "rust-analyzer.showUnlinkedFileNotification": false
 }

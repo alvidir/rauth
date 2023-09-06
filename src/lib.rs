@@ -12,18 +12,34 @@ pub mod rabbitmq;
 #[cfg(feature = "redis-cache")]
 pub mod redis;
 pub mod secret;
-pub mod session;
+// pub mod session;
 #[cfg(feature = "smtp")]
 pub mod smtp;
 pub mod token;
 #[cfg(feature = "tracer")]
 pub mod tracer;
-pub mod user;
+// pub mod user;
 
-mod base64;
 mod crypto;
 #[cfg(feature = "grpc")]
 mod grpc;
 #[cfg(feature = "rest")]
 mod http;
-mod result;
+
+macro_rules! on_error {
+    ($type:ty, $msg:tt) => {
+        |error| -> $type {
+            error!(error = error.to_string(), $msg,);
+            error.to_string().into()
+        }
+    };
+
+    ($msg:tt) => {
+        |error| {
+            error!(error = error.to_string(), $msg,);
+            error.to_string().into()
+        }
+    };
+}
+
+pub(crate) use on_error;

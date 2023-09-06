@@ -1,10 +1,8 @@
 use crate::{
-    base64,
-    crypto::{randomize_with, URL_SAFE},
-    user::result::{Error, Result},
+    crypto,
+    user::error::{Error, Result},
 };
 use ::regex::Regex;
-use argon2::{Algorithm, Argon2, Params, Version};
 
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -35,37 +33,12 @@ impl TryFrom<String> for Password {
         }
 
         let mut salt = [0_u8; 128];
-        randomize_with(URL_SAFE, &mut salt);
+        crypto::randomize(&mut salt);
 
-        let mut hash = [0_u8; 128];
-        Self::ARGON
-            .hash_password_into(password.as_bytes(), &salt, &mut hash)
-            .map(|_| Self {
-                hash: base64::encode(&hash),
-                salt: base64::encode(&salt),
-            })
-            .map_err(|error| {
-                error!(error = error.to_string(), "salting and hashing password");
-                Error::Unknown
-            })
-    }
-}
-
-impl PartialEq<str> for Password {
-    fn eq(&self, other: &str) -> bool {
-        let Ok(hash) = base64::decode(self.hash()) else {
-            return false;
-        };
-
-        let Ok(salt) = base64::decode(self.salt()) else {
-            return false;
-        };
-
-        let mut subject = [0_u8; 128];
-        Self::ARGON
-            .hash_password_into(other.as_bytes(), &salt, &mut subject)
-            .map(|_| subject == hash.as_slice())
-            .unwrap_or_default()
+        crypto::salt(password.as_bytes(), &salt).map(|salted| Self {
+            hash: crypto::encode_b64(&salted),
+            salt: crypto::encode_b64(&salt),
+        })
     }
 }
 
@@ -73,9 +46,6 @@ impl Password {
     const PATTERN: &str = r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$";
 
     pub const REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(Self::PATTERN).unwrap());
-
-    const ARGON: Lazy<Argon2<'_>> =
-        Lazy::new(|| Argon2::new(Algorithm::Argon2id, Version::V0x13, Params::default()));
 
     pub fn new(hash: String, salt: String) -> Self {
         Self { hash, salt }
@@ -88,12 +58,19 @@ impl Password {
     pub fn salt(&self) -> &str {
         &self.salt
     }
+
+    pub fn matches(&self, other: &str) -> Result<bool> {
+        let hash: Vec<u8> = crypto::decode_b64(self.hash())?;
+        let salt = crypto::decode_b64(self.salt())?;
+
+        crypto::salt(other.as_bytes(), &salt).map(|salted| salted == hash.as_slice())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::Password;
-    use crate::user::result::Result;
+    use crate::user::error::Result;
 
     #[test]
     fn password_from_str() {

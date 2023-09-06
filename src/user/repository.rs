@@ -1,5 +1,5 @@
 use super::domain::{Email, Password};
-use super::result::{Error, Result};
+use super::error::{Error, Result};
 use super::{application::UserRepository, domain::User};
 use async_trait::async_trait;
 use sqlx::error::Error as SqlError;
@@ -42,13 +42,13 @@ pub struct PostgresUserRepository<'a> {
 
 macro_rules! on_error {
     ($msg:tt) => {
-        |error: sqlx::Error| -> Error {
+        |error| {
             if matches!(error, SqlError::RowNotFound) {
                 return Error::NotFound;
             }
 
             error!(error = error.to_string(), $msg,);
-            Error::Unknown
+            error.to_string().into()
         }
     };
 }
@@ -87,7 +87,11 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
     }
 
     async fn create(&self, user: &mut User) -> Result<()> {
-        let mut tx = self.pool.begin().await.map_err(|_| Error::Unknown)?;
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(on_error!("starting postgres transaction"))?;
 
         let (user_id,) = sqlx::query_as(QUERY_INSERT_USER)
             .bind(user.credentials.email.username())
@@ -107,7 +111,9 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
                 .map_err(on_error!("performing insert salt secret query on postgres"))?;
         }
 
-        tx.commit().await.map_err(|_| Error::Unknown)?;
+        tx.commit()
+            .await
+            .map_err(on_error!("commiting postgres transaction"))?;
         user.id = user_id;
 
         Ok(())

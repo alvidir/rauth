@@ -2,13 +2,14 @@ use std::ops::Not;
 
 use super::application::Mailer;
 use super::domain::{Email, Password};
+use super::error::Error;
 use crate::cache::Cache;
+use crate::grpc;
 use crate::secret::application::SecretRepository;
 use crate::user::{
     application::{EventBus, UserApplication, UserRepository},
     domain::Credentials,
 };
-use crate::{grpc, result::Error};
 use tonic::metadata::errors::InvalidMetadataValue;
 use tonic::{Request, Response, Status};
 
@@ -26,6 +27,17 @@ pub use proto::user_server::UserServer;
 
 // Proto message structs
 use proto::{DeleteRequest, Empty, MfaRequest, ResetRequest, SignupRequest};
+
+impl From<Error> for Status {
+    fn from(error: Error) -> Status {
+        match error {
+            Error::NotAnEmail => Status::invalid_argument("email"),
+            Error::NotAPassword => Status::invalid_argument("password"),
+            Error::NotFound => Status::not_found("user"),
+            Error::Unknown => Status::unknown(""),
+        }
+    }
+}
 
 impl TryFrom<SignupRequest> for Credentials {
     type Error = Status;
@@ -47,25 +59,26 @@ impl TryFrom<SignupRequest> for Credentials {
     }
 }
 
-pub struct UserGrpcService<
+pub struct UserGrpcService<U, S, B, M, C>
+where
     U: UserRepository + Sync + Send,
     S: SecretRepository + Sync + Send,
     B: EventBus + Sync + Send,
     M: Mailer,
     C: Cache,
-> {
+{
     pub user_app: UserApplication<'static, U, S, B, M, C>,
     pub jwt_header: &'static str,
     pub totp_header: &'static str,
 }
 
-impl<
-        U: 'static + UserRepository + Sync + Send,
-        S: 'static + SecretRepository + Sync + Send,
-        B: 'static + EventBus + Sync + Send,
-        M: 'static + Mailer + Sync + Send,
-        C: 'static + Cache + Sync + Send,
-    > UserGrpcService<U, S, B, M, C>
+impl<U, S, B, M, C> UserGrpcService<U, S, B, M, C>
+where
+    U: 'static + UserRepository + Sync + Send,
+    S: 'static + SecretRepository + Sync + Send,
+    B: 'static + EventBus + Sync + Send,
+    M: 'static + Mailer + Sync + Send,
+    C: 'static + Cache + Sync + Send,
 {
     #[instrument(skip(self))]
     async fn signup_with_token(&self, token: &str) -> Result<Response<Empty>, Status> {
@@ -103,19 +116,19 @@ impl<
 }
 
 #[tonic::async_trait]
-impl<
-        U: 'static + UserRepository + Sync + Send,
-        S: 'static + SecretRepository + Sync + Send,
-        B: 'static + EventBus + Sync + Send,
-        M: 'static + Mailer + Sync + Send,
-        C: 'static + Cache + Sync + Send,
-    > User for UserGrpcService<U, S, B, M, C>
+impl<U, S, B, M, C> User for UserGrpcService<U, S, B, M, C>
+where
+    U: 'static + UserRepository + Sync + Send,
+    S: 'static + SecretRepository + Sync + Send,
+    B: 'static + EventBus + Sync + Send,
+    M: 'static + Mailer + Sync + Send,
+    C: 'static + Cache + Sync + Send,
 {
     #[instrument(skip(self))]
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<Empty>, Status> {
         match grpc::get_header(&request, self.jwt_header) {
             Ok(token) => self.signup_with_token(&token).await,
-            Err(err) if matches!(err, Error::NotFound) => {
+            Err(err) if err.is => {
                 let request = request.into_inner();
                 self.signup_with_credentials(request).await
             }

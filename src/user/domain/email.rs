@@ -1,4 +1,4 @@
-use crate::user::result::{Error, Result};
+use crate::user::error::{Error, Result};
 use ::regex::Regex;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -77,7 +77,7 @@ impl Email {
 #[cfg(test)]
 mod tests {
     use super::Email;
-    use crate::user::result::Result;
+    use crate::user::error::Result;
 
     #[test]
     fn email_from_str() {
