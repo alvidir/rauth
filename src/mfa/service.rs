@@ -22,19 +22,19 @@ pub trait Mailer {
     fn send_otp_email(&self, to: &Email, token: &Otp) -> Result<()>;
 }
 
-pub struct MfaApplication<S, M, C> {
+pub struct MfaService<S, M, C> {
     pub secret_repo: Arc<S>,
     pub mailer: Arc<M>,
     pub cache: Arc<C>,
 }
 
-impl<S, M, C> MfaApplication<S, M, C>
+impl<S, M, C> MfaService<S, M, C>
 where
     S: SecretRepository + Sync + Send,
     M: Mailer + Sync + Send,
     C: Cache + Sync + Send,
 {
-    pub fn method(&self, mfa: Mfa) -> Box<&dyn MfaMethod> {
+    pub fn mfa_method(&self, mfa: Mfa) -> Box<&dyn MfaMethod> {
         match mfa {
             Mfa::App => Box::new(&MfaAppMethod {
                 secret_repo: self.secret_repo.clone(),

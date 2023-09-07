@@ -23,7 +23,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         pool: &redis::REDIS_POOL,
     });
 
-    let token_app = TokenService {
+    let token_srv = TokenService {
         timeout: Duration::from_secs(*config::TOKEN_TIMEOUT),
         token_issuer: &config::TOKEN_ISSUER,
         private_key: &config::JWT_SECRET,
@@ -32,7 +32,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
 
     let session_server = Arc::new(SessionRestService {
-        token_app,
+        token_srv,
         jwt_header: &config::JWT_HEADER,
     });
 

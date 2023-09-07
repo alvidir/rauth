@@ -12,7 +12,7 @@ use std::sync::Arc;
 pub struct SessionApplication<'a, U: UserRepository, S: SecretRepository, C: Cache> {
     pub user_repo: Arc<U>,
     pub secret_repo: Arc<S>,
-    pub token_app: Arc<TokenApplication<'a, C>>,
+    pub token_srv: Arc<TokenApplication<'a, C>>,
 }
 
 impl<'a, U: UserRepository, S: SecretRepository, C: Cache> SessionApplication<'a, U, S, C> {
@@ -44,29 +44,29 @@ impl<'a, U: UserRepository, S: SecretRepository, C: Cache> SessionApplication<'a
             .map_err(|_| Error::Unauthorized)?;
 
         let payload = self
-            .token_app
+            .token_srv
             .new_payload(TokenKind::Session, &user.id.to_string())?;
 
-        self.token_app.store(&payload).await?;
-        self.token_app.sign(payload)
+        self.token_srv.store(&payload).await?;
+        self.token_srv.sign(payload)
     }
 
     #[instrument(skip(self))]
     pub async fn logout(&self, token: &str) -> Result<()> {
-        logout_strategy::<C>(&self.token_app, token).await
+        logout_strategy::<C>(&self.token_srv, token).await
     }
 }
 
 pub(super) async fn logout_strategy<'b, C: Cache>(
-    token_app: &TokenApplication<'b, C>,
+    token_srv: &TokenApplication<'b, C>,
     token: &str,
 ) -> Result<()> {
-    let token = token_app.payload_from(token.into())?;
+    let token = token_srv.payload_from(token.into())?;
     if !token.knd.is_session() {
         return Err(Error::InvalidToken);
     }
 
-    token_app.remove(&token.jti).await
+    token_srv.remove(&token.jti).await
 }
 
 #[cfg(test)]
@@ -76,7 +76,7 @@ pub mod tests {
     use crate::secret::application::tests::SecretRepositoryMock;
     use crate::secret::domain::{Secret, SecretKind};
     use crate::token::application::tests::{
-        new_token, new_token_application, PRIVATE_KEY, PUBLIC_KEY,
+        new_token, new_token_srvlication, PRIVATE_KEY, PUBLIC_KEY,
     };
     use crate::token::domain::{Payload, TokenKind};
     use crate::user::domain::Email;
@@ -91,12 +91,12 @@ pub mod tests {
     ) -> SessionApplication<'a, UserRepositoryMock, SecretRepositoryMock, InMemoryCache> {
         let user_repo = UserRepositoryMock::default();
         let secret_repo = SecretRepositoryMock::default();
-        let token_app = new_token_application();
+        let token_srv = new_token_srvlication();
 
         SessionApplication {
             user_repo: Arc::new(user_repo),
             secret_repo: Arc::new(secret_repo),
-            token_app: Arc::new(token_app),
+            token_srv: Arc::new(token_srv),
         }
     }
 

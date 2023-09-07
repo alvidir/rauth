@@ -32,7 +32,7 @@ pub trait Mailer {
 pub struct UserApplication<'a, U, S, B, M, C> {
     pub user_repo: Arc<U>,
     pub secret_repo: Arc<S>,
-    pub token_app: Arc<TokenService<'a, C>>,
+    pub token_srv: Arc<TokenService<'a, C>>,
     pub mailer: Arc<M>,
     pub event_bus: Arc<B>,
     pub totp_secret_len: usize,

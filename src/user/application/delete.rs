@@ -23,7 +23,7 @@ where
         password: Password,
         otp: Option<Otp>,
     ) -> Result<()> {
-        let payload = self.token_app.consume(Kind::Session, token).await?;
+        let payload = self.token_srv.consume(Kind::Session, token).await?;
 
         let user_id = payload
             .sub
@@ -31,7 +31,7 @@ where
             .map_err(on_error!("parsing token subject to user id"))?;
 
         self.delete(user_id, password, otp).await?;
-        self.token_app.revoke(&payload).await.map_err(Into::into)
+        self.token_srv.revoke(&payload).await.map_err(Into::into)
     }
 
     /// Given a valid user ID and passwords, performs the deletion of the corresponding user.

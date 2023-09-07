@@ -1,7 +1,6 @@
 use super::{
     domain::{Kind, Payload, Token},
-    error::Result,
-    Error,
+    error::{Error, Result},
 };
 use crate::{cache::Cache, on_error};
 use jsonwebtoken::{Algorithm as JwtAlgorithm, DecodingKey, EncodingKey, Header, Validation};
@@ -136,7 +135,7 @@ pub mod tests {
         )
     }
 
-    pub fn new_token_application<'a>() -> TokenService<'a, InMemoryCache> {
+    pub fn new_token_srvlication<'a>() -> TokenService<'a, InMemoryCache> {
         TokenService {
             timeout: Duration::from_secs(999),
             token_issuer: "test",
@@ -148,7 +147,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn consume_token_should_not_fail() {
-        let app = new_token_application();
+        let app = new_token_srvlication();
         let payload = app.new_payload(Kind::Session, TEST_TOKEN_SUBJECT);
         let token = app.issue(payload).await.unwrap();
 
@@ -158,7 +157,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn consume_expired_token_should_fail() {
-        let app = new_token_application();
+        let app = new_token_srvlication();
         let mut payload = app.new_payload(Kind::Session, TEST_TOKEN_SUBJECT);
         payload.exp = SystemTime::now() - Duration::from_secs(61);
 
@@ -175,7 +174,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn consume_corrupt_token_should_fail() {
-        let app = new_token_application();
+        let app = new_token_srvlication();
         let payload = app.new_payload(Kind::Session, TEST_TOKEN_SUBJECT);
         let token = app.issue(payload).await.unwrap();
         let corrupted: Token = token.as_ref().replace('A', "a").try_into().unwrap();
@@ -186,7 +185,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn consume_wrong_token_kind_should_fail() {
-        let app = new_token_application();
+        let app = new_token_srvlication();
         let payload = app.new_payload(Kind::Session, TEST_TOKEN_SUBJECT);
         let token = app.issue(payload).await.unwrap();
 

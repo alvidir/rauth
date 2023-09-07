@@ -5,7 +5,7 @@ use std::sync::Arc;
 use super::application;
 
 pub struct SessionRestService<C: Cache + Sync + Send> {
-    pub token_app: TokenApplication<'static, C>,
+    pub token_srv: TokenApplication<'static, C>,
     pub jwt_header: &'static str,
 }
 
@@ -24,12 +24,12 @@ impl<C: 'static + Cache + Sync + Send> SessionRestService<C> {
     ) -> impl Responder {
         match async move {
             let token = http::get_header(req, app_data.jwt_header)?;
-            let token = app_data.token_app.payload_from(token.into())?;
+            let token = app_data.token_srv.payload_from(token.into())?;
             if !token.knd.is_session() {
                 return Err(Error::InvalidToken);
             }
 
-            app_data.token_app.find(&token.jti).await
+            app_data.token_srv.find(&token.jti).await
         }
         .await
         {
@@ -45,7 +45,7 @@ impl<C: 'static + Cache + Sync + Send> SessionRestService<C> {
     ) -> impl Responder {
         match async move {
             let token = http::get_header(req, app_data.jwt_header)?;
-            application::logout_strategy::<C>(&app_data.token_app, &token).await
+            application::logout_strategy::<C>(&app_data.token_srv, &token).await
         }
         .await
         {

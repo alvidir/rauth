@@ -30,13 +30,13 @@ where
         password: Password,
         otp: Otp,
     ) -> Result<()> {
-        let payload = self.token_app.decode(token)?;
+        let payload = self.token_srv.decode(token)?;
         if !payload.kind().is_session() {
             return Error::WrongToken.into();
         }
 
         // make sure the token is still valid
-        self.token_app.find(&payload.jti).await?;
+        self.token_srv.find(&payload.jti).await?;
 
         let user_id = payload
             .sub
@@ -80,13 +80,13 @@ where
         password: &str,
         otp: &str,
     ) -> Result<Option<String>> {
-        let claims: Payload = self.token_app.payload_from(token.into())?;
+        let claims: Payload = self.token_srv.payload_from(token.into())?;
         if !claims.knd.is_session() {
             return Err(Error::InvalidToken);
         }
 
         // make sure the token is still valid
-        self.token_app.find(&claims.jti).await?;
+        self.token_srv.find(&claims.jti).await?;
 
         let user_id = claims.sub.parse().map_err(|err: ParseIntError| {
             warn!(error = err.to_string(), "parsing str to i32");
@@ -157,13 +157,13 @@ where
         password: &str,
         otp: &str,
     ) -> Result<()> {
-        let claims: Payload = self.token_app.payload_from(token.into())?;
+        let claims: Payload = self.token_srv.payload_from(token.into())?;
         if !claims.knd.is_session() {
             return Err(Error::InvalidToken);
         }
 
         // make sure the token is still valid
-        self.token_app.find(&claims.jti).await?;
+        self.token_srv.find(&claims.jti).await?;
 
         let user_id = claims.sub.parse().map_err(|err: ParseIntError| {
             warn!(error = err.to_string(), "parsing str to i32",);
@@ -228,11 +228,11 @@ where
         };
 
         let payload = self
-            .token_app
+            .token_srv
             .new_payload(Kind::Reset, &user.id.to_string())?;
 
-        self.token_app.store(&payload).await?;
-        let token = self.token_app.sign(payload)?;
+        self.token_srv.store(&payload).await?;
+        let token = self.token_srv.sign(payload)?;
 
         self.mailer.send_credentials_reset_email(&email, &token)?;
 
@@ -246,13 +246,13 @@ where
         new_password: &str,
         otp: &str,
     ) -> Result<()> {
-        let claims: Payload = self.token_app.payload_from(token.into())?;
+        let claims: Payload = self.token_srv.payload_from(token.into())?;
         if !claims.knd.is_reset() {
             return Err(Error::InvalidToken);
         }
 
         // make sure the token is still valid
-        self.token_app.find(&claims.jti).await?;
+        self.token_srv.find(&claims.jti).await?;
 
         let user_id = claims.sub.parse().map_err(|err: ParseIntError| {
             warn!(error = err.to_string(), "parsing str to i32",);
@@ -260,7 +260,7 @@ where
         })?;
 
         self.reset_credentials(user_id, new_password, otp).await?;
-        self.token_app.remove(&claims.jti).await?;
+        self.token_srv.remove(&claims.jti).await?;
         Ok(())
     }
 
@@ -319,7 +319,7 @@ pub mod tests {
     use crate::crypto;
     use crate::secret::domain::SecretKind;
     use crate::secret::{application::tests::SecretRepositoryMock, domain::Secret};
-    use crate::token::application::tests::{new_token_application, PRIVATE_KEY, PUBLIC_KEY};
+    use crate::token::application::tests::{new_token_srvlication, PRIVATE_KEY, PUBLIC_KEY};
     use crate::token::domain::{Kind, Payload, Token};
     use crate::user::domain::Email;
     use async_trait::async_trait;
@@ -447,14 +447,14 @@ pub mod tests {
         let user_repo = UserRepositoryMock::default();
         let secret_repo = SecretRepositoryMock::default();
         let mailer_mock = MailerMock::default();
-        let token_app = new_token_application();
+        let token_srv = new_token_srvlication();
 
         let event_bus = EventBusMock::default();
         UserApplication {
             user_repo: Arc::new(user_repo),
             secret_repo: Arc::new(secret_repo),
             cache: Arc::new(InMemoryCache),
-            token_app: Arc::new(token_app),
+            token_srv: Arc::new(token_srv),
             mailer: Arc::new(mailer_mock),
             event_bus: Arc::new(event_bus),
             totp_secret_len: 32_usize,

@@ -62,7 +62,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
     .build()?;
 
-    let token_app = Arc::new(TokenService {
+    let token_srv = Arc::new(TokenService {
         timeout: Duration::from_secs(*config::TOKEN_TIMEOUT),
         token_issuer: &config::TOKEN_ISSUER,
         private_key: &config::JWT_SECRET,
@@ -73,7 +73,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let user_app = UserApplication {
         user_repo: user_repo.clone(),
         secret_repo: secret_repo.clone(),
-        token_app: token_app.clone(),
+        token_srv: token_srv.clone(),
         mailer: Arc::new(smtp),
         event_bus: user_event_bus.clone(),
         totp_secret_len: *config::TOTP_SECRET_LEN,
@@ -89,7 +89,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let session_app = SessionApplication {
         user_repo: user_repo.clone(),
         secret_repo: secret_repo.clone(),
-        token_app: token_app.clone(),
+        token_srv: token_srv.clone(),
     };
 
     let session_grpc_service = SessionGrpcService {

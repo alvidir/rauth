@@ -41,7 +41,7 @@ pub enum Error {
     #[error("{0}")]
     Cache(#[from] crate::cache::Error),
     #[error("{0}")]
-    Token(#[from] crate::token::Error),
+    Token(#[from] crate::token::error::Error),
     #[error("unexpected error")]
     Unknown(String),
     #[cfg(test)]

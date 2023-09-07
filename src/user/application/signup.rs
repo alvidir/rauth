@@ -28,14 +28,14 @@ where
 
         let key = crypto::hash(&credentials);
         let payload = self
-            .token_app
+            .token_srv
             .new_payload(Kind::Verification, key.to_string());
 
         self.cache
             .save(&key.to_string(), &credentials, Some(payload.timeout()))
             .await?;
 
-        let token = self.token_app.issue(payload).await?;
+        let token = self.token_srv.issue(payload).await?;
         self.mailer
             .send_credentials_verification_email(&credentials.email, &token)?;
 
@@ -45,8 +45,8 @@ where
     /// Given a valid verification token, performs the signup of the corresponding user.
     #[instrument(skip(self))]
     pub async fn signup_with_token(&self, token: Token) -> Result<Token> {
-        let payload = self.token_app.consume(Kind::Verification, token).await?;
-        self.token_app.revoke(&payload).await?;
+        let payload = self.token_srv.consume(Kind::Verification, token).await?;
+        self.token_srv.revoke(&payload).await?;
 
         let mut user = self
             .cache
@@ -66,9 +66,9 @@ where
 
         // FIXME: use session application for loging in
         let payload = self
-            .token_app
+            .token_srv
             .new_payload(Kind::Session, user.id.to_string());
 
-        self.token_app.issue(payload).await.map_err(Into::into)
+        self.token_srv.issue(payload).await.map_err(Into::into)
     }
 }
