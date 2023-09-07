@@ -5,27 +5,29 @@ use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;
 use std::time::Duration;
 
-#[derive(thiserror::Error, Debug)]
-pub enum Error {
-    #[cfg(feature = "redis-cache")]
-    #[error("{0}")]
-    Redis(#[from] reool::RedisError),
-    #[error("{0}")]
-    Any(String),
-}
+pub type Result<T> = std::result::Result<T, Error>;
 
-impl From<String> for Error {
-    fn from(error: String) -> Self {
-        Self::Any(error)
+impl<T> From<Error> for Result<T> {
+    fn from(error: Error) -> Self {
+        Err(error)
     }
 }
 
-pub type Result<T> = std::result::Result<T, Error>;
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+    #[error("resource not found")]
+    NotFound,
+    #[error("{0}")]
+    Json(#[from] serde_json::Error),
+    #[cfg(feature = "redis-cache")]
+    #[error("{0}")]
+    Redis(#[from] reool::RedisError),
+}
 
 /// Represents a general purpose cache.
 #[async_trait]
 pub trait Cache {
-    async fn find<T>(&self, key: &str) -> Result<Option<T>>
+    async fn find<T>(&self, key: &str) -> Result<T>
     where
         T: DeserializeOwned;
     async fn save<T>(&self, key: &str, value: T, expire: Option<Duration>) -> Result<()>
@@ -39,7 +41,7 @@ pub use redis_cache::*;
 
 #[cfg(feature = "redis-cache")]
 mod redis_cache {
-    use super::{Cache, Result};
+    use super::{Cache, Error, Result};
     use crate::on_error;
     use async_trait::async_trait;
     use reool::{AsyncCommands, PoolDefault, RedisError, RedisPool};
@@ -55,7 +57,7 @@ mod redis_cache {
     #[async_trait]
     impl<'a> Cache for RedisCache<'a> {
         #[instrument(skip(self))]
-        async fn find<T>(&self, key: &str) -> Result<Option<T>>
+        async fn find<T>(&self, key: &str) -> Result<T>
         where
             T: DeserializeOwned,
         {
@@ -63,14 +65,14 @@ mod redis_cache {
                 .pool
                 .check_out(PoolDefault)
                 .await
-                .map_err(on_error!("pulling connection for redis"))?;
+                .map_err(on_error!(Error, "pulling connection for redis"))?;
 
             let Some(data): Option<String> = conn
                 .get(key)
                 .await
-                .map_err(on_error!("performing GET command on redis"))?
+                .map_err(on_error!(Error, "performing GET command on redis"))?
             else {
-                return Ok(None);
+                return Error::NotFound.into();
             };
 
             serde_json::from_str(&data).map_err(on_error!("deserializing data from redis"))
@@ -127,7 +129,7 @@ mod redis_cache {
 
 #[cfg(test)]
 pub mod tests {
-    use super::{Cache, Result};
+    use super::{Cache, Error, Result};
     use crate::on_error;
     use async_trait::async_trait;
     use once_cell::sync::Lazy;
@@ -148,7 +150,7 @@ pub mod tests {
 
     #[async_trait]
     impl Cache for InMemoryCache {
-        async fn find<T>(&self, key: &str) -> Result<Option<T>>
+        async fn find<T>(&self, key: &str) -> Result<T>
         where
             T: DeserializeOwned,
         {
@@ -158,7 +160,7 @@ pub mod tests {
                 .get(key)
                 .map(ToString::to_string)
             else {
-                return Ok(None);
+                return Error::NotFound.into();
             };
 
             serde_json::from_str(&data).map_err(on_error!("deserializing data from json"))
@@ -169,7 +171,7 @@ pub mod tests {
             T: Serialize + Send + Sync + Debug,
         {
             let data = serde_json::to_string(&value)
-                .map_err(on_error!(String, "serializing data to json"))?;
+                .map_err(on_error!(Error, "serializing data to json"))?;
 
             IN_MEMORY_CACHE
                 .lock()

@@ -13,6 +13,7 @@ pub mod rabbitmq;
 pub mod redis;
 pub mod secret;
 // pub mod session;
+pub mod mfa;
 #[cfg(feature = "smtp")]
 pub mod smtp;
 pub mod token;

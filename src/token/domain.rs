@@ -1,31 +1,24 @@
+use super::error::{Error, Result};
 use crate::crypto;
+use once_cell::sync::Lazy;
+use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::hash::Hash;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-#[derive(Debug, Hash, Serialize, Deserialize)]
-pub enum TokenKind {
+const PATTERN: &str = r"^(?:[\w-]*\.){2}[\w-]*$";
+const REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(PATTERN).unwrap());
+
+/// Represents the kind of a token.
+#[derive(Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Kind {
     Session,
     Verification,
     Reset,
 }
 
-impl TokenKind {
-    pub fn is_session(&self) -> bool {
-        matches!(self, TokenKind::Session)
-    }
-
-    pub fn is_verification(&self) -> bool {
-        matches!(self, TokenKind::Verification)
-    }
-
-    pub fn is_reset(&self) -> bool {
-        matches!(self, TokenKind::Reset)
-    }
-}
-
 /// Represents the payload of a JWT, containing the claims.
-#[derive(Debug, Hash, Serialize, Deserialize)]
+#[derive(Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Payload {
     pub jti: String,
     #[serde(
@@ -45,7 +38,7 @@ pub struct Payload {
     pub iat: SystemTime,
     pub iss: String,
     pub sub: String,
-    pub knd: TokenKind,
+    pub knd: Kind,
 }
 
 fn as_unix_timestamp<S>(
@@ -79,7 +72,7 @@ where
 }
 
 impl Payload {
-    pub fn new(kind: TokenKind, iss: &str, sub: &str, timeout: Duration) -> Self {
+    pub fn new(kind: Kind, iss: &str, sub: &str, timeout: Duration) -> Self {
         let mut token = Payload {
             jti: Default::default(),
             exp: SystemTime::now() + timeout,
@@ -100,21 +93,30 @@ impl Payload {
             .duration_since(SystemTime::now())
             .unwrap_or_default()
     }
+
+    /// Returns the [Kind] field from self.
+    pub fn kind(&self) -> Kind {
+        self.knd
+    }
+
+    /// Returns the subject field (sub) from self.
+    pub fn subject(&self) -> &str {
+        &self.sub
+    }
 }
 
 /// Represents a signed token.
 #[derive(Debug)]
 pub struct Token(String);
 
-impl From<String> for Token {
-    fn from(value: String) -> Self {
-        Token(value)
-    }
-}
+impl TryFrom<String> for Token {
+    type Error = Error;
 
-impl From<&str> for Token {
-    fn from(value: &str) -> Self {
-        Token(value.to_string())
+    fn try_from(token: String) -> Result<Self> {
+        REGEX
+            .is_match(&token)
+            .then_some(Self(token))
+            .ok_or(Error::NotAToken)
     }
 }
 
@@ -126,7 +128,7 @@ impl AsRef<str> for Token {
 
 #[cfg(test)]
 pub mod tests {
-    use super::{Payload, TokenKind};
+    use super::{Kind, Payload};
     use std::time::{Duration, SystemTime};
 
     pub const TEST_DEFAULT_TOKEN_TIMEOUT: u64 = 60;
@@ -141,13 +143,13 @@ pub mod tests {
         let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
 
         let before = SystemTime::now();
-        let claim = Payload::new(TokenKind::Session, ISS, &SUB.to_string(), timeout);
+        let claim = Payload::new(Kind::Session, ISS, &SUB.to_string(), timeout);
         let after = SystemTime::now();
 
         assert!(claim.iat >= before && claim.iat <= after);
         assert!(claim.exp >= before + timeout);
         assert!(claim.exp <= after + timeout);
-        assert!(matches!(claim.knd, TokenKind::Session));
+        assert!(matches!(claim.knd, Kind::Session));
         assert_eq!(ISS, claim.iss);
         assert_eq!(SUB.to_string(), claim.sub);
     }

@@ -3,6 +3,12 @@ use ::regex::Regex;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
+const DOMAIN_SEPARATOR: char = '@';
+const SUFIX_SEPARATOR: char = '+';
+
+const PATTERN: &str = r"^[a-zA-Z0-9+._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,63}$";
+const REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(PATTERN).unwrap());
+
 /// Represents an email with, or without, sufix.
 #[derive(Debug, Default, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Email(String);
@@ -27,7 +33,7 @@ impl TryFrom<String> for Email {
 
     /// Builds an [Email] from the given string if, and only if, the string matches the email's regex.
     fn try_from(email: String) -> Result<Self> {
-        Self::REGEX
+        REGEX
             .is_match(&email)
             .then_some(Self(email))
             .ok_or(Error::NotAnEmail)
@@ -35,29 +41,14 @@ impl TryFrom<String> for Email {
 }
 
 impl Email {
-    const PATTERN: &str = r"^[a-zA-Z0-9+._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,63}$";
-    const DOMAIN_SEPARATOR: char = '@';
-    const SUFIX_SEPARATOR: char = '+';
-
-    pub const REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(Self::PATTERN).unwrap());
-
-    pub fn new(email: String) -> Self {
-        Self(email)
-    }
-
     /// Returns an email resulting from substracting the sufix from self, if any.
     pub fn actual_email(&self) -> Self {
-        let email_parts: Vec<&str> = self
-            .0
-            .split(&[Self::SUFIX_SEPARATOR, Self::DOMAIN_SEPARATOR])
-            .collect();
+        let email_parts: Vec<&str> = self.0.split(&[SUFIX_SEPARATOR, DOMAIN_SEPARATOR]).collect();
 
         if email_parts.len() == 3 {
             return Self(format!(
                 "{}{}{}",
-                email_parts[0],
-                Self::DOMAIN_SEPARATOR,
-                email_parts[2],
+                email_parts[0], DOMAIN_SEPARATOR, email_parts[2],
             ));
         }
 
@@ -67,7 +58,7 @@ impl Email {
     /// Returns the username part from the email.
     pub fn username(&self) -> &str {
         self.0
-            .split(&[Self::SUFIX_SEPARATOR, Self::DOMAIN_SEPARATOR])
+            .split(&[SUFIX_SEPARATOR, DOMAIN_SEPARATOR])
             .into_iter()
             .next()
             .unwrap_or_default()

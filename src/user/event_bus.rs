@@ -1,4 +1,8 @@
-use super::{application::EventBus, domain::User, error::Result};
+use super::{
+    application::EventBus,
+    domain::User,
+    error::{Error, Result},
+};
 use crate::{on_error, rabbitmq::EventKind};
 use async_trait::async_trait;
 use deadpool_lapin::Pool;
@@ -20,27 +24,21 @@ pub struct RabbitMqUserBus<'a> {
     pub issuer: &'a str,
 }
 
-#[async_trait]
-impl<'a> EventBus for RabbitMqUserBus<'a> {
+impl<'a> RabbitMqUserBus<'a> {
     #[instrument(skip(self))]
-    async fn emit_user_created(&self, user: &User) -> Result<()> {
-        let event = UserEventPayload {
-            user_id: user.id,
-            user_name: user.credentials.email.username(),
-            user_email: user.credentials.email.as_ref(),
-            event_issuer: self.issuer,
-            event_kind: EventKind::Created,
-        };
-
-        let payload = serde_json::to_string(&event)
+    async fn emit<'b>(&self, payload: UserEventPayload<'b>) -> Result<()> {
+        let payload = serde_json::to_string(&payload)
             .map(|str| str.into_bytes())
-            .map_err(on_error!("serializing user created event data to json"))?;
+            .map_err(on_error!(
+                Error,
+                "serializing user created event data to json"
+            ))?;
 
         let connection = self
             .pool
             .get()
             .await
-            .map_err(on_error!("pulling connection from rabbitmq pool"))?;
+            .map_err(on_error!(Error, "pulling connection from rabbitmq pool"))?;
 
         connection
             .create_channel()
@@ -54,10 +52,37 @@ impl<'a> EventBus for RabbitMqUserBus<'a> {
                 BasicProperties::default(),
             )
             .await
-            .map_err("emititng user created event")?
+            .map_err(on_error!("emititng user created event"))?
             .await
-            .map_err("confirming user created event reception")?;
+            .map_err(on_error!("confirming user created event reception"))?;
 
         Ok(())
+    }
+}
+
+#[async_trait]
+impl<'a> EventBus for RabbitMqUserBus<'a> {
+    #[instrument(skip(self))]
+    async fn emit_user_created(&self, user: &User) -> Result<()> {
+        self.emit(UserEventPayload {
+            user_id: user.id,
+            user_name: user.credentials.email.username(),
+            user_email: user.credentials.email.as_ref(),
+            event_issuer: self.issuer,
+            event_kind: EventKind::Created,
+        })
+        .await
+    }
+
+    #[instrument(skip(self))]
+    async fn emit_user_deleted(&self, user: &User) -> Result<()> {
+        self.emit(UserEventPayload {
+            user_id: user.id,
+            user_name: user.credentials.email.username(),
+            user_email: user.credentials.email.as_ref(),
+            event_issuer: self.issuer,
+            event_kind: EventKind::Deleted,
+        })
+        .await
     }
 }

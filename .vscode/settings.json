@@ -24,8 +24,6 @@
     "evenBetterToml.formatter.arrayAutoCollapse": true,
     "evenBetterToml.formatter.alignComments": true,
     "evenBetterToml.formatter.compactInlineTables": true,
-    "evenBetterToml.formatter.compactArrays": true,
-    "evenBetterToml.formatter.compactEntries": true,
     "evenBetterToml.formatter.trailingNewline": true,
     "evenBetterToml.formatter.indentTables": true,
     "evenBetterToml.formatter.inlineTableExpand": true,

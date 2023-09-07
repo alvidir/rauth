@@ -1,5 +1,4 @@
--- Your SQL goes here
-CREATE TYPE IF NOT EXISTS SECRET AS ENUM ('totp', 'otp', 'salt');
+CREATE TYPE IF NOT EXISTS SECRET AS ENUM ('totp', 'salt');
 
 CREATE TABLE IF NOT EXISTS Secrets (
     id SERIAL PRIMARY KEY,

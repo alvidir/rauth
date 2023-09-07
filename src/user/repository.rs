@@ -1,7 +1,10 @@
+use std::str::FromStr;
+
+use crate::mfa::domain::Mfa;
 use crate::on_error;
 use crate::postgres::on_query_error;
 
-use super::domain::{Email, Password};
+use super::domain::{Credentials, Email, PasswordHash, Preferences};
 use super::error::{Error, Result};
 use super::{application::UserRepository, domain::User};
 use async_trait::async_trait;
@@ -9,33 +12,42 @@ use sqlx::error::Error as SqlError;
 use sqlx::postgres::PgPool;
 
 const QUERY_INSERT_USER: &str =
-    "INSERT INTO users (name, email, actual_email, password) VALUES ($1, $2, $3, $4) RETURNING id";
+    "INSERT INTO users (name, email, actual_email, password, multi_factor) VALUES ($1, $2, $3, $4, $5) RETURNING id";
 const QUERY_INSERT_SALT_SECRET: &str =
     "INSERT INTO secrets (owner, kind, data) VALUES ($1, 'salt', $2)";
-const QUERY_FIND_USER: &str = "SELECT u.id, u.email, u.password, s.data FROM users u LEFT JOIN secrets s ON u.id = s.owner WHERE s.id = $1 AND (s.kind = 'salt' OR s IS NULL)";
+const QUERY_FIND_USER: &str = "SELECT u.id, u.email, u.password, s.data, u.multi_factor FROM users u LEFT JOIN secrets s ON u.id = s.owner WHERE s.id = $1 AND s.kind = 'salt'";
 const QUERY_FIND_USER_BY_EMAIL: &str =
-    "SELECT u.id, u.email, u.password, s.data FROM users u LEFT JOIN secrets s ON u.id = s.owner WHERE (u.email = $1 OR u.actual_email = $1) AND (s.kind = 'salt' OR s IS NULL)";
-const QUERY_FIND_USER_BY_NAME: &str = "SELECT u.id, u.email, u.password, s.data FROM users u LEFT JOIN secrets s ON u.id - s.owner WHERE u.name = $1 AND (s.kind = 'salt' OR s IS NULL)";
+    "SELECT u.id, u.email, u.password, s.data, u.multi_factor FROM users u LEFT JOIN secrets s ON u.id = s.owner WHERE (u.email = $1 OR u.actual_email = $1) AND s.kind = 'salt'";
+const QUERY_FIND_USER_BY_NAME: &str = "SELECT u.id, u.email, u.password, s.data, u.multi_factor FROM users u LEFT JOIN secrets s ON u.id - s.owner WHERE u.name = $1 AND s.kind = 'salt'";
 const QUERY_UPDATE_USER: &str =
-    "UPDATE users SET name = $1, email = $2, actual_email = $3, password = $4 WHERE id = $5";
+    "UPDATE users SET name = $1, email = $2, actual_email = $3, password = $4, multi_factor = $5 WHERE id = $6";
 const QUERY_DELETE_USER: &str = "DELETE FROM users WHERE id = $1";
 
-// id, email, password, salt
-type SelectUserRow = (i32, String, Option<String>, Option<String>);
+// id, email, password, salt, multi_factor
+type SelectUserRow = (i32, String, String, String, Option<String>);
 
-impl Into<User> for SelectUserRow {
-    fn into(self) -> User {
-        let mut user = User {
+impl TryInto<User> for SelectUserRow {
+    type Error = Error;
+
+    fn try_into(self) -> Result<User> {
+        Ok(User {
             id: self.0,
-            credentials: Email::new(self.1).into(),
-        };
-
-        if let (Some(hash), Some(salt)) = (self.2, self.3) {
-            user.credentials
-                .set_password(Some(Password::new(hash, salt)));
-        };
-
-        user
+            credentials: Credentials {
+                email: self.1.try_into()?,
+                password: PasswordHash {
+                    hash: self.2,
+                    salt: self.3,
+                },
+            },
+            preferences: Preferences {
+                multi_factor: self
+                    .4
+                    .map(|value| value.as_str())
+                    .map(Mfa::from_str)
+                    .transpose()
+                    .map_err(on_error!(Error, "converting string into Mfa value"))?,
+            },
+        })
     }
 }
 
@@ -53,7 +65,7 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
             .map_err(on_query_error!(
                 "performing select user by id query on postgres"
             ))
-            .map(SelectUserRow::into)
+            .and_then(SelectUserRow::try_into)
     }
 
     async fn find_by_email(&self, email: &Email) -> Result<User> {
@@ -64,7 +76,7 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
             .map_err(on_query_error!(
                 "performing select user by email query on postgres"
             ))
-            .map(SelectUserRow::into)
+            .and_then(SelectUserRow::try_into)
     }
 
     async fn find_by_name(&self, target: &str) -> Result<User> {
@@ -75,7 +87,7 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
             .map_err(on_query_error!(
                 "performing select user by name query on postgres"
             ))
-            .map(SelectUserRow::into)
+            .and_then(SelectUserRow::try_into)
     }
 
     async fn create(&self, user: &mut User) -> Result<()> {
@@ -89,29 +101,32 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
             .bind(user.credentials.email.username())
             .bind(user.credentials.email.as_ref())
             .bind(user.credentials.email.actual_email().as_ref())
-            .bind(user.credentials.password.as_ref().map(|pwd| pwd.hash()))
+            .bind(user.credentials.password.as_ref())
+            .bind(
+                user.preferences
+                    .multi_factor
+                    .as_ref()
+                    .map(ToString::to_string),
+            )
             .fetch_one(&mut *tx)
             .await
             .map_err(on_error!(Error, "performing insert user query on postgres"))?;
 
-        if let Some(password) = &user.credentials.password {
-            sqlx::query(QUERY_INSERT_SALT_SECRET)
-                .bind(user_id)
-                .bind(password.salt())
-                .execute(&mut *tx)
-                .await
-                .map_err(on_error!(
-                    Error,
-                    "performing insert salt secret query on postgres"
-                ))?;
-        }
+        sqlx::query(QUERY_INSERT_SALT_SECRET)
+            .bind(user_id)
+            .bind(user.credentials.password.salt())
+            .execute(&mut *tx)
+            .await
+            .map_err(on_error!(
+                Error,
+                "performing insert salt secret query on postgres"
+            ))?;
 
         tx.commit()
             .await
             .map_err(on_error!(Error, "commiting postgres transaction"))?;
 
         user.id = user_id;
-
         Ok(())
     }
 
@@ -120,7 +135,13 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
             .bind(user.credentials.email.username())
             .bind(user.credentials.email.as_ref())
             .bind(user.credentials.email.actual_email().as_ref())
-            .bind(user.credentials.password.as_ref().map(|pwd| pwd.hash()))
+            .bind(user.credentials.password.as_ref())
+            .bind(
+                user.preferences
+                    .multi_factor
+                    .as_ref()
+                    .map(ToString::to_string),
+            )
             .bind(user.id)
             .execute(self.pool)
             .await

@@ -1,39 +1,20 @@
-use super::domain::{Credentials, Email, Password, User};
+use super::domain::{Credentials, Email, Otp, Password, PasswordHash, User};
+use super::error::{Error, Result};
 use crate::cache::Cache;
 use crate::crypto;
+use crate::on_error;
 use crate::secret::application::SecretRepository;
 use crate::secret::domain::SecretKind;
 use crate::token::domain::Token;
 use crate::token::{
     application::TokenApplication,
-    domain::{Payload, TokenKind},
+    domain::{Kind, Payload},
 };
-use crate::user::error::{Error, Result};
 use async_trait::async_trait;
 use std::num::ParseIntError;
 use std::sync::Arc;
 
-#[async_trait]
-pub trait UserRepository {
-    async fn find(&self, id: i32) -> Result<User>;
-    async fn find_by_email(&self, email: &Email) -> Result<User>;
-    async fn find_by_name(&self, name: &str) -> Result<User>;
-    async fn create(&self, user: &mut User) -> Result<()>;
-    async fn save(&self, user: &User) -> Result<()>;
-    async fn delete(&self, user: &User) -> Result<()>;
-}
-
-#[async_trait]
-pub trait EventBus {
-    async fn emit_user_created(&self, user: &User) -> Result<()>;
-}
-
-pub trait Mailer {
-    fn send_credentials_verification_email(&self, to: &Email, token: &Token) -> Result<()>;
-    fn send_credentials_reset_email(&self, to: &Email, token: &Token) -> Result<()>;
-}
-
-pub struct UserApplication<'a, U, S, B, M, C>
+impl<'a, U, S, B, M, C> UserApplication<'a, U, S, B, M, C>
 where
     U: UserRepository,
     S: SecretRepository,
@@ -41,118 +22,36 @@ where
     M: Mailer,
     C: Cache,
 {
-    pub user_repo: Arc<U>,
-    pub secret_repo: Arc<S>,
-    pub token_app: Arc<TokenApplication<'a, C>>,
-    pub mailer: Arc<M>,
-    pub event_bus: Arc<B>,
-    pub totp_secret_len: usize,
-    pub cache: Arc<C>,
-}
-
-impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cache>
-    UserApplication<'a, U, S, B, M, C>
-{
-    /// Stores the given credentials in the cache and sends an email with the token to be
-    /// passed as parameter to the signup_with_token method.
-    #[instrument(skip(self))]
-    pub async fn verify_credentials(&self, credentials: Credentials) -> Result<()> {
-        if self
-            .user_repo
-            .find_by_email(&credentials.email)
-            .await
-            .is_ok()
-        {
-            // returns Ok to avoid giving information about existing emails
-            // TODO: this "avoid giving information" should be done at the infrastucture level
-            return Ok(());
-        }
-
-        let key = crypto::salt(&credentials);
-
-        let payload = self
-            .token_app
-            .new_payload(TokenKind::Verification, &key.to_string())?;
-
-        self.cache
-            .save(&key.to_string(), &credentials, Some(payload.timeout()))
-            .await?;
-
-        let token = self.token_app.sign(payload)?;
-        self.mailer
-            .send_credentials_verification_email(&credentials.email, &token)?;
-
-        Ok(())
-    }
-
-    /// Given a valid verification token, performs the signup of the corresponding user.
-    #[instrument(skip(self))]
-    pub async fn signup_with_token(&self, token: Token) -> Result<Token> {
-        let claims: Payload = self.token_app.payload_from(token)?;
-        if !claims.knd.is_verification() {
-            return Err(Error::InvalidToken);
-        }
-
-        let mut user = self.cache.find(&claims.sub).await.map(Credentials::into)?;
-        self.signup(&mut user).await
-    }
-
-    /// Performs the signup for the given user.
-    #[instrument(skip(self))]
-    pub async fn signup(&self, user: &mut User) -> Result<Token> {
-        self.user_repo.create(user).await?;
-        // TODO: implement outbox pattern for events publishment
-        self.event_bus.emit_user_created(user).await?;
-
-        let payload = self
-            .token_app
-            .new_payload(TokenKind::Session, &user.id.to_string())?;
-
-        self.token_app.store(&payload).await?;
-        self.token_app.sign(payload)
-    }
-
     /// Given a valid session token and passwords, performs the deletion of the user.
-    #[instrument(skip(self))]
+    #[instrument(skip(self, token, password, otp))]
     pub async fn delete_with_token(
         &self,
         token: Token,
         password: Password,
-        otp: &str,
+        otp: Otp,
     ) -> Result<()> {
-        let claims: Payload = self.token_app.payload_from(token)?;
-        if !claims.knd.is_session() {
-            return Err(Error::InvalidToken);
+        let payload = self.token_app.decode(token)?;
+        if !payload.kind().is_session() {
+            return Error::WrongToken.into();
         }
 
         // make sure the token is still valid
-        self.token_app.find(&claims.jti).await?;
+        self.token_app.find(&payload.jti).await?;
 
-        let user_id = claims.sub.parse().map_err(|err: ParseIntError| {
-            warn!(error = err.to_string(), "parsing str to i32");
-            Error::InvalidToken
-        })?;
+        let user_id = payload
+            .sub
+            .parse()
+            .map_err(on_error!("parsing token subject to user id"))?;
 
         self.delete(user_id, password, otp).await
     }
 
     /// Given a valid user ID and passwords, performs the deletion of the corresponding user.
     #[instrument(skip(self))]
-    pub async fn delete(&self, user_id: i32, password: Password, otp: &str) -> Result<()> {
-        let user = self
-            .user_repo
-            .find(user_id)
-            .await
-            .map_err(|_| Error::WrongCredentials)?;
+    pub async fn delete(&self, user_id: i32, password: Password, otp: Otp) -> Result<()> {
+        let user = self.user_repo.find(user_id).await?;
 
-        // TODO: encapsulate this block in a method
-        if Password::try_from(password).is_ok_and(|pwd| {
-            user.credentials
-                .password
-                .as_ref()
-                .map(|user_pwd| user_pwd == &pwd)
-                .unwrap_or_default()
-        }) {
+        if !user.password_matches(password)? {
             return Err(Error::WrongCredentials);
         }
 
@@ -177,7 +76,7 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
     #[instrument(skip(self))]
     pub async fn enable_totp_with_token(
         &self,
-        token: &str,
+        token: Token,
         password: &str,
         otp: &str,
     ) -> Result<Option<String>> {
@@ -210,7 +109,7 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
             .await
             .map_err(|_| Error::WrongCredentials)?;
 
-        if Password::try_from(password).is_ok_and(|pwd| {
+        if PasswordHash::try_from(password).is_ok_and(|pwd| {
             user.credentials
                 .password
                 .as_ref()
@@ -282,7 +181,7 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
             .await
             .map_err(|_| Error::WrongCredentials)?;
 
-        if Password::try_from(password).is_ok_and(|pwd| {
+        if PasswordHash::try_from(password).is_ok_and(|pwd| {
             user.credentials
                 .password
                 .as_ref()
@@ -330,7 +229,7 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
 
         let payload = self
             .token_app
-            .new_payload(TokenKind::Reset, &user.id.to_string())?;
+            .new_payload(Kind::Reset, &user.id.to_string())?;
 
         self.token_app.store(&payload).await?;
         let token = self.token_app.sign(payload)?;
@@ -378,7 +277,7 @@ impl<'a, U: UserRepository, S: SecretRepository, B: EventBus, M: Mailer, C: Cach
             .await
             .map_err(|_| Error::WrongCredentials)?;
 
-        let new_pwd = Password::try_from(new_password)?;
+        let new_pwd = PasswordHash::try_from(new_password)?;
 
         if user
             .credentials
@@ -421,7 +320,7 @@ pub mod tests {
     use crate::secret::domain::SecretKind;
     use crate::secret::{application::tests::SecretRepositoryMock, domain::Secret};
     use crate::token::application::tests::{new_token_application, PRIVATE_KEY, PUBLIC_KEY};
-    use crate::token::domain::{Payload, Token, TokenKind};
+    use crate::token::domain::{Kind, Payload, Token};
     use crate::user::domain::Email;
     use async_trait::async_trait;
     use chrono::Utc;

@@ -1,7 +1,7 @@
 use std::ops::Not;
 
 use super::application::Mailer;
-use super::domain::{Email, Password};
+use super::domain::{Email, PasswordHash};
 use super::error::Error;
 use crate::cache::Cache;
 use crate::grpc;
@@ -51,7 +51,7 @@ impl TryFrom<SignupRequest> for Credentials {
             .is_empty()
             .not()
             .then_some(value.password)
-            .map(Password::try_from)
+            .map(PasswordHash::try_from)
             .transpose()?
         else {
             return Ok(email.into());
@@ -61,14 +61,7 @@ impl TryFrom<SignupRequest> for Credentials {
     }
 }
 
-pub struct UserGrpcService<U, S, B, M, C>
-where
-    U: UserRepository + Sync + Send,
-    S: SecretRepository + Sync + Send,
-    B: EventBus + Sync + Send,
-    M: Mailer,
-    C: Cache,
-{
+pub struct UserGrpcService<U, S, B, M, C> {
     pub user_app: UserApplication<'static, U, S, B, M, C>,
     pub jwt_header: &'static str,
     pub totp_header: &'static str,

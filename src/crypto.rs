@@ -3,7 +3,7 @@
 use std::collections::hash_map::DefaultHasher;
 
 use crate::on_error;
-use argon2::{Algorithm as ArgonAlgorithm, Argon2, Error as ArgonError, Params, Version};
+use argon2::{Algorithm as ArgonAlgorithm, Argon2, Params, Version};
 use base64::{
     alphabet,
     engine::{self, general_purpose},
@@ -118,7 +118,7 @@ where
 
 /// Given an array of bytes to use as TOTP's secret and a candidate of pwd, returns true if, and only if, pwd
 /// has the same value as the TOTP.  
-pub fn verify_totp<Err>(secret: &[u8], pwd: &str) -> Result<bool, Err>
+pub fn totp_matches<Err>(secret: &[u8], pwd: &str) -> Result<bool, Err>
 where
     Err: From<String>,
 {
@@ -128,7 +128,7 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use super::{generate_totp, verify_totp};
+    use super::{generate_totp, totp_matches};
 
     #[test]
     fn verify_totp_ok_should_not_fail() {
@@ -137,12 +137,12 @@ pub mod tests {
         let code = generate_totp::<String>(SECRET).unwrap().generate();
 
         assert_eq!(code.len(), 6);
-        assert!(verify_totp::<String>(SECRET, &code).is_ok());
+        assert!(totp_matches::<String>(SECRET, &code).is_ok());
     }
 
     #[test]
     fn verify_totp_ko_should_not_fail() {
         const SECRET: &[u8] = "hello world".as_bytes();
-        assert!(!verify_totp::<String>(SECRET, "tester").unwrap());
+        assert!(!totp_matches::<String>(SECRET, "tester").unwrap());
     }
 }

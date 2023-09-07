@@ -10,6 +10,14 @@ impl<T> From<Error> for Result<T> {
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    #[error("token is not of the correct kind")]
+    WrongToken,
+    #[error("token is not longer valid")]
+    RejectedToken,
+    #[error("same id on different payloads")]
+    Collision,
+    #[error("token regex did unmatch")]
+    NotAToken,
     #[error("{0}")]
     Jwt(#[from] jsonwebtoken::errors::Error),
     #[error("{0}")]
