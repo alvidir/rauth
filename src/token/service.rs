@@ -1,32 +1,39 @@
 use super::{
-    domain::{Kind, Payload, Token},
+    domain::{Payload, Token, TokenKind},
     error::{Error, Result},
 };
 use crate::{cache::Cache, on_error};
+use async_trait::async_trait;
 use jsonwebtoken::{Algorithm as JwtAlgorithm, DecodingKey, EncodingKey, Header, Validation};
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
-pub struct TokenService<'a, C> {
-    pub timeout: Duration,
-    pub token_issuer: &'a str,
+#[async_trait]
+pub trait TokenService {
+    /// Issues a new token that claims the given payload.
+    async fn issue(&self, payload: Payload) -> Result<Token>;
+    /// Returns the payload of the given token if, and only if, the token is valid.
+    async fn claims(&self, kind: TokenKind, token: Token) -> Result<Payload>;
+    /// Invalidates the token associated to the given payload, if any.
+    async fn revoke(&self, payload: &Payload) -> Result<()>;
+}
+
+pub struct TokenServiceImpl<'a, C> {
+    pub issuer: &'a str,
     pub decode: DecodingKey,
     pub encode: EncodingKey,
     pub cache: Arc<C>,
 }
 
-impl<'a, C> TokenService<'a, C>
+#[async_trait]
+impl<'a, C> TokenService for TokenServiceImpl<'a, C>
 where
     C: Cache,
 {
-    /// Returns a new payload with the default values.
-    #[instrument(skip(self))]
-    pub fn new_payload<S: AsRef<str>>(&self, kind: Kind, sub: S) -> Payload {
-        Payload::new(kind, self.token_issuer, sub.as_ref(), self.timeout)
-    }
-
     /// Issues a new token containing the given payload.
     #[instrument(skip(self))]
-    pub async fn issue(&self, payload: Payload) -> Result<Token> {
+    async fn issue(&self, mut payload: Payload) -> Result<Token> {
+        payload.iss = self.issuer.to_string();
+
         let token = self.encode(&payload)?;
         self.store(&payload).await?;
         Ok(token)
@@ -34,7 +41,7 @@ where
 
     /// Consumes the token, returning its payload if, and only if, the token is valid and of the expected kind.
     #[instrument(skip(self))]
-    pub async fn consume(&self, kind: Kind, token: Token) -> Result<Payload> {
+    async fn claims(&self, kind: TokenKind, token: Token) -> Result<Payload> {
         let payload = self.decode(token)?;
 
         let Some(actual_payload) = self.find(&payload.jti).await? else {
@@ -54,10 +61,15 @@ where
 
     /// Invalidates the token with the given ID, if any.
     #[instrument(skip(self))]
-    pub async fn revoke(&self, payload: &Payload) -> Result<()> {
+    async fn revoke(&self, payload: &Payload) -> Result<()> {
         self.cache.delete(&payload.jti).await.map_err(Into::into)
     }
+}
 
+impl<'a, C> TokenServiceImpl<'a, C>
+where
+    C: Cache,
+{
     /// Returns the resulting token of signing and encoding the given payload.
     #[instrument(skip(self))]
     fn encode(&self, payload: &Payload) -> Result<Token> {
@@ -73,7 +85,7 @@ where
     fn decode(&self, token: Token) -> Result<Payload> {
         // TODO: consider moving validation into a once_cell
         let mut validation = Validation::new(JwtAlgorithm::ES256);
-        validation.set_issuer(&[self.token_issuer]);
+        validation.set_issuer(&[self.issuer]);
 
         jsonwebtoken::decode(token.as_ref(), &self.decode, &validation)
             .map(|token| token.claims)
@@ -98,9 +110,9 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use super::TokenService;
+    use super::TokenServiceImpl;
     use crate::cache::tests::InMemoryCache;
-    use crate::token::domain::{Kind, Payload, Token};
+    use crate::token::domain::{Payload, Token, TokenKind};
     use crate::token::error::Error;
     use base64::{engine::general_purpose, Engine as _};
     use jsonwebtoken::errors::{Error as JwtError, ErrorKind as JwtErrorKind};
@@ -125,7 +137,7 @@ pub mod tests {
     pub const TEST_TOKEN_ISSUER: &str = "test";
     pub const TEST_TOKEN_SUBJECT: &str = "999";
 
-    pub fn new_payload(kind: Kind) -> Payload {
+    pub fn new_payload(kind: TokenKind) -> Payload {
         let timeout = Duration::from_secs(TEST_TOKEN_TIMEOUT);
         Payload::new(
             kind,
@@ -135,10 +147,9 @@ pub mod tests {
         )
     }
 
-    pub fn new_token_srvlication<'a>() -> TokenService<'a, InMemoryCache> {
-        TokenService {
-            timeout: Duration::from_secs(999),
-            token_issuer: "test",
+    pub fn new_token_srvlication<'a>() -> TokenServiceImpl<'a, InMemoryCache> {
+        TokenServiceImpl {
+            issuer: "test",
             decode: DecodingKey::from_ec_pem(&PUBLIC_KEY).unwrap(),
             encode: EncodingKey::from_ec_pem(&PRIVATE_KEY).unwrap(),
             cache: Arc::new(InMemoryCache),
@@ -148,22 +159,22 @@ pub mod tests {
     #[tokio::test]
     async fn consume_token_should_not_fail() {
         let app = new_token_srvlication();
-        let payload = app.new_payload(Kind::Session, TEST_TOKEN_SUBJECT);
+        let payload = app.new_payload(TokenKind::Session, TEST_TOKEN_SUBJECT);
         let token = app.issue(payload).await.unwrap();
 
-        let claims = app.consume(Kind::Session, token).await.unwrap();
-        assert!(matches!(&claims.knd, Kind::Session));
+        let claims = app.consume(TokenKind::Session, token).await.unwrap();
+        assert!(matches!(&claims.knd, TokenKind::Session));
     }
 
     #[tokio::test]
     async fn consume_expired_token_should_fail() {
         let app = new_token_srvlication();
-        let mut payload = app.new_payload(Kind::Session, TEST_TOKEN_SUBJECT);
+        let mut payload = app.new_payload(TokenKind::Session, TEST_TOKEN_SUBJECT);
         payload.exp = SystemTime::now() - Duration::from_secs(61);
 
         let token = app.encode(&payload).unwrap();
 
-        app.consume(Kind::Session, token)
+        app.consume(TokenKind::Session, token)
             .await
             .map_err(|err| {
                 let want: Error = JwtError::from(JwtErrorKind::ExpiredSignature).into();
@@ -175,21 +186,27 @@ pub mod tests {
     #[tokio::test]
     async fn consume_corrupt_token_should_fail() {
         let app = new_token_srvlication();
-        let payload = app.new_payload(Kind::Session, TEST_TOKEN_SUBJECT);
+        let payload = app.new_payload(TokenKind::Session, TEST_TOKEN_SUBJECT);
         let token = app.issue(payload).await.unwrap();
         let corrupted: Token = token.as_ref().replace('A', "a").try_into().unwrap();
 
-        let err = app.consume(Kind::Session, corrupted).await.unwrap_err();
+        let err = app
+            .consume(TokenKind::Session, corrupted)
+            .await
+            .unwrap_err();
         assert!(matches!(err, Error::Jwt(_)));
     }
 
     #[tokio::test]
     async fn consume_wrong_token_kind_should_fail() {
         let app = new_token_srvlication();
-        let payload = app.new_payload(Kind::Session, TEST_TOKEN_SUBJECT);
+        let payload = app.new_payload(TokenKind::Session, TEST_TOKEN_SUBJECT);
         let token = app.issue(payload).await.unwrap();
 
-        let err = app.consume(Kind::Verification, token).await.unwrap_err();
+        let err = app
+            .consume(TokenKind::Verification, token)
+            .await
+            .unwrap_err();
         assert!(matches!(err, Error::Jwt(_)));
     }
 }

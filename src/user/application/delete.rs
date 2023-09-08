@@ -1,18 +1,23 @@
 use super::{EventBus, Mailer, UserApplication, UserRepository};
 use crate::cache::Cache;
+use crate::mfa::domain::Otp;
+use crate::mfa::service::MfaService;
 use crate::on_error;
 use crate::secret::application::SecretRepository;
-use crate::token::domain::Kind;
 use crate::token::domain::Token;
-use crate::user::domain::{Otp, Password};
+use crate::token::domain::TokenKind;
+use crate::token::service::TokenService;
+use crate::user::domain::Password;
 use crate::user::error::{Error, Result};
 
-impl<'a, U, S, B, M, C> UserApplication<'a, U, S, B, M, C>
+impl<'a, U, S, T, F, M, B, C> UserApplication<'a, U, S, T, F, M, B, C>
 where
     U: UserRepository,
     S: SecretRepository,
-    B: EventBus,
+    T: TokenService,
+    F: MfaService,
     M: Mailer,
+    B: EventBus,
     C: Cache,
 {
     /// Given a valid session token and passwords, performs the deletion of the user.
@@ -23,7 +28,7 @@ where
         password: Password,
         otp: Option<Otp>,
     ) -> Result<()> {
-        let payload = self.token_srv.consume(Kind::Session, token).await?;
+        let payload = self.token_service.claims(TokenKind::Session, token).await?;
 
         let user_id = payload
             .sub
@@ -31,7 +36,10 @@ where
             .map_err(on_error!("parsing token subject to user id"))?;
 
         self.delete(user_id, password, otp).await?;
-        self.token_srv.revoke(&payload).await.map_err(Into::into)
+        self.token_service
+            .revoke(&payload)
+            .await
+            .map_err(Into::into)
     }
 
     /// Given a valid user ID and passwords, performs the deletion of the corresponding user.
@@ -43,8 +51,8 @@ where
             return Err(Error::WrongCredentials);
         }
 
-        if let Some(mfa) = &user.preferences.multi_factor {
-            MfaStrategy::from(self).find(mfa).execute(user, otp)?;
+        if let Some(method) = user.preferences.multi_factor {
+            self.mfa_service.run_method(method, &user, otp)?;
         };
 
         self.user_repo.delete(&user).await

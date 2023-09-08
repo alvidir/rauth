@@ -89,33 +89,6 @@ impl Password {
     const REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(Self::PATTERN).unwrap());
 }
 
-/// Represents a one time password.
-pub struct Otp(String);
-
-impl AsRef<str> for Otp {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
-}
-
-impl TryFrom<String> for Otp {
-    type Error = Error;
-
-    /// Builds a [OTP] from the given string if, and only if, the string matches the
-    /// otp's regex.
-    fn try_from(password: String) -> Result<Self> {
-        Self::REGEX
-            .is_match(&password)
-            .then_some(Self(password))
-            .ok_or(Error::NotAPassword)
-    }
-}
-
-impl Otp {
-    const PATTERN: &str = r"^[0-9A-Za-z]{6}$";
-    const REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(Self::PATTERN).unwrap());
-}
-
 #[cfg(test)]
 mod tests {
     use super::{Password, PasswordHash};

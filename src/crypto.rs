@@ -104,28 +104,6 @@ pub fn randomize(buff: &mut [u8]) {
     }
 }
 
-/// Given an array of bytes to use as secret, generates a TOTP instance.
-pub fn generate_totp<Err>(secret: &[u8]) -> Result<TOTP, Err>
-where
-    Err: From<String>,
-{
-    TOTPBuilder::new()
-        .key(secret)
-        .hash_function(Sha256)
-        .finalize()
-        .map_err(on_error!("genereting time-based one time password"))
-}
-
-/// Given an array of bytes to use as TOTP's secret and a candidate of pwd, returns true if, and only if, pwd
-/// has the same value as the TOTP.  
-pub fn totp_matches<Err>(secret: &[u8], pwd: &str) -> Result<bool, Err>
-where
-    Err: From<String>,
-{
-    let totp = generate_totp(secret)?;
-    Ok(totp.is_valid(pwd))
-}
-
 #[cfg(test)]
 pub mod tests {
     use super::{generate_totp, totp_matches};

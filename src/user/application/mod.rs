@@ -4,9 +4,9 @@ pub mod signup;
 use super::domain::{Email, User};
 use super::error::Result;
 use crate::token::domain::Token;
-use crate::token::service::TokenService;
 use async_trait::async_trait;
 use std::sync::Arc;
+use std::time::Duration;
 
 #[async_trait]
 pub trait UserRepository {
@@ -29,12 +29,12 @@ pub trait Mailer {
     fn send_credentials_reset_email(&self, to: &Email, token: &Token) -> Result<()>;
 }
 
-pub struct UserApplication<'a, U, S, B, M, C> {
+pub struct UserApplication<'a, U, S, T, F, M, B, C> {
     pub user_repo: Arc<U>,
     pub secret_repo: Arc<S>,
-    pub token_srv: Arc<TokenService<'a, C>>,
+    pub token_service: Arc<T>,
+    pub mfa_service: Arc<F>,
     pub mailer: Arc<M>,
     pub event_bus: Arc<B>,
-    pub totp_secret_len: usize,
     pub cache: Arc<C>,
 }

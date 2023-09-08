@@ -1,15 +1,19 @@
 use super::{EventBus, Mailer, UserApplication, UserRepository};
 use crate::cache::Cache;
 use crate::crypto;
-use crate::token::domain::{Kind, Token};
+use crate::mfa::service::MfaService;
+use crate::token::domain::{Token, TokenKind};
+use crate::token::service::TokenService;
 use crate::user::domain::{Credentials, Email, Password, User};
 use crate::user::error::{Error, Result};
 
-impl<'a, U, S, B, M, C> UserApplication<'a, U, S, B, M, C>
+impl<'a, U, S, T, F, M, B, C> UserApplication<'a, U, S, T, F, M, B, C>
 where
     U: UserRepository,
-    B: EventBus,
+    T: TokenService,
+    F: MfaService,
     M: Mailer,
+    B: EventBus,
     C: Cache,
 {
     /// Stores the given credentials in the cache and sends an email with the token to be
@@ -28,14 +32,14 @@ where
 
         let key = crypto::hash(&credentials);
         let payload = self
-            .token_srv
-            .new_payload(Kind::Verification, key.to_string());
+            .token_service
+            .new_payload(TokenKind::Verification, key.to_string());
 
         self.cache
             .save(&key.to_string(), &credentials, Some(payload.timeout()))
             .await?;
 
-        let token = self.token_srv.issue(payload).await?;
+        let token = self.token_service.issue(payload).await?;
         self.mailer
             .send_credentials_verification_email(&credentials.email, &token)?;
 
@@ -45,8 +49,11 @@ where
     /// Given a valid verification token, performs the signup of the corresponding user.
     #[instrument(skip(self))]
     pub async fn signup_with_token(&self, token: Token) -> Result<Token> {
-        let payload = self.token_srv.consume(Kind::Verification, token).await?;
-        self.token_srv.revoke(&payload).await?;
+        let payload = self
+            .token_service
+            .claims(TokenKind::Verification, token)
+            .await?;
+        self.token_service.revoke(&payload).await?;
 
         let mut user = self
             .cache
@@ -66,9 +73,9 @@ where
 
         // FIXME: use session application for loging in
         let payload = self
-            .token_srv
-            .new_payload(Kind::Session, user.id.to_string());
+            .token_service
+            .new_payload(TokenKind::Session, user.id.to_string());
 
-        self.token_srv.issue(payload).await.map_err(Into::into)
+        self.token_service.issue(payload).await.map_err(Into::into)
     }
 }

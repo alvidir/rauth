@@ -8,12 +8,12 @@ mod credentials;
 pub use credentials::*;
 
 use super::error::Result;
-use crate::mfa::domain::Mfa;
+use crate::mfa::domain::MfaMethod;
 
 /// Represents the preferences of a user.
 #[derive(Debug, Default)]
 pub struct Preferences {
-    pub multi_factor: Option<Mfa>,
+    pub multi_factor: Option<MfaMethod>,
 }
 
 /// Represents a user.

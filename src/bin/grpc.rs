@@ -11,7 +11,7 @@ use rauth::{
     },
     smtp,
     smtp::SmtpBuilder,
-    token::service::TokenService,
+    token::service::TokenServiceImpl,
     tracer,
     user::{
         application::UserApplication,
@@ -62,9 +62,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
     .build()?;
 
-    let token_srv = Arc::new(TokenService {
+    let token_srv = Arc::new(TokenServiceImpl {
         timeout: Duration::from_secs(*config::TOKEN_TIMEOUT),
-        token_issuer: &config::TOKEN_ISSUER,
+        issuer: &config::TOKEN_ISSUER,
         private_key: &config::JWT_SECRET,
         public_key: &config::JWT_PUBLIC,
         cache: cache.clone(),
@@ -73,7 +73,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let user_app = UserApplication {
         user_repo: user_repo.clone(),
         secret_repo: secret_repo.clone(),
-        token_srv: token_srv.clone(),
+        token_service: token_srv.clone(),
         mailer: Arc::new(smtp),
         event_bus: user_event_bus.clone(),
         totp_secret_len: *config::TOTP_SECRET_LEN,

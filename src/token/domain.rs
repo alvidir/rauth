@@ -11,7 +11,7 @@ const REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(PATTERN).unwrap());
 
 /// Represents the kind of a token.
 #[derive(Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Kind {
+pub enum TokenKind {
     Session,
     Verification,
     Reset,
@@ -38,7 +38,7 @@ pub struct Payload {
     pub iat: SystemTime,
     pub iss: String,
     pub sub: String,
-    pub knd: Kind,
+    pub knd: TokenKind,
 }
 
 fn as_unix_timestamp<S>(
@@ -72,7 +72,7 @@ where
 }
 
 impl Payload {
-    pub fn new(kind: Kind, iss: &str, sub: &str, timeout: Duration) -> Self {
+    pub fn new(kind: TokenKind, iss: &str, sub: &str, timeout: Duration) -> Self {
         let mut token = Payload {
             jti: Default::default(),
             exp: SystemTime::now() + timeout,
@@ -95,7 +95,7 @@ impl Payload {
     }
 
     /// Returns the [Kind] field from self.
-    pub fn kind(&self) -> Kind {
+    pub fn kind(&self) -> TokenKind {
         self.knd
     }
 
@@ -128,7 +128,7 @@ impl AsRef<str> for Token {
 
 #[cfg(test)]
 pub mod tests {
-    use super::{Kind, Payload};
+    use super::{Payload, TokenKind};
     use std::time::{Duration, SystemTime};
 
     pub const TEST_DEFAULT_TOKEN_TIMEOUT: u64 = 60;
@@ -143,13 +143,13 @@ pub mod tests {
         let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
 
         let before = SystemTime::now();
-        let claim = Payload::new(Kind::Session, ISS, &SUB.to_string(), timeout);
+        let claim = Payload::new(TokenKind::Session, ISS, &SUB.to_string(), timeout);
         let after = SystemTime::now();
 
         assert!(claim.iat >= before && claim.iat <= after);
         assert!(claim.exp >= before + timeout);
         assert!(claim.exp <= after + timeout);
-        assert!(matches!(claim.knd, Kind::Session));
+        assert!(matches!(claim.knd, TokenKind::Session));
         assert_eq!(ISS, claim.iss);
         assert_eq!(SUB.to_string(), claim.sub);
     }
