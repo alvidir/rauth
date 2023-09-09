@@ -1,8 +1,10 @@
 use super::application::SessionApplication;
-use crate::cache::Cache;
+use super::error::Error;
+use crate::grpc;
+use crate::mfa::service::MfaService;
 use crate::secret::application::SecretRepository;
+use crate::token::service::TokenService;
 use crate::user::application::UserRepository;
-use crate::{grpc, result::Error};
 use tonic::metadata::errors::InvalidMetadataValue;
 use tonic::{Request, Response, Status};
 
@@ -18,21 +20,31 @@ pub use proto::session_server::SessionServer;
 // Proto message structs
 use proto::{Empty, LoginRequest};
 
-pub struct SessionGrpcService<
-    U: UserRepository + Sync + Send,
-    S: SecretRepository + Sync + Send,
-    C: Cache + Sync + Send,
-> {
-    pub session_app: SessionApplication<'static, U, S, C>,
+impl From<Error> for Status {
+    fn from(error: Error) -> Status {
+        // match error {
+        //     Error::NotAnEmail => Status::invalid_argument("email"),
+        //     Error::NotAPassword => Status::invalid_argument("password"),
+        //     Error::NotFound => Status::not_found("user"),
+        //     Error::Unknown => Status::unknown(""),
+        // }
+
+        Status::unknown("")
+    }
+}
+
+pub struct SessionGrpcService<U, S, T, F> {
+    pub session_app: SessionApplication<U, S, T, F>,
     pub jwt_header: &'static str,
 }
 
 #[tonic::async_trait]
-impl<
-        U: 'static + UserRepository + Sync + Send,
-        S: 'static + SecretRepository + Sync + Send,
-        C: 'static + Cache + Sync + Send,
-    > Session for SessionGrpcService<U, S, C>
+impl<U, S, T, F> Session for SessionGrpcService<U, S, T, F>
+where
+    U: 'static + UserRepository + Sync + Send,
+    S: 'static + SecretRepository + Sync + Send,
+    T: 'static + TokenService + Sync + Send,
+    F: 'static + MfaService + Sync + Send,
 {
     #[instrument(skip(self))]
     async fn login(&self, request: Request<LoginRequest>) -> Result<Response<Empty>, Status> {

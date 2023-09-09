@@ -1,7 +1,7 @@
 //! gRPC utilities for managing request's headers.
 
-use crate::on_error;
-use tonic::Request;
+use crate::{mfa, on_error, token, user};
+use tonic::{Request, Status};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -21,4 +21,28 @@ pub fn header<T>(req: &Request<T>, header: &str) -> Result<Option<String>> {
     data.map(|data| data.to_string())
         .map(|value| Some(value))
         .map_err(on_error!(Error, "parsing header data to str"))
+}
+
+impl From<user::error::Error> for Status {
+    fn from(error: user::error::Error) -> Status {
+        Status::unknown("")
+    }
+}
+
+impl From<token::error::Error> for Status {
+    fn from(error: token::error::Error) -> Status {
+        Status::unknown("")
+    }
+}
+
+impl From<mfa::error::Error> for Status {
+    fn from(error: mfa::error::Error) -> Status {
+        Status::unknown("")
+    }
+}
+
+impl From<Error> for Status {
+    fn from(error: Error) -> Status {
+        Status::unknown("")
+    }
 }

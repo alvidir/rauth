@@ -121,44 +121,44 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use super::JsonWebTokenService;
-    use crate::cache::tests::InMemoryCache;
-    use crate::token::domain::{Token, TokenKind};
-    use crate::token::error::Error;
-    use base64::{engine::general_purpose, Engine as _};
-    use jsonwebtoken::errors::{Error as JwtError, ErrorKind as JwtErrorKind};
-    use jsonwebtoken::{DecodingKey, EncodingKey};
-    use once_cell::sync::Lazy;
-    use std::sync::Arc;
-    use std::time::{Duration, SystemTime};
+    // use super::JsonWebTokenService;
+    // use crate::cache::tests::InMemoryCache;
+    // use crate::token::domain::{Token, TokenKind};
+    // use crate::token::error::Error;
+    // use base64::{engine::general_purpose, Engine as _};
+    // use jsonwebtoken::errors::{Error as JwtError, ErrorKind as JwtErrorKind};
+    // use jsonwebtoken::{DecodingKey, EncodingKey};
+    // use once_cell::sync::Lazy;
+    // use std::sync::Arc;
+    // use std::time::{Duration, SystemTime};
 
-    pub static PRIVATE_KEY: Lazy<Vec<u8>> = Lazy::new(|| {
-        general_purpose::STANDARD.decode(
-            b"LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR0hBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJHMHdhd0lCQVFRZy9JMGJTbVZxL1BBN2FhRHgKN1FFSGdoTGxCVS9NcWFWMUJab3ZhM2Y5aHJxaFJBTkNBQVJXZVcwd3MydmlnWi96SzRXcGk3Rm1mK0VPb3FybQpmUlIrZjF2azZ5dnBGd0gzZllkMlllNXl4b3ZsaTROK1ZNNlRXVFErTmVFc2ZmTWY2TkFBMloxbQotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg=="
-        ).unwrap()
-    });
+    // pub static PRIVATE_KEY: Lazy<Vec<u8>> = Lazy::new(|| {
+    //     general_purpose::STANDARD.decode(
+    //         b"LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR0hBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJHMHdhd0lCQVFRZy9JMGJTbVZxL1BBN2FhRHgKN1FFSGdoTGxCVS9NcWFWMUJab3ZhM2Y5aHJxaFJBTkNBQVJXZVcwd3MydmlnWi96SzRXcGk3Rm1mK0VPb3FybQpmUlIrZjF2azZ5dnBGd0gzZllkMlllNXl4b3ZsaTROK1ZNNlRXVFErTmVFc2ZmTWY2TkFBMloxbQotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg=="
+    //     ).unwrap()
+    // });
 
-    pub static PUBLIC_KEY: Lazy<Vec<u8>> = Lazy::new(|| {
-        general_purpose::STANDARD.decode(
-            b"LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFVm5sdE1MTnI0b0dmOHl1RnFZdXhabi9oRHFLcQo1bjBVZm45YjVPc3I2UmNCOTMySGRtSHVjc2FMNVl1RGZsVE9rMWswUGpYaExIM3pIK2pRQU5tZFpnPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg=="
-        ).unwrap()
-    });
+    // pub static PUBLIC_KEY: Lazy<Vec<u8>> = Lazy::new(|| {
+    //     general_purpose::STANDARD.decode(
+    //         b"LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFVm5sdE1MTnI0b0dmOHl1RnFZdXhabi9oRHFLcQo1bjBVZm45YjVPc3I2UmNCOTMySGRtSHVjc2FMNVl1RGZsVE9rMWswUGpYaExIM3pIK2pRQU5tZFpnPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg=="
+    //     ).unwrap()
+    // });
 
-    pub const TEST_TOKEN_TIMEOUT: u64 = 60;
-    pub const TEST_TOKEN_ISSUER: &str = "test";
-    pub const TEST_TOKEN_SUBJECT: &str = "999";
+    // pub const TEST_TOKEN_TIMEOUT: u64 = 60;
+    // pub const TEST_TOKEN_ISSUER: &str = "test";
+    // pub const TEST_TOKEN_SUBJECT: &str = "999";
 
-    pub fn new_token_srvlication<'a>() -> JsonWebTokenService<'a, InMemoryCache> {
-        JsonWebTokenService {
-            issuer: "test",
-            session_timeout: Duration::from_secs(TEST_TOKEN_TIMEOUT),
-            verification_timeout: Duration::from_secs(TEST_TOKEN_TIMEOUT),
-            reset_timeout: Duration::from_secs(TEST_TOKEN_TIMEOUT),
-            decode: DecodingKey::from_ec_pem(&PUBLIC_KEY).unwrap(),
-            encode: EncodingKey::from_ec_pem(&PRIVATE_KEY).unwrap(),
-            cache: Arc::new(InMemoryCache),
-        }
-    }
+    // pub fn new_token_srvlication<'a>() -> JsonWebTokenService<'a, InMemoryCache> {
+    //     JsonWebTokenService {
+    //         issuer: "test",
+    //         session_timeout: Duration::from_secs(TEST_TOKEN_TIMEOUT),
+    //         verification_timeout: Duration::from_secs(TEST_TOKEN_TIMEOUT),
+    //         reset_timeout: Duration::from_secs(TEST_TOKEN_TIMEOUT),
+    //         decode: DecodingKey::from_ec_pem(&PUBLIC_KEY).unwrap(),
+    //         encode: EncodingKey::from_ec_pem(&PRIVATE_KEY).unwrap(),
+    //         cache: Arc::new(InMemoryCache),
+    //     }
+    // }
 
     // #[tokio::test]
     // async fn consume_token_should_not_fail() {

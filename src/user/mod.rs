@@ -4,7 +4,7 @@ pub mod error;
 #[cfg(feature = "rabbitmq")]
 pub mod event_bus;
 // #[cfg(feature = "grpc")]
-// pub mod grpc;
+pub mod grpc;
 #[cfg(feature = "postgres")]
 pub mod repository;
 #[cfg(feature = "smtp")]

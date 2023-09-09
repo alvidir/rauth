@@ -5,6 +5,7 @@ extern crate serde;
 
 pub mod cache;
 pub mod config;
+pub mod mfa;
 #[cfg(feature = "postgres")]
 pub mod postgres;
 #[cfg(feature = "rabbitmq")]
@@ -13,7 +14,6 @@ pub mod rabbitmq;
 pub mod redis;
 pub mod secret;
 // pub mod session;
-pub mod mfa;
 #[cfg(feature = "smtp")]
 pub mod smtp;
 pub mod token;

@@ -24,6 +24,8 @@ pub enum Error {
     AlreadyExists,
     #[error("token is not of the correct kind")]
     WrongToken,
+    #[error("forbidden")]
+    Forbidden,
     #[error("{0}")]
     Strum(#[from] strum::ParseError),
     #[error("{0}")]

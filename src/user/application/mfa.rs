@@ -57,12 +57,13 @@ where
             return Err(Error::WrongCredentials);
         }
 
+        user.preferences.multi_factor = Some(method);
+
         self.multi_factor_srv
-            .enable_method(method, &user, otp.as_ref())
+            .enable(&user, otp.as_ref())
             .await
             .map_err(Error::from)?;
 
-        user.preferences.multi_factor = Some(method);
         self.user_repo.save(&user).await.map_err(Into::into)
     }
 
@@ -102,10 +103,10 @@ where
             return Err(Error::WrongCredentials);
         }
 
-        self.multi_factor(&user, otp.as_ref()).await?;
+        self.multi_factor_srv.verify(&user, otp.as_ref()).await?;
 
         self.multi_factor_srv
-            .disable_method(method, &user, otp.as_ref())
+            .disable(&user, otp.as_ref())
             .await
             .map_err(Error::from)?;
 

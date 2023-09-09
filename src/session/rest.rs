@@ -1,10 +1,10 @@
-use crate::{cache::Cache, http, result::Error, token::application::TokenApplication};
+use crate::{cache::Cache, http, token::application::TokenApplication};
 use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use std::sync::Arc;
 
 use super::application;
 
-pub struct SessionRestService<C: Cache + Sync + Send> {
+pub struct SessionRestService<C> {
     pub token_srv: TokenApplication<'static, C>,
     pub jwt_header: &'static str,
 }
@@ -23,7 +23,7 @@ impl<C: 'static + Cache + Sync + Send> SessionRestService<C> {
         req: HttpRequest,
     ) -> impl Responder {
         match async move {
-            let token = http::get_header(req, app_data.jwt_header)?;
+            let token = http::header(req, app_data.jwt_header)?;
             let token = app_data.token_srv.payload_from(token.into())?;
             if !token.knd.is_session() {
                 return Err(Error::InvalidToken);

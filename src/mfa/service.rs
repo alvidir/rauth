@@ -17,13 +17,12 @@ use std::{sync::Arc, time::Duration};
 /// Represents an executor of different strategies of multi-factor authentication.
 #[async_trait]
 pub trait MfaService {
-    /// Runs the given mfa method in order to validate the one time password.
-    async fn run_method(&self, method: MfaMethod, user: &User, otp: Option<&Otp>) -> Result<()>;
-    /// Runs the given mfa method in order to activate it for the corresponding user.
-    async fn enable_method(&self, method: MfaMethod, user: &User, otp: Option<&Otp>) -> Result<()>;
-    /// Runs the given mfa method in order to deactivate it for the corresponding user.
-    async fn disable_method(&self, method: MfaMethod, user: &User, otp: Option<&Otp>)
-        -> Result<()>;
+    /// Runs the corresponding mfa method in order to validate the one time password.
+    async fn verify(&self, user: &User, otp: Option<&Otp>) -> Result<()>;
+    /// Runs the corresponding mfa method in order to activate it for the corresponding user.
+    async fn enable(&self, user: &User, otp: Option<&Otp>) -> Result<()>;
+    /// Runs the corresponding mfa method in order to deactivate it for the corresponding user.
+    async fn disable(&self, user: &User, otp: Option<&Otp>) -> Result<()>;
 }
 
 pub trait MailService {
@@ -71,26 +70,33 @@ where
     M: MailService + Sync + Send,
     C: Cache + Sync + Send,
 {
-    async fn run_method(&self, method: MfaMethod, user: &User, otp: Option<&Otp>) -> Result<()> {
+    async fn verify(&self, user: &User, otp: Option<&Otp>) -> Result<()> {
+        let Some(method) = user.preferences.multi_factor else {
+            return Ok(());
+        };
+
         match method {
             MfaMethod::TpApp => self.run_tp_app_method(user, otp).await,
             MfaMethod::Email => self.run_email_method(user, otp).await,
         }
     }
 
-    async fn enable_method(&self, method: MfaMethod, user: &User, otp: Option<&Otp>) -> Result<()> {
+    async fn enable(&self, user: &User, otp: Option<&Otp>) -> Result<()> {
+        let Some(method) = user.preferences.multi_factor else {
+            return Ok(());
+        };
+
         match method {
             MfaMethod::TpApp => self.enable_tp_app_method(user, otp).await,
             MfaMethod::Email => self.enable_email_method(user, otp).await,
         }
     }
 
-    async fn disable_method(
-        &self,
-        method: MfaMethod,
-        user: &User,
-        otp: Option<&Otp>,
-    ) -> Result<()> {
+    async fn disable(&self, user: &User, otp: Option<&Otp>) -> Result<()> {
+        let Some(method) = user.preferences.multi_factor else {
+            return Ok(());
+        };
+
         match method {
             MfaMethod::TpApp => self.disable_tp_app_method(user, otp).await,
             MfaMethod::Email => self.disable_email_method(user, otp).await,

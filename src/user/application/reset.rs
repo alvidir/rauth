@@ -68,7 +68,7 @@ where
         otp: Option<Otp>,
     ) -> Result<()> {
         let mut user = self.user_repo.find(user_id).await?;
-        self.multi_factor(&user, otp.as_ref()).await?;
+        self.multi_factor_srv.verify(&user, otp.as_ref()).await?;
 
         if user.password_matches(&new_password)? {
             // is the same password, nothing have to be done.

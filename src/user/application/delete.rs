@@ -52,7 +52,7 @@ where
             return Err(Error::WrongCredentials);
         }
 
-        self.multi_factor(&user, otp.as_ref()).await?;
+        self.multi_factor_srv.verify(&user, otp.as_ref()).await?;
         self.user_repo.delete(&user).await
     }
 }

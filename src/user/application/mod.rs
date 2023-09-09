@@ -5,8 +5,6 @@ pub mod signup;
 
 use super::domain::{Email, User};
 use super::error::Result;
-use crate::mfa::domain::Otp;
-use crate::mfa::service::MfaService;
 use crate::token::domain::Token;
 use async_trait::async_trait;
 use std::sync::Arc;
@@ -40,21 +38,4 @@ pub struct UserApplication<U, S, T, F, M, B, C> {
     pub mail_srv: Arc<M>,
     pub event_bus: Arc<B>,
     pub cache: Arc<C>,
-}
-
-impl<U, S, T, F, M, B, C> UserApplication<U, S, T, F, M, B, C>
-where
-    F: MfaService,
-{
-    /// Performs the multi factor authentication method preferred by the given user.
-    async fn multi_factor(&self, user: &User, otp: Option<&Otp>) -> Result<()> {
-        let Some(method) = user.preferences.multi_factor else {
-            return Ok(());
-        };
-
-        self.multi_factor_srv
-            .run_method(method, &user, otp)
-            .await
-            .map_err(Into::into)
-    }
 }
