@@ -9,6 +9,7 @@ use super::error::{Error, Result};
 #[strum(serialize_all = "lowercase")]
 pub enum MfaMethod {
     /// Uses a third-party application as totp provider.
+    #[strum(serialize = "tp_app")]
     TpApp,
     /// Uses the email as otp provider.
     Email,
@@ -21,6 +22,12 @@ pub struct Otp(String);
 impl AsRef<str> for Otp {
     fn as_ref(&self) -> &str {
         &self.0
+    }
+}
+
+impl AsRef<[u8]> for Otp {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_bytes()
     }
 }
 

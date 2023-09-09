@@ -11,18 +11,18 @@ use sqlx::error::Error as SqlError;
 use sqlx::postgres::PgPool;
 
 const QUERY_INSERT_USER: &str =
-    "INSERT INTO users (name, email, actual_email, password, multi_factor) VALUES ($1, $2, $3, $4, $5) RETURNING id";
+    "INSERT INTO users (name, email, actual_email, password, mfa_method) VALUES ($1, $2, $3, $4, $5) RETURNING id";
 const QUERY_INSERT_SALT_SECRET: &str =
     "INSERT INTO secrets (owner, kind, data) VALUES ($1, 'salt', $2)";
-const QUERY_FIND_USER: &str = "SELECT u.id, u.email, u.password, s.data, u.multi_factor FROM users u LEFT JOIN secrets s ON u.id = s.owner WHERE s.id = $1 AND s.kind = 'salt'";
+const QUERY_FIND_USER: &str = "SELECT u.id, u.email, u.password, s.data, u.mfa_method FROM users u LEFT JOIN secrets s ON u.id = s.owner WHERE s.id = $1 AND s.kind = 'salt'";
 const QUERY_FIND_USER_BY_EMAIL: &str =
-    "SELECT u.id, u.email, u.password, s.data, u.multi_factor FROM users u LEFT JOIN secrets s ON u.id = s.owner WHERE (u.email = $1 OR u.actual_email = $1) AND s.kind = 'salt'";
-const QUERY_FIND_USER_BY_NAME: &str = "SELECT u.id, u.email, u.password, s.data, u.multi_factor FROM users u LEFT JOIN secrets s ON u.id - s.owner WHERE u.name = $1 AND s.kind = 'salt'";
+    "SELECT u.id, u.email, u.password, s.data, u.mfa_method FROM users u LEFT JOIN secrets s ON u.id = s.owner WHERE (u.email = $1 OR u.actual_email = $1) AND s.kind = 'salt'";
+const QUERY_FIND_USER_BY_NAME: &str = "SELECT u.id, u.email, u.password, s.data, u.mfa_method FROM users u LEFT JOIN secrets s ON u.id - s.owner WHERE u.name = $1 AND s.kind = 'salt'";
 const QUERY_UPDATE_USER: &str =
-    "UPDATE users SET name = $1, email = $2, actual_email = $3, password = $4, multi_factor = $5 WHERE id = $6";
+    "UPDATE users SET name = $1, email = $2, actual_email = $3, password = $4, mfa_method = $5 WHERE id = $6";
 const QUERY_DELETE_USER: &str = "DELETE FROM users WHERE id = $1";
 
-// id, email, password, salt, multi_factor
+// id, email, password, salt, mfa_method
 type SelectUserRow = (i32, String, String, String, Option<String>);
 
 impl TryInto<User> for SelectUserRow {

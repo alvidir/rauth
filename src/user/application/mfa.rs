@@ -6,7 +6,6 @@ use crate::mfa::domain::{MfaMethod, Otp};
 use crate::mfa::service::MfaService;
 use crate::on_error;
 use crate::secret::application::SecretRepository;
-use crate::secret::domain::Secret;
 use crate::token::domain::Token;
 use crate::token::service::TokenService;
 use crate::user::domain::Password;
@@ -29,7 +28,7 @@ where
         method: MfaMethod,
         password: Password,
         otp: Option<Otp>,
-    ) -> Result<Secret> {
+    ) -> Result<()> {
         let claims = self.token_srv.claims(token).await?;
         if !claims.payload().kind().is_session() {
             return Err(Error::WrongToken);
@@ -51,8 +50,8 @@ where
         method: MfaMethod,
         password: Password,
         otp: Option<Otp>,
-    ) -> Result<Secret> {
-        let user = self.user_repo.find(user_id).await?;
+    ) -> Result<()> {
+        let mut user = self.user_repo.find(user_id).await?;
 
         if !user.password_matches(&password)? {
             return Err(Error::WrongCredentials);
@@ -61,29 +60,10 @@ where
         self.multi_factor_srv
             .enable_method(method, &user, otp.as_ref())
             .await
-            .map_err(Into::into)
+            .map_err(Error::from)?;
 
-        // if let Some(secret) = &mut secret_lookup {
-        //     if !secret.is_deleted() {
-        //         // the totp is already enabled
-        //         return Err(Error::NotAvailable);
-        //     }
-
-        //     let data = secret.get_data();
-        //     if !crypto::verify_totp(data, totp)? {
-        //         return Err(Error::Unauthorized);
-        //     }
-
-        //     secret.set_deleted_at(None);
-        //     self.secret_repo.save(secret).await?;
-        //     return Ok(None);
-        // }
-
-        // let token = crypto::get_random_string(self.totp_secret_len);
-        // let mut secret = Secret::new(SecretKind::Totp, token.as_bytes(), &user);
-        // secret.set_deleted_at(Some(Utc::now().naive_utc())); // unavailable till confirmed
-        // self.secret_repo.create(&mut secret).await?;
-        // Ok(Some(token))
+        user.preferences.multi_factor = Some(method);
+        self.user_repo.save(&user).await.map_err(Into::into)
     }
 
     #[instrument(skip(self, password, otp))]
@@ -116,7 +96,7 @@ where
         password: Password,
         otp: Option<Otp>,
     ) -> Result<()> {
-        let user = self.user_repo.find(user_id).await?;
+        let mut user = self.user_repo.find(user_id).await?;
 
         if !user.password_matches(&password)? {
             return Err(Error::WrongCredentials);
@@ -127,30 +107,9 @@ where
         self.multi_factor_srv
             .disable_method(method, &user, otp.as_ref())
             .await
-            .map_err(Into::into)
+            .map_err(Error::from)?;
 
-        // if, and only if, the user has activated the totp
-        // let mut secret_lookup = self
-        //     .secret_repo
-        //     .find_by_user_and_kind(user.id, SecretKind::Totp)
-        //     .await
-        //     .ok();
-
-        // if let Some(secret) = &mut secret_lookup {
-        //     if secret.is_deleted() {
-        //         // the totp is not enabled yet
-        //         return Err(Error::NotAvailable);
-        //     }
-
-        //     let data = secret.get_data();
-        //     if !crypto::verify_totp(data, totp)? {
-        //         return Err(Error::Unauthorized);
-        //     }
-
-        //     self.secret_repo.delete(secret).await?;
-        //     return Ok(());
-        // }
-
-        // Err(Error::NotAvailable)
+        user.preferences.multi_factor = None;
+        self.user_repo.save(&user).await.map_err(Into::into)
     }
 }

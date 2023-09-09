@@ -15,7 +15,7 @@ pub fn encode(v: &[u8]) -> String {
 }
 
 /// Decodes a b64 string into a vector of u8.
-pub fn decode<Err>(s: &str) -> Result<Vec<u8>, Err>
+pub fn _decode<Err>(s: &str) -> Result<Vec<u8>, Err>
 where
     Err: From<DecodeError>,
 {

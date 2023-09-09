@@ -1,14 +1,16 @@
 use crate::user::domain::User;
 
-#[derive(Debug, Clone, Copy, strum_macros::EnumString, strum_macros::AsRefStr)]
+#[derive(
+    Debug, Clone, Copy, Serialize, Deserialize, strum_macros::EnumString, strum_macros::AsRefStr,
+)]
 #[strum(serialize_all = "lowercase")]
 pub enum SecretKind {
-    Totp,
+    Otp,
     Salt,
 }
 
 /// Represent some sensitive data that cannot be updated.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Secret {
     pub id: i32,
     pub owner: i32,
