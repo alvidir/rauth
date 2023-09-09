@@ -179,14 +179,13 @@ where
             .transpose()
             .map_err(Status::from)?;
 
-        let method = match Methods::try_from(request.method)
-            .map_err(|_| Status::invalid_argument("method"))?
-        {
-            Methods::Email => MfaMethod::Email,
-            Methods::TpApp => MfaMethod::TpApp,
-        };
+        let method =
+            match Methods::from_i32(request.method).ok_or(Status::invalid_argument("method"))? {
+                Methods::Email => MfaMethod::Email,
+                Methods::TpApp => MfaMethod::TpApp,
+            };
 
-        match Actions::try_from(request.action).map_err(|_| Status::invalid_argument("action"))? {
+        match Actions::from_i32(request.action).ok_or(Status::invalid_argument("action"))? {
             Actions::Enable => {
                 self.user_app
                     .enable_mfa_with_token(token, method, password, otp)

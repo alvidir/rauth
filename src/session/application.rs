@@ -1,5 +1,3 @@
-use futures::TryFutureExt;
-
 use super::domain::Identity;
 use super::error::{Error, Result};
 use crate::mfa::domain::Otp;
@@ -25,7 +23,7 @@ where
     T: TokenService,
     F: MfaService,
 {
-    #[instrument(skip(self))]
+    #[instrument(skip(self, password, otp))]
     pub async fn login(
         &self,
         ident: Identity,
@@ -33,19 +31,24 @@ where
         otp: Option<Otp>,
     ) -> Result<Token> {
         let user = match ident {
-            Identity::Email(email) => self.user_repo.find_by_email(&email),
-            Identity::Nick(name) => self.user_repo.find_by_name(&name),
-        }
-        .await?;
+            Identity::Email(email) => self.user_repo.find_by_email(&email).await,
+            Identity::Nick(name) => self.user_repo.find_by_name(&name).await,
+        }?;
 
-        if !user.password_matches(&password) {
-            return Err(Error::WrongCredentials);
+        if !user.password_matches(&password)? {
+            return Error::WrongCredentials.into();
         }
 
-        self.multi_factor_srv.verify(&user, otp).await?;
+        self.multi_factor_srv
+            .verify(&user, otp.as_ref())
+            .await
+            .map_err(Error::from)?;
+
         self.token_srv
-            .issue(TokenKind::Session, &user)
+            .issue(TokenKind::Session, &user.id.to_string())
+            .await
             .map_err(Into::into)
+            .map(Into::into)
     }
 
     #[instrument(skip(self))]
@@ -55,7 +58,7 @@ where
             return Error::WrongToken.into();
         }
 
-        self.token_srv.revoke(&claims).await
+        self.token_srv.revoke(&claims).await.map_err(Into::into)
     }
 }
 

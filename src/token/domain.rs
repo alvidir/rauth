@@ -32,7 +32,7 @@ impl TokenKind {
 }
 
 /// Represents the payload of a JWT, containing the claims.
-#[derive(Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Payload {
     pub jti: String,
     pub iss: String,

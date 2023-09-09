@@ -25,7 +25,7 @@
     opentelemetry_sdk = {version = "0.20.0", features = [
         "rt-tokio",
     ], optional = true}
-    prost = {version = "0.12.0", optional = true} # protobuf
+    prost = {version = "0.11.9", optional = true} # protobuf
     protoc = {version = "2.28.0", optional = true}
     rand = "0.8.5"
     redis = {version = "0.23.0", features = ["tokio-comp"], optional = true}
@@ -82,19 +82,19 @@
         "tracing-subscriber",
     ]
 
-[[bin]]
-    name = "grpc"
-    path = "src/bin/grpc.rs"
-    required-features = [
-        "grpc",
-        "postgres",
-        "rabbitmq",
-        "redis-cache",
-        "smtp",
-        "tracer",
-    ]
+    # [[bin]]
+    #     name = "grpc"
+    #     path = "src/bin/grpc.rs"
+    #     required-features = [
+    #         "grpc",
+    #         "postgres",
+    #         "rabbitmq",
+    #         "redis-cache",
+    #         "smtp",
+    #         "tracer",
+    #     ]
 
-[[bin]]
-    name              = "rest"
-    path              = "src/bin/rest.rs"
-    required-features = ["rest", "tracer"]
+    # [[bin]]
+    #     name              = "rest"
+    #     path              = "src/bin/rest.rs"
+    #     required-features = ["rest", "tracer"]

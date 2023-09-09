@@ -1,15 +1,20 @@
-use crate::{cache::Cache, http, token::application::TokenApplication};
+use super::error::Error;
+use crate::{
+    http,
+    token::{domain::Token, service::TokenService},
+};
 use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use std::sync::Arc;
 
-use super::application;
-
-pub struct SessionRestService<C> {
-    pub token_srv: TokenApplication<'static, C>,
+pub struct SessionRestService<T> {
+    pub token_srv: Arc<T>,
     pub jwt_header: &'static str,
 }
 
-impl<C: 'static + Cache + Sync + Send> SessionRestService<C> {
+impl<T> SessionRestService<T>
+where
+    T: 'static + TokenService + Sync + Send,
+{
     pub fn router(&self) -> impl Fn(&mut web::ServiceConfig) {
         |cfg: &mut web::ServiceConfig| {
             cfg.service(web::resource("/session").route(web::get().to(Self::get_session)));
@@ -19,37 +24,50 @@ impl<C: 'static + Cache + Sync + Send> SessionRestService<C> {
 
     #[instrument(skip(app_data))]
     async fn get_session(
-        app_data: web::Data<Arc<SessionRestService<C>>>,
+        app_data: web::Data<Arc<SessionRestService<T>>>,
         req: HttpRequest,
     ) -> impl Responder {
         match async move {
-            let token = http::header(req, app_data.jwt_header)?;
-            let token = app_data.token_srv.payload_from(token.into())?;
-            if !token.knd.is_session() {
-                return Err(Error::InvalidToken);
+            let Some(header) = http::header(req, app_data.jwt_header).map_err(Error::from)? else {
+                return Err(Error::Forbidden);
+            };
+
+            let token: Token = header.try_into().map_err(Error::from)?;
+            let claims = app_data.token_srv.claims(token).await?;
+            if !claims.payload().kind().is_session() {
+                return Err(Error::WrongToken);
             }
 
-            app_data.token_srv.find(&token.jti).await
+            Ok(claims)
         }
         .await
         {
-            Ok(token) => HttpResponse::Accepted().json(token),
+            Ok(claims) => HttpResponse::Accepted().json(claims.payload()),
             Err(err) => HttpResponse::from(err),
         }
     }
 
     #[instrument(skip(app_data))]
     async fn delete_session(
-        app_data: web::Data<Arc<SessionRestService<C>>>,
+        app_data: web::Data<Arc<SessionRestService<T>>>,
         req: HttpRequest,
     ) -> impl Responder {
         match async move {
-            let token = http::get_header(req, app_data.jwt_header)?;
-            application::logout_strategy::<C>(&app_data.token_srv, &token).await
+            let Some(header) = http::header(req, app_data.jwt_header).map_err(Error::from)? else {
+                return Err(Error::Forbidden);
+            };
+
+            let token: Token = header.try_into().map_err(Error::from)?;
+            let claims = app_data.token_srv.claims(token).await?;
+            if !claims.payload().kind().is_session() {
+                return Err(Error::WrongToken);
+            }
+
+            app_data.token_srv.revoke(&claims).await.map_err(Into::into)
         }
         .await
         {
-            Ok(_) => HttpResponse::Ok().finish(),
+            Ok(_) => HttpResponse::Accepted().finish(),
             Err(err) => HttpResponse::from(err),
         }
     }
