@@ -21,7 +21,7 @@ pub mod token;
 pub mod tracer;
 pub mod user;
 
-mod crypto;
+mod base64;
 #[cfg(feature = "grpc")]
 mod grpc;
 #[cfg(feature = "rest")]

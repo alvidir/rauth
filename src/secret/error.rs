@@ -23,3 +23,9 @@ pub enum Error {
     #[error("unexpected error")]
     Debug,
 }
+
+impl Error {
+    pub fn is_not_found(&self) -> bool {
+        matches!(self, Error::NotFound)
+    }
+}

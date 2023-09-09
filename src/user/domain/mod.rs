@@ -36,7 +36,7 @@ impl From<Credentials> for User {
 
 impl User {
     /// Returns true if, and only if, the given password matches with the one from self.
-    pub fn password_matches(&self, other: Password) -> Result<bool> {
+    pub fn password_matches(&self, other: &Password) -> Result<bool> {
         self.credentials.password.matches(other)
     }
 }

@@ -8,7 +8,7 @@ use crate::on_error;
 use crate::secret::application::SecretRepository;
 use crate::token::domain::{Token, TokenKind};
 use crate::token::service::TokenService;
-use crate::user::domain::{Email, Password, PasswordHash};
+use crate::user::domain::{Email, Password};
 use crate::user::error::{Error, Result};
 
 impl<U, S, T, F, M, B, C> UserApplication<U, S, T, F, M, B, C>
@@ -68,14 +68,14 @@ where
         otp: Option<Otp>,
     ) -> Result<()> {
         let mut user = self.user_repo.find(user_id).await?;
-        self.multi_factor(&user, otp).await?;
+        self.multi_factor(&user, otp.as_ref()).await?;
 
-        let new_password = PasswordHash::try_from(new_password)?;
-        if user.credentials.password == new_password {
-            return Err(Error::WrongCredentials);
+        if user.password_matches(&new_password)? {
+            // is the same password, nothing have to be done.
+            return Ok(());
         }
 
-        user.credentials.password = new_password;
+        user.credentials.password = new_password.try_into()?;
         self.user_repo.save(&user).await
     }
 }

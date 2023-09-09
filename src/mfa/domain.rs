@@ -1,4 +1,5 @@
 use once_cell::sync::Lazy;
+use rand::Rng;
 use regex::Regex;
 
 use super::error::{Error, Result};
@@ -14,6 +15,7 @@ pub enum MfaMethod {
 }
 
 /// Represents a one time password.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Otp(String);
 
 impl AsRef<str> for Otp {
@@ -36,6 +38,21 @@ impl TryFrom<String> for Otp {
 }
 
 impl Otp {
-    const PATTERN: &str = r"^[0-9A-Za-z]{6}$";
+    const PATTERN: &str = r"^[0-9]+$";
+    const CHARSET: &[u8] = b"0123456789";
     const REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(Self::PATTERN).unwrap());
+
+    pub fn with_length(len: usize) -> Result<Self> {
+        let mut buff = vec![0_u8; len];
+
+        for index in 0..buff.len() {
+            let mut rand = rand::thread_rng();
+            let idx = rand.gen_range(0..Self::CHARSET.len());
+            buff[index] = Self::CHARSET[idx]
+        }
+
+        String::from_utf8(buff)
+            .map(|value| Otp(value))
+            .map_err(Into::into)
+    }
 }

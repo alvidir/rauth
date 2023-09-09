@@ -2,7 +2,8 @@ use super::error::{Error, Result};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::hash::Hash;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const PATTERN: &str = r"^(?:[\w-]*\.){2}[\w-]*$";
@@ -127,6 +128,13 @@ impl Payload {
     /// Returns the subject field (sub) from self.
     pub fn subject(&self) -> &str {
         &self.sub
+    }
+
+    /// Returns the result of hashing self.
+    pub fn hash(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        Hash::hash(self, &mut hasher);
+        hasher.finish()
     }
 }
 

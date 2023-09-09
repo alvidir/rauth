@@ -35,7 +35,7 @@ impl TryInto<User> for SelectUserRow {
                 email: self.1.try_into()?,
                 password: PasswordHash {
                     hash: self.2,
-                    salt: self.3,
+                    salt: self.3.try_into()?,
                 },
             },
             preferences: Preferences {
@@ -113,7 +113,7 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
 
         sqlx::query(QUERY_INSERT_SALT_SECRET)
             .bind(user_id)
-            .bind(user.credentials.password.salt())
+            .bind(user.credentials.password.salt().as_str())
             .execute(&mut *tx)
             .await
             .map_err(on_error!(

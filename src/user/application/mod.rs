@@ -1,4 +1,5 @@
 pub mod delete;
+pub mod mfa;
 pub mod reset;
 pub mod signup;
 
@@ -46,13 +47,13 @@ where
     F: MfaService,
 {
     /// Performs the multi factor authentication method preferred by the given user.
-    async fn multi_factor(&self, user: &User, otp: Option<Otp>) -> Result<()> {
+    async fn multi_factor(&self, user: &User, otp: Option<&Otp>) -> Result<()> {
         let Some(method) = user.preferences.multi_factor else {
             return Ok(());
         };
 
         self.multi_factor_srv
-            .execute(method, &user, otp)
+            .run_method(method, &user, otp)
             .await
             .map_err(Into::into)
     }

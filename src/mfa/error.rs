@@ -11,5 +11,9 @@ pub enum Error {
     #[error("{0}")]
     Secret(#[from] crate::secret::error::Error),
     #[error("{0}")]
+    Cache(#[from] crate::cache::Error),
+    #[error("{0}")]
     Oath(#[from] libreauth::oath::Error),
+    #[error("{0}")]
+    String(#[from] std::string::FromUtf8Error),
 }

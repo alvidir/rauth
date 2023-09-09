@@ -1,6 +1,5 @@
 use super::{EventBus, MailService, UserApplication, UserRepository};
 use crate::cache::Cache;
-use crate::crypto;
 use crate::mfa::service::MfaService;
 use crate::token::domain::{Token, TokenKind};
 use crate::token::service::TokenService;
@@ -30,7 +29,7 @@ where
             password: password.try_into()?,
         };
 
-        let key = crypto::hash(&credentials);
+        let key = credentials.hash();
         let claims = self
             .token_srv
             .issue(TokenKind::Verification, &key.to_string())

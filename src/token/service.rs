@@ -2,7 +2,7 @@ use super::{
     domain::{Claims, Payload, Token, TokenKind},
     error::{Error, Result},
 };
-use crate::{cache::Cache, crypto, on_error};
+use crate::{cache::Cache, on_error};
 use async_trait::async_trait;
 use jsonwebtoken::{Algorithm as JwtAlgorithm, DecodingKey, EncodingKey, Header, Validation};
 use std::{sync::Arc, time::Duration};
@@ -45,7 +45,7 @@ where
             .with_issuer(self.issuer)
             .with_subject(subject);
 
-        let id = crypto::hash(&payload).to_string();
+        let id = payload.hash().to_string();
         let payload = payload.with_id(id);
         let token = self.encode(&payload)?;
 

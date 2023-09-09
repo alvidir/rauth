@@ -29,6 +29,12 @@ pub enum Error {
     Checkout(#[from] reool::CheckoutError),
 }
 
+impl Error {
+    pub fn is_not_found(&self) -> bool {
+        matches!(self, Error::NotFound)
+    }
+}
+
 /// Represents a general purpose cache.
 #[async_trait]
 pub trait Cache {

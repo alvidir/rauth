@@ -12,13 +12,23 @@ use crate::{on_error, secret::domain::Secret};
 use async_trait::async_trait;
 use libreauth::oath::TOTPBuilder;
 use libreauth::{hash::HashFunction::Sha256, oath::TOTP};
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 /// Represents an executor of different strategies of multi-factor authentication.
 #[async_trait]
 pub trait MfaService {
-    /// Executes the given [MfaMethod].
-    async fn execute(&self, method: MfaMethod, user: &User, otp: Option<Otp>) -> Result<()>;
+    /// Runs the given mfa method in order to validate the one time password.
+    async fn run_method(&self, method: MfaMethod, user: &User, otp: Option<&Otp>) -> Result<()>;
+    /// Runs the given mfa method in order to activate it for the corresponding user.
+    async fn enable_method(
+        &self,
+        method: MfaMethod,
+        user: &User,
+        otp: Option<&Otp>,
+    ) -> Result<Secret>;
+    /// Runs the given mfa method in order to deactivate it for the corresponding user.
+    async fn disable_method(&self, method: MfaMethod, user: &User, otp: Option<&Otp>)
+        -> Result<()>;
 }
 
 pub trait MailService {
@@ -40,8 +50,9 @@ impl TryInto<TOTP> for Secret {
 /// Implements the [MfaService].
 pub struct MultiFactor<S, M, C> {
     pub secret_len: usize,
+    pub otp_timeout: Duration,
     pub secret_repo: Arc<S>,
-    pub mailer: Arc<M>,
+    pub mail_srv: Arc<M>,
     pub cache: Arc<C>,
 }
 
@@ -52,25 +63,37 @@ where
     M: MailService + Sync + Send,
     C: Cache + Sync + Send,
 {
-    async fn execute(&self, method: MfaMethod, user: &User, otp: Option<Otp>) -> Result<()> {
+    async fn run_method(&self, method: MfaMethod, user: &User, otp: Option<&Otp>) -> Result<()> {
         match method {
-            MfaMethod::TpApp => self.tp_app_totp_method(user, otp).await,
-            MfaMethod::Email => self.email_otp_method(user, otp).await,
+            MfaMethod::TpApp => self.run_tp_app_method(user, otp).await,
+            MfaMethod::Email => self.run_email_method(user, otp).await,
         }
+    }
+
+    async fn enable_method(
+        &self,
+        method: MfaMethod,
+        user: &User,
+        otp: Option<&Otp>,
+    ) -> Result<Secret> {
+        todo!()
+    }
+
+    async fn disable_method(
+        &self,
+        method: MfaMethod,
+        user: &User,
+        otp: Option<&Otp>,
+    ) -> Result<()> {
+        todo!()
     }
 }
 
 impl<S, M, C> MultiFactor<S, M, C>
 where
     S: SecretRepository + Sync + Send,
-    M: MailService + Sync + Send,
-    C: Cache + Sync + Send,
 {
-    async fn email_otp_method(&self, _user: &User, _otp: Option<Otp>) -> Result<()> {
-        todo!()
-    }
-
-    async fn tp_app_totp_method(&self, user: &User, totp: Option<Otp>) -> Result<()> {
+    async fn run_tp_app_method(&self, user: &User, totp: Option<&Otp>) -> Result<()> {
         let totp = totp.ok_or(Error::Required)?;
 
         let actual_totp: TOTP = self
@@ -85,6 +108,48 @@ where
         }
 
         Err(Error::Invalid)
+    }
+}
+
+impl<S, M, C> MultiFactor<S, M, C>
+where
+    M: MailService + Sync + Send,
+    C: Cache + Sync + Send,
+{
+    async fn check_otp(&self, user: &User, actual_otp: Otp, otp: Option<&Otp>) -> Result<()> {
+        let otp = otp.ok_or(Error::Required)?;
+        if otp == &actual_otp {
+            return self
+                .cache
+                .delete(&user.id.to_string())
+                .await
+                .map_err(Error::from);
+        }
+
+        Err(Error::Invalid)
+    }
+
+    async fn emit_otp(&self, user: &User) -> Result<()> {
+        let otp = Otp::with_length(self.secret_len)?;
+        let otp = self
+            .cache
+            .save(&user.id.to_string(), &otp, Some(self.otp_timeout))
+            .await
+            .map(|_| otp)
+            .map_err(Error::from)?;
+
+        self.mail_srv
+            .send_otp_email(&user.credentials.email, &otp)?;
+
+        Err(Error::Required)
+    }
+
+    async fn run_email_method(&self, user: &User, otp: Option<&Otp>) -> Result<()> {
+        match self.cache.find::<Otp>(&user.id.to_string()).await {
+            Ok(actual_otp) => self.check_otp(user, actual_otp, otp).await,
+            Err(err) if err.is_not_found() => self.emit_otp(user).await,
+            Err(err) => Err(err.into()),
+        }
     }
 }
 

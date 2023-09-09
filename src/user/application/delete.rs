@@ -48,12 +48,11 @@ where
     pub async fn delete(&self, user_id: i32, password: Password, otp: Option<Otp>) -> Result<()> {
         let user = self.user_repo.find(user_id).await?;
 
-        if !user.password_matches(password)? {
+        if !user.password_matches(&password)? {
             return Err(Error::WrongCredentials);
         }
 
-        self.multi_factor(&user, otp).await?;
-
+        self.multi_factor(&user, otp.as_ref()).await?;
         self.user_repo.delete(&user).await
     }
 }

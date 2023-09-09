@@ -1,10 +1,10 @@
-use std::array::TryFromSliceError;
-
 use crate::{
-    crypto, on_error,
+    base64, on_error,
     user::error::{Error, Result},
 };
 use ::regex::Regex;
+use argon2::{Algorithm, Argon2, Params, Version};
+use rand::Rng;
 
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -15,7 +15,7 @@ const HASH_LEN: usize = 128;
 #[derive(Debug, Default, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PasswordHash {
     pub(crate) hash: String,
-    pub(crate) salt: String,
+    pub(crate) salt: Salt,
 }
 
 impl TryFrom<String> for PasswordHash {
@@ -30,10 +30,8 @@ impl TryFrom<Password> for PasswordHash {
     type Error = Error;
 
     fn try_from(password: Password) -> Result<Self> {
-        let mut salt = [0_u8; HASH_LEN];
-        crypto::randomize(&mut salt);
-
-        Self::with_salt(password, &salt)
+        let salt = Salt::with_length(HASH_LEN)?;
+        Self::with_salt(&password, &salt)
     }
 }
 
@@ -44,34 +42,35 @@ impl AsRef<str> for PasswordHash {
 }
 
 impl PasswordHash {
-    /// Builds a new password from the given value and salt
-    pub fn with_salt(password: Password, salt: &[u8]) -> Result<Self> {
-        let salt: [u8; HASH_LEN] = salt.try_into().map_err(on_error!(
-            TryFromSliceError as Error,
-            "converting into sized array"
-        ))?;
+    const ARGON: Lazy<Argon2<'_>> =
+        Lazy::new(|| Argon2::new(Algorithm::Argon2id, Version::V0x13, Params::default()));
 
-        crypto::salt(password.as_ref(), &salt)
-            .map(|salted| Self {
-                hash: crypto::encode_b64(&salted),
-                salt: crypto::encode_b64(&salt),
+    /// Builds a new password from the given value and salt
+    fn with_salt(password: &Password, salt: &Salt) -> Result<Self> {
+        let mut buffer = vec![0_u8; salt.len()];
+
+        Self::ARGON
+            .hash_password_into(password.as_ref(), salt.as_ref(), &mut buffer)
+            .map(|_| Self {
+                hash: base64::encode(&buffer),
+                salt: salt.clone(),
             })
-            .map_err(Into::into)
+            .map_err(on_error!(Error, "salting and hashing password"))
     }
 
     /// Returns true if, and only if, the given password matches with self.
-    pub fn matches(&self, other: Password) -> Result<bool> {
-        let salt = crypto::decode_b64::<Error>(self.salt())?;
-        PasswordHash::with_salt(other, &salt).map(|subject| &subject == self)
+    pub fn matches(&self, other: &Password) -> Result<bool> {
+        PasswordHash::with_salt(other, &self.salt).map(|subject| &subject == self)
     }
 
     /// Returns the salt of the hash.
-    pub fn salt(&self) -> &str {
+    pub fn salt(&self) -> &Salt {
         &self.salt
     }
 }
 
 /// Represents a password.
+#[derive(Debug, Clone)]
 pub struct Password(String);
 
 impl AsRef<[u8]> for Password {
@@ -96,6 +95,63 @@ impl TryFrom<String> for Password {
 impl Password {
     const PATTERN: &str = r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$";
     const REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(Self::PATTERN).unwrap());
+}
+
+/// Represents the salt of a password.
+#[derive(Debug, Default, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Salt(String);
+
+impl AsRef<str> for Salt {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl AsRef<[u8]> for Salt {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+}
+
+impl TryFrom<String> for Salt {
+    type Error = Error;
+
+    /// Builds a [OTP] from the given string if, and only if, the string matches the
+    /// otp's regex.
+    fn try_from(password: String) -> Result<Self> {
+        Self::REGEX
+            .is_match(&password)
+            .then_some(Self(password))
+            .ok_or(Error::NotASalt)
+    }
+}
+
+impl Salt {
+    const PATTERN: &str = r"^[0-9]+$";
+    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    const REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(Self::PATTERN).unwrap());
+
+    pub fn with_length(len: usize) -> Result<Self> {
+        let mut buff = vec![0_u8; len];
+
+        for index in 0..buff.len() {
+            let mut rand = rand::thread_rng();
+            let idx = rand.gen_range(0..Self::CHARSET.len());
+            buff[index] = Self::CHARSET[idx]
+        }
+
+        String::from_utf8(buff)
+            .map(|value| Salt(value))
+            .map_err(Into::into)
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 #[cfg(test)]
@@ -155,11 +211,11 @@ mod tests {
         let password: PasswordHash = "abcABC123".to_string().try_into().unwrap();
 
         assert!(!password
-            .matches("abcABC124".to_string().try_into().unwrap())
+            .matches(&"abcABC124".to_string().try_into().unwrap())
             .unwrap());
 
         assert!(password
-            .matches("abcABC123".to_string().try_into().unwrap())
+            .matches(&"abcABC123".to_string().try_into().unwrap())
             .unwrap());
     }
 }
