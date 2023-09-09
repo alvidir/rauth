@@ -1,12 +1,11 @@
 use std::str::FromStr;
 
-use crate::mfa::domain::MfaMethod;
-use crate::on_error;
-use crate::postgres::on_query_error;
-
 use super::domain::{Credentials, Email, PasswordHash, Preferences};
 use super::error::{Error, Result};
 use super::{application::UserRepository, domain::User};
+use crate::mfa::domain::MfaMethod;
+use crate::on_error;
+use crate::postgres::on_query_error;
 use async_trait::async_trait;
 use sqlx::error::Error as SqlError;
 use sqlx::postgres::PgPool;
@@ -42,7 +41,7 @@ impl TryInto<User> for SelectUserRow {
             preferences: Preferences {
                 multi_factor: self
                     .4
-                    .map(|value| value.as_str())
+                    .as_deref()
                     .map(MfaMethod::from_str)
                     .transpose()
                     .map_err(on_error!(Error, "converting string into Mfa value"))?,

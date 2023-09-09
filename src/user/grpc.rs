@@ -1,11 +1,15 @@
 use std::ops::Not;
 
-use super::application::Mailer;
+use super::application::MailService;
 use super::domain::{Email, PasswordHash};
 use super::error::Error;
 use crate::cache::Cache;
 use crate::grpc;
+use crate::mfa::service::MfaService;
+use crate::on_error;
 use crate::secret::application::SecretRepository;
+use crate::token::domain::Token;
+use crate::token::service::TokenService;
 use crate::user::{
     application::{EventBus, UserApplication, UserRepository},
     domain::Credentials,
@@ -41,45 +45,27 @@ impl From<Error> for Status {
     }
 }
 
-impl TryFrom<SignupRequest> for Credentials {
-    type Error = Status;
-
-    fn try_from(value: SignupRequest) -> Result<Self, Self::Error> {
-        let email: Email = value.email.try_into()?;
-        let Some(password) = value
-            .password
-            .is_empty()
-            .not()
-            .then_some(value.password)
-            .map(PasswordHash::try_from)
-            .transpose()?
-        else {
-            return Ok(email.into());
-        };
-
-        Ok(Credentials::from(email).with_password(password))
-    }
-}
-
-pub struct UserGrpcService<U, S, B, M, C> {
-    pub user_app: UserApplication<'static, U, S, B, M, C>,
+pub struct UserGrpcService<U, S, T, F, M, B, C> {
+    pub user_app: UserApplication<U, S, T, F, M, B, C>,
     pub jwt_header: &'static str,
     pub totp_header: &'static str,
 }
 
-impl<U, S, B, M, C> UserGrpcService<U, S, B, M, C>
+impl<U, S, T, F, M, B, C> UserGrpcService<U, S, T, F, M, B, C>
 where
     U: 'static + UserRepository + Sync + Send,
     S: 'static + SecretRepository + Sync + Send,
+    T: 'static + TokenService + Sync + Send,
+    F: 'static + MfaService + Sync + Send,
     B: 'static + EventBus + Sync + Send,
-    M: 'static + Mailer + Sync + Send,
+    M: 'static + MailService + Sync + Send,
     C: 'static + Cache + Sync + Send,
 {
     #[instrument(skip(self))]
-    async fn signup_with_token(&self, token: &str) -> Result<Response<Empty>, Status> {
-        let token = self
+    async fn signup_with_token(&self, token: Token) -> Result<Response<Empty>, Status> {
+        let session_token = self
             .user_app
-            .signup_with_token(token.into())
+            .signup_with_token(token)
             .await
             .map_err(Status::from)?;
 
@@ -87,10 +73,7 @@ where
         let token = token
             .as_ref()
             .parse()
-            .map_err(|err: InvalidMetadataValue| {
-                error!(error = err.to_string(), "parsing token to header");
-                Status::from(Error::Unknown)
-            })?;
+            .map_err(on_error!("parsing token to header"))?;
 
         res.metadata_mut().append(self.jwt_header, token);
         Ok(res)
@@ -101,56 +84,67 @@ where
         &self,
         request: SignupRequest,
     ) -> Result<Response<Empty>, Status> {
-        self.user_app
-            .verify_credentials(request.try_into()?)
-            .await
-            .map_err(|err| Status::aborted(err.to_string()))?;
+        let email = request.email.try_into()?;
+        let password = request.password.try_into()?;
 
-        Err(Error::NotAvailable.into())
+        self.user_app
+            .verify_credentials(email, password)
+            .await
+            .map(|_| Response::new(Empty {}))
+            .map_err(Status::from)
     }
 }
 
 #[tonic::async_trait]
-impl<U, S, B, M, C> User for UserGrpcService<U, S, B, M, C>
+impl<U, S, T, F, M, B, C> User for UserGrpcService<U, S, T, F, M, B, C>
 where
     U: 'static + UserRepository + Sync + Send,
     S: 'static + SecretRepository + Sync + Send,
+    T: 'static + TokenService + Sync + Send,
+    F: 'static + MfaService + Sync + Send,
     B: 'static + EventBus + Sync + Send,
-    M: 'static + Mailer + Sync + Send,
+    M: 'static + MailService + Sync + Send,
     C: 'static + Cache + Sync + Send,
 {
     #[instrument(skip(self))]
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<Empty>, Status> {
-        match grpc::get_header(&request, self.jwt_header) {
-            Ok(token) => self.signup_with_token(&token).await,
-            Err(err) if err.is => {
-                let request = request.into_inner();
-                self.signup_with_credentials(request).await
-            }
-            Err(err) => Err(err.into()),
-        }
+        let Some(header) = grpc::get_header(&request, self.jwt_header)? else {
+            let request = request.into_inner();
+            return self.signup_with_credentials(request).await;
+        };
+
+        let token = header.try_into().map_err(Into::into)?;
+        self.signup_with_token(token).await
     }
 
     #[instrument(skip(self))]
     async fn reset(&self, request: Request<ResetRequest>) -> Result<Response<Empty>, Status> {
-        if request.metadata().get(self.jwt_header).is_some() {
-            let token = grpc::get_header(&request, self.jwt_header)?;
-            let msg_ref = request.into_inner();
-            return self
-                .user_app
-                .reset_credentials_with_token(&token, &msg_ref.new_password, &msg_ref.otp)
-                .await
-                .map(|_| Response::new(Empty {}))
-                .map_err(|err| Status::aborted(err.to_string()));
-        }
+        // if request.metadata().get(self.jwt_header).is_some() {
+        //     let token = grpc::get_header(&request, self.jwt_header)?;
+        //     let msg_ref = request.into_inner();
+        //     return self
+        //         .user_app
+        //         .reset_credentials_with_token(&token, &msg_ref.new_password, &msg_ref.otp)
+        //         .await
+        //         .map(|_| Response::new(Empty {}))
+        //         .map_err(|err| Status::aborted(err.to_string()));
+        // }
 
-        let msg_ref = request.into_inner();
-        self.user_app
-            .verify_credentials_reset(&msg_ref.email)
-            .await
-            .map_err(|err| Status::aborted(err.to_string()))?;
+        // let msg_ref = request.into_inner();
+        // self.user_app
+        //     .verify_credentials_reset(&msg_ref.email)
+        //     .await
+        //     .map_err(|err| Status::aborted(err.to_string()))?;
 
-        Err(Error::NotAvailable.into())
+        // Err(Error::NotAvailable.into())
+
+        let Some(header) = grpc::get_header(&request, self.jwt_header)? else {
+            let request = request.into_inner();
+            return self.signup_with_credentials(request).await;
+        };
+
+        let token = header.try_into().map_err(Into::into)?;
+        self.signup_with_token(token).await
     }
 
     #[instrument(skip(self))]

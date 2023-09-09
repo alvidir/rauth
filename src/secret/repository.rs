@@ -82,8 +82,9 @@ impl<'a> SecretRepository for PostgresSecretRepository<'a> {
             .bind(secret.id)
             .fetch_one(self.pool)
             .await
-            .map_err(on_error!("performing delete query on postgres"))
-            .map(|_| ())
+            .map_err(on_error!(Error, "performing delete query on postgres"))?;
+
+        Ok(())
     }
 
     #[instrument(skip(self))]
@@ -92,7 +93,8 @@ impl<'a> SecretRepository for PostgresSecretRepository<'a> {
             .bind(owner.id)
             .fetch_all(self.pool)
             .await
-            .map_err(on_error!("performing delete query on postgres"))
-            .map(|_| ())
+            .map_err(on_error!(Error, "performing delete query on postgres"))?;
+
+        Ok(())
     }
 }

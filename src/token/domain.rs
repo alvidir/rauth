@@ -1,5 +1,4 @@
 use super::error::{Error, Result};
-use crate::crypto;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -10,17 +9,33 @@ const PATTERN: &str = r"^(?:[\w-]*\.){2}[\w-]*$";
 const REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(PATTERN).unwrap());
 
 /// Represents the kind of a token.
-#[derive(Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TokenKind {
     Session,
     Verification,
     Reset,
 }
 
+impl TokenKind {
+    pub fn is_session(&self) -> bool {
+        matches!(self, TokenKind::Session)
+    }
+
+    pub fn is_verification(&self) -> bool {
+        matches!(self, TokenKind::Verification)
+    }
+
+    pub fn is_reset(&self) -> bool {
+        matches!(self, TokenKind::Reset)
+    }
+}
+
 /// Represents the payload of a JWT, containing the claims.
 #[derive(Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Payload {
     pub jti: String,
+    pub iss: String,
+    pub sub: String,
     #[serde(
         serialize_with = "as_unix_timestamp",
         deserialize_with = "from_unix_timestamp"
@@ -36,8 +51,6 @@ pub struct Payload {
         deserialize_with = "from_unix_timestamp"
     )]
     pub iat: SystemTime,
-    pub iss: String,
-    pub sub: String,
     pub knd: TokenKind,
 }
 
@@ -72,19 +85,31 @@ where
 }
 
 impl Payload {
-    pub fn new(kind: TokenKind, iss: &str, sub: &str, timeout: Duration) -> Self {
-        let mut token = Payload {
+    pub fn new(token_kind: TokenKind, timeout: Duration) -> Self {
+        Payload {
             jti: Default::default(),
+            iss: Default::default(),
+            sub: Default::default(),
             exp: SystemTime::now() + timeout,
             nbf: SystemTime::now(),
             iat: SystemTime::now(),
-            iss: iss.to_string(),
-            sub: sub.to_string(),
-            knd: kind,
-        };
+            knd: token_kind,
+        }
+    }
 
-        token.jti = crypto::hash(&token).to_string();
-        token
+    pub fn with_subject(mut self, subject: &str) -> Self {
+        self.sub = subject.to_string();
+        self
+    }
+
+    pub fn with_issuer(mut self, issuer: &str) -> Self {
+        self.iss = issuer.to_string();
+        self
+    }
+
+    pub fn with_id(mut self, id: String) -> Self {
+        self.jti = id;
+        self
     }
 
     /// Returns the [Duration] from now for which the [Token] is valid.
@@ -96,7 +121,7 @@ impl Payload {
 
     /// Returns the [Kind] field from self.
     pub fn kind(&self) -> TokenKind {
-        self.knd
+        self.knd.clone()
     }
 
     /// Returns the subject field (sub) from self.
@@ -120,9 +145,34 @@ impl TryFrom<String> for Token {
     }
 }
 
+impl From<Claims> for Token {
+    fn from(value: Claims) -> Self {
+        value.token
+    }
+}
+
 impl AsRef<str> for Token {
     fn as_ref(&self) -> &str {
         &self.0
+    }
+}
+
+/// Represents a token and its corresponding payload, containing the claims.
+#[derive(Debug)]
+pub struct Claims {
+    pub(super) token: Token,
+    pub(super) payload: Payload,
+}
+
+impl Claims {
+    /// Returns the token with the corresponding claims.
+    pub fn token(&self) -> &Token {
+        &self.token
+    }
+
+    /// Returns the payload, containing the claims.
+    pub fn payload(&self) -> &Payload {
+        &self.payload
     }
 }
 
@@ -137,20 +187,15 @@ pub mod tests {
 
     #[test]
     fn token_new_should_not_fail() {
-        const ISS: &str = "test";
-        const SUB: i32 = 999;
-
         let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
 
         let before = SystemTime::now();
-        let claim = Payload::new(TokenKind::Session, ISS, &SUB.to_string(), timeout);
+        let payload = Payload::new(TokenKind::Session, timeout);
         let after = SystemTime::now();
 
-        assert!(claim.iat >= before && claim.iat <= after);
-        assert!(claim.exp >= before + timeout);
-        assert!(claim.exp <= after + timeout);
-        assert!(matches!(claim.knd, TokenKind::Session));
-        assert_eq!(ISS, claim.iss);
-        assert_eq!(SUB.to_string(), claim.sub);
+        assert!(payload.iat >= before && payload.iat <= after);
+        assert!(payload.exp >= before + timeout);
+        assert!(payload.exp <= after + timeout);
+        assert!(matches!(payload.knd, TokenKind::Session));
     }
 }

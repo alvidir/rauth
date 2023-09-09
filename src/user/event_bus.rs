@@ -9,7 +9,7 @@ use deadpool_lapin::Pool;
 use lapin::{options::*, BasicProperties};
 use serde_json;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct UserEventPayload<'a> {
     pub(super) user_id: i32,
     pub(super) user_name: &'a str,
@@ -43,7 +43,7 @@ impl<'a> RabbitMqUserBus<'a> {
         connection
             .create_channel()
             .await
-            .map_err(on_error!("creating rabbitmq channel"))?
+            .map_err(on_error!(Error, "creating rabbitmq channel"))?
             .basic_publish(
                 self.exchange,
                 "",
@@ -52,9 +52,9 @@ impl<'a> RabbitMqUserBus<'a> {
                 BasicProperties::default(),
             )
             .await
-            .map_err(on_error!("emititng user created event"))?
+            .map_err(on_error!(Error, "emititng user created event"))?
             .await
-            .map_err(on_error!("confirming user created event reception"))?;
+            .map_err(on_error!(Error, "confirming user created event reception"))?;
 
         Ok(())
     }

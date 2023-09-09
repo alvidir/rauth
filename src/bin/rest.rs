@@ -5,7 +5,7 @@ use actix_web::web::Data;
 use actix_web::{middleware, App, HttpServer};
 use rauth::cache::RedisCache;
 use rauth::{
-    config, redis, session::rest::SessionRestService, token::service::TokenServiceImpl, tracer,
+    config, redis, session::rest::SessionRestService, token::service::JsonWebTokenService, tracer,
 };
 use std::error::Error;
 use std::sync::Arc;
@@ -23,7 +23,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         pool: &redis::REDIS_POOL,
     });
 
-    let token_srv = TokenServiceImpl {
+    let token_srv = JsonWebTokenService {
         timeout: Duration::from_secs(*config::TOKEN_TIMEOUT),
         issuer: &config::TOKEN_ISSUER,
         private_key: &config::JWT_SECRET,

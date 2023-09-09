@@ -1,5 +1,7 @@
+use std::array::TryFromSliceError;
+
 use crate::{
-    crypto,
+    crypto, on_error,
     user::error::{Error, Result},
 };
 use ::regex::Regex;
@@ -11,9 +13,9 @@ const HASH_LEN: usize = 128;
 
 /// Represents the hash and salt of a [Password].
 #[derive(Debug, Default, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct PasswordHash {
-    hash: String,
-    salt: String,
+pub struct PasswordHash {
+    pub(crate) hash: String,
+    pub(crate) salt: String,
 }
 
 impl TryFrom<String> for PasswordHash {
@@ -44,10 +46,17 @@ impl AsRef<str> for PasswordHash {
 impl PasswordHash {
     /// Builds a new password from the given value and salt
     pub fn with_salt(password: Password, salt: &[u8]) -> Result<Self> {
-        crypto::salt(password.as_ref(), &salt).map(|salted| Self {
-            hash: crypto::encode_b64(&salted),
-            salt: crypto::encode_b64(&salt),
-        })
+        let salt: [u8; HASH_LEN] = salt.try_into().map_err(on_error!(
+            TryFromSliceError as Error,
+            "converting into sized array"
+        ))?;
+
+        crypto::salt(password.as_ref(), &salt)
+            .map(|salted| Self {
+                hash: crypto::encode_b64(&salted),
+                salt: crypto::encode_b64(&salt),
+            })
+            .map_err(Into::into)
     }
 
     /// Returns true if, and only if, the given password matches with self.

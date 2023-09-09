@@ -76,7 +76,7 @@ pub static EVENT_ISSUER: Lazy<String> =
     Lazy::new(|| env::var(ENV_EVENT_ISSUER).expect("event issuer must be set"));
 
 /// Represents all the possible kind of events that may be handled or emited.
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EventKind {
     Created,

@@ -28,17 +28,16 @@ mod grpc;
 mod http;
 
 macro_rules! on_error {
-    ($type:ty, $msg:tt) => {
-        |error| -> $type {
-            error!(error = error.to_string(), $msg,);
-            <$type>::from(error)
-        }
-    };
-
-    ($msg:tt) => {
-        |error| {
+    ($from:ty as $to:ty, $msg:tt) => {
+        |error: $from| -> $to {
             error!(error = error.to_string(), $msg,);
             error.into()
+        }
+    };
+    ($to:ty, $msg:tt) => {
+        |error| -> $to {
+            error!(error = error.to_string(), $msg,);
+            <$to>::from(error)
         }
     };
 }

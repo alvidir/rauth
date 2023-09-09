@@ -1,12 +1,11 @@
-use std::sync::Arc;
-use tera::{Context, Tera};
-
 use super::{
-    application::Mailer,
+    application::MailService,
     domain::Email,
     error::{Error, Result},
 };
 use crate::{on_error, smtp::Smtp, token::domain::Token};
+use std::sync::Arc;
+use tera::{Context, Tera};
 
 pub struct UserSmtp<'a, E> {
     pub mta_mailer: Arc<E>,
@@ -18,7 +17,7 @@ pub struct UserSmtp<'a, E> {
     pub reset_template: &'a str,
 }
 
-impl<'a, E> Mailer for UserSmtp<'a, E> {
+impl<'a, E> MailService for UserSmtp<'a, E> {
     #[instrument(skip(self))]
     fn send_credentials_verification_email(&self, email: &Email, token: &Token) -> Result<()> {
         let mut context = Context::new();
@@ -33,7 +32,9 @@ impl<'a, E> Mailer for UserSmtp<'a, E> {
                 "rendering verification signup email template"
             ))?;
 
-        self.smtp.send(email, self.verification_subject, body)
+        self.smtp
+            .send(email, self.verification_subject, &body)
+            .map_err(Into::into)
     }
 
     #[instrument(skip(self))]
@@ -50,6 +51,8 @@ impl<'a, E> Mailer for UserSmtp<'a, E> {
                 "rendering verification reset email template"
             ))?;
 
-        self.smtp.send(email, self.reset_subject, body)
+        self.smtp
+            .send(email, self.reset_subject, &body)
+            .map_err(Into::into)
     }
 }

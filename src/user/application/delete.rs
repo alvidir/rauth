@@ -1,22 +1,23 @@
-use super::{EventBus, Mailer, UserApplication, UserRepository};
+use std::num::ParseIntError;
+
+use super::{EventBus, MailService, UserApplication, UserRepository};
 use crate::cache::Cache;
 use crate::mfa::domain::Otp;
 use crate::mfa::service::MfaService;
 use crate::on_error;
 use crate::secret::application::SecretRepository;
 use crate::token::domain::Token;
-use crate::token::domain::TokenKind;
 use crate::token::service::TokenService;
 use crate::user::domain::Password;
 use crate::user::error::{Error, Result};
 
-impl<'a, U, S, T, F, M, B, C> UserApplication<'a, U, S, T, F, M, B, C>
+impl<U, S, T, F, M, B, C> UserApplication<U, S, T, F, M, B, C>
 where
     U: UserRepository,
     S: SecretRepository,
     T: TokenService,
     F: MfaService,
-    M: Mailer,
+    M: MailService,
     B: EventBus,
     C: Cache,
 {
@@ -28,18 +29,18 @@ where
         password: Password,
         otp: Option<Otp>,
     ) -> Result<()> {
-        let payload = self.token_service.claims(TokenKind::Session, token).await?;
+        let claims = self.token_srv.claims(token).await?;
+        if !claims.payload().kind().is_session() {
+            return Error::WrongToken.into();
+        }
 
-        let user_id = payload
-            .sub
-            .parse()
-            .map_err(on_error!("parsing token subject to user id"))?;
+        let user_id = claims.payload().sub.parse().map_err(on_error!(
+            ParseIntError as Error,
+            "parsing token subject to user id"
+        ))?;
 
         self.delete(user_id, password, otp).await?;
-        self.token_service
-            .revoke(&payload)
-            .await
-            .map_err(Into::into)
+        self.token_srv.revoke(&claims).await.map_err(Into::into)
     }
 
     /// Given a valid user ID and passwords, performs the deletion of the corresponding user.
@@ -51,9 +52,7 @@ where
             return Err(Error::WrongCredentials);
         }
 
-        if let Some(method) = user.preferences.multi_factor {
-            self.mfa_service.run_method(method, &user, otp)?;
-        };
+        self.multi_factor(&user, otp).await?;
 
         self.user_repo.delete(&user).await
     }

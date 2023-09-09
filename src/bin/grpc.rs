@@ -11,7 +11,7 @@ use rauth::{
     },
     smtp,
     smtp::SmtpBuilder,
-    token::service::TokenServiceImpl,
+    token::service::JsonWebTokenService,
     tracer,
     user::{
         application::UserApplication,
@@ -62,7 +62,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
     .build()?;
 
-    let token_srv = Arc::new(TokenServiceImpl {
+    let token_srv = Arc::new(JsonWebTokenService {
         timeout: Duration::from_secs(*config::TOKEN_TIMEOUT),
         issuer: &config::TOKEN_ISSUER,
         private_key: &config::JWT_SECRET,
@@ -73,8 +73,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let user_app = UserApplication {
         user_repo: user_repo.clone(),
         secret_repo: secret_repo.clone(),
-        token_service: token_srv.clone(),
-        mailer: Arc::new(smtp),
+        token_srv: token_srv.clone(),
+        mail_srv: Arc::new(smtp),
         event_bus: user_event_bus.clone(),
         totp_secret_len: *config::TOTP_SECRET_LEN,
         cache: cache.clone(),

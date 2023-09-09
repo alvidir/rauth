@@ -1,4 +1,4 @@
-use super::{EventBus, Mailer, UserApplication, UserRepository};
+use super::{EventBus, MailService, UserApplication, UserRepository};
 use crate::cache::Cache;
 use crate::crypto;
 use crate::mfa::service::MfaService;
@@ -7,12 +7,12 @@ use crate::token::service::TokenService;
 use crate::user::domain::{Credentials, Email, Password, User};
 use crate::user::error::{Error, Result};
 
-impl<'a, U, S, T, F, M, B, C> UserApplication<'a, U, S, T, F, M, B, C>
+impl<U, S, T, F, M, B, C> UserApplication<U, S, T, F, M, B, C>
 where
     U: UserRepository,
     T: TokenService,
     F: MfaService,
-    M: Mailer,
+    M: MailService,
     B: EventBus,
     C: Cache,
 {
@@ -31,17 +31,21 @@ where
         };
 
         let key = crypto::hash(&credentials);
-        let payload = self
-            .token_service
-            .new_payload(TokenKind::Verification, key.to_string());
-
-        self.cache
-            .save(&key.to_string(), &credentials, Some(payload.timeout()))
+        let claims = self
+            .token_srv
+            .issue(TokenKind::Verification, &key.to_string())
             .await?;
 
-        let token = self.token_service.issue(payload).await?;
-        self.mailer
-            .send_credentials_verification_email(&credentials.email, &token)?;
+        self.cache
+            .save(
+                &key.to_string(),
+                &credentials,
+                Some(claims.payload().timeout()),
+            )
+            .await?;
+
+        self.mail_srv
+            .send_credentials_verification_email(&credentials.email, claims.token())?;
 
         Ok(())
     }
@@ -49,18 +53,19 @@ where
     /// Given a valid verification token, performs the signup of the corresponding user.
     #[instrument(skip(self))]
     pub async fn signup_with_token(&self, token: Token) -> Result<Token> {
-        let payload = self
-            .token_service
-            .claims(TokenKind::Verification, token)
-            .await?;
-        self.token_service.revoke(&payload).await?;
+        let claims = self.token_srv.claims(token).await?;
+
+        if !claims.payload().kind().is_verification() {
+            return Error::WrongToken.into();
+        }
 
         let mut user = self
             .cache
-            .find(&payload.subject())
+            .find(claims.payload().subject())
             .await
             .map(Credentials::into)?;
 
+        self.token_srv.revoke(&claims).await?;
         self.signup(&mut user).await
     }
 
@@ -71,11 +76,10 @@ where
         // TODO: implement outbox pattern for events publishment
         self.event_bus.emit_user_created(user).await?;
 
-        // FIXME: use session application for loging in
-        let payload = self
-            .token_service
-            .new_payload(TokenKind::Session, user.id.to_string());
-
-        self.token_service.issue(payload).await.map_err(Into::into)
+        self.token_srv
+            .issue(TokenKind::Session, &user.id.to_string())
+            .await
+            .map_err(Into::into)
+            .map(Into::into)
     }
 }

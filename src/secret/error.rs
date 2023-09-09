@@ -14,6 +14,8 @@ pub enum Error {
     NotFound,
     #[error("{0}")]
     Parse(#[from] std::string::ParseError),
+    #[error("{0}")]
+    Strum(#[from] strum::ParseError),
     #[cfg(feature = "postgres")]
     #[error("{0}")]
     Sql(#[from] sqlx::error::Error),

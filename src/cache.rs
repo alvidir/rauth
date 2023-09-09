@@ -18,10 +18,15 @@ pub enum Error {
     #[error("resource not found")]
     NotFound,
     #[error("{0}")]
+    Expiration(#[from] std::num::TryFromIntError),
+    #[error("{0}")]
     Json(#[from] serde_json::Error),
     #[cfg(feature = "redis-cache")]
     #[error("{0}")]
     Redis(#[from] reool::RedisError),
+    #[cfg(feature = "redis-cache")]
+    #[error("{0}")]
+    Checkout(#[from] reool::CheckoutError),
 }
 
 /// Represents a general purpose cache.
@@ -47,6 +52,7 @@ mod redis_cache {
     use reool::{AsyncCommands, PoolDefault, RedisError, RedisPool};
     use serde::{de::DeserializeOwned, Serialize};
     use std::fmt::Debug;
+    use std::num::TryFromIntError;
     use std::time::Duration;
 
     /// Redis implementation of [`Cache`].
@@ -75,7 +81,7 @@ mod redis_cache {
                 return Error::NotFound.into();
             };
 
-            serde_json::from_str(&data).map_err(on_error!("deserializing data from redis"))
+            serde_json::from_str(&data).map_err(on_error!(Error, "deserializing data from redis"))
         }
 
         #[instrument(skip(self))]
@@ -87,24 +93,24 @@ mod redis_cache {
                 .pool
                 .check_out(PoolDefault)
                 .await
-                .map_err(on_error!("pulling connection for redis"))?;
+                .map_err(on_error!(Error, "pulling connection for redis"))?;
 
-            let data =
-                serde_json::to_string(&value).map_err(on_error!("serializing data for redis"))?;
+            let data = serde_json::to_string(&value)
+                .map_err(on_error!(Error, "serializing data for redis"))?;
 
             conn.set(key, data)
                 .await
-                .map_err(on_error!("performing SET command on redis"))?;
+                .map_err(on_error!(Error, "performing SET command on redis"))?;
 
             if let Some(expire) = expire {
-                let expire = expire
-                    .as_secs()
-                    .try_into()
-                    .map_err(on_error!("parsing expiration time to usize"))?;
+                let expire = expire.as_secs().try_into().map_err(on_error!(
+                    TryFromIntError as Error,
+                    "parsing expiration time to usize"
+                ))?;
 
                 conn.expire(key, expire)
                     .await
-                    .map_err(on_error!("performing EXPIRE command on redis"))?;
+                    .map_err(on_error!(Error, "performing EXPIRE command on redis"))?;
             }
 
             Ok(())
@@ -116,11 +122,13 @@ mod redis_cache {
                 .pool
                 .check_out(PoolDefault)
                 .await
-                .map_err(on_error!(RedisError, "pulling connection for redis"))?;
+                .map_err(RedisError::from)
+                .map_err(on_error!(Error, "pulling connection for redis"))?;
 
             conn.del(key)
                 .await
-                .map_err(on_error!(RedisError, "performing DELETE command on redis"))?;
+                .map_err(RedisError::from)
+                .map_err(on_error!(Error, "performing DELETE command on redis"))?;
 
             Ok(())
         }
@@ -163,7 +171,7 @@ pub mod tests {
                 return Error::NotFound.into();
             };
 
-            serde_json::from_str(&data).map_err(on_error!("deserializing data from json"))
+            serde_json::from_str(&data).map_err(on_error!(Error, "deserializing data from json"))
         }
 
         async fn save<T>(&self, key: &str, value: T, expire: Option<Duration>) -> Result<()>

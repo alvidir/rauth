@@ -1,7 +1,5 @@
 //! Result type and errors related to user stuff.
 
-use std::num::ParseIntError;
-
 pub type Result<T> = std::result::Result<T, Error>;
 
 impl<T> From<Error> for Result<T> {
@@ -22,10 +20,16 @@ pub enum Error {
     NotFound,
     #[error("user already exists")]
     AlreadyExists,
+    #[error("token is not of the correct kind")]
+    WrongToken,
     #[error("{0}")]
-    ParseInt(#[from] ParseIntError),
+    Strum(#[from] strum::ParseError),
     #[error("{0}")]
-    Base64(#[from] base64::DecodeError),
+    Salt(#[from] std::array::TryFromSliceError),
+    #[error("{0}")]
+    ParseInt(#[from] std::num::ParseIntError),
+    #[error("{0}")]
+    Tonic(#[from] tonic::metadata::errors::InvalidMetadataValue),
     #[cfg(feature = "postgres")]
     #[error("{0}")]
     Sql(#[from] sqlx::error::Error),
@@ -39,9 +43,17 @@ pub enum Error {
     #[error("{0}")]
     Lapin(#[from] lapin::Error),
     #[error("{0}")]
+    Crypto(#[from] crate::crypto::Error),
+    #[error("{0}")]
     Cache(#[from] crate::cache::Error),
     #[error("{0}")]
+    Smtp(#[from] crate::smtp::Error),
+    #[error("{0}")]
     Token(#[from] crate::token::error::Error),
+    #[error("{0}")]
+    Mfa(#[from] crate::mfa::error::Error),
+    #[error("{0}")]
+    Serde(#[from] serde_json::Error),
     #[error("unexpected error")]
     Unknown(String),
     #[cfg(test)]

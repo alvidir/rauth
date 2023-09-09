@@ -4,20 +4,24 @@ use super::{
 };
 use crate::secret::application::SecretRepository;
 use crate::secret::domain::SecretKind;
-use crate::user::domain::User;
-use crate::{cache::Cache, user::domain::Email};
+use crate::{
+    cache::Cache,
+    user::domain::{Email, User},
+};
 use crate::{on_error, secret::domain::Secret};
 use async_trait::async_trait;
 use libreauth::oath::TOTPBuilder;
 use libreauth::{hash::HashFunction::Sha256, oath::TOTP};
 use std::sync::Arc;
 
+/// Represents an executor of different strategies of multi-factor authentication.
 #[async_trait]
 pub trait MfaService {
-    async fn run_method(&self, method: MfaMethod, user: &User, otp: Option<Otp>) -> Result<()>;
+    /// Executes the given [MfaMethod].
+    async fn execute(&self, method: MfaMethod, user: &User, otp: Option<Otp>) -> Result<()>;
 }
 
-pub trait Mailer {
+pub trait MailService {
     fn send_otp_email(&self, to: &Email, token: &Otp) -> Result<()>;
 }
 
@@ -29,12 +33,12 @@ impl TryInto<TOTP> for Secret {
             .key(self.data())
             .hash_function(Sha256)
             .finalize()
-            .map_err(on_error!("genereting time-based one time password"))
+            .map_err(on_error!(Error, "genereting time-based one time password"))
     }
 }
 
-/// Implements the [MfaService] trait with all the methods defined by [MfaMethod].
-pub struct MfaServiceImpl<S, M, C> {
+/// Implements the [MfaService].
+pub struct MultiFactor<S, M, C> {
     pub secret_len: usize,
     pub secret_repo: Arc<S>,
     pub mailer: Arc<M>,
@@ -42,13 +46,13 @@ pub struct MfaServiceImpl<S, M, C> {
 }
 
 #[async_trait]
-impl<S, M, C> MfaService for MfaServiceImpl<S, M, C>
+impl<S, M, C> MfaService for MultiFactor<S, M, C>
 where
     S: SecretRepository + Sync + Send,
-    M: Mailer + Sync + Send,
+    M: MailService + Sync + Send,
     C: Cache + Sync + Send,
 {
-    async fn run_method(&self, method: MfaMethod, user: &User, otp: Option<Otp>) -> Result<()> {
+    async fn execute(&self, method: MfaMethod, user: &User, otp: Option<Otp>) -> Result<()> {
         match method {
             MfaMethod::TpApp => self.tp_app_totp_method(user, otp).await,
             MfaMethod::Email => self.email_otp_method(user, otp).await,
@@ -56,10 +60,10 @@ where
     }
 }
 
-impl<S, M, C> MfaServiceImpl<S, M, C>
+impl<S, M, C> MultiFactor<S, M, C>
 where
     S: SecretRepository + Sync + Send,
-    M: Mailer + Sync + Send,
+    M: MailService + Sync + Send,
     C: Cache + Sync + Send,
 {
     async fn email_otp_method(&self, _user: &User, _otp: Option<Otp>) -> Result<()> {
@@ -83,3 +87,23 @@ where
         Err(Error::Invalid)
     }
 }
+
+// #[cfg(test)]
+// pub mod tests {
+
+//     #[test]
+//     fn verify_totp_ok_should_not_fail() {
+//         const SECRET: &[u8] = "hello world".as_bytes();
+
+//         let code = generate_totp::<String>(SECRET).unwrap().generate();
+
+//         assert_eq!(code.len(), 6);
+//         assert!(totp_matches::<String>(SECRET, &code).is_ok());
+//     }
+
+//     #[test]
+//     fn verify_totp_ko_should_not_fail() {
+//         const SECRET: &[u8] = "hello world".as_bytes();
+//         assert!(!totp_matches::<String>(SECRET, "tester").unwrap());
+//     }
+// }
