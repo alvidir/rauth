@@ -1,8 +1,5 @@
-use once_cell::sync::Lazy;
-use rand::Rng;
-use regex::Regex;
-
 use super::error::{Error, Result};
+use rand::{distributions::Uniform, Rng};
 
 /// Represents the multi factor authentication method to use.
 #[derive(Debug, Clone, Copy, strum_macros::EnumString, strum_macros::Display)]
@@ -25,41 +22,121 @@ impl AsRef<str> for Otp {
     }
 }
 
-impl AsRef<[u8]> for Otp {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_bytes()
-    }
-}
-
 impl TryFrom<String> for Otp {
     type Error = Error;
 
     /// Builds a [OTP] from the given string if, and only if, the string matches the
     /// otp's regex.
-    fn try_from(password: String) -> Result<Self> {
-        Self::REGEX
-            .is_match(&password)
-            .then_some(Self(password))
-            .ok_or(Error::NotAOneTimePassword)
+    fn try_from(otp: String) -> Result<Self> {
+        if otp.is_empty() || otp.chars().any(|c| !c.is_numeric()) {
+            return Err(Error::NotAOneTimePassword);
+        }
+
+        Ok(Self(otp))
     }
 }
 
 impl Otp {
-    const PATTERN: &str = r"^[0-9]+$";
-    const CHARSET: &[u8] = b"0123456789";
-    const REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(Self::PATTERN).unwrap());
-
+    /// Builds a new [Otp] with the given length for any length greater than 0. Otherwise returns [Error::NotAOneTimePassword].
     pub fn with_length(len: usize) -> Result<Self> {
-        let mut buff = vec![0_u8; len];
+        rand::thread_rng()
+            .sample_iter(Uniform::new_inclusive(0, 9))
+            .take(len)
+            .map(|digit| digit.to_string())
+            .collect::<String>()
+            .try_into()
+    }
+}
 
-        for index in 0..buff.len() {
-            let mut rand = rand::thread_rng();
-            let idx = rand.gen_range(0..Self::CHARSET.len());
-            buff[index] = Self::CHARSET[idx]
+#[cfg(test)]
+mod test {
+    use crate::mfa::{domain::Otp, error::Error};
+
+    #[test]
+    fn otp_from_str() {
+        struct Test<'a> {
+            name: &'a str,
+            input: &'a str,
+            is_valid: bool,
         }
 
-        String::from_utf8(buff)
-            .map(|value| Otp(value))
-            .map_err(Into::into)
+        vec![
+            Test {
+                name: "numeric otp",
+                input: "1234",
+                is_valid: true,
+            },
+            Test {
+                name: "non numeric otp",
+                input: "abc123&",
+                is_valid: false,
+            },
+            Test {
+                name: "empty otp",
+                input: "",
+                is_valid: false,
+            },
+        ]
+        .into_iter()
+        .for_each(|test| {
+            let result = Otp::try_from(test.input.to_string());
+            if test.is_valid {
+                let otp = result.unwrap();
+                assert_eq!(otp.as_ref(), test.input, "{0}", test.name);
+            } else {
+                assert!(
+                    matches!(result.err(), Some(Error::NotAOneTimePassword)),
+                    "{}",
+                    test.name
+                );
+            }
+        })
+    }
+
+    #[test]
+    fn otp_with_length() {
+        struct Test<'a> {
+            name: &'a str,
+            len: usize,
+            is_valid: bool,
+        }
+
+        vec![
+            Test {
+                name: "with length 10",
+                len: 10,
+                is_valid: true,
+            },
+            Test {
+                name: "with length 100",
+                len: 100,
+                is_valid: true,
+            },
+            Test {
+                name: "with no length",
+                len: 0,
+                is_valid: false,
+            },
+        ]
+        .into_iter()
+        .for_each(|test| {
+            let result = Otp::with_length(test.len);
+            if test.is_valid {
+                let otp = result.unwrap();
+                assert_eq!(otp.as_ref().len(), test.len, "{}", test.name);
+
+                assert!(
+                    Otp::try_from(otp.as_ref().to_string()).is_ok(),
+                    "{}",
+                    test.name
+                );
+            } else {
+                assert!(
+                    matches!(result.err(), Some(Error::NotAOneTimePassword)),
+                    "{}",
+                    test.name
+                );
+            }
+        })
     }
 }

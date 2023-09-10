@@ -41,7 +41,7 @@ pub trait Cache {
     async fn find<T>(&self, key: &str) -> Result<T>
     where
         T: DeserializeOwned;
-    async fn save<T>(&self, key: &str, value: T, expire: Option<Duration>) -> Result<()>
+    async fn save<T>(&self, key: &str, value: T, expire: Duration) -> Result<()>
     where
         T: Serialize + Send + Sync + Debug;
     async fn delete(&self, key: &str) -> Result<()>;
@@ -91,7 +91,7 @@ mod redis_cache {
         }
 
         #[instrument(skip(self))]
-        async fn save<T>(&self, key: &str, value: T, expire: Option<Duration>) -> Result<()>
+        async fn save<T>(&self, key: &str, value: T, expire: Duration) -> Result<()>
         where
             T: Serialize + Send + Sync + Debug,
         {
@@ -108,16 +108,14 @@ mod redis_cache {
                 .await
                 .map_err(on_error!(Error, "performing SET command on redis"))?;
 
-            if let Some(expire) = expire {
-                let expire = expire.as_secs().try_into().map_err(on_error!(
-                    TryFromIntError as Error,
-                    "parsing expiration time to usize"
-                ))?;
+            let expire = expire.as_secs().try_into().map_err(on_error!(
+                TryFromIntError as Error,
+                "parsing expiration time to usize"
+            ))?;
 
-                conn.expire(key, expire)
-                    .await
-                    .map_err(on_error!(Error, "performing EXPIRE command on redis"))?;
-            }
+            conn.expire(key, expire)
+                .await
+                .map_err(on_error!(Error, "performing EXPIRE command on redis"))?;
 
             Ok(())
         }
@@ -142,7 +140,7 @@ mod redis_cache {
 }
 
 #[cfg(test)]
-pub mod tests {
+pub mod test {
     use super::{Cache, Error, Result};
     use crate::on_error;
     use async_trait::async_trait;
@@ -180,7 +178,7 @@ pub mod tests {
             serde_json::from_str(&data).map_err(on_error!(Error, "deserializing data from json"))
         }
 
-        async fn save<T>(&self, key: &str, value: T, expire: Option<Duration>) -> Result<()>
+        async fn save<T>(&self, key: &str, value: T, _expire: Duration) -> Result<()>
         where
             T: Serialize + Send + Sync + Debug,
         {

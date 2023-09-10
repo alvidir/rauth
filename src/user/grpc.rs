@@ -13,9 +13,6 @@ use std::ops::Not;
 use tonic::metadata::errors::InvalidMetadataValue;
 use tonic::{Request, Response, Status};
 
-const TOTP_ACTION_ENABLE: i32 = 0;
-const TOTP_ACTION_DISABLE: i32 = 1;
-
 // Import the generated rust code into module
 mod proto {
     tonic::include_proto!("user");

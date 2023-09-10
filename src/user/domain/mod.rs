@@ -40,3 +40,29 @@ impl User {
         self.credentials.password.matches(other)
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::user::domain::{Credentials, Email, Password, PasswordHash, Salt, User};
+
+    #[test]
+    fn user_password_matches() {
+        let email = Email::try_from("username@server.domain").unwrap();
+        let password = Password::try_from("abcABC123&".to_string()).unwrap();
+        let salt = Salt::with_length(128).unwrap();
+        let hash = PasswordHash::with_salt(&password, &salt).unwrap();
+        let credentials = Credentials::new(email, hash);
+        let user = User::from(credentials);
+
+        assert!(
+            user.password_matches(&password).unwrap(),
+            "comparing password with its own hash"
+        );
+
+        let fake_password = Password::try_from("abcABC1234&".to_string()).unwrap();
+        assert!(
+            !user.password_matches(&fake_password).unwrap(),
+            "comparing password with wrong hash"
+        );
+    }
+}

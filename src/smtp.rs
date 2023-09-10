@@ -89,7 +89,7 @@ impl<'a> SmtpBuilder<'a> {
             return Err(Error::NotATransport);
         }
 
-        let mut mailer = SmtpTransport::relay(transport_attrs[0])
+        let mut transport = SmtpTransport::relay(transport_attrs[0])
             .map_err(on_error!(Error, "creating a smtp transport"))?;
 
         if transport_attrs.len() > 1 && !transport_attrs[1].is_empty() {
@@ -98,15 +98,15 @@ impl<'a> SmtpBuilder<'a> {
                 "parsing string into port number"
             ))?;
 
-            mailer = mailer.port(transport_attrs[1].parse().unwrap());
+            transport = transport.port(port);
         }
 
         if !self.username.is_empty() && !self.password.is_empty() {
             let creds = Credentials::new(self.username.to_string(), self.password.to_string());
-            mailer = mailer.credentials(creds);
+            transport = transport.credentials(creds);
         } else {
             warn!("tls is disabled for smtp");
-            mailer = mailer.tls(Tls::None);
+            transport = transport.tls(Tls::None);
         }
 
         let mailbox: Mailbox = self.origin.parse().map_err(on_error!(
@@ -117,17 +117,16 @@ impl<'a> SmtpBuilder<'a> {
         Ok(Smtp {
             issuer: self.issuer,
             origin: mailbox,
-            mailer: mailer.build(),
+            transport: transport.build(),
         })
     }
 }
 
-// TODO: make build a generic and 'static' form of SMT in order to build several mailers.
 /// Smtp represents an email sender.
 pub struct Smtp<'a> {
     pub issuer: &'a str,
     pub origin: Mailbox,
-    pub mailer: SmtpTransport,
+    pub transport: SmtpTransport,
 }
 
 impl<'a> Smtp<'a> {
@@ -151,7 +150,7 @@ impl<'a> Smtp<'a> {
             .singlepart(SinglePart::html(body.to_string()))
             .map_err(on_error!(Error, "building email message"))?;
 
-        self.mailer
+        self.transport
             .send(&email)
             .map_err(on_error!(Error, "sending email"))?;
 

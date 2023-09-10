@@ -15,7 +15,7 @@ use std::num::ParseIntError;
 use std::sync::Arc;
 
 #[cfg(test)]
-pub mod tests {
+pub mod test {
     use super::super::{
         domain::User,
         error::{Error, Result},

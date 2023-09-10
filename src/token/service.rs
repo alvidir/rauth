@@ -107,7 +107,7 @@ where
     #[instrument(skip(self))]
     async fn store(&self, payload: &Payload) -> Result<()> {
         self.cache
-            .save(&payload.jti, payload, Some(payload.timeout()))
+            .save(&payload.jti, payload, payload.timeout())
             .await
             .map_err(Into::into)
     }
@@ -120,7 +120,7 @@ where
 }
 
 #[cfg(test)]
-pub mod tests {
+pub mod test {
     // use super::JsonWebTokenService;
     // use crate::cache::tests::InMemoryCache;
     // use crate::token::domain::{Token, TokenKind};

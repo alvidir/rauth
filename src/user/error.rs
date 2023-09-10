@@ -72,11 +72,11 @@ impl From<argon2::Error> for Error {
 }
 
 impl Error {
-    pub fn is_not_found(&self) -> bool {
+    pub fn not_found(&self) -> bool {
         matches!(self, Error::NotFound)
     }
 
-    pub fn is_not_an_email(&self) -> bool {
+    pub fn not_an_email(&self) -> bool {
         matches!(self, Error::NotAnEmail)
     }
 }

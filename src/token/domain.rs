@@ -6,11 +6,9 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-const PATTERN: &str = r"^(?:[\w-]*\.){2}[\w-]*$";
-const REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(PATTERN).unwrap());
-
 /// Represents the kind of a token.
 #[derive(Debug, Hash, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(strum_macros::EnumIter))]
 pub enum TokenKind {
     Session,
     Verification,
@@ -86,12 +84,13 @@ where
 }
 
 impl Payload {
-    pub fn new(token_kind: TokenKind, timeout: Duration) -> Self {
+    /// Builds a new payload of the given kind and with the specified lifetime.
+    pub fn new(token_kind: TokenKind, lifetime: Duration) -> Self {
         Payload {
             jti: Default::default(),
             iss: Default::default(),
             sub: Default::default(),
-            exp: SystemTime::now() + timeout,
+            exp: SystemTime::now() + lifetime,
             nbf: SystemTime::now(),
             iat: SystemTime::now(),
             knd: token_kind,
@@ -113,7 +112,7 @@ impl Payload {
         self
     }
 
-    /// Returns the [Duration] from now for which the [Token] is valid.
+    /// Returns the [Duration] from now for which self is valid.
     pub fn timeout(&self) -> Duration {
         self.exp
             .duration_since(SystemTime::now())
@@ -146,7 +145,7 @@ impl TryFrom<String> for Token {
     type Error = Error;
 
     fn try_from(token: String) -> Result<Self> {
-        REGEX
+        Self::REGEX
             .is_match(&token)
             .then_some(Self(token))
             .ok_or(Error::NotAToken)
@@ -163,6 +162,11 @@ impl AsRef<str> for Token {
     fn as_ref(&self) -> &str {
         &self.0
     }
+}
+
+impl Token {
+    const PATTERN: &str = r"^(?:[\w-]*\.){2}[\w-]*$";
+    const REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(Self::PATTERN).unwrap());
 }
 
 /// Represents a token and its corresponding payload, containing the claims.
@@ -185,25 +189,106 @@ impl Claims {
 }
 
 #[cfg(test)]
-pub mod tests {
+pub mod test {
+    use crate::token::{domain::Token, error::Error};
+
     use super::{Payload, TokenKind};
     use std::time::{Duration, SystemTime};
-
-    pub const TEST_DEFAULT_TOKEN_TIMEOUT: u64 = 60;
-    const JWT_SECRET: &[u8] = b"LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR0hBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJHMHdhd0lCQVFRZy9JMGJTbVZxL1BBN2FhRHgKN1FFSGdoTGxCVS9NcWFWMUJab3ZhM2Y5aHJxaFJBTkNBQVJXZVcwd3MydmlnWi96SzRXcGk3Rm1mK0VPb3FybQpmUlIrZjF2azZ5dnBGd0gzZllkMlllNXl4b3ZsaTROK1ZNNlRXVFErTmVFc2ZmTWY2TkFBMloxbQotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg==";
-    const JWT_PUBLIC: &[u8] = b"LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFVm5sdE1MTnI0b0dmOHl1RnFZdXhabi9oRHFLcQo1bjBVZm45YjVPc3I2UmNCOTMySGRtSHVjc2FMNVl1RGZsVE9rMWswUGpYaExIM3pIK2pRQU5tZFpnPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg==";
+    use strum::IntoEnumIterator;
 
     #[test]
-    fn token_new_should_not_fail() {
-        let timeout = Duration::from_secs(TEST_DEFAULT_TOKEN_TIMEOUT);
+    fn new_payload() {
+        TokenKind::iter().for_each(|token_kind| {
+            let timeout = Duration::from_secs(60);
 
-        let before = SystemTime::now();
-        let payload = Payload::new(TokenKind::Session, timeout);
-        let after = SystemTime::now();
+            let before = SystemTime::now();
+            let payload = Payload::new(token_kind.clone(), timeout);
+            let after = SystemTime::now();
 
-        assert!(payload.iat >= before && payload.iat <= after);
-        assert!(payload.exp >= before + timeout);
-        assert!(payload.exp <= after + timeout);
-        assert!(matches!(payload.knd, TokenKind::Session));
+            assert!(
+                payload.iat >= before && payload.iat <= after,
+                "wrong issued at (iat) attribute"
+            );
+
+            assert!(
+                payload.exp >= before + timeout,
+                "wrong expiration (exp) attribute"
+            );
+
+            assert!(
+                payload.exp <= after + timeout,
+                "wrong expiration (exp) attribute"
+            );
+
+            assert_eq!(payload.kind(), token_kind, "wrong kind (knd) attribute");
+        });
+    }
+
+    #[test]
+    fn payload_timeout() {
+        TokenKind::iter().for_each(|token_kind| {
+            let timeout = Duration::from_secs(60);
+            let payload = Payload::new(token_kind.clone(), timeout);
+
+            let before = SystemTime::now();
+            let timeout = SystemTime::UNIX_EPOCH + payload.timeout();
+            let after = SystemTime::now();
+
+            assert!(
+                timeout <= SystemTime::UNIX_EPOCH + payload.exp.duration_since(before).unwrap(),
+                "wrong payload timeout"
+            );
+
+            assert!(
+                timeout >= SystemTime::UNIX_EPOCH + payload.exp.duration_since(after).unwrap(),
+                "wrong payload timeout"
+            );
+        });
+    }
+
+    #[test]
+    fn token_from_string() {
+        struct Test<'a> {
+            name: &'a str,
+            input: &'a str,
+            is_valid: bool,
+        }
+
+        vec![
+            Test {
+                name: "json web token format",
+                input: "abc.123.x-_",
+                is_valid: true,
+            },
+            Test {
+                name: "invalid jwt format",
+                input: "abc.1&3.-_",
+                is_valid: false,
+            },
+            Test {
+                name: "no format",
+                input: "abc123",
+                is_valid: false,
+            },
+            Test {
+                name: "empty token",
+                input: "",
+                is_valid: false,
+            },
+        ]
+        .into_iter()
+        .for_each(|test| {
+            let result = Token::try_from(test.input.to_string());
+            if test.is_valid {
+                let token = result.unwrap();
+                assert_eq!(token.as_ref(), test.input, "{0}", test.name);
+            } else {
+                assert!(
+                    matches!(result.err(), Some(Error::NotAToken)),
+                    "{}",
+                    test.name
+                );
+            }
+        })
     }
 }

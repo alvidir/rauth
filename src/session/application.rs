@@ -63,7 +63,7 @@ where
 }
 
 // #[cfg(test)]
-// pub mod tests {
+// pub mod test {
 //     use super::SessionApplication;
 //     use crate::cache::tests::InMemoryCache;
 //     use crate::secret::application::tests::SecretRepositoryMock;

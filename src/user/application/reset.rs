@@ -75,7 +75,7 @@ where
             return Ok(());
         }
 
-        let salt = Salt::with_length(self.hash_length);
+        let salt = Salt::with_length(self.hash_length)?;
         user.credentials.password = PasswordHash::with_salt(&new_password, &salt)?;
         self.user_repo.save(&user).await
     }

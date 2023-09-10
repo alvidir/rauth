@@ -101,7 +101,7 @@ impl TryFrom<String> for Salt {
     type Error = Error;
 
     fn try_from(salt: String) -> Result<Self> {
-        if salt.chars().any(|c| !c.is_alphanumeric()) {
+        if salt.is_empty() || salt.chars().any(|c| !c.is_alphanumeric()) {
             return Err(Error::NotASalt);
         }
 
@@ -110,15 +110,14 @@ impl TryFrom<String> for Salt {
 }
 
 impl Salt {
-    /// Builds a new [Salt] with the given length for any length greater than 0. Otherwise [Error::NotASalt] is given.
-    pub fn with_length(len: usize) -> Self {
-        let salt: Vec<char> = rand::thread_rng()
+    /// Builds a new [Salt] with the given length for any length greater than 0. Otherwise returns [Error::NotASalt].
+    pub fn with_length(len: usize) -> Result<Self> {
+        rand::thread_rng()
             .sample_iter(&rand::distributions::Alphanumeric)
             .take(len)
             .map(char::from)
-            .collect();
-
-        Self(String::from_iter(salt))
+            .collect::<String>()
+            .try_into()
     }
 
     /// Returns a reference to the literal value of self.
@@ -128,14 +127,14 @@ impl Salt {
 }
 
 #[cfg(test)]
-mod tests {
+mod test {
     use super::{Password, PasswordHash};
-    use crate::user::{domain::Salt, error::Result};
+    use crate::user::{domain::Salt, error::Error};
 
     #[test]
     fn password_hash_matches() {
         let password = Password::try_from("abcABC123&".to_string()).unwrap();
-        let salt = Salt::with_length(128);
+        let salt = Salt::with_length(128).unwrap();
         let hash = PasswordHash::with_salt(&password, &salt).unwrap();
 
         assert_eq!(
@@ -198,14 +197,17 @@ mod tests {
         ]
         .into_iter()
         .for_each(|test| {
-            let result: Result<Password> = test.input.to_string().try_into();
-            assert_eq!(result.is_ok(), test.is_valid, "{}", test.name);
-
-            let Ok(pwd) = result else {
-                return;
-            };
-
-            assert_eq!(pwd.as_ref(), test.input.as_bytes(), "{}", test.name);
+            let result = Password::try_from(test.input.to_string());
+            if test.is_valid {
+                let password = result.unwrap();
+                assert_eq!(password.as_ref(), test.input.as_bytes(), "{0}", test.name);
+            } else {
+                assert!(
+                    matches!(result.err(), Some(Error::NotAPassword)),
+                    "{}",
+                    test.name
+                );
+            }
         })
     }
 
@@ -219,11 +221,6 @@ mod tests {
 
         vec![
             Test {
-                name: "empty salt",
-                input: "",
-                is_valid: true,
-            },
-            Test {
                 name: "alphanumeric salt",
                 input: "abc123",
                 is_valid: true,
@@ -233,17 +230,25 @@ mod tests {
                 input: "abc123&",
                 is_valid: false,
             },
+            Test {
+                name: "empty salt",
+                input: "",
+                is_valid: false,
+            },
         ]
         .into_iter()
         .for_each(|test| {
-            let result: Result<Salt> = test.input.to_string().try_into();
-            assert_eq!(result.is_ok(), test.is_valid, "{}", test.name);
-
-            let Ok(salt) = result else {
-                return;
-            };
-
-            assert_eq!(salt.as_str(), test.input, "{}", test.name);
+            let result = Salt::try_from(test.input.to_string());
+            if test.is_valid {
+                let salt = result.unwrap();
+                assert_eq!(salt.as_str(), test.input, "{0}", test.name);
+            } else {
+                assert!(
+                    matches!(result.err(), Some(Error::NotASalt)),
+                    "{}",
+                    test.name
+                );
+            }
         })
     }
 
@@ -252,32 +257,45 @@ mod tests {
         struct Test<'a> {
             name: &'a str,
             len: usize,
+            is_valid: bool,
         }
 
         vec![
             Test {
                 name: "with no length",
                 len: 0,
+                is_valid: false,
             },
             Test {
                 name: "with length 10",
                 len: 10,
+                is_valid: true,
             },
             Test {
                 name: "with length 100",
                 len: 100,
+                is_valid: true,
             },
         ]
         .into_iter()
         .for_each(|test| {
-            let salt = Salt::with_length(test.len);
-            assert_eq!(salt.as_str().len(), test.len, "{}", test.name);
+            let result = Salt::with_length(test.len);
+            if test.is_valid {
+                let salt = result.unwrap();
+                assert_eq!(salt.as_str().len(), test.len, "{}", test.name);
 
-            assert!(
-                Salt::try_from(salt.as_str().to_string()).is_ok(),
-                "{}",
-                test.name
-            );
+                assert!(
+                    Salt::try_from(salt.as_str().to_string()).is_ok(),
+                    "{}",
+                    test.name
+                );
+            } else {
+                assert!(
+                    matches!(result.err(), Some(Error::NotASalt)),
+                    "{}",
+                    test.name
+                );
+            }
         })
     }
 }

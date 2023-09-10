@@ -19,9 +19,9 @@ use std::{sync::Arc, time::Duration};
 pub trait MfaService {
     /// Runs the corresponding mfa method in order to validate the one time password.
     async fn verify(&self, user: &User, otp: Option<&Otp>) -> Result<()>;
-    /// Runs the corresponding mfa method in order to activate it for the corresponding user.
+    /// Runs the corresponding mfa method in order to activate it for the given user.
     async fn enable(&self, user: &User, otp: Option<&Otp>) -> Result<()>;
-    /// Runs the corresponding mfa method in order to deactivate it for the corresponding user.
+    /// Runs the corresponding mfa method in order to deactivate it for the given user.
     async fn disable(&self, user: &User, otp: Option<&Otp>) -> Result<()>;
 }
 
@@ -46,7 +46,7 @@ impl TryInto<TOTP> for Otp {
 
     fn try_into(self) -> Result<TOTP> {
         TOTPBuilder::new()
-            .key(self.as_ref())
+            .key(self.as_ref().as_bytes())
             .hash_function(Sha256)
             .finalize()
             .map_err(on_error!(Error, "genereting time-based one time password"))
@@ -114,14 +114,11 @@ where
 
     async fn issue_otp(&self, user: &User, len: usize) -> Result<Otp> {
         let otp = Otp::with_length(len)?;
-        let otp = self
-            .cache
-            .save(&Self::key(user), &otp, Some(self.otp_timeout))
+        self.cache
+            .save(&Self::key(user), &otp, self.otp_timeout)
             .await
             .map(|_| otp)
-            .map_err(Error::from)?;
-
-        Ok(otp)
+            .map_err(Into::into)
     }
 }
 
@@ -155,7 +152,7 @@ where
             return Err(Error::Invalid);
         }
 
-        let mut secret = Secret::new(SecretKind::Otp, user, totp.as_ref());
+        let mut secret = Secret::new(SecretKind::Otp, user, totp.as_ref().as_bytes());
         self.secret_repo
             .create(&mut secret)
             .await
@@ -231,7 +228,7 @@ where
 }
 
 // #[cfg(test)]
-// pub mod tests {
+// pub mod test {
 
 //     #[test]
 //     fn verify_totp_ok_should_not_fail() {

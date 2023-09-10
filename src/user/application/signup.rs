@@ -24,7 +24,7 @@ where
             return Error::AlreadyExists.into();
         }
 
-        let salt = Salt::with_length(self.hash_length);
+        let salt = Salt::with_length(self.hash_length)?;
         let credentials = Credentials {
             email,
             password: PasswordHash::with_salt(&password, &salt)?,
@@ -37,11 +37,7 @@ where
             .await?;
 
         self.cache
-            .save(
-                &key.to_string(),
-                &credentials,
-                Some(claims.payload().timeout()),
-            )
+            .save(&key.to_string(), &credentials, claims.payload().timeout())
             .await?;
 
         self.mail_srv

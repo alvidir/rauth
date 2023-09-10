@@ -66,7 +66,7 @@ impl Email {
 }
 
 #[cfg(test)]
-mod tests {
+mod test {
     use super::Email;
     use crate::user::error::Result;
 
@@ -75,59 +75,56 @@ mod tests {
         struct Test<'a> {
             name: &'a str,
             input: &'a str,
-            output: Option<Email>,
-            must_fail: bool,
+            is_valid: bool,
         }
 
         vec![
             Test {
                 name: "email without sufix",
                 input: "username@server.domain",
-                output: Some("username@server.domain".try_into().unwrap()),
-                must_fail: false,
+                is_valid: true,
             },
             Test {
                 name: "email with sufix",
                 input: "username+sufix@server.domain",
-                output: Some("username+sufix@server.domain".try_into().unwrap()),
-                must_fail: false,
+                is_valid: true,
             },
             Test {
                 name: "email with invalid characters",
                 input: "username%@server.domain",
-                output: None,
-                must_fail: true,
+                is_valid: false,
             },
             Test {
                 name: "email without usernamename",
                 input: "@server.domain",
-                output: None,
-                must_fail: true,
+                is_valid: false,
             },
             Test {
                 name: "email without servername",
                 input: "username@.test",
-                output: None,
-                must_fail: true,
+                is_valid: false,
             },
             Test {
                 name: "email without domain",
                 input: "username@server",
-                output: None,
-                must_fail: true,
+                is_valid: false,
             },
             Test {
                 name: "email with invalid domain",
                 input: "username@server.d",
-                output: None,
-                must_fail: true,
+                is_valid: false,
             },
         ]
         .into_iter()
         .for_each(|test| {
             let result: Result<Email> = test.input.try_into();
-            assert_eq!(result.is_err(), test.must_fail, "{}", test.name);
-            assert_eq!(result.ok(), test.output, "{}", test.name);
+            assert_eq!(result.is_ok(), test.is_valid, "{}", test.name);
+
+            let Ok(email) = result else {
+                return;
+            };
+
+            assert_eq!(email.as_ref(), test.input, "{}", test.name);
         })
     }
 
