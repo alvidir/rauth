@@ -2,37 +2,15 @@ use crate::{
     base64, on_error,
     user::error::{Error, Result},
 };
-use ::regex::Regex;
-use argon2::{Algorithm, Argon2, Params, Version};
+use argon2::Argon2;
 use rand::Rng;
-
-use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-
-const HASH_LEN: usize = 128;
 
 /// Represents the hash and salt of a [Password].
 #[derive(Debug, Default, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PasswordHash {
     pub(crate) hash: String,
     pub(crate) salt: Salt,
-}
-
-impl TryFrom<String> for PasswordHash {
-    type Error = Error;
-
-    fn try_from(value: String) -> Result<Self> {
-        Password::try_from(value).and_then(TryInto::try_into)
-    }
-}
-
-impl TryFrom<Password> for PasswordHash {
-    type Error = Error;
-
-    fn try_from(password: Password) -> Result<Self> {
-        let salt = Salt::with_length(HASH_LEN)?;
-        Self::with_salt(&password, &salt)
-    }
 }
 
 impl AsRef<str> for PasswordHash {
@@ -42,14 +20,11 @@ impl AsRef<str> for PasswordHash {
 }
 
 impl PasswordHash {
-    const ARGON: Lazy<Argon2<'_>> =
-        Lazy::new(|| Argon2::new(Algorithm::Argon2id, Version::V0x13, Params::default()));
-
     /// Builds a new password from the given value and salt
-    fn with_salt(password: &Password, salt: &Salt) -> Result<Self> {
-        let mut buffer = vec![0_u8; salt.len()];
+    pub fn with_salt(password: &Password, salt: &Salt) -> Result<Self> {
+        let mut buffer = vec![0_u8; salt.as_str().len()];
 
-        Self::ARGON
+        Argon2::default()
             .hash_password_into(password.as_ref(), salt.as_ref(), &mut buffer)
             .map(|_| Self {
                 hash: base64::encode(&buffer),
@@ -85,16 +60,25 @@ impl TryFrom<String> for Password {
     /// Builds a [Password] from the given string if, and only if, the string matches the
     /// password's regex.
     fn try_from(password: String) -> Result<Self> {
-        Self::REGEX
-            .is_match(&password)
-            .then_some(Self(password))
-            .ok_or(Error::NotAPassword)
-    }
-}
+        if password.len() < 8 {
+            return Err(Error::NotAPassword);
+        }
 
-impl Password {
-    const PATTERN: &str = r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$";
-    const REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(Self::PATTERN).unwrap());
+        // lowercase, uppercase , number , special
+        let mut aggregate = [false; 4];
+        password.chars().for_each(|c| {
+            aggregate[0] |= c.is_lowercase();
+            aggregate[1] |= c.is_uppercase();
+            aggregate[2] |= c.is_numeric();
+            aggregate[3] |= !(c.is_lowercase() || c.is_uppercase() || c.is_numeric());
+        });
+
+        if aggregate.contains(&false) {
+            return Err(Error::NotAPassword);
+        }
+
+        Ok(Password(password))
+    }
 }
 
 /// Represents the salt of a password.
@@ -116,39 +100,28 @@ impl AsRef<[u8]> for Salt {
 impl TryFrom<String> for Salt {
     type Error = Error;
 
-    /// Builds a [OTP] from the given string if, and only if, the string matches the
-    /// otp's regex.
-    fn try_from(password: String) -> Result<Self> {
-        Self::REGEX
-            .is_match(&password)
-            .then_some(Self(password))
-            .ok_or(Error::NotASalt)
+    fn try_from(salt: String) -> Result<Self> {
+        if salt.chars().any(|c| !c.is_alphanumeric()) {
+            return Err(Error::NotASalt);
+        }
+
+        Ok(Self(salt))
     }
 }
 
 impl Salt {
-    const PATTERN: &str = r"^[0-9]+$";
-    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    const REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(Self::PATTERN).unwrap());
+    /// Builds a new [Salt] with the given length for any length greater than 0. Otherwise [Error::NotASalt] is given.
+    pub fn with_length(len: usize) -> Self {
+        let salt: Vec<char> = rand::thread_rng()
+            .sample_iter(&rand::distributions::Alphanumeric)
+            .take(len)
+            .map(char::from)
+            .collect();
 
-    pub fn with_length(len: usize) -> Result<Self> {
-        let mut buff = vec![0_u8; len];
-
-        for index in 0..buff.len() {
-            let mut rand = rand::thread_rng();
-            let idx = rand.gen_range(0..Self::CHARSET.len());
-            buff[index] = Self::CHARSET[idx]
-        }
-
-        String::from_utf8(buff)
-            .map(|value| Salt(value))
-            .map_err(Into::into)
+        Self(String::from_iter(salt))
     }
 
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
+    /// Returns a reference to the literal value of self.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -157,65 +130,154 @@ impl Salt {
 #[cfg(test)]
 mod tests {
     use super::{Password, PasswordHash};
-    use crate::user::error::Result;
+    use crate::user::{domain::Salt, error::Result};
+
+    #[test]
+    fn password_hash_matches() {
+        let password = Password::try_from("abcABC123&".to_string()).unwrap();
+        let salt = Salt::with_length(128);
+        let hash = PasswordHash::with_salt(&password, &salt).unwrap();
+
+        assert_eq!(
+            hash.salt(),
+            &salt,
+            "hash does not contains the correct salt"
+        );
+
+        assert!(
+            hash.matches(&password).unwrap(),
+            "comparing password with its own hash"
+        );
+
+        let fake_password = Password::try_from("abcABC1234&".to_string()).unwrap();
+        assert!(
+            !hash.matches(&fake_password).unwrap(),
+            "comparing password with wrong hash"
+        );
+    }
 
     #[test]
     fn password_from_str() {
         struct Test<'a> {
             name: &'a str,
             input: &'a str,
-            must_fail: bool,
+            is_valid: bool,
         }
 
         vec![
             Test {
                 name: "valid password",
                 input: "abcABC123&",
-                must_fail: false,
+                is_valid: true,
             },
             Test {
                 name: "password without special characters",
                 input: "abcABC123",
-                must_fail: true,
+                is_valid: false,
             },
             Test {
                 name: "password without uppercase characters",
                 input: "abcabc123&",
-                must_fail: true,
+                is_valid: false,
             },
             Test {
                 name: "password without lowercase characters",
                 input: "ABCABC123&",
-                must_fail: true,
+                is_valid: false,
             },
             Test {
                 name: "password with less than 8 characters",
                 input: "aB1&",
-                must_fail: true,
+                is_valid: false,
             },
             Test {
-                name: "none base64 password",
-                input: "abcABC123&",
-                must_fail: true,
+                name: "empty password",
+                input: "",
+                is_valid: false,
             },
         ]
         .into_iter()
         .for_each(|test| {
             let result: Result<Password> = test.input.to_string().try_into();
-            assert_eq!(result.is_err(), test.must_fail, "{}", test.name);
+            assert_eq!(result.is_ok(), test.is_valid, "{}", test.name);
+
+            let Ok(pwd) = result else {
+                return;
+            };
+
+            assert_eq!(pwd.as_ref(), test.input.as_bytes(), "{}", test.name);
         })
     }
 
     #[test]
-    fn password_hash_matches() {
-        let password: PasswordHash = "abcABC123".to_string().try_into().unwrap();
+    fn salt_from_str() {
+        struct Test<'a> {
+            name: &'a str,
+            input: &'a str,
+            is_valid: bool,
+        }
 
-        assert!(!password
-            .matches(&"abcABC124".to_string().try_into().unwrap())
-            .unwrap());
+        vec![
+            Test {
+                name: "empty salt",
+                input: "",
+                is_valid: true,
+            },
+            Test {
+                name: "alphanumeric salt",
+                input: "abc123",
+                is_valid: true,
+            },
+            Test {
+                name: "non alphanumeric salt",
+                input: "abc123&",
+                is_valid: false,
+            },
+        ]
+        .into_iter()
+        .for_each(|test| {
+            let result: Result<Salt> = test.input.to_string().try_into();
+            assert_eq!(result.is_ok(), test.is_valid, "{}", test.name);
 
-        assert!(password
-            .matches(&"abcABC123".to_string().try_into().unwrap())
-            .unwrap());
+            let Ok(salt) = result else {
+                return;
+            };
+
+            assert_eq!(salt.as_str(), test.input, "{}", test.name);
+        })
+    }
+
+    #[test]
+    fn salt_with_length() {
+        struct Test<'a> {
+            name: &'a str,
+            len: usize,
+        }
+
+        vec![
+            Test {
+                name: "with no length",
+                len: 0,
+            },
+            Test {
+                name: "with length 10",
+                len: 10,
+            },
+            Test {
+                name: "with length 100",
+                len: 100,
+            },
+        ]
+        .into_iter()
+        .for_each(|test| {
+            let salt = Salt::with_length(test.len);
+            assert_eq!(salt.as_str().len(), test.len, "{}", test.name);
+
+            assert!(
+                Salt::try_from(salt.as_str().to_string()).is_ok(),
+                "{}",
+                test.name
+            );
+        })
     }
 }

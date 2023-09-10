@@ -8,7 +8,7 @@ pub enum Error {
     Required,
     #[error("wrong one time password")]
     Invalid,
-    #[error("the otp secret must be acknowledged")]
+    #[error("the resource must be acknowledged")]
     Ack(String),
     #[error("{0}")]
     Secret(#[from] crate::secret::error::Error),

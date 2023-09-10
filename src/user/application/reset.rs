@@ -8,7 +8,7 @@ use crate::on_error;
 use crate::secret::application::SecretRepository;
 use crate::token::domain::{Token, TokenKind};
 use crate::token::service::TokenService;
-use crate::user::domain::{Email, Password};
+use crate::user::domain::{Email, Password, PasswordHash, Salt};
 use crate::user::error::{Error, Result};
 
 impl<U, S, T, F, M, B, C> UserApplication<U, S, T, F, M, B, C>
@@ -75,7 +75,8 @@ where
             return Ok(());
         }
 
-        user.credentials.password = new_password.try_into()?;
+        let salt = Salt::with_length(self.hash_length);
+        user.credentials.password = PasswordHash::with_salt(&new_password, &salt)?;
         self.user_repo.save(&user).await
     }
 }

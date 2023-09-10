@@ -14,7 +14,7 @@ pub enum Error {
     NotAnEmail,
     #[error("password regex did not match")]
     NotAPassword,
-    #[error("salt regex did not match")]
+    #[error("salt is not alphanumeric")]
     NotASalt,
     #[error("wrong user credentials")]
     WrongCredentials,
@@ -37,8 +37,6 @@ pub enum Error {
     #[cfg(feature = "postgres")]
     #[error("{0}")]
     Sql(#[from] sqlx::error::Error),
-    #[error("{0}")]
-    String(#[from] std::string::FromUtf8Error),
     #[cfg(feature = "smtp")]
     #[error("{0}")]
     Tera(#[from] tera::Error),

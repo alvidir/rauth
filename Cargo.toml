@@ -1,8 +1,12 @@
 [package]
-    authors = ["Hèctor Morales <hector.morales.carnice@gmail.com>"]
-    edition = "2021"
-    name    = "rauth"
-    version = "1.0.0"
+    authors     = ["Hèctor Morales <hector.morales.carnice@gmail.com>"]
+    description = "A single sign on (SSO) library."
+    edition     = "2021"
+    license     = "MIT"
+    name        = "tykhe"
+    readme      = "./README.md"
+    repository  = "https://github.com/alvidir/rauth"
+    version     = "1.0.0"
 
 [dependencies]
     actix-web = {version = "4.3.1", optional = true} # rest

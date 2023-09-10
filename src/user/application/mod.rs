@@ -31,6 +31,7 @@ pub trait MailService {
 }
 
 pub struct UserApplication<U, S, T, F, M, B, C> {
+    pub hash_length: usize,
     pub user_repo: Arc<U>,
     pub secret_repo: Arc<S>,
     pub token_srv: Arc<T>,

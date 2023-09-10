@@ -3,7 +3,7 @@ use crate::cache::Cache;
 use crate::mfa::service::MfaService;
 use crate::token::domain::{Token, TokenKind};
 use crate::token::service::TokenService;
-use crate::user::domain::{Credentials, Email, Password, User};
+use crate::user::domain::{Credentials, Email, Password, PasswordHash, Salt, User};
 use crate::user::error::{Error, Result};
 
 impl<U, S, T, F, M, B, C> UserApplication<U, S, T, F, M, B, C>
@@ -24,9 +24,10 @@ where
             return Error::AlreadyExists.into();
         }
 
+        let salt = Salt::with_length(self.hash_length);
         let credentials = Credentials {
             email,
-            password: password.try_into()?,
+            password: PasswordHash::with_salt(&password, &salt)?,
         };
 
         let key = credentials.hash();
