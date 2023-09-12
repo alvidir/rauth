@@ -18,4 +18,10 @@ pub enum Error {
     Oath(#[from] libreauth::oath::Error),
     #[error("{0}")]
     String(#[from] std::string::FromUtf8Error),
+    #[cfg(feature = "smtp")]
+    #[error("{0}")]
+    Tera(#[from] tera::Error),
+    #[cfg(feature = "smtp")]
+    #[error("{0}")]
+    Smtp(#[from] crate::smtp::Error),
 }

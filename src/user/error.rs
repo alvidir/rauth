@@ -48,6 +48,7 @@ pub enum Error {
     Lapin(#[from] lapin::Error),
     #[error("{0}")]
     Cache(#[from] crate::cache::Error),
+    #[cfg(feature = "smtp")]
     #[error("{0}")]
     Smtp(#[from] crate::smtp::Error),
     #[error("{0}")]

@@ -21,7 +21,7 @@ impl<'a, E> MailService for UserSmtp<'a, E> {
     #[instrument(skip(self))]
     fn send_credentials_verification_email(&self, email: &Email, token: &Token) -> Result<()> {
         let mut context = Context::new();
-        context.insert("name", email.as_ref().split('@').collect::<Vec<&str>>()[0]);
+        context.insert("name", email.username());
         context.insert("token", token.as_ref());
 
         let body = self
@@ -40,7 +40,7 @@ impl<'a, E> MailService for UserSmtp<'a, E> {
     #[instrument(skip(self))]
     fn send_credentials_reset_email(&self, email: &Email, token: &Token) -> Result<()> {
         let mut context = Context::new();
-        context.insert("name", email.as_ref().split('@').collect::<Vec<&str>>()[0]);
+        context.insert("name", email.username());
         context.insert("token", token.as_ref());
 
         let body = self
