@@ -1,5 +1,5 @@
 use super::{
-    application::EventBus,
+    application::EventService,
     domain::User,
     error::{Error, Result},
 };
@@ -18,13 +18,13 @@ struct UserEventPayload<'a> {
     pub(super) event_kind: EventKind,
 }
 
-pub struct RabbitMqUserBus<'a> {
+pub struct RabbitMqUserService<'a> {
     pub pool: &'a Pool,
     pub exchange: &'a str,
     pub issuer: &'a str,
 }
 
-impl<'a> RabbitMqUserBus<'a> {
+impl<'a> RabbitMqUserService<'a> {
     #[instrument(skip(self))]
     async fn emit<'b>(&self, payload: UserEventPayload<'b>) -> Result<()> {
         let payload = serde_json::to_string(&payload)
@@ -61,7 +61,7 @@ impl<'a> RabbitMqUserBus<'a> {
 }
 
 #[async_trait]
-impl<'a> EventBus for RabbitMqUserBus<'a> {
+impl<'a> EventService for RabbitMqUserService<'a> {
     #[instrument(skip(self))]
     async fn emit_user_created(&self, user: &User) -> Result<()> {
         self.emit(UserEventPayload {

@@ -1,6 +1,4 @@
-use std::num::ParseIntError;
-
-use super::{EventBus, MailService, UserApplication, UserRepository};
+use super::{EventService, MailService, UserApplication, UserRepository};
 use crate::cache::Cache;
 use crate::mfa::domain::Otp;
 use crate::mfa::service::MfaService;
@@ -10,6 +8,7 @@ use crate::token::domain::Token;
 use crate::token::service::TokenService;
 use crate::user::domain::Password;
 use crate::user::error::{Error, Result};
+use std::num::ParseIntError;
 
 impl<U, S, T, F, M, B, C> UserApplication<U, S, T, F, M, B, C>
 where
@@ -18,7 +17,7 @@ where
     T: TokenService,
     F: MfaService,
     M: MailService,
-    B: EventBus,
+    B: EventService,
     C: Cache,
 {
     /// Given a valid session token and passwords, performs the deletion of the user.
@@ -53,6 +52,10 @@ where
         }
 
         self.multi_factor_srv.verify(&user, otp.as_ref()).await?;
-        self.user_repo.delete(&user).await
+
+        self.secret_repo.delete_by_owner(&user).await?;
+        self.user_repo.delete(&user).await?;
+
+        self.event_srv.emit_user_deleted(&user).await
     }
 }

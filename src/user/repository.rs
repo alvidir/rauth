@@ -1,20 +1,19 @@
-use std::str::FromStr;
-
 use super::domain::{Credentials, Email, PasswordHash, Preferences};
 use super::error::{Error, Result};
 use super::{application::UserRepository, domain::User};
 use crate::mfa::domain::MfaMethod;
 use crate::on_error;
 use crate::postgres::on_query_error;
+use crate::secret::domain::SecretKind;
+use crate::secret::{domain::Secret, repository::PostgresSecretRepository};
 use async_trait::async_trait;
 use sqlx::error::Error as SqlError;
 use sqlx::postgres::PgPool;
+use std::str::FromStr;
 
 const QUERY_INSERT_USER: &str =
     "INSERT INTO users (name, email, actual_email, password, mfa_method) VALUES ($1, $2, $3, $4, $5) RETURNING id";
-const QUERY_INSERT_SALT_SECRET: &str =
-    "INSERT INTO secrets (owner, kind, data) VALUES ($1, 'salt', $2)";
-const QUERY_FIND_USER: &str = "SELECT u.id, u.email, u.password, s.data, u.mfa_method FROM users u LEFT JOIN secrets s ON u.id = s.owner WHERE s.id = $1 AND s.kind = 'salt'";
+const QUERY_FIND_USER: &str = "SELECT u.id, u.email, u.password, u.mfa_method FROM users u LEFT JOIN secrets s ON u.id = s.owner WHERE s.id = $1 AND s.kind = 'salt'";
 const QUERY_FIND_USER_BY_EMAIL: &str =
     "SELECT u.id, u.email, u.password, s.data, u.mfa_method FROM users u LEFT JOIN secrets s ON u.id = s.owner WHERE (u.email = $1 OR u.actual_email = $1) AND s.kind = 'salt'";
 const QUERY_FIND_USER_BY_NAME: &str = "SELECT u.id, u.email, u.password, s.data, u.mfa_method FROM users u LEFT JOIN secrets s ON u.id - s.owner WHERE u.name = $1 AND s.kind = 'salt'";
@@ -22,8 +21,8 @@ const QUERY_UPDATE_USER: &str =
     "UPDATE users SET name = $1, email = $2, actual_email = $3, password = $4, mfa_method = $5 WHERE id = $6";
 const QUERY_DELETE_USER: &str = "DELETE FROM users WHERE id = $1";
 
-// id, email, password, salt, mfa_method
-type SelectUserRow = (i32, String, String, String, Option<String>);
+// id, email, password, mfa_method
+type SelectUserRow = (i32, String, String, Option<String>);
 
 impl TryInto<User> for SelectUserRow {
     type Error = Error;
@@ -111,15 +110,13 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
             .await
             .map_err(on_error!(Error, "performing insert user query on postgres"))?;
 
-        sqlx::query(QUERY_INSERT_SALT_SECRET)
-            .bind(user_id)
-            .bind(user.credentials.password.salt().as_str())
-            .execute(&mut *tx)
-            .await
-            .map_err(on_error!(
-                Error,
-                "performing insert salt secret query on postgres"
-            ))?;
+        let mut secret = Secret::new(
+            SecretKind::Salt,
+            user,
+            user.credentials.password.salt().as_ref(),
+        );
+
+        PostgresSecretRepository::create(&mut *tx, &mut secret).await?;
 
         tx.commit()
             .await

@@ -1,6 +1,6 @@
 use std::num::ParseIntError;
 
-use super::{EventBus, MailService, UserApplication, UserRepository};
+use super::{EventService, MailService, UserApplication, UserRepository};
 use crate::cache::Cache;
 use crate::mfa::domain::{MfaMethod, Otp};
 use crate::mfa::service::MfaService;
@@ -18,7 +18,7 @@ where
     T: TokenService,
     F: MfaService,
     M: MailService,
-    B: EventBus,
+    B: EventService,
     C: Cache,
 {
     #[instrument(skip(self, password, otp))]

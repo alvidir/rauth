@@ -1,4 +1,4 @@
-use super::{EventBus, MailService, UserApplication, UserRepository};
+use super::{EventService, MailService, UserApplication, UserRepository};
 use crate::cache::Cache;
 use crate::mfa::service::MfaService;
 use crate::token::domain::{Token, TokenKind};
@@ -12,7 +12,7 @@ where
     T: TokenService,
     F: MfaService,
     M: MailService,
-    B: EventBus,
+    B: EventService,
     C: Cache,
 {
     /// Stores the given credentials in the cache and sends an email with the token to be
@@ -70,7 +70,7 @@ where
     pub async fn signup(&self, user: &mut User) -> Result<Token> {
         self.user_repo.create(user).await?;
         // TODO: implement outbox pattern for events publishment
-        self.event_bus.emit_user_created(user).await?;
+        self.event_srv.emit_user_created(user).await?;
 
         self.token_srv
             .issue(TokenKind::Session, &user.id.to_string())
@@ -79,3 +79,6 @@ where
             .map(Into::into)
     }
 }
+
+#[cfg(test)]
+mod test {}

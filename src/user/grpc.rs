@@ -8,7 +8,7 @@ use crate::on_error;
 use crate::secret::application::SecretRepository;
 use crate::token::domain::Token;
 use crate::token::service::TokenService;
-use crate::user::application::{EventBus, UserApplication, UserRepository};
+use crate::user::application::{EventService, UserApplication, UserRepository};
 use std::ops::Not;
 use tonic::metadata::errors::InvalidMetadataValue;
 use tonic::{Request, Response, Status};
@@ -40,7 +40,7 @@ where
     S: 'static + SecretRepository + Sync + Send,
     T: 'static + TokenService + Sync + Send,
     F: 'static + MfaService + Sync + Send,
-    B: 'static + EventBus + Sync + Send,
+    B: 'static + EventService + Sync + Send,
     M: 'static + MailService + Sync + Send,
     C: 'static + Cache + Sync + Send,
 {
@@ -85,7 +85,7 @@ where
     S: 'static + SecretRepository + Sync + Send,
     T: 'static + TokenService + Sync + Send,
     F: 'static + MfaService + Sync + Send,
-    B: 'static + EventBus + Sync + Send,
+    B: 'static + EventService + Sync + Send,
     M: 'static + MailService + Sync + Send,
     C: 'static + Cache + Sync + Send,
 {

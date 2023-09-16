@@ -5,7 +5,6 @@ use async_trait::async_trait;
 
 #[async_trait]
 pub trait SecretRepository {
-    async fn find(&self, id: i32) -> Result<Secret>;
     async fn find_by_owner_and_kind(&self, owner: i32, kind: SecretKind) -> Result<Secret>;
     async fn create(&self, secret: &mut Secret) -> Result<()>;
     async fn delete(&self, secret: &Secret) -> Result<()>;
@@ -41,15 +40,6 @@ pub mod test {
 
     #[async_trait]
     impl SecretRepository for SecretRepositoryMock {
-        #[instrument(skip(self))]
-        async fn find(&self, id: i32) -> Result<Secret> {
-            if let Some(f) = self.fn_find {
-                return f(self, id);
-            }
-
-            Err(Error::Debug)
-        }
-
         async fn find_by_owner_and_kind(&self, owner: i32, kind: SecretKind) -> Result<Secret> {
             if let Some(f) = self.fn_find_by_owner_and_kind {
                 return f(self, owner, kind);
