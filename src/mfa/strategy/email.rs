@@ -3,16 +3,18 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use std::time::Duration;
 
+use super::MailService;
 use crate::{
     cache::Cache,
     mfa::{
         domain::Otp,
         error::{Error, Result},
-        service::{MailService, MfaService},
+        service::MfaService,
     },
     user::domain::User,
 };
 
+/// Implements the [MfaService] for the email method.
 pub struct EmailStrategy<M, C> {
     pub otp_timeout: Duration,
     pub otp_length: usize,

@@ -1,17 +1,38 @@
 use super::error::{Error, Result};
 use rand::{distributions::Uniform, Rng};
+use std::str::FromStr;
 
 /// Represents the multi factor authentication method to use.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, strum_macros::EnumString, strum_macros::Display,
-)]
-#[strum(serialize_all = "lowercase")]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum MfaMethod {
     /// Uses a third-party application as totp provider.
-    #[strum(serialize = "tp_app")]
     TpApp,
     /// Uses the email as otp provider.
     Email,
+    /// Uses any other method.
+    Other(String),
+}
+
+impl ToString for MfaMethod {
+    fn to_string(&self) -> String {
+        match self {
+            MfaMethod::TpApp => "tp_app".to_string(),
+            MfaMethod::Email => "email".to_string(),
+            MfaMethod::Other(other) => other.clone(),
+        }
+    }
+}
+
+impl FromStr for MfaMethod {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
+            "tp_app" => Ok(Self::TpApp),
+            "email" => Ok(Self::Email),
+            other => Ok(Self::Other(other.to_string())),
+        }
+    }
 }
 
 /// Represents a one time password.
@@ -52,7 +73,73 @@ impl Otp {
 
 #[cfg(test)]
 mod test {
-    use crate::mfa::{domain::Otp, error::Error};
+    use std::str::FromStr;
+
+    use crate::mfa::{
+        domain::{MfaMethod, Otp},
+        error::Error,
+    };
+
+    #[test]
+    fn display_mfa_method() {
+        struct Test<'a> {
+            name: &'a str,
+            output: &'a str,
+            input: MfaMethod,
+        }
+
+        vec![
+            Test {
+                name: "third party application method",
+                output: "tp_app",
+                input: MfaMethod::TpApp,
+            },
+            Test {
+                name: "email method",
+                output: "email",
+                input: MfaMethod::Email,
+            },
+            Test {
+                name: "an arbitrary name",
+                output: "arbitrary method",
+                input: MfaMethod::Other("arbitrary method".to_string()),
+            },
+        ]
+        .into_iter()
+        .for_each(|test| assert_eq!(test.input.to_string(), test.output, "{}", test.name))
+    }
+
+    #[test]
+    fn mfa_method_from_str() {
+        struct Test<'a> {
+            name: &'a str,
+            input: &'a str,
+            output: MfaMethod,
+        }
+
+        vec![
+            Test {
+                name: "third party application method",
+                input: "tp_app",
+                output: MfaMethod::TpApp,
+            },
+            Test {
+                name: "email method",
+                input: "email",
+                output: MfaMethod::Email,
+            },
+            Test {
+                name: "an arbitrary name",
+                input: "arbitrary method",
+                output: MfaMethod::Other("arbitrary method".to_string()),
+            },
+        ]
+        .into_iter()
+        .for_each(|test| {
+            let got = MfaMethod::from_str(test.input).unwrap();
+            assert_eq!(got, test.output, "{}", test.name)
+        })
+    }
 
     #[test]
     fn otp_from_str() {

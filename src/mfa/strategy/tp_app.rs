@@ -1,11 +1,13 @@
 use std::sync::Arc;
 
+use super::MailService;
+use crate::on_error;
 use crate::{
     cache::Cache,
     mfa::{
         domain::Otp,
         error::{Error, Result},
-        service::{MailService, MfaService},
+        service::MfaService,
     },
     secret::{
         application::SecretRepository,
@@ -14,9 +16,35 @@ use crate::{
     user::domain::User,
 };
 use async_trait::async_trait;
-use libreauth::oath::TOTP;
+use libreauth::oath::TOTPBuilder;
+use libreauth::{hash::HashFunction::Sha256, oath::TOTP};
 use std::time::Duration;
 
+impl TryInto<TOTP> for Secret {
+    type Error = Error;
+
+    fn try_into(self) -> Result<TOTP> {
+        TOTPBuilder::new()
+            .key(self.data())
+            .hash_function(Sha256)
+            .finalize()
+            .map_err(on_error!(Error, "genereting time-based one time password"))
+    }
+}
+
+impl TryInto<TOTP> for Otp {
+    type Error = Error;
+
+    fn try_into(self) -> Result<TOTP> {
+        TOTPBuilder::new()
+            .key(self.as_ref().as_bytes())
+            .hash_function(Sha256)
+            .finalize()
+            .map_err(on_error!(Error, "genereting time-based one time password"))
+    }
+}
+
+/// Implements the [MfaService] for the third-party applicaition method.
 pub struct TpAppMethod<S, M, C> {
     pub otp_timeout: Duration,
     pub totp_secret_len: usize,

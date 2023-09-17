@@ -1,7 +1,7 @@
 use super::{
     domain::Otp,
     error::{Error, Result},
-    service::MailService,
+    strategy::MailService,
 };
 use crate::{on_error, smtp::Smtp, user::domain::Email};
 use std::sync::Arc;
