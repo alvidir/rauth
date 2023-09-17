@@ -1,6 +1,3 @@
-use std::sync::Arc;
-
-use super::MailService;
 use crate::on_error;
 use crate::{
     cache::Cache,
@@ -18,6 +15,7 @@ use crate::{
 use async_trait::async_trait;
 use libreauth::oath::TOTPBuilder;
 use libreauth::{hash::HashFunction::Sha256, oath::TOTP};
+use std::sync::Arc;
 use std::time::Duration;
 
 impl TryInto<TOTP> for Secret {
@@ -45,19 +43,17 @@ impl TryInto<TOTP> for Otp {
 }
 
 /// Implements the [MfaService] for the third-party applicaition method.
-pub struct TpAppMethod<S, M, C> {
+pub struct TpAppMethod<S, C> {
     pub otp_timeout: Duration,
     pub totp_secret_len: usize,
     pub secret_repo: Arc<S>,
-    pub mail_srv: Arc<M>,
     pub cache: Arc<C>,
 }
 
 #[async_trait]
-impl<S, M, C> MfaService for TpAppMethod<S, M, C>
+impl<S, C> MfaService for TpAppMethod<S, C>
 where
     S: SecretRepository + Sync + Send,
-    M: MailService + Sync + Send,
     C: Cache + Sync + Send,
 {
     async fn verify(&self, user: &User, totp: Option<&Otp>) -> Result<()> {
@@ -131,10 +127,9 @@ where
     }
 }
 
-impl<S, M, C> TpAppMethod<S, M, C>
+impl<S, C> TpAppMethod<S, C>
 where
     S: SecretRepository + Sync + Send,
-    M: MailService + Sync + Send,
     C: Cache + Sync + Send,
 {
     async fn totp_secret(&self, user: &User, len: usize) -> Result<Otp> {
@@ -147,7 +142,7 @@ where
     }
 }
 
-impl<S, M, C> TpAppMethod<S, M, C> {
+impl<S, C> TpAppMethod<S, C> {
     fn key(user: &User) -> String {
         [&user.id.to_string(), "totp"].join("::")
     }

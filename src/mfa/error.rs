@@ -1,3 +1,5 @@
+//! Result type and errors related to mfa stuff.
+
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(thiserror::Error, Debug)]

@@ -7,6 +7,7 @@ use crate::{on_error, smtp::Smtp, user::domain::Email};
 use std::sync::Arc;
 use tera::{Context, Tera};
 
+/// Implements the [MailService] trait.
 pub struct MfaSmtp<'a, E> {
     pub mta_mailer: Arc<E>,
     pub smtp: &'a Smtp<'a>,

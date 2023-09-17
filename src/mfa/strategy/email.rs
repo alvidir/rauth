@@ -1,9 +1,3 @@
-use std::sync::Arc;
-
-use async_trait::async_trait;
-use std::time::Duration;
-
-use super::MailService;
 use crate::{
     cache::Cache,
     mfa::{
@@ -11,8 +5,16 @@ use crate::{
         error::{Error, Result},
         service::MfaService,
     },
-    user::domain::User,
+    user::domain::{Email, User},
 };
+use async_trait::async_trait;
+use std::sync::Arc;
+use std::time::Duration;
+
+/// Represents the mail service contract required by the mfa email methods.
+pub trait MailService {
+    fn send_otp_email(&self, to: &Email, token: &Otp) -> Result<()>;
+}
 
 /// Implements the [MfaService] for the email method.
 pub struct EmailStrategy<M, C> {
@@ -74,10 +76,6 @@ where
     M: MailService + Sync + Send,
     C: Cache + Sync + Send,
 {
-    fn key(user: &User) -> String {
-        [&user.id.to_string(), "otp"].join("::")
-    }
-
     async fn issue_otp(&self, user: &User, len: usize) -> Result<Otp> {
         let otp = Otp::with_length(len)?;
         self.cache
@@ -85,5 +83,11 @@ where
             .await
             .map(|_| otp)
             .map_err(Into::into)
+    }
+}
+
+impl<M, C> EmailStrategy<M, C> {
+    fn key(user: &User) -> String {
+        [&user.id.to_string(), "otp"].join("::")
     }
 }

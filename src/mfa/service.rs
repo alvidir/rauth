@@ -6,6 +6,7 @@ use crate::user::domain::User;
 use async_trait::async_trait;
 use std::collections::HashMap;
 
+/// Represents all the features a mfa method/service must have.
 #[async_trait]
 pub trait MfaService {
     /// Runs the corresponding mfa method in order to validate the one time password.
