@@ -43,9 +43,12 @@ pub struct UserApplication<U, S, T, F, M, B, C> {
 
 #[cfg(test)]
 mod test {
-    use super::{EventService, MailService, UserRepository};
+    use super::{EventService, MailService, UserApplication, UserRepository};
     use crate::{
-        token::domain::Token,
+        cache::test::InMemoryCache,
+        mfa::service::test::MfaServiceMock,
+        secret::application::test::SecretRepositoryMock,
+        token::{domain::Token, service::test::TokenServiceMock},
         user::{
             domain::{Email, User},
             error::{Error, Result},
@@ -60,8 +63,29 @@ mod test {
     type SaveFn = fn(&UserRepositoryMock, user: &User) -> Result<()>;
     type DeleteFn = fn(&UserRepositoryMock, user: &User) -> Result<()>;
 
+    pub fn new_user_application() -> UserApplication<
+        UserRepositoryMock,
+        SecretRepositoryMock,
+        TokenServiceMock,
+        MfaServiceMock,
+        MailServiceMock,
+        EventServiceMock,
+        InMemoryCache,
+    > {
+        UserApplication {
+            hash_length: Default::default(),
+            user_repo: Default::default(),
+            secret_repo: Default::default(),
+            token_srv: Default::default(),
+            multi_factor_srv: Default::default(),
+            mail_srv: Default::default(),
+            event_srv: Default::default(),
+            cache: Default::default(),
+        }
+    }
+
     #[derive(Debug, Default)]
-    struct UserRepositoryMock {
+    pub struct UserRepositoryMock {
         pub find_fn: Option<FindFn>,
         pub find_by_email_fn: Option<FindByEmailFn>,
         pub find_by_name_fn: Option<FindByNameFn>,
@@ -121,11 +145,11 @@ mod test {
         }
     }
 
-    type EmitUserCreatedFn = fn(&EventServiceMock, user: &User) -> Result<()>;
-    type EmitUserDeletedFn = fn(&EventServiceMock, user: &User) -> Result<()>;
+    pub type EmitUserCreatedFn = fn(&EventServiceMock, user: &User) -> Result<()>;
+    pub type EmitUserDeletedFn = fn(&EventServiceMock, user: &User) -> Result<()>;
 
     #[derive(Debug, Default)]
-    struct EventServiceMock {
+    pub struct EventServiceMock {
         pub emit_user_created_fn: Option<EmitUserCreatedFn>,
         pub emit_user_deleted_fn: Option<EmitUserDeletedFn>,
     }
@@ -149,12 +173,13 @@ mod test {
         }
     }
 
-    type SendCredentialsVerificationEmailFn =
+    pub type SendCredentialsVerificationEmailFn =
         fn(&MailServiceMock, to: &Email, token: &Token) -> Result<()>;
-    type SendCredentialsResetEmailFn =
+    pub type SendCredentialsResetEmailFn =
         fn(&MailServiceMock, to: &Email, token: &Token) -> Result<()>;
 
-    struct MailServiceMock {
+    #[derive(Debug, Default)]
+    pub struct MailServiceMock {
         pub send_credentials_verification_email_fn: Option<SendCredentialsVerificationEmailFn>,
         pub send_credentials_reset_email_fn: Option<SendCredentialsResetEmailFn>,
     }

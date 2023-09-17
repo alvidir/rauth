@@ -152,12 +152,6 @@ impl TryFrom<String> for Token {
     }
 }
 
-impl From<Claims> for Token {
-    fn from(value: Claims) -> Self {
-        value.token
-    }
-}
-
 impl AsRef<str> for Token {
     fn as_ref(&self) -> &str {
         &self.0
@@ -172,8 +166,8 @@ impl Token {
 /// Represents a token and its corresponding payload, containing the claims.
 #[derive(Debug)]
 pub struct Claims {
-    pub(super) token: Token,
-    pub(super) payload: Payload,
+    pub token: Token,
+    pub payload: Payload,
 }
 
 impl Claims {

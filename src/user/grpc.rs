@@ -53,7 +53,7 @@ where
             .map_err(Status::from)?;
 
         let mut res = Response::new(Empty {});
-        let token = session_token.as_ref().parse().map_err(on_error!(
+        let token = session_token.token.as_ref().parse().map_err(on_error!(
             InvalidMetadataValue as Error,
             "parsing token to header"
         ))?;

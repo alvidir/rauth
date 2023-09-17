@@ -3,6 +3,8 @@
         "rust-lang.rust-analyzer",
         "serayuzgur.crates",
         "tamasfe.even-better-toml",
-        "esbenp.prettier-vscode"
+        "esbenp.prettier-vscode",
+        "ms-vscode.cpptools",
+        "vadimcn.vscode-lldb"
     ]
 }

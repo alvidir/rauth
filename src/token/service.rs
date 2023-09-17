@@ -120,97 +120,142 @@ where
 }
 
 #[cfg(test)]
-pub mod test {
-    // use super::JsonWebTokenService;
-    // use crate::cache::tests::InMemoryCache;
-    // use crate::token::domain::{Token, TokenKind};
-    // use crate::token::error::Error;
-    // use base64::{engine::general_purpose, Engine as _};
-    // use jsonwebtoken::errors::{Error as JwtError, ErrorKind as JwtErrorKind};
-    // use jsonwebtoken::{DecodingKey, EncodingKey};
-    // use once_cell::sync::Lazy;
-    // use std::sync::Arc;
-    // use std::time::{Duration, SystemTime};
+pub(crate) mod test {
+    use async_trait::async_trait;
 
-    // pub static PRIVATE_KEY: Lazy<Vec<u8>> = Lazy::new(|| {
-    //     general_purpose::STANDARD.decode(
-    //         b"LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR0hBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJHMHdhd0lCQVFRZy9JMGJTbVZxL1BBN2FhRHgKN1FFSGdoTGxCVS9NcWFWMUJab3ZhM2Y5aHJxaFJBTkNBQVJXZVcwd3MydmlnWi96SzRXcGk3Rm1mK0VPb3FybQpmUlIrZjF2azZ5dnBGd0gzZllkMlllNXl4b3ZsaTROK1ZNNlRXVFErTmVFc2ZmTWY2TkFBMloxbQotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg=="
-    //     ).unwrap()
-    // });
+    use super::TokenService;
+    use crate::token::domain::{Claims, Token, TokenKind};
+    use crate::token::error::{Error, Result};
 
-    // pub static PUBLIC_KEY: Lazy<Vec<u8>> = Lazy::new(|| {
-    //     general_purpose::STANDARD.decode(
-    //         b"LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFVm5sdE1MTnI0b0dmOHl1RnFZdXhabi9oRHFLcQo1bjBVZm45YjVPc3I2UmNCOTMySGRtSHVjc2FMNVl1RGZsVE9rMWswUGpYaExIM3pIK2pRQU5tZFpnPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg=="
-    //     ).unwrap()
-    // });
+    pub type IssueFn = fn(&TokenServiceMock, kind: TokenKind, sub: &str) -> Result<Claims>;
+    pub type ClaimsFn = fn(&TokenServiceMock, token: Token) -> Result<Claims>;
+    pub type RevokeFn = fn(&TokenServiceMock, claims: &Claims) -> Result<()>;
 
-    // pub const TEST_TOKEN_TIMEOUT: u64 = 60;
-    // pub const TEST_TOKEN_ISSUER: &str = "test";
-    // pub const TEST_TOKEN_SUBJECT: &str = "999";
+    #[derive(Debug, Default)]
+    pub struct TokenServiceMock {
+        pub issue_fn: Option<IssueFn>,
+        pub claims_fn: Option<ClaimsFn>,
+        pub revoke_fn: Option<RevokeFn>,
+    }
 
-    // pub fn new_token_srvlication<'a>() -> JsonWebTokenService<'a, InMemoryCache> {
-    //     JsonWebTokenService {
-    //         issuer: "test",
-    //         session_timeout: Duration::from_secs(TEST_TOKEN_TIMEOUT),
-    //         verification_timeout: Duration::from_secs(TEST_TOKEN_TIMEOUT),
-    //         reset_timeout: Duration::from_secs(TEST_TOKEN_TIMEOUT),
-    //         decode: DecodingKey::from_ec_pem(&PUBLIC_KEY).unwrap(),
-    //         encode: EncodingKey::from_ec_pem(&PRIVATE_KEY).unwrap(),
-    //         cache: Arc::new(InMemoryCache),
-    //     }
-    // }
+    #[async_trait]
+    impl TokenService for TokenServiceMock {
+        async fn issue(&self, kind: TokenKind, sub: &str) -> Result<Claims> {
+            if let Some(issue_fn) = self.issue_fn {
+                return issue_fn(self, kind, sub);
+            }
 
-    // #[tokio::test]
-    // async fn consume_token_should_not_fail() {
-    //     let app = new_token_srvlication();
-    //     let payload = app.new_payload(TokenKind::Session, TEST_TOKEN_SUBJECT);
-    //     let token = app.issue(payload).await.unwrap();
+            Err(Error::Debug)
+        }
+        async fn claims(&self, token: Token) -> Result<Claims> {
+            if let Some(claims_fn) = self.claims_fn {
+                return claims_fn(self, token);
+            }
 
-    //     let claims = app.consume(TokenKind::Session, token).await.unwrap();
-    //     assert!(matches!(&claims.knd, TokenKind::Session));
-    // }
+            Err(Error::Debug)
+        }
+        async fn revoke(&self, claims: &Claims) -> Result<()> {
+            if let Some(revoke_fn) = self.revoke_fn {
+                return revoke_fn(self, claims);
+            }
 
-    // #[tokio::test]
-    // async fn consume_expired_token_should_fail() {
-    //     let app = new_token_srvlication();
-    //     let mut payload = app.new_payload(TokenKind::Session, TEST_TOKEN_SUBJECT);
-    //     payload.exp = SystemTime::now() - Duration::from_secs(61);
-
-    //     let token = app.encode(&payload).unwrap();
-
-    //     app.consume(TokenKind::Session, token)
-    //         .await
-    //         .map_err(|err| {
-    //             let want: Error = JwtError::from(JwtErrorKind::ExpiredSignature).into();
-    //             assert!(matches!(err, want))
-    //         })
-    //         .unwrap_err();
-    // }
-
-    // #[tokio::test]
-    // async fn consume_corrupt_token_should_fail() {
-    //     let app = new_token_srvlication();
-    //     let payload = app.new_payload(TokenKind::Session, TEST_TOKEN_SUBJECT);
-    //     let token = app.issue(payload).await.unwrap();
-    //     let corrupted: Token = token.as_ref().replace('A', "a").try_into().unwrap();
-
-    //     let err = app
-    //         .consume(TokenKind::Session, corrupted)
-    //         .await
-    //         .unwrap_err();
-    //     assert!(matches!(err, Error::Jwt(_)));
-    // }
-
-    // #[tokio::test]
-    // async fn consume_wrong_token_kind_should_fail() {
-    //     let app = new_token_srvlication();
-    //     let payload = app.new_payload(TokenKind::Session, TEST_TOKEN_SUBJECT);
-    //     let token = app.issue(payload).await.unwrap();
-
-    //     let err = app
-    //         .consume(TokenKind::Verification, token)
-    //         .await
-    //         .unwrap_err();
-    //     assert!(matches!(err, Error::Jwt(_)));
-    // }
+            Err(Error::Debug)
+        }
+    }
 }
+
+// #[cfg(test)]
+// pub mod test {
+// use super::JsonWebTokenService;
+// use crate::cache::tests::InMemoryCache;
+// use crate::token::domain::{Token, TokenKind};
+// use crate::token::error::Error;
+// use base64::{engine::general_purpose, Engine as _};
+// use jsonwebtoken::errors::{Error as JwtError, ErrorKind as JwtErrorKind};
+// use jsonwebtoken::{DecodingKey, EncodingKey};
+// use once_cell::sync::Lazy;
+// use std::sync::Arc;
+// use std::time::{Duration, SystemTime};
+
+// pub static PRIVATE_KEY: Lazy<Vec<u8>> = Lazy::new(|| {
+//     general_purpose::STANDARD.decode(
+//         b"LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR0hBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJHMHdhd0lCQVFRZy9JMGJTbVZxL1BBN2FhRHgKN1FFSGdoTGxCVS9NcWFWMUJab3ZhM2Y5aHJxaFJBTkNBQVJXZVcwd3MydmlnWi96SzRXcGk3Rm1mK0VPb3FybQpmUlIrZjF2azZ5dnBGd0gzZllkMlllNXl4b3ZsaTROK1ZNNlRXVFErTmVFc2ZmTWY2TkFBMloxbQotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg=="
+//     ).unwrap()
+// });
+
+// pub static PUBLIC_KEY: Lazy<Vec<u8>> = Lazy::new(|| {
+//     general_purpose::STANDARD.decode(
+//         b"LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFVm5sdE1MTnI0b0dmOHl1RnFZdXhabi9oRHFLcQo1bjBVZm45YjVPc3I2UmNCOTMySGRtSHVjc2FMNVl1RGZsVE9rMWswUGpYaExIM3pIK2pRQU5tZFpnPT0KLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg=="
+//     ).unwrap()
+// });
+
+// pub const TEST_TOKEN_TIMEOUT: u64 = 60;
+// pub const TEST_TOKEN_ISSUER: &str = "test";
+// pub const TEST_TOKEN_SUBJECT: &str = "999";
+
+// pub fn new_token_srvlication<'a>() -> JsonWebTokenService<'a, InMemoryCache> {
+//     JsonWebTokenService {
+//         issuer: "test",
+//         session_timeout: Duration::from_secs(TEST_TOKEN_TIMEOUT),
+//         verification_timeout: Duration::from_secs(TEST_TOKEN_TIMEOUT),
+//         reset_timeout: Duration::from_secs(TEST_TOKEN_TIMEOUT),
+//         decode: DecodingKey::from_ec_pem(&PUBLIC_KEY).unwrap(),
+//         encode: EncodingKey::from_ec_pem(&PRIVATE_KEY).unwrap(),
+//         cache: Arc::new(InMemoryCache),
+//     }
+// }
+
+// #[tokio::test]
+// async fn consume_token_should_not_fail() {
+//     let app = new_token_srvlication();
+//     let payload = app.new_payload(TokenKind::Session, TEST_TOKEN_SUBJECT);
+//     let token = app.issue(payload).await.unwrap();
+
+//     let claims = app.consume(TokenKind::Session, token).await.unwrap();
+//     assert!(matches!(&claims.knd, TokenKind::Session));
+// }
+
+// #[tokio::test]
+// async fn consume_expired_token_should_fail() {
+//     let app = new_token_srvlication();
+//     let mut payload = app.new_payload(TokenKind::Session, TEST_TOKEN_SUBJECT);
+//     payload.exp = SystemTime::now() - Duration::from_secs(61);
+
+//     let token = app.encode(&payload).unwrap();
+
+//     app.consume(TokenKind::Session, token)
+//         .await
+//         .map_err(|err| {
+//             let want: Error = JwtError::from(JwtErrorKind::ExpiredSignature).into();
+//             assert!(matches!(err, want))
+//         })
+//         .unwrap_err();
+// }
+
+// #[tokio::test]
+// async fn consume_corrupt_token_should_fail() {
+//     let app = new_token_srvlication();
+//     let payload = app.new_payload(TokenKind::Session, TEST_TOKEN_SUBJECT);
+//     let token = app.issue(payload).await.unwrap();
+//     let corrupted: Token = token.as_ref().replace('A', "a").try_into().unwrap();
+
+//     let err = app
+//         .consume(TokenKind::Session, corrupted)
+//         .await
+//         .unwrap_err();
+//     assert!(matches!(err, Error::Jwt(_)));
+// }
+
+// #[tokio::test]
+// async fn consume_wrong_token_kind_should_fail() {
+//     let app = new_token_srvlication();
+//     let payload = app.new_payload(TokenKind::Session, TEST_TOKEN_SUBJECT);
+//     let token = app.issue(payload).await.unwrap();
+
+//     let err = app
+//         .consume(TokenKind::Verification, token)
+//         .await
+//         .unwrap_err();
+//     assert!(matches!(err, Error::Jwt(_)));
+// }
+// }

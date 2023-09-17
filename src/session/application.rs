@@ -3,7 +3,7 @@ use super::error::{Error, Result};
 use crate::mfa::domain::Otp;
 use crate::mfa::service::MfaService;
 use crate::secret::application::SecretRepository;
-use crate::token::domain::{Token, TokenKind};
+use crate::token::domain::{Claims, Token, TokenKind};
 use crate::token::service::TokenService;
 use crate::user::application::UserRepository;
 use crate::user::domain::Password;
@@ -29,7 +29,7 @@ where
         ident: Identity,
         password: Password,
         otp: Option<Otp>,
-    ) -> Result<Token> {
+    ) -> Result<Claims> {
         let user = match ident {
             Identity::Email(email) => self.user_repo.find_by_email(&email).await,
             Identity::Nick(name) => self.user_repo.find_by_name(&name).await,
@@ -48,7 +48,6 @@ where
             .issue(TokenKind::Session, &user.id.to_string())
             .await
             .map_err(Into::into)
-            .map(Into::into)
     }
 
     #[instrument(skip(self))]

@@ -24,4 +24,7 @@ pub enum Error {
     #[cfg(feature = "smtp")]
     #[error("{0}")]
     Smtp(#[from] crate::smtp::Error),
+    #[cfg(test)]
+    #[error("unexpected error")]
+    Debug,
 }

@@ -20,4 +20,7 @@ pub enum Error {
     Jwt(#[from] jsonwebtoken::errors::Error),
     #[error("{0}")]
     Cache(#[from] crate::cache::Error),
+    #[cfg(test)]
+    #[error("unexpected error")]
+    Debug,
 }

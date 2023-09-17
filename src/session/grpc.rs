@@ -50,14 +50,15 @@ where
             .transpose()
             .map_err(Status::from)?;
 
-        let token = self
+        let claims = self
             .session_app
             .login(identity, password, otp)
             .await
             .map_err(Status::from)?;
 
         let mut res = Response::new(Empty {});
-        let token = token
+        let token = claims
+            .token
             .as_ref()
             .parse()
             .map_err(on_error!(
