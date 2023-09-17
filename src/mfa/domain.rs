@@ -2,7 +2,9 @@ use super::error::{Error, Result};
 use rand::{distributions::Uniform, Rng};
 
 /// Represents the multi factor authentication method to use.
-#[derive(Debug, Clone, Copy, strum_macros::EnumString, strum_macros::Display)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, strum_macros::EnumString, strum_macros::Display,
+)]
 #[strum(serialize_all = "lowercase")]
 pub enum MfaMethod {
     /// Uses a third-party application as totp provider.

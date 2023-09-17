@@ -1,22 +1,25 @@
 use super::domain::{Credentials, Email, PasswordHash, Preferences};
 use super::error::{Error, Result};
 use super::{application::UserRepository, domain::User};
+use crate::base64;
 use crate::mfa::domain::MfaMethod;
 use crate::on_error;
 use crate::postgres::on_query_error;
 use crate::secret::domain::SecretKind;
 use crate::secret::{domain::Secret, repository::PostgresSecretRepository};
 use async_trait::async_trait;
+use futures::join;
 use sqlx::error::Error as SqlError;
 use sqlx::postgres::PgPool;
 use std::str::FromStr;
 
 const QUERY_INSERT_USER: &str =
     "INSERT INTO users (name, email, actual_email, password, mfa_method) VALUES ($1, $2, $3, $4, $5) RETURNING id";
-const QUERY_FIND_USER: &str = "SELECT u.id, u.email, u.password, u.mfa_method FROM users u LEFT JOIN secrets s ON u.id = s.owner WHERE s.id = $1 AND s.kind = 'salt'";
+const QUERY_FIND_USER: &str = "SELECT id, email, password, mfa_method FROM users WHERE id = $1";
 const QUERY_FIND_USER_BY_EMAIL: &str =
-    "SELECT u.id, u.email, u.password, s.data, u.mfa_method FROM users u LEFT JOIN secrets s ON u.id = s.owner WHERE (u.email = $1 OR u.actual_email = $1) AND s.kind = 'salt'";
-const QUERY_FIND_USER_BY_NAME: &str = "SELECT u.id, u.email, u.password, s.data, u.mfa_method FROM users u LEFT JOIN secrets s ON u.id - s.owner WHERE u.name = $1 AND s.kind = 'salt'";
+    "SELECT id, email, password, mfa_method FROM users WHERE email = $1 OR actual_email = $1";
+const QUERY_FIND_USER_BY_NAME: &str =
+    "SELECT id, email, password, mfa_method FROM users WHERE name = $1";
 const QUERY_UPDATE_USER: &str =
     "UPDATE users SET name = $1, email = $2, actual_email = $3, password = $4, mfa_method = $5 WHERE id = $6";
 const QUERY_DELETE_USER: &str = "DELETE FROM users WHERE id = $1";
@@ -24,22 +27,24 @@ const QUERY_DELETE_USER: &str = "DELETE FROM users WHERE id = $1";
 // id, email, password, mfa_method
 type SelectUserRow = (i32, String, String, Option<String>);
 
-impl TryInto<User> for SelectUserRow {
-    type Error = Error;
+pub struct PostgresUserRepository<'a> {
+    pub pool: &'a PgPool,
+}
 
-    fn try_into(self) -> Result<User> {
+impl<'a> PostgresUserRepository<'a> {
+    fn construct(row: SelectUserRow, salt: Secret) -> Result<User> {
         Ok(User {
-            id: self.0,
+            id: row.0,
             credentials: Credentials {
-                email: self.1.try_into()?,
+                email: row.1.try_into()?,
                 password: PasswordHash {
-                    hash: self.2,
-                    salt: self.3.try_into()?,
+                    hash: row.2,
+                    salt: base64::encode(salt.data()).try_into()?,
                 },
             },
             preferences: Preferences {
-                multi_factor: self
-                    .4
+                multi_factor: row
+                    .3
                     .as_deref()
                     .map(MfaMethod::from_str)
                     .transpose()
@@ -49,43 +54,63 @@ impl TryInto<User> for SelectUserRow {
     }
 }
 
-pub struct PostgresUserRepository<'a> {
-    pub pool: &'a PgPool,
-}
-
 #[async_trait]
 impl<'a> UserRepository for PostgresUserRepository<'a> {
     async fn find(&self, user_id: i32) -> Result<User> {
-        sqlx::query_as(QUERY_FIND_USER)
+        let select_user = sqlx::query_as(QUERY_FIND_USER)
             .bind(user_id)
-            .fetch_one(self.pool)
-            .await
-            .map_err(on_query_error!(
-                "performing select user by id query on postgres"
-            ))
-            .and_then(SelectUserRow::try_into)
+            .fetch_one(self.pool);
+
+        let (secret_result, user_result) = join!(
+            PostgresSecretRepository::find_by_owner_and_kind(self.pool, user_id, SecretKind::Salt),
+            select_user,
+        );
+
+        let salt_secret = secret_result.map_err(Error::from)?;
+
+        let user_row = user_result.map_err(on_query_error!(
+            "performing select user by id query on postgres"
+        ))?;
+
+        Self::construct(user_row, salt_secret)
     }
 
     async fn find_by_email(&self, email: &Email) -> Result<User> {
-        sqlx::query_as(QUERY_FIND_USER_BY_EMAIL)
+        let user_row: SelectUserRow = sqlx::query_as(QUERY_FIND_USER_BY_EMAIL)
             .bind(email.as_ref())
             .fetch_one(self.pool)
             .await
             .map_err(on_query_error!(
                 "performing select user by email query on postgres"
-            ))
-            .and_then(SelectUserRow::try_into)
+            ))?;
+
+        let salt_secret = PostgresSecretRepository::find_by_owner_and_kind(
+            self.pool,
+            user_row.0,
+            SecretKind::Salt,
+        )
+        .await?;
+
+        Self::construct(user_row, salt_secret)
     }
 
     async fn find_by_name(&self, target: &str) -> Result<User> {
-        sqlx::query_as(QUERY_FIND_USER_BY_NAME)
+        let user_row: SelectUserRow = sqlx::query_as(QUERY_FIND_USER_BY_NAME)
             .bind(target)
             .fetch_one(self.pool)
             .await
             .map_err(on_query_error!(
                 "performing select user by name query on postgres"
-            ))
-            .and_then(SelectUserRow::try_into)
+            ))?;
+
+        let salt_secret = PostgresSecretRepository::find_by_owner_and_kind(
+            self.pool,
+            user_row.0,
+            SecretKind::Salt,
+        )
+        .await?;
+
+        Self::construct(user_row, salt_secret)
     }
 
     async fn create(&self, user: &mut User) -> Result<()> {

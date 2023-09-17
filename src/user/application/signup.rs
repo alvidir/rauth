@@ -81,4 +81,7 @@ where
 }
 
 #[cfg(test)]
-mod test {}
+mod test {
+    #[test]
+    fn verify_credentials_when_user_already_exists() {}
+}
