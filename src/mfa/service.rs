@@ -1,6 +1,6 @@
 use super::{
     domain::{MfaMethod, Otp},
-    error::Result,
+    error::{Error, Result},
 };
 use crate::user::domain::User;
 use async_trait::async_trait;
@@ -20,7 +20,6 @@ pub trait MfaService {
 /// Implements the [MfaService] as a mfa method router.
 pub struct MultiFactor {
     pub methods: HashMap<MfaMethod, Box<dyn MfaService + Sync + Send>>,
-    pub default: Box<dyn MfaService + Sync + Send>,
 }
 
 #[async_trait]
@@ -30,7 +29,11 @@ impl MfaService for MultiFactor {
             return Ok(());
         };
 
-        self.method(method).verify(user, otp).await
+        self.methods
+            .get(method)
+            .ok_or(Error::NotFound)?
+            .verify(user, otp)
+            .await
     }
 
     async fn enable(&self, user: &User, otp: Option<&Otp>) -> Result<()> {
@@ -38,7 +41,11 @@ impl MfaService for MultiFactor {
             return Ok(());
         };
 
-        self.method(method).enable(user, otp).await
+        self.methods
+            .get(method)
+            .ok_or(Error::NotFound)?
+            .enable(user, otp)
+            .await
     }
 
     async fn disable(&self, user: &User, otp: Option<&Otp>) -> Result<()> {
@@ -46,13 +53,11 @@ impl MfaService for MultiFactor {
             return Ok(());
         };
 
-        self.method(method).disable(user, otp).await
-    }
-}
-
-impl MultiFactor {
-    fn method(&self, method: &MfaMethod) -> &Box<dyn MfaService + Sync + Send> {
-        self.methods.get(method).unwrap_or(&self.default)
+        self.methods
+            .get(method)
+            .ok_or(Error::NotFound)?
+            .disable(user, otp)
+            .await
     }
 }
 

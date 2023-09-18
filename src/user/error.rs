@@ -32,6 +32,7 @@ pub enum Error {
     Salt(#[from] std::array::TryFromSliceError),
     #[error("{0}")]
     ParseInt(#[from] std::num::ParseIntError),
+    #[cfg(feature = "grpc")]
     #[error("{0}")]
     Tonic(#[from] tonic::metadata::errors::InvalidMetadataValue),
     #[cfg(feature = "postgres")]

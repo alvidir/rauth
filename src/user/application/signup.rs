@@ -318,6 +318,40 @@ mod test {
     }
 
     #[tokio::test]
+    async fn signup_with_non_present_token_must_fail() {
+        let mut token_srv = TokenServiceMock::default();
+        token_srv.issue_fn = Some(|_: &TokenServiceMock, kind: TokenKind, sub: &str| {
+            Ok(Claims {
+                token: "123.123.123".to_string().try_into().unwrap(),
+                payload: Payload::new(kind, Duration::from_secs(60)).with_subject(sub),
+            })
+        });
+
+        token_srv.claims_fn = Some(|_: &TokenServiceMock, token: Token| {
+            assert_eq!(token.as_ref(), "abc.abc.abc", "unexpected token");
+            Ok(Claims {
+                token,
+                payload: Payload::new(TokenKind::Verification, Duration::from_secs(60))
+                    .with_subject("credentials"),
+            })
+        });
+
+        let mut user_app = new_user_application();
+
+        user_app.hash_length = 32;
+        user_app.token_srv = Arc::new(token_srv);
+
+        let token = Token::try_from("abc.abc.abc".to_string()).unwrap();
+        let result = user_app.signup_with_token(token).await;
+        assert!(
+            matches!(result, Err(Error::Cache(crate::cache::Error::NotFound))),
+            "got result = {:?}, want error = {}",
+            result,
+            Error::WrongToken
+        );
+    }
+
+    #[tokio::test]
     async fn signup_must_not_fail() {
         let mut user_repo = UserRepositoryMock::default();
         user_repo.create_fn = Some(|_: &UserRepositoryMock, user: &mut User| {

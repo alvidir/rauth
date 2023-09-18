@@ -16,6 +16,7 @@ pub enum Error {
     WrongToken,
     #[error("forbidden")]
     Forbidden,
+    #[cfg(feature = "rest")]
     #[error("{0}")]
     Http(#[from] crate::http::Error),
     #[error("{0}")]
@@ -24,6 +25,7 @@ pub enum Error {
     Token(#[from] crate::token::error::Error),
     #[error("{0}")]
     Mfa(#[from] crate::mfa::error::Error),
+    #[cfg(feature = "grpc")]
     #[error("{0}")]
     Tonic(#[from] tonic::metadata::errors::InvalidMetadataValue),
     #[cfg(test)]

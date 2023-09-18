@@ -6,6 +6,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     #[error("one time password regex did not match")]
     NotAOneTimePassword,
+    #[error("mfa method not found")]
+    NotFound,
     #[error("one time password required")]
     Required,
     #[error("wrong one time password")]
