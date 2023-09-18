@@ -127,9 +127,9 @@ pub(crate) mod test {
     use crate::token::domain::{Claims, Token, TokenKind};
     use crate::token::error::{Error, Result};
 
-    pub type IssueFn = fn(&TokenServiceMock, kind: TokenKind, sub: &str) -> Result<Claims>;
-    pub type ClaimsFn = fn(&TokenServiceMock, token: Token) -> Result<Claims>;
-    pub type RevokeFn = fn(&TokenServiceMock, claims: &Claims) -> Result<()>;
+    pub type IssueFn = fn(kind: TokenKind, sub: &str) -> Result<Claims>;
+    pub type ClaimsFn = fn(token: Token) -> Result<Claims>;
+    pub type RevokeFn = fn(claims: &Claims) -> Result<()>;
 
     #[derive(Debug, Default)]
     pub struct TokenServiceMock {
@@ -142,21 +142,21 @@ pub(crate) mod test {
     impl TokenService for TokenServiceMock {
         async fn issue(&self, kind: TokenKind, sub: &str) -> Result<Claims> {
             if let Some(issue_fn) = self.issue_fn {
-                return issue_fn(self, kind, sub);
+                return issue_fn(kind, sub);
             }
 
             Err(Error::Debug)
         }
         async fn claims(&self, token: Token) -> Result<Claims> {
             if let Some(claims_fn) = self.claims_fn {
-                return claims_fn(self, token);
+                return claims_fn(token);
             }
 
             Err(Error::Debug)
         }
         async fn revoke(&self, claims: &Claims) -> Result<()> {
             if let Some(revoke_fn) = self.revoke_fn {
-                return revoke_fn(self, claims);
+                return revoke_fn(claims);
             }
 
             Err(Error::Debug)

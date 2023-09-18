@@ -56,12 +56,12 @@ mod test {
     };
     use async_trait::async_trait;
 
-    type FindFn = fn(&UserRepositoryMock, id: i32) -> Result<User>;
-    type FindByEmailFn = fn(&UserRepositoryMock, email: &Email) -> Result<User>;
-    type FindByNameFn = fn(&UserRepositoryMock, name: &str) -> Result<User>;
-    type CreateFn = fn(&UserRepositoryMock, user: &mut User) -> Result<()>;
-    type SaveFn = fn(&UserRepositoryMock, user: &User) -> Result<()>;
-    type DeleteFn = fn(&UserRepositoryMock, user: &User) -> Result<()>;
+    type FindFn = fn(id: i32) -> Result<User>;
+    type FindByEmailFn = fn(email: &Email) -> Result<User>;
+    type FindByNameFn = fn(name: &str) -> Result<User>;
+    type CreateFn = fn(user: &mut User) -> Result<()>;
+    type SaveFn = fn(user: &User) -> Result<()>;
+    type DeleteFn = fn(user: &User) -> Result<()>;
 
     pub fn new_user_application() -> UserApplication<
         UserRepositoryMock,
@@ -98,7 +98,7 @@ mod test {
     impl UserRepository for UserRepositoryMock {
         async fn find(&self, id: i32) -> Result<User> {
             if let Some(find_fn) = self.find_fn {
-                return find_fn(self, id);
+                return find_fn(id);
             }
 
             Err(Error::Debug)
@@ -106,7 +106,7 @@ mod test {
 
         async fn find_by_email(&self, email: &Email) -> Result<User> {
             if let Some(find_by_email_fn) = self.find_by_email_fn {
-                return find_by_email_fn(self, email);
+                return find_by_email_fn(email);
             }
 
             Err(Error::Debug)
@@ -114,7 +114,7 @@ mod test {
 
         async fn find_by_name(&self, name: &str) -> Result<User> {
             if let Some(find_by_name_fn) = self.find_by_name_fn {
-                return find_by_name_fn(self, name);
+                return find_by_name_fn(name);
             }
 
             Err(Error::Debug)
@@ -122,7 +122,7 @@ mod test {
 
         async fn create(&self, user: &mut User) -> Result<()> {
             if let Some(create_fn) = self.create_fn {
-                return create_fn(self, user);
+                return create_fn(user);
             }
 
             Err(Error::Debug)
@@ -130,7 +130,7 @@ mod test {
 
         async fn save(&self, user: &User) -> Result<()> {
             if let Some(save_fn) = self.save_fn {
-                return save_fn(self, user);
+                return save_fn(user);
             }
 
             Err(Error::Debug)
@@ -138,15 +138,15 @@ mod test {
 
         async fn delete(&self, user: &User) -> Result<()> {
             if let Some(delete_fn) = self.delete_fn {
-                return delete_fn(self, user);
+                return delete_fn(user);
             }
 
             Err(Error::Debug)
         }
     }
 
-    pub type EmitUserCreatedFn = fn(&EventServiceMock, user: &User) -> Result<()>;
-    pub type EmitUserDeletedFn = fn(&EventServiceMock, user: &User) -> Result<()>;
+    pub type EmitUserCreatedFn = fn(user: &User) -> Result<()>;
+    pub type EmitUserDeletedFn = fn(user: &User) -> Result<()>;
 
     #[derive(Debug, Default)]
     pub struct EventServiceMock {
@@ -158,7 +158,7 @@ mod test {
     impl EventService for EventServiceMock {
         async fn emit_user_created(&self, user: &User) -> Result<()> {
             if let Some(emit_user_created_fn) = self.emit_user_created_fn {
-                return emit_user_created_fn(self, user);
+                return emit_user_created_fn(user);
             }
 
             Err(Error::Debug)
@@ -166,17 +166,15 @@ mod test {
 
         async fn emit_user_deleted(&self, user: &User) -> Result<()> {
             if let Some(emit_user_deleted_fn) = self.emit_user_deleted_fn {
-                return emit_user_deleted_fn(self, user);
+                return emit_user_deleted_fn(user);
             }
 
             Err(Error::Debug)
         }
     }
 
-    pub type SendCredentialsVerificationEmailFn =
-        fn(&MailServiceMock, to: &Email, token: &Token) -> Result<()>;
-    pub type SendCredentialsResetEmailFn =
-        fn(&MailServiceMock, to: &Email, token: &Token) -> Result<()>;
+    pub type SendCredentialsVerificationEmailFn = fn(to: &Email, token: &Token) -> Result<()>;
+    pub type SendCredentialsResetEmailFn = fn(to: &Email, token: &Token) -> Result<()>;
 
     #[derive(Debug, Default)]
     pub struct MailServiceMock {
@@ -189,7 +187,7 @@ mod test {
             if let Some(send_credentials_verification_email_fn) =
                 self.send_credentials_verification_email_fn
             {
-                return send_credentials_verification_email_fn(self, to, token);
+                return send_credentials_verification_email_fn(to, token);
             }
 
             Err(Error::Debug)
@@ -197,7 +195,7 @@ mod test {
 
         fn send_credentials_reset_email(&self, to: &Email, token: &Token) -> Result<()> {
             if let Some(send_credentials_reset_email_fn) = self.send_credentials_reset_email_fn {
-                return send_credentials_reset_email_fn(self, to, token);
+                return send_credentials_reset_email_fn(to, token);
             }
 
             Err(Error::Debug)

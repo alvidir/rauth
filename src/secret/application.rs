@@ -20,13 +20,12 @@ pub mod test {
     use crate::user::domain::User;
     use async_trait::async_trait;
 
-    type MockFnFind = fn(this: &SecretRepositoryMock, id: i32) -> Result<Secret>;
-    type MockFnFindByOwnerAndKind =
-        fn(this: &SecretRepositoryMock, owner: i32, kind: SecretKind) -> Result<Secret>;
-    type MockFnCreate = fn(this: &SecretRepositoryMock, secret: &mut Secret) -> Result<()>;
-    type MockFnSave = fn(this: &SecretRepositoryMock, secret: &Secret) -> Result<()>;
-    type MockFnDelete = fn(this: &SecretRepositoryMock, secret: &Secret) -> Result<()>;
-    type MockFnDeleteByOwner = fn(this: &SecretRepositoryMock, owner: &User) -> Result<()>;
+    type MockFnFind = fn(id: i32) -> Result<Secret>;
+    type MockFnFindByOwnerAndKind = fn(owner: i32, kind: SecretKind) -> Result<Secret>;
+    type MockFnCreate = fn(secret: &mut Secret) -> Result<()>;
+    type MockFnSave = fn(secret: &Secret) -> Result<()>;
+    type MockFnDelete = fn(secret: &Secret) -> Result<()>;
+    type MockFnDeleteByOwner = fn(owner: &User) -> Result<()>;
 
     #[derive(Default)]
     pub struct SecretRepositoryMock {
@@ -41,32 +40,32 @@ pub mod test {
     #[async_trait]
     impl SecretRepository for SecretRepositoryMock {
         async fn find_by_owner_and_kind(&self, owner: i32, kind: SecretKind) -> Result<Secret> {
-            if let Some(f) = self.fn_find_by_owner_and_kind {
-                return f(self, owner, kind);
+            if let Some(find_by_owner_and_kind_fn) = self.fn_find_by_owner_and_kind {
+                return find_by_owner_and_kind_fn(owner, kind);
             }
 
             Err(Error::Debug)
         }
 
         async fn create(&self, secret: &mut Secret) -> Result<()> {
-            if let Some(f) = self.fn_create {
-                return f(self, secret);
+            if let Some(create_fn) = self.fn_create {
+                return create_fn(secret);
             }
 
             Err(Error::Debug)
         }
 
         async fn delete(&self, secret: &Secret) -> Result<()> {
-            if let Some(f) = self.fn_delete {
-                return f(self, secret);
+            if let Some(delete_fn) = self.fn_delete {
+                return delete_fn(secret);
             }
 
             Err(Error::Debug)
         }
 
         async fn delete_by_owner(&self, owner: &User) -> Result<()> {
-            if let Some(f) = self.fn_delete_by_owner {
-                return f(self, owner);
+            if let Some(delete_by_owner_fn) = self.fn_delete_by_owner {
+                return delete_by_owner_fn(owner);
             }
 
             Err(Error::Debug)

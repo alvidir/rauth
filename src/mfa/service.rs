@@ -68,36 +68,36 @@ pub(crate) mod test {
     use crate::{mfa::domain::Otp, user::domain::User};
     use async_trait::async_trait;
 
-    pub type VerifyFn = fn(&MfaServiceMock, user: &User, otp: Option<&Otp>) -> Result<()>;
-    pub type EnableFn = fn(&MfaServiceMock, user: &User, otp: Option<&Otp>) -> Result<()>;
-    pub type DisableFn = fn(&MfaServiceMock, user: &User, otp: Option<&Otp>) -> Result<()>;
+    pub type VerifyFn = fn(user: &User, otp: Option<&Otp>) -> Result<()>;
+    pub type EnableFn = fn(user: &User, otp: Option<&Otp>) -> Result<()>;
+    pub type DisableFn = fn(user: &User, otp: Option<&Otp>) -> Result<()>;
 
     #[derive(Debug, Default)]
     pub struct MfaServiceMock {
-        verify_fn: Option<VerifyFn>,
-        enable_fn: Option<EnableFn>,
-        disable_fn: Option<DisableFn>,
+        pub verify_fn: Option<VerifyFn>,
+        pub enable_fn: Option<EnableFn>,
+        pub disable_fn: Option<DisableFn>,
     }
 
     #[async_trait]
     impl MfaService for MfaServiceMock {
         async fn verify(&self, user: &User, otp: Option<&Otp>) -> Result<()> {
             if let Some(verify_fn) = self.verify_fn {
-                return verify_fn(self, user, otp);
+                return verify_fn(user, otp);
             }
 
             Err(Error::Debug)
         }
         async fn enable(&self, user: &User, otp: Option<&Otp>) -> Result<()> {
             if let Some(enable_fn) = self.enable_fn {
-                return enable_fn(self, user, otp);
+                return enable_fn(user, otp);
             }
 
             Err(Error::Debug)
         }
         async fn disable(&self, user: &User, otp: Option<&Otp>) -> Result<()> {
             if let Some(disable_fn) = self.disable_fn {
-                return disable_fn(self, user, otp);
+                return disable_fn(user, otp);
             }
 
             Err(Error::Debug)

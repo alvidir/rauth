@@ -104,7 +104,7 @@ mod test {
     #[tokio::test]
     async fn verify_credentials_when_user_already_exists() {
         let mut user_repo = UserRepositoryMock::default();
-        user_repo.find_by_email_fn = Some(|_: &UserRepositoryMock, email: &Email| {
+        user_repo.find_by_email_fn = Some(|email: &Email| {
             assert_eq!(email.as_ref(), "username@server.domain", "unexpected email");
 
             let password = Password::try_from("abcABC123&".to_string()).unwrap();
@@ -120,8 +120,15 @@ mod test {
             })
         });
 
+        let mut mail_srv = MailServiceMock::default();
+        mail_srv.send_credentials_verification_email_fn = Some(|_: &Email, _: &Token| {
+            assert!(false, "unexpected execution");
+            Err(Error::Debug)
+        });
+
         let mut user_app = new_user_application();
         user_app.user_repo = Arc::new(user_repo);
+        user_app.mail_srv = Arc::new(mail_srv);
 
         let email = Email::try_from("username@server.domain").unwrap();
         let password = Password::try_from("abcABC123&".to_string()).unwrap();
@@ -137,7 +144,15 @@ mod test {
 
     #[tokio::test]
     async fn verify_credentials_when_repository_fails() {
-        let user_app = new_user_application();
+        let mut mail_srv = MailServiceMock::default();
+        mail_srv.send_credentials_reset_email_fn = Some(|_: &Email, _: &Token| {
+            assert!(false, "unexpected execution");
+            Err(Error::Debug)
+        });
+
+        let mut user_app = new_user_application();
+        user_app.mail_srv = Arc::new(mail_srv);
+
         let email = Email::try_from("username@server.domain").unwrap();
         let password = Password::try_from("abcABC123&".to_string()).unwrap();
 
@@ -153,10 +168,12 @@ mod test {
     #[tokio::test]
     async fn verify_credentials_must_not_fail() {
         let mut user_repo = UserRepositoryMock::default();
-        user_repo.find_by_email_fn = Some(|_: &UserRepositoryMock, _: &Email| Err(Error::NotFound));
+        user_repo.find_by_email_fn = Some(|_: &Email| Err(Error::NotFound));
 
         let mut token_srv = TokenServiceMock::default();
-        token_srv.issue_fn = Some(|_: &TokenServiceMock, kind: TokenKind, sub: &str| {
+        token_srv.issue_fn = Some(|kind: TokenKind, sub: &str| {
+            assert_eq!(kind, TokenKind::Verification, "unexpected token kind");
+
             Ok(Claims {
                 token: "abc.abc.abc".to_string().try_into().unwrap(),
                 payload: Payload::new(kind, Duration::from_secs(60)).with_subject(sub),
@@ -164,13 +181,11 @@ mod test {
         });
 
         let mut mail_srv = MailServiceMock::default();
-        mail_srv.send_credentials_verification_email_fn =
-            Some(|_: &MailServiceMock, email: &Email, token: &Token| {
-                assert_eq!(email.as_ref(), "username@server.domain", "unexpected email");
-                assert_eq!(token.as_ref(), "abc.abc.abc", "unexpected token");
-
-                Ok(())
-            });
+        mail_srv.send_credentials_verification_email_fn = Some(|email: &Email, token: &Token| {
+            assert_eq!(email.as_ref(), "username@server.domain", "unexpected email");
+            assert_eq!(token.as_ref(), "abc.abc.abc", "unexpected token");
+            Ok(())
+        });
 
         let mut user_app = new_user_application();
         user_app.hash_length = 32;
@@ -188,7 +203,7 @@ mod test {
     #[tokio::test]
     async fn signup_with_token_must_not_fail() {
         let mut user_repo = UserRepositoryMock::default();
-        user_repo.create_fn = Some(|_: &UserRepositoryMock, user: &mut User| {
+        user_repo.create_fn = Some(|user: &mut User| {
             assert_eq!(
                 user.credentials.email.as_ref(),
                 "username@server.domain",
@@ -200,29 +215,33 @@ mod test {
         });
 
         let mut event_srv: EventServiceMock = Default::default();
-        event_srv.emit_user_created_fn = Some(|_: &EventServiceMock, user: &User| {
+        event_srv.emit_user_created_fn = Some(|user: &User| {
             assert_eq!(user.id, 999, "unexpected user id");
             Ok(())
         });
 
         let mut token_srv = TokenServiceMock::default();
-        token_srv.issue_fn = Some(|_: &TokenServiceMock, kind: TokenKind, sub: &str| {
+        token_srv.claims_fn = Some(|token: Token| {
+            assert_eq!(token.as_ref(), "abc.abc.abc", "unexpected token");
+
+            Ok(Claims {
+                token,
+                payload: Payload::new(TokenKind::Verification, Duration::from_secs(60))
+                    .with_subject("signup"),
+            })
+        });
+
+        token_srv.issue_fn = Some(|kind: TokenKind, sub: &str| {
+            assert_eq!(kind, TokenKind::Session, "unexpected token kind");
+            assert_eq!(sub, "999", "unexpected token subject");
+
             Ok(Claims {
                 token: "123.123.123".to_string().try_into().unwrap(),
                 payload: Payload::new(kind, Duration::from_secs(60)).with_subject(sub),
             })
         });
 
-        token_srv.claims_fn = Some(|_: &TokenServiceMock, token: Token| {
-            assert_eq!(token.as_ref(), "abc.abc.abc", "unexpected token");
-            Ok(Claims {
-                token,
-                payload: Payload::new(TokenKind::Verification, Duration::from_secs(60))
-                    .with_subject("credentials"),
-            })
-        });
-
-        token_srv.revoke_fn = Some(|_: &TokenServiceMock, claims: &Claims| {
+        token_srv.revoke_fn = Some(|claims: &Claims| {
             assert_eq!(claims.token.as_ref(), "abc.abc.abc", "unexpected token");
             assert_eq!(
                 claims.payload().kind(),
@@ -231,7 +250,7 @@ mod test {
             );
             assert_eq!(
                 claims.payload().subject(),
-                "credentials",
+                "signup",
                 "unexpected token subject"
             );
             Ok(())
@@ -247,7 +266,7 @@ mod test {
         let mut user_app = new_user_application();
         user_app
             .cache
-            .save("credentials", credentials, Duration::from_secs(60))
+            .save("signup", credentials, Duration::from_secs(60))
             .await
             .unwrap();
 
@@ -274,20 +293,18 @@ mod test {
     #[tokio::test]
     async fn signup_with_invalid_token_must_fail() {
         let mut token_srv = TokenServiceMock::default();
-        token_srv.issue_fn = Some(|_: &TokenServiceMock, kind: TokenKind, sub: &str| {
-            Ok(Claims {
-                token: "123.123.123".to_string().try_into().unwrap(),
-                payload: Payload::new(kind, Duration::from_secs(60)).with_subject(sub),
-            })
-        });
-
-        token_srv.claims_fn = Some(|_: &TokenServiceMock, token: Token| {
+        token_srv.claims_fn = Some(|token: Token| {
             assert_eq!(token.as_ref(), "abc.abc.abc", "unexpected token");
             Ok(Claims {
                 token,
                 payload: Payload::new(TokenKind::Session, Duration::from_secs(60))
-                    .with_subject("credentials"),
+                    .with_subject("signup"),
             })
+        });
+
+        token_srv.issue_fn = Some(|_: TokenKind, _: &str| {
+            assert!(false, "unexpected execution");
+            Err(crate::token::error::Error::Debug)
         });
 
         let password = Password::try_from("abcABC123&".to_string()).unwrap();
@@ -300,7 +317,7 @@ mod test {
         let mut user_app = new_user_application();
         user_app
             .cache
-            .save("credentials", credentials, Duration::from_secs(60))
+            .save("signup", credentials, Duration::from_secs(60))
             .await
             .unwrap();
 
@@ -320,20 +337,18 @@ mod test {
     #[tokio::test]
     async fn signup_with_non_present_token_must_fail() {
         let mut token_srv = TokenServiceMock::default();
-        token_srv.issue_fn = Some(|_: &TokenServiceMock, kind: TokenKind, sub: &str| {
-            Ok(Claims {
-                token: "123.123.123".to_string().try_into().unwrap(),
-                payload: Payload::new(kind, Duration::from_secs(60)).with_subject(sub),
-            })
-        });
-
-        token_srv.claims_fn = Some(|_: &TokenServiceMock, token: Token| {
+        token_srv.claims_fn = Some(|token: Token| {
             assert_eq!(token.as_ref(), "abc.abc.abc", "unexpected token");
             Ok(Claims {
                 token,
                 payload: Payload::new(TokenKind::Verification, Duration::from_secs(60))
-                    .with_subject("credentials"),
+                    .with_subject("signup"),
             })
+        });
+
+        token_srv.issue_fn = Some(|_: TokenKind, _: &str| {
+            assert!(false, "unexpected execution");
+            Err(crate::token::error::Error::Debug)
         });
 
         let mut user_app = new_user_application();
@@ -354,16 +369,16 @@ mod test {
     #[tokio::test]
     async fn signup_must_not_fail() {
         let mut user_repo = UserRepositoryMock::default();
-        user_repo.create_fn = Some(|_: &UserRepositoryMock, user: &mut User| {
+        user_repo.create_fn = Some(|user: &mut User| {
             user.id = 999;
             Ok(())
         });
 
         let mut event_srv: EventServiceMock = Default::default();
-        event_srv.emit_user_created_fn = Some(|_: &EventServiceMock, _: &User| Ok(()));
+        event_srv.emit_user_created_fn = Some(|_: &User| Ok(()));
 
         let mut token_srv = TokenServiceMock::default();
-        token_srv.issue_fn = Some(|_: &TokenServiceMock, kind: TokenKind, sub: &str| {
+        token_srv.issue_fn = Some(|kind: TokenKind, sub: &str| {
             assert_eq!(kind, TokenKind::Session, "unexpected token kind");
             assert_eq!(sub, "999", "unexpected token subject");
 

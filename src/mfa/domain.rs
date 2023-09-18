@@ -5,11 +5,11 @@ use std::str::FromStr;
 /// Represents the multi factor authentication method to use.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum MfaMethod {
-    /// Uses a third-party application as totp provider.
+    /// A third-party application is used to get the TOTP.
     TpApp,
-    /// Uses the email as otp provider.
+    /// The OTP is sent via email.
     Email,
-    /// Uses any other method.
+    /// Any other method.
     Other(String),
 }
 

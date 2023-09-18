@@ -49,9 +49,6 @@ where
             return Err(Error::WrongToken);
         }
 
-        // reboke token as soon as possible
-        self.token_srv.revoke(&claims).await.map_err(Error::from)?;
-
         let user_id = claims.payload().subject().parse().map_err(on_error!(
             ParseIntError as Error,
             "parsing token subject into user id"
@@ -79,4 +76,163 @@ where
         user.credentials.password = PasswordHash::with_salt(&new_password, &salt)?;
         self.user_repo.save(&user).await
     }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{
+        mfa::{domain::Otp, service::test::MfaServiceMock},
+        token::{
+            domain::{Claims, Payload, Token, TokenKind},
+            service::test::TokenServiceMock,
+        },
+        user::{
+            application::test::{new_user_application, MailServiceMock, UserRepositoryMock},
+            domain::{Credentials, Email, Password, PasswordHash, Preferences, Salt, User},
+            error::Error,
+        },
+    };
+    use std::{sync::Arc, time::Duration};
+
+    #[tokio::test]
+    async fn verify_credentials_reset_must_not_fail() {
+        let mut user_repo = UserRepositoryMock::default();
+        user_repo.find_by_email_fn = Some(|email: &Email| {
+            assert_eq!(email.as_ref(), "username@server.domain", "unexpected email");
+
+            let password = Password::try_from("abcABC123&".to_string()).unwrap();
+            let salt = Salt::with_length(32).unwrap();
+
+            Ok(User {
+                id: 999,
+                credentials: Credentials {
+                    email: email.clone(),
+                    password: PasswordHash::with_salt(&password, &salt).unwrap(),
+                },
+                preferences: Preferences::default(),
+            })
+        });
+
+        let mut token_srv = TokenServiceMock::default();
+        token_srv.issue_fn = Some(|kind: TokenKind, sub: &str| {
+            assert_eq!(kind, TokenKind::Reset, "unexpected token kind");
+            assert_eq!(sub, "999", "unexpected token subject");
+
+            Ok(Claims {
+                token: "abc.abc.abc".to_string().try_into().unwrap(),
+                payload: Payload::new(kind, Duration::from_secs(60)).with_subject(sub),
+            })
+        });
+
+        let mut mail_srv = MailServiceMock::default();
+        mail_srv.send_credentials_reset_email_fn = Some(|email: &Email, token: &Token| {
+            assert_eq!(email.as_ref(), "username@server.domain", "unexpected email");
+            assert_eq!(token.as_ref(), "abc.abc.abc", "unexpected token");
+
+            Ok(())
+        });
+
+        let mut user_app = new_user_application();
+        user_app.user_repo = Arc::new(user_repo);
+        user_app.token_srv = Arc::new(token_srv);
+        user_app.mail_srv = Arc::new(mail_srv);
+
+        let email = Email::try_from("username@server.domain").unwrap();
+        user_app.verify_credentials_reset(email).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn verify_credentials_reset_when_user_does_not_exists_must_fail() {
+        let mut user_repo = UserRepositoryMock::default();
+        user_repo.find_by_email_fn = Some(|_: &Email| Err(Error::NotFound));
+
+        let mut mail_srv = MailServiceMock::default();
+        mail_srv.send_credentials_reset_email_fn = Some(|_: &Email, _: &Token| {
+            assert!(false, "unexpected execution");
+            Err(Error::Debug)
+        });
+
+        let mut user_app = new_user_application();
+        user_app.user_repo = Arc::new(user_repo);
+        user_app.mail_srv = Arc::new(mail_srv);
+
+        let email = Email::try_from("username@server.domain").unwrap();
+        let result = user_app.verify_credentials_reset(email).await;
+
+        assert!(
+            matches!(result, Err(Error::NotFound)),
+            "got result = {:?}, want error = {}",
+            result,
+            Error::NotFound
+        )
+    }
+
+    #[tokio::test]
+    async fn reset_credentials_must_not_fail() {
+        let mut user_repo = UserRepositoryMock::default();
+        user_repo.find_fn = Some(|user_id: i32| {
+            assert_eq!(user_id, 999, "unexpected user id");
+
+            let password = Password::try_from("abcABC123&".to_string()).unwrap();
+            let salt = Salt::with_length(32).unwrap();
+
+            Ok(User {
+                id: 999,
+                credentials: Credentials {
+                    email: "username@server.domain".try_into().unwrap(),
+                    password: PasswordHash::with_salt(&password, &salt).unwrap(),
+                },
+                preferences: Preferences::default(),
+            })
+        });
+
+        user_repo.save_fn = Some(|user: &User| {
+            assert_eq!(user.id, 999, "unexpected user id");
+            Ok(())
+        });
+
+        let mut multi_factor_srv = MfaServiceMock::default();
+        multi_factor_srv.verify_fn = Some(|user: &User, otp: Option<&Otp>| {
+            assert_eq!(user.id, 999, "unexpected user id");
+            assert_eq!(otp, None, "unexpected otp");
+            Ok(())
+        });
+
+        let mut user_app = new_user_application();
+        user_app.hash_length = 32;
+        user_app.multi_factor_srv = Arc::new(multi_factor_srv);
+        user_app.user_repo = Arc::new(user_repo);
+
+        let new_password = Password::try_from("abcABC1234&".to_string()).unwrap();
+
+        user_app
+            .reset_credentials(999, new_password, None)
+            .await
+            .unwrap();
+    }
+
+    // #[tokio::test]
+    // async fn reset_credentials_with_token_must_not_fail() {
+    //     let mut token_srv = TokenServiceMock::default();
+    //     token_srv.claims_fn = Some(|token: Token| {
+    //         assert_eq!(token.as_ref(), "abc.abc.abc", "unexpected token");
+
+    //         Ok(Claims {
+    //             token,
+    //             payload: Payload::new(TokenKind::Reset, Duration::from_secs(60))
+    //                 .with_subject("reset"),
+    //         })
+    //     });
+
+    //     let mut user_app = new_user_application();
+    //     user_app.token_srv = Arc::new(token_srv);
+
+    //     let token: Token = "abc.abc.abc".to_string().try_into().unwrap();
+    //     let password = Password::try_from("abcABC123&".to_string()).unwrap();
+
+    //     user_app
+    //         .reset_credentials_with_token(token, password, None)
+    //         .await
+    //         .unwrap();
+    // }
 }
