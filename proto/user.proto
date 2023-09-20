@@ -24,13 +24,8 @@ message MfaRequest {
     DISABLE = 1;
   };
 
-  enum methods {
-    TP_APP = 0;
-    EMAIL = 1;
-  };
-
   actions action = 1;
-  methods method = 2;
+  string method = 2;
   string password = 3;
   string otp = 4;
 }

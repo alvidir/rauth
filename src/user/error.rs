@@ -26,6 +26,8 @@ pub enum Error {
     WrongToken,
     #[error("forbidden")]
     Forbidden,
+    #[error("some fields are missing")]
+    Uncomplete,
     #[error("{0}")]
     Strum(#[from] strum::ParseError),
     #[error("{0}")]

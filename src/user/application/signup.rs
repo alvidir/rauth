@@ -3,7 +3,9 @@ use crate::cache::Cache;
 use crate::mfa::service::MfaService;
 use crate::token::domain::{Claims, Token, TokenKind};
 use crate::token::service::TokenService;
-use crate::user::domain::{Credentials, Email, Password, PasswordHash, Salt, User};
+use crate::user::domain::{
+    Credentials, CredentialsPrelude, Email, Password, PasswordHash, Salt, User,
+};
 use crate::user::error::{Error, Result};
 
 impl<U, S, T, F, M, B, C> UserApplication<U, S, T, F, M, B, C>
@@ -15,10 +17,10 @@ where
     B: EventService,
     C: Cache,
 {
-    /// Stores the given credentials in the cache and sends an email with the token to be
-    /// passed as parameter to the signup_with_token method.
+    /// It temporally stores the given credentials in the cache and sends an email with the corresponding verification token
+    /// to be passed as parameter to the signup_with_token mathod.
     #[instrument(skip(self, password))]
-    pub async fn verify_credentials(&self, email: Email, password: Password) -> Result<()> {
+    pub async fn verify_credentials(&self, email: Email, password: Option<Password>) -> Result<()> {
         let Err(err) = self.user_repo.find_by_email(&email).await else {
             return Error::AlreadyExists.into();
         };
@@ -27,42 +29,65 @@ where
             return Err(err);
         }
 
-        let salt = Salt::with_length(self.hash_length)?;
-        let credentials = Credentials {
+        let credentials_prelude = CredentialsPrelude {
             email,
-            password: PasswordHash::with_salt(&password, &salt)?,
+            password: password
+                .map(|password| {
+                    let salt = Salt::with_length(self.hash_length)?;
+                    PasswordHash::with_salt(&password, &salt)
+                })
+                .transpose()?,
         };
 
-        let key = credentials.hash();
+        let key = credentials_prelude.hash();
         let claims = self
             .token_srv
             .issue(TokenKind::Verification, &key.to_string())
             .await?;
 
         self.cache
-            .save(&key.to_string(), &credentials, claims.payload().timeout())
+            .save(
+                &key.to_string(),
+                &credentials_prelude,
+                claims.payload().timeout(),
+            )
             .await?;
 
         self.mail_srv
-            .send_credentials_verification_email(&credentials.email, claims.token())?;
+            .send_credentials_verification_email(&credentials_prelude.email, claims.token())?;
 
         Ok(())
     }
 
     /// Given a valid verification token, performs the signup of the corresponding user.
     #[instrument(skip(self))]
-    pub async fn signup_with_token(&self, token: Token) -> Result<Claims> {
+    pub async fn signup_with_token(
+        &self,
+        token: Token,
+        password: Option<Password>,
+    ) -> Result<Claims> {
         let claims = self.token_srv.claims(token).await?;
 
         if !claims.payload().kind().is_verification() {
             return Error::WrongToken.into();
         }
 
-        let mut user = self
+        let mut credentials_prelude = self
             .cache
             .find(claims.payload().subject())
             .await
-            .map(Credentials::into)?;
+            .map(CredentialsPrelude::from)?;
+
+        if credentials_prelude.password.is_none() {
+            credentials_prelude.password = password
+                .map(|password| {
+                    let salt = Salt::with_length(self.hash_length)?;
+                    PasswordHash::with_salt(&password, &salt)
+                })
+                .transpose()?
+        };
+
+        let mut user = Credentials::try_from(credentials_prelude)?.into();
 
         self.token_srv.revoke(&claims).await?;
         self.signup(&mut user).await
@@ -94,7 +119,10 @@ mod test {
             application::test::{
                 new_user_application, EventServiceMock, MailServiceMock, UserRepositoryMock,
             },
-            domain::{Credentials, Email, Password, PasswordHash, Preferences, Salt, User},
+            domain::{
+                Credentials, CredentialsPrelude, Email, Password, PasswordHash, Preferences, Salt,
+                User,
+            },
             error::Error,
         },
     };
@@ -133,7 +161,7 @@ mod test {
         let email = Email::try_from("username@server.domain").unwrap();
         let password = Password::try_from("abcABC123&".to_string()).unwrap();
 
-        let result = user_app.verify_credentials(email, password).await;
+        let result = user_app.verify_credentials(email, Some(password)).await;
         assert!(
             matches!(result, Err(Error::AlreadyExists)),
             "got result = {:?}, want error = {:?}",
@@ -156,7 +184,7 @@ mod test {
         let email = Email::try_from("username@server.domain").unwrap();
         let password = Password::try_from("abcABC123&".to_string()).unwrap();
 
-        let result = user_app.verify_credentials(email, password).await;
+        let result = user_app.verify_credentials(email, Some(password)).await;
         assert!(
             matches!(result, Err(Error::Debug)),
             "got result = {:?}, want error = {:?}",
@@ -196,7 +224,7 @@ mod test {
         let email = Email::try_from("username@server.domain").unwrap();
         let password = Password::try_from("abcABC123&".to_string()).unwrap();
 
-        let result = user_app.verify_credentials(email, password).await;
+        let result = user_app.verify_credentials(email, Some(password)).await;
         assert!(matches!(result, Ok(_)), "{:?}", result,)
     }
 
@@ -258,9 +286,9 @@ mod test {
 
         let password = Password::try_from("abcABC123&".to_string()).unwrap();
         let salt = Salt::with_length(32).unwrap();
-        let credentials = Credentials {
+        let credentials = CredentialsPrelude {
             email: Email::try_from("username@server.domain").unwrap(),
-            password: PasswordHash::with_salt(&password, &salt).unwrap(),
+            password: Some(PasswordHash::with_salt(&password, &salt).unwrap()),
         };
 
         let mut user_app = new_user_application();
@@ -276,7 +304,7 @@ mod test {
         user_app.event_srv = Arc::new(event_srv);
 
         let token = Token::try_from("abc.abc.abc".to_string()).unwrap();
-        let token = user_app.signup_with_token(token).await.unwrap();
+        let token = user_app.signup_with_token(token, None).await.unwrap();
 
         assert_eq!(
             token.payload.kind(),
@@ -309,9 +337,9 @@ mod test {
 
         let password = Password::try_from("abcABC123&".to_string()).unwrap();
         let salt = Salt::with_length(32).unwrap();
-        let credentials = Credentials {
+        let credentials = CredentialsPrelude {
             email: Email::try_from("username@server.domain").unwrap(),
-            password: PasswordHash::with_salt(&password, &salt).unwrap(),
+            password: Some(PasswordHash::with_salt(&password, &salt).unwrap()),
         };
 
         let mut user_app = new_user_application();
@@ -325,7 +353,7 @@ mod test {
         user_app.token_srv = Arc::new(token_srv);
 
         let token = Token::try_from("abc.abc.abc".to_string()).unwrap();
-        let result = user_app.signup_with_token(token).await;
+        let result = user_app.signup_with_token(token, None).await;
         assert!(
             matches!(result, Err(Error::WrongToken)),
             "got result = {:?}, want error = {}",
@@ -357,7 +385,7 @@ mod test {
         user_app.token_srv = Arc::new(token_srv);
 
         let token = Token::try_from("abc.abc.abc".to_string()).unwrap();
-        let result = user_app.signup_with_token(token).await;
+        let result = user_app.signup_with_token(token, None).await;
         assert!(
             matches!(result, Err(Error::Cache(crate::cache::Error::NotFound))),
             "got result = {:?}, want error = {}",

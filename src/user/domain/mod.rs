@@ -17,7 +17,7 @@ pub struct Preferences {
 }
 
 /// Represents a user.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct User {
     pub id: i32,
     pub credentials: Credentials,
@@ -29,7 +29,7 @@ impl From<Credentials> for User {
         Self {
             id: 0,
             credentials,
-            ..Default::default()
+            preferences: Preferences::default(),
         }
     }
 }

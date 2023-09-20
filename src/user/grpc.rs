@@ -1,4 +1,5 @@
 use super::application::MailService;
+use super::domain::Password;
 use super::error::Error;
 use crate::cache::Cache;
 use crate::grpc;
@@ -10,6 +11,7 @@ use crate::token::domain::Token;
 use crate::token::service::TokenService;
 use crate::user::application::{EventService, UserApplication, UserRepository};
 use std::ops::Not;
+use std::str::FromStr;
 use tonic::metadata::errors::InvalidMetadataValue;
 use tonic::{Request, Response, Status};
 
@@ -23,59 +25,12 @@ use proto::user_server::User;
 pub use proto::user_server::UserServer;
 
 // Proto message structs
-use proto::{
-    mfa_request::{Actions, Methods},
-    DeleteRequest, Empty, MfaRequest, ResetRequest, SignupRequest,
-};
+use proto::{mfa_request::Actions, DeleteRequest, Empty, MfaRequest, ResetRequest, SignupRequest};
 
 pub struct UserGrpcService<U, S, T, F, M, B, C> {
     pub user_app: UserApplication<U, S, T, F, M, B, C>,
     pub jwt_header: &'static str,
     pub totp_header: &'static str,
-}
-
-impl<U, S, T, F, M, B, C> UserGrpcService<U, S, T, F, M, B, C>
-where
-    U: 'static + UserRepository + Sync + Send,
-    S: 'static + SecretRepository + Sync + Send,
-    T: 'static + TokenService + Sync + Send,
-    F: 'static + MfaService + Sync + Send,
-    B: 'static + EventService + Sync + Send,
-    M: 'static + MailService + Sync + Send,
-    C: 'static + Cache + Sync + Send,
-{
-    #[instrument(skip(self))]
-    async fn signup_with_token(&self, token: Token) -> Result<Response<Empty>, Status> {
-        let session_token = self
-            .user_app
-            .signup_with_token(token)
-            .await
-            .map_err(Status::from)?;
-
-        let mut res = Response::new(Empty {});
-        let token = session_token.token.as_ref().parse().map_err(on_error!(
-            InvalidMetadataValue as Error,
-            "parsing token to header"
-        ))?;
-
-        res.metadata_mut().append(self.jwt_header, token);
-        Ok(res)
-    }
-
-    #[instrument(skip(self))]
-    async fn signup_with_credentials(
-        &self,
-        request: SignupRequest,
-    ) -> Result<Response<Empty>, Status> {
-        let email = request.email.try_into()?;
-        let password = request.password.try_into()?;
-
-        self.user_app
-            .verify_credentials(email, password)
-            .await
-            .map(|_| Response::new(Empty {}))
-            .map_err(Status::from)
-    }
 }
 
 #[tonic::async_trait]
@@ -91,13 +46,37 @@ where
 {
     #[instrument(skip(self))]
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<Empty>, Status> {
-        let Some(header) = grpc::header(&request, self.jwt_header).map_err(Status::from)? else {
-            let request = request.into_inner();
-            return self.signup_with_credentials(request).await;
-        };
+        let token = grpc::header(&request, self.jwt_header).map_err(Status::from)?;
+        let request = request.into_inner();
 
-        let token = header.try_into().map_err(Status::from)?;
-        self.signup_with_token(token).await
+        let password = Some(request.password)
+            .filter(|s| !s.is_empty())
+            .map(Password::try_from)
+            .transpose()?;
+
+        if let Some(token) = token.map(Token::try_from).transpose()? {
+            let session_token = self
+                .user_app
+                .signup_with_token(token, password)
+                .await
+                .map_err(Status::from)?;
+
+            let mut res = Response::new(Empty {});
+            let token = session_token.token.as_ref().parse().map_err(on_error!(
+                InvalidMetadataValue as Error,
+                "parsing token to header"
+            ))?;
+
+            res.metadata_mut().append(self.jwt_header, token);
+            return Ok(res);
+        }
+
+        let email = request.email.try_into()?;
+        self.user_app
+            .verify_credentials(email, password)
+            .await
+            .map(|_| Response::new(Empty {}))
+            .map_err(Status::from)
     }
 
     #[instrument(skip(self))]
@@ -176,12 +155,7 @@ where
             .transpose()
             .map_err(Status::from)?;
 
-        let method =
-            match Methods::from_i32(request.method).ok_or(Status::invalid_argument("method"))? {
-                Methods::Email => MfaMethod::Email,
-                Methods::TpApp => MfaMethod::TpApp,
-            };
-
+        let method = MfaMethod::from_str(&request.method)?;
         match Actions::from_i32(request.action).ok_or(Status::invalid_argument("action"))? {
             Actions::Enable => {
                 self.user_app

@@ -1,4 +1,5 @@
 pub mod delete;
+// pub mod email_verification;
 pub mod mfa;
 pub mod reset;
 pub mod signup;

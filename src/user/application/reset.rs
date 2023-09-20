@@ -142,7 +142,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn verify_credentials_reset_when_user_does_not_exists_must_fail() {
+    async fn verify_credentials_reset_when_user_does_not_exists() {
         let mut user_repo = UserRepositoryMock::default();
         user_repo.find_by_email_fn = Some(|_: &Email| Err(Error::NotFound));
 

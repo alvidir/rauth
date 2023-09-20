@@ -27,19 +27,8 @@ mod grpc;
 #[cfg(feature = "rest")]
 mod http;
 
-macro_rules! on_error {
-    ($from:ty as $to:ty, $msg:tt) => {
-        |error: $from| -> $to {
-            error!(error = error.to_string(), $msg,);
-            error.into()
-        }
-    };
-    ($to:ty, $msg:tt) => {
-        |error| -> $to {
-            error!(error = error.to_string(), $msg,);
-            <$to>::from(error)
-        }
-    };
-}
+mod macros;
+pub(crate) use macros::*;
 
-pub(crate) use on_error;
+mod command;
+pub use command::*;

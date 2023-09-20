@@ -10,7 +10,7 @@ const PATTERN: &str = r"^[a-zA-Z0-9+._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,63}$";
 const REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(PATTERN).unwrap());
 
 /// Represents an email with, or without, sufix.
-#[derive(Debug, Default, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Email(String);
 
 impl AsRef<str> for Email {
