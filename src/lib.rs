@@ -29,6 +29,3 @@ mod http;
 
 mod macros;
 pub(crate) use macros::*;
-
-mod command;
-pub use command::*;
