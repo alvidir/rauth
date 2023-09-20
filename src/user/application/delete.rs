@@ -56,6 +56,7 @@ where
         self.secret_repo.delete_by_owner(&user).await?;
         self.user_repo.delete(&user).await?;
 
+        // TODO: implement outbox pattern for events publishment
         self.event_srv.emit_user_deleted(&user).await
     }
 }

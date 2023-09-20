@@ -44,7 +44,7 @@ impl TryInto<TOTP> for Otp {
 
 /// Implements the [MfaService] for the third-party applicaition method.
 pub struct TpAppMethod<S, C> {
-    pub otp_timeout: Duration,
+    pub ack_timeout: Duration,
     pub totp_secret_len: usize,
     pub secret_repo: Arc<S>,
     pub cache: Arc<C>,
@@ -135,7 +135,7 @@ where
     async fn totp_secret(&self, user: &User, len: usize) -> Result<Otp> {
         let otp = Otp::with_length(len)?;
         self.cache
-            .save(&Self::key(user), &otp, self.otp_timeout)
+            .save(&Self::key(user), &otp, self.ack_timeout)
             .await
             .map(|_| otp)
             .map_err(Into::into)

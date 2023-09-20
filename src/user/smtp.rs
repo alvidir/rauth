@@ -1,23 +1,23 @@
+use std::sync::Arc;
+
 use super::{
     application::MailService,
     domain::Email,
     error::{Error, Result},
 };
 use crate::{on_error, smtp::Smtp, token::domain::Token};
-use std::sync::Arc;
 use tera::{Context, Tera};
 
-pub struct UserSmtp<'a, E> {
-    pub mta_mailer: Arc<E>,
-    pub smtp: &'a Smtp<'a>,
-    pub tera: &'a Tera,
+pub struct UserSmtp<'a> {
+    pub smtp: Arc<Smtp<'a>>,
+    pub tera: Arc<Tera>,
     pub verification_subject: &'a str,
     pub verification_template: &'a str,
     pub reset_subject: &'a str,
     pub reset_template: &'a str,
 }
 
-impl<'a, E> MailService for UserSmtp<'a, E> {
+impl<'a> MailService for UserSmtp<'a> {
     #[instrument(skip(self))]
     fn send_credentials_verification_email(&self, email: &Email, token: &Token) -> Result<()> {
         let mut context = Context::new();

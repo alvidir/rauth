@@ -86,19 +86,19 @@
         "tracing-subscriber",
     ]
 
-    # [[bin]]
-    #     name = "grpc"
-    #     path = "src/bin/grpc.rs"
-    #     required-features = [
-    #         "grpc",
-    #         "postgres",
-    #         "rabbitmq",
-    #         "redis-cache",
-    #         "smtp",
-    #         "tracer",
-    #     ]
+[[bin]]
+    name = "grpc"
+    path = "src/bin/grpc.rs"
+    required-features = [
+        "grpc",
+        "postgres",
+        "rabbitmq",
+        "redis-cache",
+        "smtp",
+        "tracer",
+    ]
 
-    # [[bin]]
-    #     name              = "rest"
-    #     path              = "src/bin/rest.rs"
-    #     required-features = ["rest", "tracer"]
+[[bin]]
+    name              = "rest"
+    path              = "src/bin/rest.rs"
+    required-features = ["rest", "tracer"]

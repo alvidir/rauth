@@ -59,7 +59,6 @@ impl Email {
     pub fn username(&self) -> &str {
         self.0
             .split(&[SUFIX_SEPARATOR, DOMAIN_SEPARATOR])
-            .into_iter()
             .next()
             .unwrap_or_default()
     }

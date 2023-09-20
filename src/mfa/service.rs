@@ -18,6 +18,7 @@ pub trait MfaService {
 }
 
 /// Implements the [MfaService] as a mfa method router.
+#[derive(Default)]
 pub struct MultiFactor {
     pub methods: HashMap<MfaMethod, Box<dyn MfaService + Sync + Send>>,
 }

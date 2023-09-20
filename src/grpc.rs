@@ -19,7 +19,7 @@ pub fn header<T>(req: &Request<T>, header: &str) -> Result<Option<String>> {
     };
 
     data.map(|data| data.to_string())
-        .map(|value| Some(value))
+        .map(Some)
         .map_err(on_error!(Error, "parsing header data to str"))
 }
 

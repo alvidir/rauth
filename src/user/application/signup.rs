@@ -17,8 +17,8 @@ where
     B: EventService,
     C: Cache,
 {
-    /// It temporally stores the given credentials in the cache and sends an email with the corresponding verification token
-    /// to be passed as parameter to the signup_with_token mathod.
+    /// It temporally stores the given credentials in the cache and sends an email with the corresponding verification
+    /// token to be passed as parameter to the signup_with_token method.
     #[instrument(skip(self, password))]
     pub async fn verify_credentials(&self, email: Email, password: Option<Password>) -> Result<()> {
         let Err(err) = self.user_repo.find_by_email(&email).await else {
@@ -194,7 +194,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn verify_credentials_must_not_fail() {
+    async fn verify_complete_credentials_must_not_fail() {
         let mut user_repo = UserRepositoryMock::default();
         user_repo.find_by_email_fn = Some(|_: &Email| Err(Error::NotFound));
 
@@ -229,7 +229,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn signup_with_token_must_not_fail() {
+    async fn signup_with_token_and_complete_credentials_must_not_fail() {
         let mut user_repo = UserRepositoryMock::default();
         user_repo.create_fn = Some(|user: &mut User| {
             assert_eq!(
@@ -319,7 +319,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn signup_with_invalid_token_must_fail() {
+    async fn signup_with_invalid_token() {
         let mut token_srv = TokenServiceMock::default();
         token_srv.claims_fn = Some(|token: Token| {
             assert_eq!(token.as_ref(), "abc.abc.abc", "unexpected token");
@@ -363,7 +363,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn signup_with_non_present_token_must_fail() {
+    async fn signup_with_non_present_token() {
         let mut token_srv = TokenServiceMock::default();
         token_srv.claims_fn = Some(|token: Token| {
             assert_eq!(token.as_ref(), "abc.abc.abc", "unexpected token");
@@ -395,7 +395,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn signup_must_not_fail() {
+    async fn signup_with_complete_credentials_must_not_fail() {
         let mut user_repo = UserRepositoryMock::default();
         user_repo.create_fn = Some(|user: &mut User| {
             user.id = 999;

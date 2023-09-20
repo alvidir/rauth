@@ -17,7 +17,7 @@ pub trait MailService {
 }
 
 /// Implements the [MfaService] for the email method.
-pub struct EmailStrategy<M, C> {
+pub struct EmailMethod<M, C> {
     pub otp_timeout: Duration,
     pub otp_length: usize,
     pub mail_srv: Arc<M>,
@@ -25,7 +25,7 @@ pub struct EmailStrategy<M, C> {
 }
 
 #[async_trait]
-impl<M, C> MfaService for EmailStrategy<M, C>
+impl<M, C> MfaService for EmailMethod<M, C>
 where
     M: MailService + Sync + Send,
     C: Cache + Sync + Send,
@@ -71,7 +71,7 @@ where
     }
 }
 
-impl<M, C> EmailStrategy<M, C>
+impl<M, C> EmailMethod<M, C>
 where
     M: MailService + Sync + Send,
     C: Cache + Sync + Send,
@@ -86,7 +86,7 @@ where
     }
 }
 
-impl<M, C> EmailStrategy<M, C> {
+impl<M, C> EmailMethod<M, C> {
     fn key(user: &User) -> String {
         [&user.id.to_string(), "otp"].join("::")
     }

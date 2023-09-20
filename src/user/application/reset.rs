@@ -23,7 +23,7 @@ where
 {
     /// Sends an email with the token to be passed as parameter to the reset_credentials_with_token method.
     #[instrument(skip(self))]
-    pub async fn verify_credentials_reset(&self, email: Email) -> Result<()> {
+    pub async fn confirm_credentials_reset(&self, email: Email) -> Result<()> {
         let user = self.user_repo.find_by_email(&email).await?;
 
         let claims = self
@@ -138,7 +138,7 @@ mod test {
         user_app.mail_srv = Arc::new(mail_srv);
 
         let email = Email::try_from("username@server.domain").unwrap();
-        user_app.verify_credentials_reset(email).await.unwrap();
+        user_app.confirm_credentials_reset(email).await.unwrap();
     }
 
     #[tokio::test]
@@ -157,7 +157,7 @@ mod test {
         user_app.mail_srv = Arc::new(mail_srv);
 
         let email = Email::try_from("username@server.domain").unwrap();
-        let result = user_app.verify_credentials_reset(email).await;
+        let result = user_app.confirm_credentials_reset(email).await;
 
         assert!(
             matches!(result, Err(Error::NotFound)),

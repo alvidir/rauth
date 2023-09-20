@@ -1,22 +1,22 @@
+use std::sync::Arc;
+
 use super::{
     domain::Otp,
     error::{Error, Result},
     strategy::MailService,
 };
 use crate::{on_error, smtp::Smtp, user::domain::Email};
-use std::sync::Arc;
 use tera::{Context, Tera};
 
 /// Implements the [MailService] trait.
-pub struct MfaSmtp<'a, E> {
-    pub mta_mailer: Arc<E>,
-    pub smtp: &'a Smtp<'a>,
-    pub tera: &'a Tera,
+pub struct MfaSmtp<'a> {
+    pub smtp: Arc<Smtp<'a>>,
+    pub tera: Arc<Tera>,
     pub otp_subject: &'a str,
     pub otp_template: &'a str,
 }
 
-impl<'a, E> MailService for MfaSmtp<'a, E> {
+impl<'a> MailService for MfaSmtp<'a> {
     #[instrument(skip(self))]
     fn send_otp_email(&self, email: &Email, otp: &Otp) -> Result<()> {
         let mut context = Context::new();

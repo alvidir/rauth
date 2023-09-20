@@ -60,26 +60,13 @@ pub enum Error {
 }
 
 /// A builder for the [Smtp] struct.
+#[derive(Default)]
 pub struct SmtpBuilder<'a> {
     pub issuer: &'a str,
     pub origin: &'a str,
-    pub templates: &'a str,
     pub transport: &'a str,
     pub username: &'a str,
     pub password: &'a str,
-}
-
-impl<'a> Default for SmtpBuilder<'a> {
-    fn default() -> Self {
-        Self {
-            issuer: "",
-            origin: "",
-            templates: "",
-            transport: "",
-            username: "",
-            password: "",
-        }
-    }
 }
 
 impl<'a> SmtpBuilder<'a> {

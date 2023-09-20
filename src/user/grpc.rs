@@ -46,37 +46,41 @@ where
 {
     #[instrument(skip(self))]
     async fn signup(&self, request: Request<SignupRequest>) -> Result<Response<Empty>, Status> {
-        let token = grpc::header(&request, self.jwt_header).map_err(Status::from)?;
-        let request = request.into_inner();
+        let token = grpc::header(&request, self.jwt_header)
+            .map_err(Status::from)?
+            .map(Token::try_from)
+            .transpose()?;
 
+        let request = request.into_inner();
         let password = Some(request.password)
             .filter(|s| !s.is_empty())
             .map(Password::try_from)
             .transpose()?;
 
-        if let Some(token) = token.map(Token::try_from).transpose()? {
-            let session_token = self
+        let Some(token) = token else {
+            let email = request.email.try_into()?;
+            return self
                 .user_app
-                .signup_with_token(token, password)
+                .verify_credentials(email, password)
                 .await
-                .map_err(Status::from)?;
+                .map(|_| Response::new(Empty {}))
+                .map_err(Status::from);
+        };
 
-            let mut res = Response::new(Empty {});
-            let token = session_token.token.as_ref().parse().map_err(on_error!(
-                InvalidMetadataValue as Error,
-                "parsing token to header"
-            ))?;
-
-            res.metadata_mut().append(self.jwt_header, token);
-            return Ok(res);
-        }
-
-        let email = request.email.try_into()?;
-        self.user_app
-            .verify_credentials(email, password)
+        let session_token = self
+            .user_app
+            .signup_with_token(token, password)
             .await
-            .map(|_| Response::new(Empty {}))
-            .map_err(Status::from)
+            .map_err(Status::from)?;
+
+        let mut res = Response::new(Empty {});
+        let token = session_token.token.as_ref().parse().map_err(on_error!(
+            InvalidMetadataValue as Error,
+            "parsing token to header"
+        ))?;
+
+        res.metadata_mut().append(self.jwt_header, token);
+        Ok(res)
     }
 
     #[instrument(skip(self))]
@@ -87,7 +91,7 @@ where
 
             return self
                 .user_app
-                .verify_credentials_reset(email)
+                .confirm_credentials_reset(email)
                 .await
                 .map(|_| Response::new(Empty {}))
                 .map_err(Status::from);
