@@ -112,7 +112,7 @@ where
 #[cfg(test)]
 mod test {
     use crate::{
-        cache::{test::IN_MEMORY_CACHE, Cache},
+        cache::Cache,
         token::{
             domain::{Claims, Payload, Token, TokenKind},
             service::test::TokenServiceMock,
@@ -135,11 +135,7 @@ mod test {
     async fn verify_credentials_when_user_already_exists() {
         let mut user_repo = UserRepositoryMock::default();
         user_repo.find_by_email_fn = Some(|email: &Email| {
-            assert_eq!(
-                email.as_ref(),
-                "username+verify_credentials_when_user_already_exists@server.domain",
-                "unexpected email"
-            );
+            assert_eq!(email.as_ref(), "username@server.domain", "unexpected email");
 
             let password = Password::try_from("abcABC123&".to_string()).unwrap();
             let salt = Salt::with_length(32).unwrap();
@@ -164,9 +160,7 @@ mod test {
         user_app.user_repo = Arc::new(user_repo);
         user_app.mail_srv = Arc::new(mail_srv);
 
-        let email =
-            Email::try_from("username+verify_credentials_when_user_already_exists@server.domain")
-                .unwrap();
+        let email = Email::try_from("username@server.domain").unwrap();
         let password = Password::try_from("abcABC123&".to_string()).unwrap();
 
         let result = user_app.verify_credentials(email, Some(password)).await;
@@ -189,9 +183,7 @@ mod test {
         let mut user_app = new_user_application();
         user_app.mail_srv = Arc::new(mail_srv);
 
-        let email =
-            Email::try_from("username+verify_credentials_when_repository_fails@server.domain")
-                .unwrap();
+        let email = Email::try_from("username@server.domain").unwrap();
         let password = Password::try_from("abcABC123&".to_string()).unwrap();
 
         let result = user_app.verify_credentials(email, Some(password)).await;
@@ -220,11 +212,7 @@ mod test {
 
         let mut mail_srv = MailServiceMock::default();
         mail_srv.send_credentials_verification_email_fn = Some(|email: &Email, token: &Token| {
-            assert_eq!(
-                email.as_ref(),
-                "username+verify_complete_credentials_must_not_fail@server.domain",
-                "unexpected email"
-            );
+            assert_eq!(email.as_ref(), "username@server.domain", "unexpected email");
             assert_eq!(token.as_ref(), "abc.abc.abc", "unexpected token");
             Ok(())
         });
@@ -235,9 +223,7 @@ mod test {
         user_app.token_srv = Arc::new(token_srv);
         user_app.mail_srv = Arc::new(mail_srv);
 
-        let email =
-            Email::try_from("username+verify_complete_credentials_must_not_fail@server.domain")
-                .unwrap();
+        let email = Email::try_from("username@server.domain").unwrap();
 
         let password = Password::try_from("abcABC123&".to_string()).unwrap();
 
@@ -245,7 +231,9 @@ mod test {
         assert!(matches!(result, Ok(_)), "{:?}", result,);
 
         assert!(
-            (&*IN_MEMORY_CACHE)
+            user_app
+                .cache
+                .values
                 .lock()
                 .unwrap()
                 .values()
@@ -254,8 +242,7 @@ mod test {
                 .any(|value| {
                     let credentials = serde_json::from_str::<CredentialsPrelude>(&value).unwrap();
                     let actual_password = Password::try_from("abcABC123&".to_string()).unwrap();
-                    credentials.email.as_ref()
-                        == "username+verify_complete_credentials_must_not_fail@server.domain"
+                    credentials.email.as_ref() == "username@server.domain"
                         && credentials
                             .password
                             .map(|password| password.matches(&actual_password).unwrap())
@@ -282,11 +269,7 @@ mod test {
 
         let mut mail_srv = MailServiceMock::default();
         mail_srv.send_credentials_verification_email_fn = Some(|email: &Email, token: &Token| {
-            assert_eq!(
-                email.as_ref(),
-                "username+verify_uncomplete_credentials@server.domain",
-                "unexpected email"
-            );
+            assert_eq!(email.as_ref(), "username@server.domain", "unexpected email");
             assert_eq!(token.as_ref(), "abc.abc.abc", "unexpected token");
             Ok(())
         });
@@ -297,14 +280,15 @@ mod test {
         user_app.token_srv = Arc::new(token_srv);
         user_app.mail_srv = Arc::new(mail_srv);
 
-        let email =
-            Email::try_from("username+verify_uncomplete_credentials@server.domain").unwrap();
+        let email = Email::try_from("username@server.domain").unwrap();
 
         let result = user_app.verify_credentials(email, None).await;
         assert!(matches!(result, Ok(_)), "{:?}", result,);
 
         assert!(
-            (&*IN_MEMORY_CACHE)
+            user_app
+                .cache
+                .values
                 .lock()
                 .unwrap()
                 .values()
@@ -312,8 +296,7 @@ mod test {
                 .map(ToString::to_string)
                 .any(|value| {
                     let credentials = serde_json::from_str::<CredentialsPrelude>(&value).unwrap();
-                    credentials.email.as_ref()
-                        == "username+verify_uncomplete_credentials@server.domain"
+                    credentials.email.as_ref() == "username@server.domain"
                         && credentials.password.is_none()
                 }),
             "no credentials cached"
@@ -326,7 +309,7 @@ mod test {
         user_repo.create_fn = Some(|user: &mut User| {
             assert_eq!(
                 user.credentials.email.as_ref(),
-                "username+signup_with_token_and_complete_credentials_must_not_fail@server.domain",
+                "username@server.domain",
                 "unexpected email"
             );
 
@@ -347,7 +330,7 @@ mod test {
             Ok(Claims {
                 token,
                 payload: Payload::new(TokenKind::Verification, Duration::from_secs(60))
-                    .with_subject("signup_with_token_and_complete_credentials_must_not_fail"),
+                    .with_subject("signup"),
             })
         });
 
@@ -370,7 +353,7 @@ mod test {
             );
             assert_eq!(
                 claims.payload().subject(),
-                "signup_with_token_and_complete_credentials_must_not_fail",
+                "signup",
                 "unexpected token subject"
             );
             Ok(())
@@ -379,21 +362,14 @@ mod test {
         let password = Password::try_from("abcABC123&".to_string()).unwrap();
         let salt = Salt::with_length(32).unwrap();
         let credentials = CredentialsPrelude {
-            email: Email::try_from(
-                "username+signup_with_token_and_complete_credentials_must_not_fail@server.domain",
-            )
-            .unwrap(),
+            email: Email::try_from("username@server.domain").unwrap(),
             password: Some(PasswordHash::with_salt(&password, &salt).unwrap()),
         };
 
         let mut user_app = new_user_application();
         user_app
             .cache
-            .save(
-                "signup_with_token_and_complete_credentials_must_not_fail",
-                credentials,
-                Duration::from_secs(60),
-            )
+            .save("signup", credentials, Duration::from_secs(60))
             .await
             .unwrap();
 
@@ -423,7 +399,7 @@ mod test {
         user_repo.create_fn = Some(|user: &mut User| {
             assert_eq!(
                 user.credentials.email.as_ref(),
-                "username+signup_with_token_and_uncomplete_credentials_must_not_fail@server.domain",
+                "username@server.domain",
                 "unexpected email"
             );
 
@@ -444,7 +420,7 @@ mod test {
             Ok(Claims {
                 token,
                 payload: Payload::new(TokenKind::Verification, Duration::from_secs(60))
-                    .with_subject("signup_with_token_and_uncomplete_credentials_must_not_fail"),
+                    .with_subject("signup"),
             })
         });
 
@@ -467,28 +443,21 @@ mod test {
             );
             assert_eq!(
                 claims.payload().subject(),
-                "signup_with_token_and_uncomplete_credentials_must_not_fail",
+                "signup",
                 "unexpected token subject"
             );
             Ok(())
         });
 
         let credentials = CredentialsPrelude {
-            email: Email::try_from(
-                "username+signup_with_token_and_uncomplete_credentials_must_not_fail@server.domain",
-            )
-            .unwrap(),
+            email: Email::try_from("username@server.domain").unwrap(),
             password: None,
         };
 
         let mut user_app = new_user_application();
         user_app
             .cache
-            .save(
-                "signup_with_token_and_uncomplete_credentials_must_not_fail",
-                credentials,
-                Duration::from_secs(60),
-            )
+            .save("signup", credentials, Duration::from_secs(60))
             .await
             .unwrap();
 
@@ -525,26 +494,19 @@ mod test {
             Ok(Claims {
                 token,
                 payload: Payload::new(TokenKind::Verification, Duration::from_secs(60))
-                    .with_subject("signup_with_token_and_uncomplete_credentials_without_password"),
+                    .with_subject("signup"),
             })
         });
 
         let credentials = CredentialsPrelude {
-            email: Email::try_from(
-                "username+signup_with_token_and_uncomplete_credentials_must_not_fail@server.domain",
-            )
-            .unwrap(),
+            email: Email::try_from("username@server.domain").unwrap(),
             password: None,
         };
 
         let mut user_app = new_user_application();
         user_app
             .cache
-            .save(
-                "signup_with_token_and_uncomplete_credentials_without_password",
-                credentials,
-                Duration::from_secs(60),
-            )
+            .save("signup", credentials, Duration::from_secs(60))
             .await
             .unwrap();
 
@@ -570,7 +532,7 @@ mod test {
             Ok(Claims {
                 token,
                 payload: Payload::new(TokenKind::Session, Duration::from_secs(60))
-                    .with_subject("signup_with_invalid_token"),
+                    .with_subject("signup"),
             })
         });
 
@@ -582,18 +544,14 @@ mod test {
         let password = Password::try_from("abcABC123&".to_string()).unwrap();
         let salt = Salt::with_length(32).unwrap();
         let credentials = CredentialsPrelude {
-            email: Email::try_from("username+signup_with_invalid_token@server.domain").unwrap(),
+            email: Email::try_from("username@server.domain").unwrap(),
             password: Some(PasswordHash::with_salt(&password, &salt).unwrap()),
         };
 
         let mut user_app = new_user_application();
         user_app
             .cache
-            .save(
-                "signup_with_invalid_token",
-                credentials,
-                Duration::from_secs(60),
-            )
+            .save("signup", credentials, Duration::from_secs(60))
             .await
             .unwrap();
 
@@ -618,7 +576,7 @@ mod test {
             Ok(Claims {
                 token,
                 payload: Payload::new(TokenKind::Verification, Duration::from_secs(60))
-                    .with_subject("signup_with_non_present_token"),
+                    .with_subject("signup"),
             })
         });
 
@@ -670,10 +628,7 @@ mod test {
         user_app.token_srv = Arc::new(token_srv);
         user_app.event_srv = Arc::new(event_srv);
 
-        let email = Email::try_from(
-            "username+signup_with_complete_credentials_must_not_fail@server.domain",
-        )
-        .unwrap();
+        let email = Email::try_from("username@server.domain").unwrap();
         let password = Password::try_from("abcABC123&".to_string()).unwrap();
         let salt = Salt::with_length(32).unwrap();
         let credentials = Credentials {

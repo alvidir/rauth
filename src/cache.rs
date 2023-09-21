@@ -144,7 +144,6 @@ pub mod test {
     use super::{Cache, Error, Result};
     use crate::on_error;
     use async_trait::async_trait;
-    use once_cell::sync::Lazy;
     use serde::{de::DeserializeOwned, Serialize};
     use std::fmt::Debug;
     use std::time::Duration;
@@ -153,12 +152,18 @@ pub mod test {
         sync::{Arc, Mutex},
     };
 
-    pub static IN_MEMORY_CACHE: Lazy<Arc<Mutex<HashMap<String, String>>>> =
-        Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
-
     /// In memory implementation of [`Cache`].
-    #[derive(Default)]
-    pub struct InMemoryCache;
+    pub struct InMemoryCache {
+        pub values: Arc<Mutex<HashMap<String, String>>>,
+    }
+
+    impl Default for InMemoryCache {
+        fn default() -> Self {
+            Self {
+                values: Arc::new(Mutex::new(HashMap::new())),
+            }
+        }
+    }
 
     #[async_trait]
     impl Cache for InMemoryCache {
@@ -166,7 +171,8 @@ pub mod test {
         where
             T: DeserializeOwned,
         {
-            let Some(data) = IN_MEMORY_CACHE
+            let Some(data) = self
+                .values
                 .lock()
                 .unwrap()
                 .get(key)
@@ -185,16 +191,13 @@ pub mod test {
             let data = serde_json::to_string(&value)
                 .map_err(on_error!(Error, "serializing data to json"))?;
 
-            IN_MEMORY_CACHE
-                .lock()
-                .unwrap()
-                .insert(key.to_string(), data);
+            self.values.lock().unwrap().insert(key.to_string(), data);
 
             Ok(())
         }
 
         async fn delete(&self, key: &str) -> Result<()> {
-            IN_MEMORY_CACHE.lock().unwrap().remove(key);
+            self.values.lock().unwrap().remove(key);
             Ok(())
         }
     }
