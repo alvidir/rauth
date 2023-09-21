@@ -25,7 +25,7 @@ impl TryFrom<PostgresSecretRow> for Secret {
     fn try_from(value: PostgresSecretRow) -> Result<Self> {
         Ok(Secret {
             id: value.0,
-            owner: value.1.into(),
+            owner: value.1,
             kind: SecretKind::from_str(&value.2)
                 .map_err(on_error!(Error, "converting string into SecretKind"))?,
             data: value.3.as_bytes().to_vec(),

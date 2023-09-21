@@ -7,7 +7,7 @@ const DOMAIN_SEPARATOR: char = '@';
 const SUFIX_SEPARATOR: char = '+';
 
 const PATTERN: &str = r"^[a-zA-Z0-9+._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,63}$";
-const REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(PATTERN).unwrap());
+static REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(PATTERN).unwrap());
 
 /// Represents an email with, or without, sufix.
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]

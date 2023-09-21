@@ -68,7 +68,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
             transport: &smtp::SMTP_TRANSPORT,
             username: &smtp::SMTP_USERNAME,
             password: &smtp::SMTP_PASSWORD,
-            ..Default::default()
         }
         .build()?,
     );

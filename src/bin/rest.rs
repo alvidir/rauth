@@ -3,6 +3,7 @@ extern crate tracing;
 
 use actix_web::web::Data;
 use actix_web::{middleware, App, HttpServer};
+use jsonwebtoken::{DecodingKey, EncodingKey};
 use rauth::cache::RedisCache;
 use rauth::{
     config, redis, session::rest::SessionRestService, token::service::JsonWebTokenService, tracer,
@@ -23,13 +24,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
         pool: &redis::REDIS_POOL,
     });
 
-    let token_srv = JsonWebTokenService {
-        timeout: Duration::from_secs(*config::TOKEN_TIMEOUT),
+    let token_srv = Arc::new(JsonWebTokenService {
+        session_timeout: Duration::from_secs(*config::TOKEN_TIMEOUT),
+        verification_timeout: Duration::from_secs(*config::TOKEN_TIMEOUT),
+        reset_timeout: Duration::from_secs(*config::TOKEN_TIMEOUT),
         issuer: &config::TOKEN_ISSUER,
-        private_key: &config::JWT_SECRET,
-        public_key: &config::JWT_PUBLIC,
-        cache: cache.clone(),
-    };
+        encode: EncodingKey::from_ec_pem(&config::JWT_SECRET)?,
+        decode: DecodingKey::from_ec_pem(&config::JWT_PUBLIC)?,
+        cache,
+    });
 
     let session_server = Arc::new(SessionRestService {
         token_srv,

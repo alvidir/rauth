@@ -6,6 +6,9 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+const PATTERN: &str = r"^(?:[\w-]*\.){2}[\w-]*$";
+static REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(PATTERN).unwrap());
+
 /// Represents the kind of a token.
 #[derive(Debug, Hash, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(test, derive(strum_macros::EnumIter))]
@@ -145,7 +148,7 @@ impl TryFrom<String> for Token {
     type Error = Error;
 
     fn try_from(token: String) -> Result<Self> {
-        Self::REGEX
+        REGEX
             .is_match(&token)
             .then_some(Self(token))
             .ok_or(Error::NotAToken)
@@ -156,11 +159,6 @@ impl AsRef<str> for Token {
     fn as_ref(&self) -> &str {
         &self.0
     }
-}
-
-impl Token {
-    const PATTERN: &str = r"^(?:[\w-]*\.){2}[\w-]*$";
-    const REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(Self::PATTERN).unwrap());
 }
 
 /// Represents a token and its corresponding payload, containing the claims.
