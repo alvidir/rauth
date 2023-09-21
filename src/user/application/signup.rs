@@ -1,3 +1,5 @@
+use futures::join;
+
 use super::{EventService, MailService, UserApplication, UserRepository};
 use crate::cache::Cache;
 use crate::mfa::service::MfaService;
@@ -91,14 +93,23 @@ where
 
         let mut user = Credentials::try_from(credentials_prelude)?.into();
 
-        self.token_srv.revoke(&claims).await?;
-        self.signup(&mut user).await
+        let (revoke, delete, claims) = join!(
+            self.token_srv.revoke(&claims),
+            self.cache.delete(claims.payload().subject()),
+            self.signup(&mut user)
+        );
+
+        revoke
+            .map_err(Error::from)
+            .and(delete.map_err(Into::into))
+            .and(claims)
     }
 
     /// Performs the signup for the given user.
     #[instrument(skip(self))]
     pub async fn signup(&self, user: &mut User) -> Result<Claims> {
         self.user_repo.create(user).await?;
+
         // TODO: implement outbox pattern for events publishment
         self.event_srv.emit_user_created(user).await?;
 
