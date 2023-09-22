@@ -1,4 +1,5 @@
 use super::error::{Error, Result};
+use crate::on_error;
 use serde::Serialize;
 use std::{
     collections::hash_map::DefaultHasher,
@@ -25,7 +26,8 @@ impl Event {
     where
         T: Serialize,
     {
-        let payload = serde_json::to_string(&value).map_err(Error::from)?;
+        let payload = serde_json::to_string(&value)
+            .map_err(on_error!(Error, "serializing data into event payload"))?;
 
         let mut hasher = DefaultHasher::new();
         payload.hash(&mut hasher);
