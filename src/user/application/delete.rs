@@ -6,9 +6,9 @@ use crate::on_error;
 use crate::secret::application::SecretRepository;
 use crate::token::domain::Token;
 use crate::token::service::TokenService;
-use crate::user::domain::Password;
+use crate::user::domain::{Password, UserID};
 use crate::user::error::{Error, Result};
-use std::num::ParseIntError;
+use std::str::FromStr;
 
 impl<U, S, T, F, M, B, C> UserApplication<U, S, T, F, M, B, C>
 where
@@ -33,9 +33,9 @@ where
             return Error::WrongToken.into();
         }
 
-        let user_id = claims.payload().sub.parse().map_err(on_error!(
-            ParseIntError as Error,
-            "parsing token subject to user id"
+        let user_id = UserID::from_str(claims.payload().subject()).map_err(on_error!(
+            uuid::Error as Error,
+            "parsing token subject into user id"
         ))?;
 
         self.delete(user_id, password, otp).await?;
@@ -44,7 +44,12 @@ where
 
     /// Given a valid user ID and passwords, performs the deletion of the corresponding user.
     #[instrument(skip(self, password, otp))]
-    pub async fn delete(&self, user_id: i32, password: Password, otp: Option<Otp>) -> Result<()> {
+    pub async fn delete(
+        &self,
+        user_id: UserID,
+        password: Password,
+        otp: Option<Otp>,
+    ) -> Result<()> {
         let user = self.user_repo.find(user_id).await?;
 
         if !user.password_matches(&password)? {

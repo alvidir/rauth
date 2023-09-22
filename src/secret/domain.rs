@@ -1,4 +1,4 @@
-use crate::user::domain::User;
+use crate::user::domain::{User, UserID};
 
 #[derive(
     Debug, Clone, Copy, Serialize, Deserialize, strum_macros::EnumString, strum_macros::AsRefStr,
@@ -12,8 +12,7 @@ pub enum SecretKind {
 /// Represent some sensitive data that cannot be updated.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Secret {
-    pub id: i32,
-    pub owner: i32,
+    pub owner: UserID,
     pub kind: SecretKind,
     pub(crate) data: Vec<u8>, // read-only data
 }
@@ -21,7 +20,6 @@ pub struct Secret {
 impl Secret {
     pub fn new(kind: SecretKind, owner: &User, data: &[u8]) -> Self {
         Secret {
-            id: Default::default(),
             owner: owner.id,
             kind,
             data: data.to_vec(),

@@ -134,13 +134,13 @@ mod test {
             },
             domain::{
                 Credentials, CredentialsPrelude, Email, Password, PasswordHash, Preferences, Salt,
-                User,
+                User, UserID,
             },
             error::Error,
         },
     };
-    use std::sync::Arc;
     use std::time::Duration;
+    use std::{str::FromStr, sync::Arc};
 
     #[tokio::test]
     async fn verify_credentials_when_user_already_exists() {
@@ -152,7 +152,7 @@ mod test {
             let salt = Salt::with_length(32).unwrap();
 
             Ok(User {
-                id: 999,
+                id: UserID::new(),
                 preferences: Preferences::default(),
                 credentials: Credentials {
                     email: email.clone(),
@@ -317,22 +317,18 @@ mod test {
     #[tokio::test]
     async fn signup_with_token_and_complete_credentials_must_not_fail() {
         let mut user_repo = UserRepositoryMock::default();
-        user_repo.create_fn = Some(|user: &mut User| {
+        user_repo.create_fn = Some(|user: &User| {
             assert_eq!(
                 user.credentials.email.as_ref(),
                 "username@server.domain",
                 "unexpected email"
             );
 
-            user.id = 999;
             Ok(())
         });
 
         let mut event_srv: EventServiceMock = Default::default();
-        event_srv.emit_user_created_fn = Some(|user: &User| {
-            assert_eq!(user.id, 999, "unexpected user id");
-            Ok(())
-        });
+        event_srv.emit_user_created_fn = Some(|_: &User| Ok(()));
 
         let mut token_srv = TokenServiceMock::default();
         token_srv.claims_fn = Some(|token: Token| {
@@ -347,7 +343,6 @@ mod test {
 
         token_srv.issue_fn = Some(|kind: TokenKind, sub: &str| {
             assert_eq!(kind, TokenKind::Session, "unexpected token kind");
-            assert_eq!(sub, "999", "unexpected token subject");
 
             Ok(Claims {
                 token: "123.123.123".to_string().try_into().unwrap(),
@@ -397,32 +392,23 @@ mod test {
             TokenKind::Session,
             "expected token of the session kind"
         );
-        assert_eq!(
-            token.payload.subject(),
-            "999",
-            "expected user id in token subject"
-        );
     }
 
     #[tokio::test]
     async fn signup_with_token_and_uncomplete_credentials_must_not_fail() {
         let mut user_repo = UserRepositoryMock::default();
-        user_repo.create_fn = Some(|user: &mut User| {
+        user_repo.create_fn = Some(|user: &User| {
             assert_eq!(
                 user.credentials.email.as_ref(),
                 "username@server.domain",
                 "unexpected email"
             );
 
-            user.id = 999;
             Ok(())
         });
 
         let mut event_srv: EventServiceMock = Default::default();
-        event_srv.emit_user_created_fn = Some(|user: &User| {
-            assert_eq!(user.id, 999, "unexpected user id");
-            Ok(())
-        });
+        event_srv.emit_user_created_fn = Some(|_: &User| Ok(()));
 
         let mut token_srv = TokenServiceMock::default();
         token_srv.claims_fn = Some(|token: Token| {
@@ -437,7 +423,6 @@ mod test {
 
         token_srv.issue_fn = Some(|kind: TokenKind, sub: &str| {
             assert_eq!(kind, TokenKind::Session, "unexpected token kind");
-            assert_eq!(sub, "999", "unexpected token subject");
 
             Ok(Claims {
                 token: "123.123.123".to_string().try_into().unwrap(),
@@ -489,11 +474,6 @@ mod test {
             TokenKind::Session,
             "expected token of the session kind"
         );
-        assert_eq!(
-            token.payload.subject(),
-            "999",
-            "expected user id in token subject"
-        );
     }
 
     #[tokio::test]
@@ -536,7 +516,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn signup_with_invalid_token() {
+    async fn signup_with_token_when_invalid_token() {
         let mut token_srv = TokenServiceMock::default();
         token_srv.claims_fn = Some(|token: Token| {
             assert_eq!(token.as_ref(), "abc.abc.abc", "unexpected token");
@@ -580,7 +560,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn signup_with_non_present_token() {
+    async fn signup_with_token_when_non_present_token() {
         let mut token_srv = TokenServiceMock::default();
         token_srv.claims_fn = Some(|token: Token| {
             assert_eq!(token.as_ref(), "abc.abc.abc", "unexpected token");
@@ -612,20 +592,26 @@ mod test {
     }
 
     #[tokio::test]
-    async fn signup_with_complete_credentials_must_not_fail() {
+    async fn signup_must_not_fail() {
         let mut user_repo = UserRepositoryMock::default();
-        user_repo.create_fn = Some(|user: &mut User| {
-            user.id = 999;
+        user_repo.create_fn = Some(|user: &User| {
+            assert_eq!(&user.id.to_string(), "bca4ec1c-da63-4d73-bad5-a82fc9853828");
             Ok(())
         });
 
         let mut event_srv: EventServiceMock = Default::default();
-        event_srv.emit_user_created_fn = Some(|_: &User| Ok(()));
+        event_srv.emit_user_created_fn = Some(|user: &User| {
+            assert_eq!(&user.id.to_string(), "bca4ec1c-da63-4d73-bad5-a82fc9853828");
+            Ok(())
+        });
 
         let mut token_srv = TokenServiceMock::default();
         token_srv.issue_fn = Some(|kind: TokenKind, sub: &str| {
             assert_eq!(kind, TokenKind::Session, "unexpected token kind");
-            assert_eq!(sub, "999", "unexpected token subject");
+            assert_eq!(
+                sub, "bca4ec1c-da63-4d73-bad5-a82fc9853828",
+                "unexpected token subject"
+            );
 
             Ok(Claims {
                 token: "abc.abc.abc".to_string().try_into().unwrap(),
@@ -648,14 +634,13 @@ mod test {
         };
 
         let mut user = User {
-            id: 0,
+            id: UserID::from_str("bca4ec1c-da63-4d73-bad5-a82fc9853828").unwrap(),
             credentials,
             preferences: Preferences::default(),
         };
 
         let claims = user_app.signup(&mut user).await.unwrap();
 
-        assert_eq!(user.id, 999);
         assert_eq!(
             claims.payload().kind(),
             TokenKind::Session,

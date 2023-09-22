@@ -3,7 +3,7 @@ pub mod mfa;
 pub mod reset;
 pub mod signup;
 
-use super::domain::{Email, User};
+use super::domain::{Email, User, UserID};
 use super::error::Result;
 use crate::token::domain::Token;
 use async_trait::async_trait;
@@ -11,10 +11,10 @@ use std::sync::Arc;
 
 #[async_trait]
 pub trait UserRepository {
-    async fn find(&self, id: i32) -> Result<User>;
+    async fn find(&self, id: UserID) -> Result<User>;
     async fn find_by_email(&self, email: &Email) -> Result<User>;
     async fn find_by_name(&self, name: &str) -> Result<User>;
-    async fn create(&self, user: &mut User) -> Result<()>;
+    async fn create(&self, user: &User) -> Result<()>;
     async fn save(&self, user: &User) -> Result<()>;
     async fn delete(&self, user: &User) -> Result<()>;
 }
@@ -50,16 +50,16 @@ mod test {
         secret::application::test::SecretRepositoryMock,
         token::{domain::Token, service::test::TokenServiceMock},
         user::{
-            domain::{Email, User},
+            domain::{Email, User, UserID},
             error::{Error, Result},
         },
     };
     use async_trait::async_trait;
 
-    type FindFn = fn(id: i32) -> Result<User>;
+    type FindFn = fn(id: UserID) -> Result<User>;
     type FindByEmailFn = fn(email: &Email) -> Result<User>;
     type FindByNameFn = fn(name: &str) -> Result<User>;
-    type CreateFn = fn(user: &mut User) -> Result<()>;
+    type CreateFn = fn(user: &User) -> Result<()>;
     type SaveFn = fn(user: &User) -> Result<()>;
     type DeleteFn = fn(user: &User) -> Result<()>;
 
@@ -96,7 +96,7 @@ mod test {
 
     #[async_trait]
     impl UserRepository for UserRepositoryMock {
-        async fn find(&self, id: i32) -> Result<User> {
+        async fn find(&self, id: UserID) -> Result<User> {
             if let Some(find_fn) = self.find_fn {
                 return find_fn(id);
             }
@@ -120,7 +120,7 @@ mod test {
             Err(Error::Debug)
         }
 
-        async fn create(&self, user: &mut User) -> Result<()> {
+        async fn create(&self, user: &User) -> Result<()> {
             if let Some(create_fn) = self.create_fn {
                 return create_fn(user);
             }

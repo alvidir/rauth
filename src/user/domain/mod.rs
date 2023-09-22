@@ -9,6 +9,58 @@ pub use credentials::*;
 
 use super::error::Result;
 use crate::mfa::domain::MfaMethod;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::str::FromStr;
+use uuid::Uuid;
+
+/// Represents the universal unique id of a user.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct UserID(
+    #[serde(
+        serialize_with = "uuid_as_string",
+        deserialize_with = "uuid_from_string"
+    )]
+    Uuid,
+);
+
+fn uuid_as_string<S>(uuid: &Uuid, serializer: S) -> std::result::Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str(&uuid.to_string())
+}
+
+fn uuid_from_string<'de, D>(deserializer: D) -> std::result::Result<Uuid, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde::de::Error;
+
+    let uuid = String::deserialize(deserializer)?;
+    Uuid::from_str(&uuid)
+        .map_err(|err| err.to_string())
+        .map_err(Error::custom)
+}
+
+impl FromStr for UserID {
+    type Err = uuid::Error;
+
+    fn from_str(uuid: &str) -> std::result::Result<Self, Self::Err> {
+        Uuid::from_str(uuid).map(Self)
+    }
+}
+
+impl ToString for UserID {
+    fn to_string(&self) -> String {
+        self.0.to_string()
+    }
+}
+
+impl UserID {
+    pub fn new() -> Self {
+        Self(uuid::Uuid::new_v4())
+    }
+}
 
 /// Represents the preferences of a user.
 #[derive(Debug, Default)]
@@ -19,7 +71,7 @@ pub struct Preferences {
 /// Represents a user.
 #[derive(Debug)]
 pub struct User {
-    pub id: i32,
+    pub id: UserID,
     pub credentials: Credentials,
     pub preferences: Preferences,
 }
@@ -27,7 +79,7 @@ pub struct User {
 impl From<Credentials> for User {
     fn from(credentials: Credentials) -> Self {
         Self {
-            id: 0,
+            id: UserID::new(),
             credentials,
             preferences: Preferences::default(),
         }

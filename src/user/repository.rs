@@ -1,4 +1,4 @@
-use super::domain::{Credentials, Email, PasswordHash, Preferences};
+use super::domain::{Credentials, Email, PasswordHash, Preferences, UserID};
 use super::error::{Error, Result};
 use super::{application::UserRepository, domain::User};
 use crate::base64;
@@ -14,18 +14,18 @@ use sqlx::postgres::PgPool;
 use std::str::FromStr;
 
 const QUERY_INSERT_USER: &str =
-    "INSERT INTO users (name, email, actual_email, password, mfa_method) VALUES ($1, $2, $3, $4, $5) RETURNING id";
-const QUERY_FIND_USER: &str = "SELECT id, email, password, mfa_method FROM users WHERE id = $1";
+    "INSERT INTO users (uuid, name, email, actual_email, password, mfa_method) VALUES ($1, $2, $3, $4, $5, $6)";
+const QUERY_FIND_USER: &str = "SELECT uuid, email, password, mfa_method FROM users WHERE uuid = $1";
 const QUERY_FIND_USER_BY_EMAIL: &str =
-    "SELECT id, email, password, mfa_method FROM users WHERE email = $1 OR actual_email = $1";
+    "SELECT uuid, email, password, mfa_method FROM users WHERE email = $1 OR actual_email = $1";
 const QUERY_FIND_USER_BY_NAME: &str =
-    "SELECT id, email, password, mfa_method FROM users WHERE name = $1";
+    "SELECT uuid, email, password, mfa_method FROM users WHERE name = $1";
 const QUERY_UPDATE_USER: &str =
-    "UPDATE users SET name = $1, email = $2, actual_email = $3, password = $4, mfa_method = $5 WHERE id = $6";
-const QUERY_DELETE_USER: &str = "DELETE FROM users WHERE id = $1";
+    "UPDATE users SET name = $1, email = $2, actual_email = $3, password = $4, mfa_method = $5 WHERE uuid = $6";
+const QUERY_DELETE_USER: &str = "DELETE FROM users WHERE uuid = $1";
 
-// id, email, password, mfa_method
-type SelectUserRow = (i32, String, String, Option<String>);
+// uuid, email, password, mfa_method
+type SelectUserRow = (String, String, String, Option<String>);
 
 pub struct PostgresUserRepository<'a> {
     pub pool: &'a PgPool,
@@ -34,7 +34,7 @@ pub struct PostgresUserRepository<'a> {
 impl<'a> PostgresUserRepository<'a> {
     fn construct(row: SelectUserRow, salt: Secret) -> Result<User> {
         Ok(User {
-            id: row.0,
+            id: UserID::from_str(&row.0)?,
             credentials: Credentials {
                 email: row.1.try_into()?,
                 password: PasswordHash {
@@ -56,9 +56,9 @@ impl<'a> PostgresUserRepository<'a> {
 
 #[async_trait]
 impl<'a> UserRepository for PostgresUserRepository<'a> {
-    async fn find(&self, user_id: i32) -> Result<User> {
+    async fn find(&self, user_id: UserID) -> Result<User> {
         let select_user = sqlx::query_as(QUERY_FIND_USER)
-            .bind(user_id)
+            .bind(user_id.to_string())
             .fetch_one(self.pool);
 
         let (secret_result, user_result) = join!(
@@ -86,7 +86,7 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
 
         let salt_secret = PostgresSecretRepository::find_by_owner_and_kind(
             self.pool,
-            user_row.0,
+            UserID::from_str(&user_row.0)?,
             SecretKind::Salt,
         )
         .await?;
@@ -105,7 +105,7 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
 
         let salt_secret = PostgresSecretRepository::find_by_owner_and_kind(
             self.pool,
-            user_row.0,
+            UserID::from_str(&user_row.0)?,
             SecretKind::Salt,
         )
         .await?;
@@ -113,14 +113,15 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
         Self::construct(user_row, salt_secret)
     }
 
-    async fn create(&self, user: &mut User) -> Result<()> {
+    async fn create(&self, user: &User) -> Result<()> {
         let mut tx = self
             .pool
             .begin()
             .await
             .map_err(on_error!(Error, "starting postgres transaction"))?;
 
-        let (user_id,) = sqlx::query_as(QUERY_INSERT_USER)
+        sqlx::query(QUERY_INSERT_USER)
+            .bind(user.id.to_string())
             .bind(user.credentials.email.username())
             .bind(user.credentials.email.as_ref())
             .bind(user.credentials.email.actual_email().as_ref())
@@ -147,7 +148,6 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
             .await
             .map_err(on_error!(Error, "commiting postgres transaction"))?;
 
-        user.id = user_id;
         Ok(())
     }
 
@@ -163,7 +163,7 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
                     .as_ref()
                     .map(ToString::to_string),
             )
-            .bind(user.id)
+            .bind(user.id.to_string())
             .execute(self.pool)
             .await
             .map_err(on_error!(Error, "performing update user query on postgres"))?;
@@ -174,7 +174,7 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
 
     async fn delete(&self, user: &User) -> Result<()> {
         sqlx::query(QUERY_DELETE_USER)
-            .bind(user.id)
+            .bind(user.id.to_string())
             .execute(self.pool)
             .await
             .map_err(on_error!(Error, "performing delete query on postgres"))?;

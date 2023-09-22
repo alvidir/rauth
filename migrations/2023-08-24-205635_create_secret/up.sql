@@ -3,14 +3,14 @@ CREATE TYPE IF NOT EXISTS SECRET AS ENUM ('otp', 'salt');
 CREATE TABLE IF NOT EXISTS Secrets (
     id SERIAL PRIMARY KEY,
     kind SECRET NOT NULL,
-    owner INTEGER NOT NULL,
+    owner VARCHAR(128) NOT NULL,
     data TEXT NOT NULL,
 
     UNIQUE (kind, owner),
 
-    CONSTRAINT fk_user_id
+    CONSTRAINT fk_user_uuid
         FOREIGN KEY (owner)
-        REFERENCES Users(id)
+        REFERENCES Users(uuid)
         ON DELETE CASCADE,
 );
 

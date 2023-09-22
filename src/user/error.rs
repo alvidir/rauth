@@ -32,8 +32,6 @@ pub enum Error {
     Strum(#[from] strum::ParseError),
     #[error("{0}")]
     Salt(#[from] std::array::TryFromSliceError),
-    #[error("{0}")]
-    ParseInt(#[from] std::num::ParseIntError),
     #[cfg(feature = "grpc")]
     #[error("{0}")]
     Tonic(#[from] tonic::metadata::errors::InvalidMetadataValue),
@@ -62,6 +60,8 @@ pub enum Error {
     Secret(#[from] crate::secret::error::Error),
     #[error("{0}")]
     Serde(#[from] serde_json::Error),
+    #[error("{0}")]
+    Uuid(#[from] uuid::Error),
     #[error("{0}")]
     Argon(String),
     #[cfg(test)]

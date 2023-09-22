@@ -1,5 +1,3 @@
-use std::num::ParseIntError;
-
 use super::{EventService, MailService, UserApplication, UserRepository};
 use crate::cache::Cache;
 use crate::mfa::domain::{MfaMethod, Otp};
@@ -8,8 +6,9 @@ use crate::on_error;
 use crate::secret::application::SecretRepository;
 use crate::token::domain::Token;
 use crate::token::service::TokenService;
-use crate::user::domain::Password;
+use crate::user::domain::{Password, UserID};
 use crate::user::error::{Error, Result};
+use std::str::FromStr;
 
 impl<U, S, T, F, M, B, C> UserApplication<U, S, T, F, M, B, C>
 where
@@ -34,11 +33,10 @@ where
             return Err(Error::WrongToken);
         }
 
-        let user_id = claims
-            .payload()
-            .subject()
-            .parse()
-            .map_err(on_error!(ParseIntError as Error, "parsing str to i32"))?;
+        let user_id = UserID::from_str(claims.payload().subject()).map_err(on_error!(
+            uuid::Error as Error,
+            "parsing token subject into user id"
+        ))?;
 
         self.enable_mfa(user_id, method, password, otp).await
     }
@@ -46,7 +44,7 @@ where
     #[instrument(skip(self, password, otp))]
     pub async fn enable_mfa(
         &self,
-        user_id: i32,
+        user_id: UserID,
         method: MfaMethod,
         password: Password,
         otp: Option<Otp>,
@@ -80,11 +78,10 @@ where
             return Err(Error::WrongToken);
         }
 
-        let user_id = claims
-            .payload()
-            .subject()
-            .parse()
-            .map_err(on_error!(ParseIntError as Error, "parsing str to i32"))?;
+        let user_id = UserID::from_str(claims.payload().subject()).map_err(on_error!(
+            uuid::Error as Error,
+            "parsing token subject into user id"
+        ))?;
 
         self.disable_mfa(user_id, method, password, otp).await
     }
@@ -92,7 +89,7 @@ where
     #[instrument(skip(self, password, otp))]
     pub async fn disable_mfa(
         &self,
-        user_id: i32,
+        user_id: UserID,
         method: MfaMethod,
         password: Password,
         otp: Option<Otp>,

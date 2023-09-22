@@ -16,6 +16,8 @@ pub enum Error {
     Parse(#[from] std::string::ParseError),
     #[error("{0}")]
     Strum(#[from] strum::ParseError),
+    #[error("{0}")]
+    Uuid(#[from] uuid::Error),
     #[cfg(feature = "postgres")]
     #[error("{0}")]
     Sql(#[from] sqlx::error::Error),

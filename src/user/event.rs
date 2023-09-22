@@ -11,7 +11,7 @@ use serde_json;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct UserEventPayload<'a> {
-    pub(super) user_id: i32,
+    pub(super) user_id: &'a str,
     pub(super) user_name: &'a str,
     pub(super) user_email: &'a str,
     pub(super) event_issuer: &'a str,
@@ -65,7 +65,7 @@ impl<'a> EventService for RabbitMqUserService<'a> {
     #[instrument(skip(self))]
     async fn emit_user_created(&self, user: &User) -> Result<()> {
         self.emit(UserEventPayload {
-            user_id: user.id,
+            user_id: &user.id.to_string(),
             user_name: user.credentials.email.username(),
             user_email: user.credentials.email.as_ref(),
             event_issuer: self.issuer,
@@ -77,7 +77,7 @@ impl<'a> EventService for RabbitMqUserService<'a> {
     #[instrument(skip(self))]
     async fn emit_user_deleted(&self, user: &User) -> Result<()> {
         self.emit(UserEventPayload {
-            user_id: user.id,
+            user_id: &user.id.to_string(),
             user_name: user.credentials.email.username(),
             user_email: user.credentials.email.as_ref(),
             event_issuer: self.issuer,
