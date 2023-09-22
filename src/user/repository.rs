@@ -1,7 +1,9 @@
-use super::domain::{Credentials, Email, PasswordHash, Preferences, UserID};
+use super::domain::{Credentials, Email, PasswordHash, Preferences, UserEventPayload, UserID};
 use super::error::{Error, Result};
 use super::{application::UserRepository, domain::User};
 use crate::base64;
+use crate::event::domain::EventKind;
+use crate::event::repository::PostgresEventRepository;
 use crate::mfa::domain::MfaMethod;
 use crate::on_error;
 use crate::postgres::on_query_error;
@@ -25,14 +27,14 @@ const QUERY_UPDATE_USER: &str =
 const QUERY_DELETE_USER: &str = "DELETE FROM users WHERE uuid = $1";
 
 // uuid, email, password, mfa_method
-type SelectUserRow = (String, String, String, Option<String>);
+type PostgresUserRow = (String, String, String, Option<String>);
 
 pub struct PostgresUserRepository<'a> {
     pub pool: &'a PgPool,
 }
 
 impl<'a> PostgresUserRepository<'a> {
-    fn construct(row: SelectUserRow, salt: Secret) -> Result<User> {
+    fn construct(row: PostgresUserRow, salt: Secret) -> Result<User> {
         Ok(User {
             id: UserID::from_str(&row.0)?,
             credentials: Credentials {
@@ -76,7 +78,7 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
     }
 
     async fn find_by_email(&self, email: &Email) -> Result<User> {
-        let user_row: SelectUserRow = sqlx::query_as(QUERY_FIND_USER_BY_EMAIL)
+        let user_row: PostgresUserRow = sqlx::query_as(QUERY_FIND_USER_BY_EMAIL)
             .bind(email.as_ref())
             .fetch_one(self.pool)
             .await
@@ -95,7 +97,7 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
     }
 
     async fn find_by_name(&self, target: &str) -> Result<User> {
-        let user_row: SelectUserRow = sqlx::query_as(QUERY_FIND_USER_BY_NAME)
+        let user_row: PostgresUserRow = sqlx::query_as(QUERY_FIND_USER_BY_NAME)
             .bind(target)
             .fetch_one(self.pool)
             .await
@@ -136,13 +138,18 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
             .await
             .map_err(on_error!(Error, "performing insert user query on postgres"))?;
 
-        let mut secret = Secret::new(
+        let secret = Secret::new(
             SecretKind::Salt,
             user,
             user.credentials.password.salt().as_ref(),
         );
 
-        PostgresSecretRepository::create(&mut *tx, &mut secret).await?;
+        PostgresSecretRepository::create(&mut *tx, &secret).await?;
+        PostgresEventRepository::create(
+            &mut *tx,
+            &UserEventPayload::new(EventKind::Created, user).try_into()?,
+        )
+        .await?;
 
         tx.commit()
             .await
@@ -173,11 +180,27 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
     }
 
     async fn delete(&self, user: &User) -> Result<()> {
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(on_error!(Error, "starting postgres transaction"))?;
+
         sqlx::query(QUERY_DELETE_USER)
             .bind(user.id.to_string())
-            .execute(self.pool)
+            .execute(&mut *tx)
             .await
             .map_err(on_error!(Error, "performing delete query on postgres"))?;
+
+        PostgresEventRepository::create(
+            &mut *tx,
+            &UserEventPayload::new(EventKind::Deleted, user).try_into()?,
+        )
+        .await?;
+
+        tx.commit()
+            .await
+            .map_err(on_error!(Error, "commiting postgres transaction"))?;
 
         Ok(())
     }

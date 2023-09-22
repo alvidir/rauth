@@ -19,35 +19,28 @@ pub trait UserRepository {
     async fn delete(&self, user: &User) -> Result<()>;
 }
 
-#[async_trait]
-pub trait EventService {
-    async fn emit_user_created(&self, user: &User) -> Result<()>;
-    async fn emit_user_deleted(&self, user: &User) -> Result<()>;
-}
-
 pub trait MailService {
     fn send_credentials_verification_email(&self, to: &Email, token: &Token) -> Result<()>;
     fn send_credentials_reset_email(&self, to: &Email, token: &Token) -> Result<()>;
 }
 
-pub struct UserApplication<U, S, T, F, M, B, C> {
+pub struct UserApplication<U, S, T, F, M, C> {
     pub hash_length: usize,
     pub user_repo: Arc<U>,
     pub secret_repo: Arc<S>,
     pub token_srv: Arc<T>,
     pub multi_factor_srv: Arc<F>,
     pub mail_srv: Arc<M>,
-    pub event_srv: Arc<B>,
     pub cache: Arc<C>,
 }
 
 #[cfg(test)]
 mod test {
-    use super::{EventService, MailService, UserApplication, UserRepository};
+    use super::{MailService, UserApplication, UserRepository};
     use crate::{
         cache::test::InMemoryCache,
         mfa::service::test::MfaServiceMock,
-        secret::application::test::SecretRepositoryMock,
+        secret::service::test::SecretRepositoryMock,
         token::{domain::Token, service::test::TokenServiceMock},
         user::{
             domain::{Email, User, UserID},
@@ -69,7 +62,6 @@ mod test {
         TokenServiceMock,
         MfaServiceMock,
         MailServiceMock,
-        EventServiceMock,
         InMemoryCache,
     > {
         UserApplication {
@@ -79,7 +71,6 @@ mod test {
             token_srv: Default::default(),
             multi_factor_srv: Default::default(),
             mail_srv: Default::default(),
-            event_srv: Default::default(),
             cache: Default::default(),
         }
     }
@@ -139,34 +130,6 @@ mod test {
         async fn delete(&self, user: &User) -> Result<()> {
             if let Some(delete_fn) = self.delete_fn {
                 return delete_fn(user);
-            }
-
-            Err(Error::Debug)
-        }
-    }
-
-    pub type EmitUserCreatedFn = fn(user: &User) -> Result<()>;
-    pub type EmitUserDeletedFn = fn(user: &User) -> Result<()>;
-
-    #[derive(Debug, Default)]
-    pub struct EventServiceMock {
-        pub emit_user_created_fn: Option<EmitUserCreatedFn>,
-        pub emit_user_deleted_fn: Option<EmitUserDeletedFn>,
-    }
-
-    #[async_trait]
-    impl EventService for EventServiceMock {
-        async fn emit_user_created(&self, user: &User) -> Result<()> {
-            if let Some(emit_user_created_fn) = self.emit_user_created_fn {
-                return emit_user_created_fn(user);
-            }
-
-            Err(Error::Debug)
-        }
-
-        async fn emit_user_deleted(&self, user: &User) -> Result<()> {
-            if let Some(emit_user_deleted_fn) = self.emit_user_deleted_fn {
-                return emit_user_deleted_fn(user);
             }
 
             Err(Error::Debug)

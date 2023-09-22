@@ -1,23 +1,22 @@
-use super::{EventService, MailService, UserApplication, UserRepository};
+use super::{MailService, UserApplication, UserRepository};
 use crate::cache::Cache;
 use crate::mfa::domain::Otp;
 use crate::mfa::service::MfaService;
 use crate::on_error;
-use crate::secret::application::SecretRepository;
+use crate::secret::service::SecretRepository;
 use crate::token::domain::Token;
 use crate::token::service::TokenService;
 use crate::user::domain::{Password, UserID};
 use crate::user::error::{Error, Result};
 use std::str::FromStr;
 
-impl<U, S, T, F, M, B, C> UserApplication<U, S, T, F, M, B, C>
+impl<U, S, T, F, M, C> UserApplication<U, S, T, F, M, C>
 where
     U: UserRepository,
     S: SecretRepository,
     T: TokenService,
     F: MfaService,
     M: MailService,
-    B: EventService,
     C: Cache,
 {
     /// Given a valid session token and passwords, performs the deletion of the user.
@@ -59,9 +58,6 @@ where
         self.multi_factor_srv.verify(&user, otp.as_ref()).await?;
 
         self.secret_repo.delete_by_owner(&user).await?;
-        self.user_repo.delete(&user).await?;
-
-        // TODO: implement outbox pattern for events publishment
-        self.event_srv.emit_user_deleted(&user).await
+        self.user_repo.delete(&user).await
     }
 }

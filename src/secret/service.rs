@@ -6,7 +6,7 @@ use async_trait::async_trait;
 #[async_trait]
 pub trait SecretRepository {
     async fn find_by_owner_and_kind(&self, owner: UserID, kind: SecretKind) -> Result<Secret>;
-    async fn create(&self, secret: &mut Secret) -> Result<()>;
+    async fn create(&self, secret: &Secret) -> Result<()>;
     async fn delete(&self, secret: &Secret) -> Result<()>;
     async fn delete_by_owner(&self, owner: &User) -> Result<()>;
 }
@@ -21,7 +21,7 @@ pub mod test {
     use async_trait::async_trait;
 
     type MockFnFindByOwnerAndKind = fn(owner: UserID, kind: SecretKind) -> Result<Secret>;
-    type MockFnCreate = fn(secret: &mut Secret) -> Result<()>;
+    type MockFnCreate = fn(secret: &Secret) -> Result<()>;
     type MockFnSave = fn(secret: &Secret) -> Result<()>;
     type MockFnDelete = fn(secret: &Secret) -> Result<()>;
     type MockFnDeleteByOwner = fn(owner: &User) -> Result<()>;
@@ -45,7 +45,7 @@ pub mod test {
             Err(Error::Debug)
         }
 
-        async fn create(&self, secret: &mut Secret) -> Result<()> {
+        async fn create(&self, secret: &Secret) -> Result<()> {
             if let Some(create_fn) = self.fn_create {
                 return create_fn(secret);
             }

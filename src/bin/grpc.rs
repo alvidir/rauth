@@ -11,7 +11,7 @@ use rauth::{
         smtp::MfaSmtp,
         strategy::{EmailMethod, TpAppMethod},
     },
-    postgres, rabbitmq, redis,
+    postgres, redis,
     secret::repository::PostgresSecretRepository,
     session::{
         application::SessionApplication,
@@ -23,7 +23,6 @@ use rauth::{
     tracer,
     user::{
         application::UserApplication,
-        event::RabbitMqUserService,
         grpc::{UserGrpcService, UserServer},
         repository::PostgresUserRepository,
         smtp::UserSmtp,
@@ -49,12 +48,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let user_repo = Arc::new(PostgresUserRepository {
         pool: &postgres::POSTGRES_POOL,
-    });
-
-    let user_event_srv = Arc::new(RabbitMqUserService {
-        pool: &rabbitmq::RABBITMQ_POOL,
-        exchange: &rabbitmq::RABBITMQ_USERS_EXCHANGE,
-        issuer: &rabbitmq::EVENT_ISSUER,
     });
 
     let cache = Arc::new(RedisCache {
@@ -129,7 +122,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         secret_repo: secret_repo.clone(),
         token_srv: token_srv.clone(),
         mail_srv: user_smtp.clone(),
-        event_srv: user_event_srv.clone(),
         multi_factor_srv: multi_factor_srv.clone(),
         cache: cache.clone(),
     };

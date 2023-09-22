@@ -1,23 +1,22 @@
-use super::{EventService, MailService, UserApplication, UserRepository};
+use super::{MailService, UserApplication, UserRepository};
 use crate::cache::Cache;
 use crate::mfa::domain::Otp;
 use crate::mfa::service::MfaService;
 use crate::on_error;
-use crate::secret::application::SecretRepository;
+use crate::secret::service::SecretRepository;
 use crate::token::domain::{Token, TokenKind};
 use crate::token::service::TokenService;
 use crate::user::domain::{Email, Password, PasswordHash, Salt, UserID};
 use crate::user::error::{Error, Result};
 use std::str::FromStr;
 
-impl<U, S, T, F, M, B, C> UserApplication<U, S, T, F, M, B, C>
+impl<U, S, T, F, M, C> UserApplication<U, S, T, F, M, C>
 where
     U: UserRepository,
     S: SecretRepository,
     T: TokenService,
     F: MfaService,
     M: MailService,
-    B: EventService,
     C: Cache,
 {
     /// Sends an email with the token to be passed as parameter to the reset_credentials_with_token method.

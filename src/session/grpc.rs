@@ -5,7 +5,7 @@ use super::error::Error;
 use crate::grpc;
 use crate::mfa::service::MfaService;
 use crate::on_error;
-use crate::secret::application::SecretRepository;
+use crate::secret::service::SecretRepository;
 use crate::token::service::TokenService;
 use crate::user::application::UserRepository;
 use tonic::metadata::errors::InvalidMetadataValue;

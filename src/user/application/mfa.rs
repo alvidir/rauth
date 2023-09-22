@@ -1,23 +1,22 @@
-use super::{EventService, MailService, UserApplication, UserRepository};
+use super::{MailService, UserApplication, UserRepository};
 use crate::cache::Cache;
 use crate::mfa::domain::{MfaMethod, Otp};
 use crate::mfa::service::MfaService;
 use crate::on_error;
-use crate::secret::application::SecretRepository;
+use crate::secret::service::SecretRepository;
 use crate::token::domain::Token;
 use crate::token::service::TokenService;
 use crate::user::domain::{Password, UserID};
 use crate::user::error::{Error, Result};
 use std::str::FromStr;
 
-impl<U, S, T, F, M, B, C> UserApplication<U, S, T, F, M, B, C>
+impl<U, S, T, F, M, C> UserApplication<U, S, T, F, M, C>
 where
     U: UserRepository,
     S: SecretRepository,
     T: TokenService,
     F: MfaService,
     M: MailService,
-    B: EventService,
     C: Cache,
 {
     #[instrument(skip(self, password, otp))]

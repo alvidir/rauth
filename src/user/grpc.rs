@@ -6,10 +6,10 @@ use crate::grpc;
 use crate::mfa::domain::MfaMethod;
 use crate::mfa::service::MfaService;
 use crate::on_error;
-use crate::secret::application::SecretRepository;
+use crate::secret::service::SecretRepository;
 use crate::token::domain::Token;
 use crate::token::service::TokenService;
-use crate::user::application::{EventService, UserApplication, UserRepository};
+use crate::user::application::{UserApplication, UserRepository};
 use std::ops::Not;
 use std::str::FromStr;
 use tonic::metadata::errors::InvalidMetadataValue;
@@ -27,20 +27,19 @@ pub use proto::user_server::UserServer;
 // Proto message structs
 use proto::{mfa_request::Actions, DeleteRequest, Empty, MfaRequest, ResetRequest, SignupRequest};
 
-pub struct UserGrpcService<U, S, T, F, M, B, C> {
-    pub user_app: UserApplication<U, S, T, F, M, B, C>,
+pub struct UserGrpcService<U, S, T, F, M, C> {
+    pub user_app: UserApplication<U, S, T, F, M, C>,
     pub jwt_header: &'static str,
     pub totp_header: &'static str,
 }
 
 #[tonic::async_trait]
-impl<U, S, T, F, M, B, C> User for UserGrpcService<U, S, T, F, M, B, C>
+impl<U, S, T, F, M, C> User for UserGrpcService<U, S, T, F, M, C>
 where
     U: 'static + UserRepository + Sync + Send,
     S: 'static + SecretRepository + Sync + Send,
     T: 'static + TokenService + Sync + Send,
     F: 'static + MfaService + Sync + Send,
-    B: 'static + EventService + Sync + Send,
     M: 'static + MailService + Sync + Send,
     C: 'static + Cache + Sync + Send,
 {

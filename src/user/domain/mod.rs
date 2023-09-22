@@ -7,6 +7,9 @@ pub use password::*;
 mod credentials;
 pub use credentials::*;
 
+mod event;
+pub use event::*;
+
 use super::error::Result;
 use crate::mfa::domain::MfaMethod;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -56,8 +59,8 @@ impl ToString for UserID {
     }
 }
 
-impl UserID {
-    pub fn new() -> Self {
+impl Default for UserID {
+    fn default() -> Self {
         Self(uuid::Uuid::new_v4())
     }
 }
@@ -79,7 +82,7 @@ pub struct User {
 impl From<Credentials> for User {
     fn from(credentials: Credentials) -> Self {
         Self {
-            id: UserID::new(),
+            id: UserID::default(),
             credentials,
             preferences: Preferences::default(),
         }

@@ -1,6 +1,6 @@
 use futures::join;
 
-use super::{EventService, MailService, UserApplication, UserRepository};
+use super::{MailService, UserApplication, UserRepository};
 use crate::cache::Cache;
 use crate::mfa::service::MfaService;
 use crate::token::domain::{Claims, Token, TokenKind};
@@ -10,13 +10,12 @@ use crate::user::domain::{
 };
 use crate::user::error::{Error, Result};
 
-impl<U, S, T, F, M, B, C> UserApplication<U, S, T, F, M, B, C>
+impl<U, S, T, F, M, C> UserApplication<U, S, T, F, M, C>
 where
     U: UserRepository,
     T: TokenService,
     F: MfaService,
     M: MailService,
-    B: EventService,
     C: Cache,
 {
     /// It temporally stores the given credentials in the cache and sends an email with the corresponding verification
@@ -110,9 +109,6 @@ where
     pub async fn signup(&self, user: &mut User) -> Result<Claims> {
         self.user_repo.create(user).await?;
 
-        // TODO: implement outbox pattern for events publishment
-        self.event_srv.emit_user_created(user).await?;
-
         self.token_srv
             .issue(TokenKind::Session, &user.id.to_string())
             .await
@@ -129,9 +125,7 @@ mod test {
             service::test::TokenServiceMock,
         },
         user::{
-            application::test::{
-                new_user_application, EventServiceMock, MailServiceMock, UserRepositoryMock,
-            },
+            application::test::{new_user_application, MailServiceMock, UserRepositoryMock},
             domain::{
                 Credentials, CredentialsPrelude, Email, Password, PasswordHash, Preferences, Salt,
                 User, UserID,
@@ -152,7 +146,7 @@ mod test {
             let salt = Salt::with_length(32).unwrap();
 
             Ok(User {
-                id: UserID::new(),
+                id: UserID::default(),
                 preferences: Preferences::default(),
                 credentials: Credentials {
                     email: email.clone(),
@@ -327,9 +321,6 @@ mod test {
             Ok(())
         });
 
-        let mut event_srv: EventServiceMock = Default::default();
-        event_srv.emit_user_created_fn = Some(|_: &User| Ok(()));
-
         let mut token_srv = TokenServiceMock::default();
         token_srv.claims_fn = Some(|token: Token| {
             assert_eq!(token.as_ref(), "abc.abc.abc", "unexpected token");
@@ -382,7 +373,6 @@ mod test {
         user_app.hash_length = 32;
         user_app.user_repo = Arc::new(user_repo);
         user_app.token_srv = Arc::new(token_srv);
-        user_app.event_srv = Arc::new(event_srv);
 
         let token = Token::try_from("abc.abc.abc".to_string()).unwrap();
         let token = user_app.signup_with_token(token, None).await.unwrap();
@@ -406,9 +396,6 @@ mod test {
 
             Ok(())
         });
-
-        let mut event_srv: EventServiceMock = Default::default();
-        event_srv.emit_user_created_fn = Some(|_: &User| Ok(()));
 
         let mut token_srv = TokenServiceMock::default();
         token_srv.claims_fn = Some(|token: Token| {
@@ -460,7 +447,6 @@ mod test {
         user_app.hash_length = 32;
         user_app.user_repo = Arc::new(user_repo);
         user_app.token_srv = Arc::new(token_srv);
-        user_app.event_srv = Arc::new(event_srv);
 
         let token = Token::try_from("abc.abc.abc".to_string()).unwrap();
         let password = Password::try_from("abcABC123&".to_string()).unwrap();
@@ -599,12 +585,6 @@ mod test {
             Ok(())
         });
 
-        let mut event_srv: EventServiceMock = Default::default();
-        event_srv.emit_user_created_fn = Some(|user: &User| {
-            assert_eq!(&user.id.to_string(), "bca4ec1c-da63-4d73-bad5-a82fc9853828");
-            Ok(())
-        });
-
         let mut token_srv = TokenServiceMock::default();
         token_srv.issue_fn = Some(|kind: TokenKind, sub: &str| {
             assert_eq!(kind, TokenKind::Session, "unexpected token kind");
@@ -623,7 +603,6 @@ mod test {
         user_app.hash_length = 32;
         user_app.user_repo = Arc::new(user_repo);
         user_app.token_srv = Arc::new(token_srv);
-        user_app.event_srv = Arc::new(event_srv);
 
         let email = Email::try_from("username@server.domain").unwrap();
         let password = Password::try_from("abcABC123&".to_string()).unwrap();

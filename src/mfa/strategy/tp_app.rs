@@ -7,8 +7,8 @@ use crate::{
         service::MfaService,
     },
     secret::{
-        application::SecretRepository,
         domain::{Secret, SecretKind},
+        service::SecretRepository,
     },
     user::domain::User,
 };

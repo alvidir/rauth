@@ -5,6 +5,7 @@ extern crate serde;
 
 pub mod cache;
 pub mod config;
+pub mod event;
 pub mod mfa;
 #[cfg(feature = "postgres")]
 pub mod postgres;

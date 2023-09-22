@@ -1,6 +1,6 @@
 use super::domain::SecretKind;
 use super::error::{Error, Result};
-use super::{application::SecretRepository, domain::Secret};
+use super::{domain::Secret, service::SecretRepository};
 use crate::on_error;
 use crate::postgres::on_query_error;
 use crate::user::domain::{User, UserID};
@@ -57,7 +57,7 @@ impl<'a> PostgresSecretRepository<'a> {
     }
 
     #[instrument(skip(executor))]
-    pub async fn create<'b, E>(executor: E, secret: &mut Secret) -> Result<()>
+    pub async fn create<'b, E>(executor: E, secret: &Secret) -> Result<()>
     where
         E: PgExecutor<'b>,
     {
@@ -113,7 +113,7 @@ impl<'a> SecretRepository for PostgresSecretRepository<'a> {
     }
 
     #[instrument(skip(self))]
-    async fn create(&self, secret: &mut Secret) -> Result<()> {
+    async fn create(&self, secret: &Secret) -> Result<()> {
         Self::create(self.pool, secret).await
     }
 

@@ -4,7 +4,6 @@ use crate::config;
 use deadpool_lapin::{Config, Pool, Runtime, Timeouts};
 use lapin::{options, types::FieldTable, ExchangeKind};
 use once_cell::sync::Lazy;
-use serde::{Deserialize, Serialize};
 use std::env;
 use std::time::Duration;
 
@@ -74,11 +73,3 @@ pub static RABBITMQ_POOL: Lazy<Pool> = Lazy::new(|| {
 
 pub static EVENT_ISSUER: Lazy<String> =
     Lazy::new(|| env::var(ENV_EVENT_ISSUER).expect("event issuer must be set"));
-
-/// Represents all the possible kind of events that may be handled or emited.
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum EventKind {
-    Created,
-    Deleted,
-}

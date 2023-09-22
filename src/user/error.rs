@@ -1,5 +1,7 @@
 //! Result type and errors related to user stuff.
 
+use crate::event;
+
 pub type Result<T> = std::result::Result<T, Error>;
 
 impl<T> From<Error> for Result<T> {
@@ -62,6 +64,8 @@ pub enum Error {
     Serde(#[from] serde_json::Error),
     #[error("{0}")]
     Uuid(#[from] uuid::Error),
+    #[error("{0}")]
+    Event(#[from] event::error::Error),
     #[error("{0}")]
     Argon(String),
     #[cfg(test)]
