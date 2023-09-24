@@ -1,7 +1,7 @@
 use super::domain::Identity;
 use super::error::{Error, Result};
-use crate::mfa::domain::Otp;
-use crate::mfa::service::MfaService;
+use crate::multi_factor::domain::Otp;
+use crate::multi_factor::service::MfaService;
 use crate::secret::service::SecretRepository;
 use crate::token::domain::{Claims, Token, TokenKind};
 use crate::token::service::TokenService;

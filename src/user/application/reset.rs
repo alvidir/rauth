@@ -1,7 +1,7 @@
 use super::{MailService, UserApplication, UserRepository};
 use crate::cache::Cache;
-use crate::mfa::domain::Otp;
-use crate::mfa::service::MfaService;
+use crate::multi_factor::domain::Otp;
+use crate::multi_factor::service::MfaService;
 use crate::on_error;
 use crate::secret::service::SecretRepository;
 use crate::token::domain::{Token, TokenKind};
@@ -79,7 +79,7 @@ where
 #[cfg(test)]
 mod test {
     use crate::{
-        mfa::{domain::Otp, service::test::MfaServiceMock},
+        multi_factor::{domain::Otp, service::test::MfaServiceMock},
         token::{
             domain::{Claims, Payload, Token, TokenKind},
             service::test::TokenServiceMock,

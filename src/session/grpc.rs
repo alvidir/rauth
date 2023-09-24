@@ -3,7 +3,7 @@ use std::ops::Not;
 use super::application::SessionApplication;
 use super::error::Error;
 use crate::grpc;
-use crate::mfa::service::MfaService;
+use crate::multi_factor::service::MfaService;
 use crate::on_error;
 use crate::secret::service::SecretRepository;
 use crate::token::service::TokenService;

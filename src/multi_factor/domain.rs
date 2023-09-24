@@ -75,7 +75,7 @@ impl Otp {
 mod test {
     use std::str::FromStr;
 
-    use crate::mfa::{
+    use crate::multi_factor::{
         domain::{MfaMethod, Otp},
         error::Error,
     };

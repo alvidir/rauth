@@ -24,7 +24,7 @@ pub enum Error {
     #[error("{0}")]
     Token(#[from] crate::token::error::Error),
     #[error("{0}")]
-    Mfa(#[from] crate::mfa::error::Error),
+    Mfa(#[from] crate::multi_factor::error::Error),
     #[cfg(feature = "grpc")]
     #[error("{0}")]
     Tonic(#[from] tonic::metadata::errors::InvalidMetadataValue),

@@ -57,7 +57,7 @@ pub enum Error {
     #[error("{0}")]
     Token(#[from] crate::token::error::Error),
     #[error("{0}")]
-    Mfa(#[from] crate::mfa::error::Error),
+    Mfa(#[from] crate::multi_factor::error::Error),
     #[error("{0}")]
     Secret(#[from] crate::secret::error::Error),
     #[error("{0}")]

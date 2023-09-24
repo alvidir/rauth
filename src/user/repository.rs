@@ -5,7 +5,7 @@ use super::error::{Error, Result};
 use super::{application::UserRepository, domain::User};
 use crate::base64;
 use crate::event::repository::PostgresEventRepository;
-use crate::mfa::domain::MfaMethod;
+use crate::multi_factor::domain::MfaMethod;
 use crate::on_error;
 use crate::postgres::on_query_error;
 use crate::secret::domain::SecretKind;

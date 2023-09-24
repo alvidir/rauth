@@ -2,7 +2,7 @@ use futures::join;
 
 use super::{MailService, UserApplication, UserRepository};
 use crate::cache::Cache;
-use crate::mfa::service::MfaService;
+use crate::multi_factor::service::MfaService;
 use crate::token::domain::{Claims, Token, TokenKind};
 use crate::token::service::TokenService;
 use crate::user::domain::{

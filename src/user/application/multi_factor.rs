@@ -1,7 +1,7 @@
 use super::{MailService, UserApplication, UserRepository};
 use crate::cache::Cache;
-use crate::mfa::domain::{MfaMethod, Otp};
-use crate::mfa::service::MfaService;
+use crate::multi_factor::domain::{MfaMethod, Otp};
+use crate::multi_factor::service::MfaService;
 use crate::on_error;
 use crate::secret::service::SecretRepository;
 use crate::token::domain::Token;

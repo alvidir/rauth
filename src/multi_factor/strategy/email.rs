@@ -1,6 +1,6 @@
 use crate::{
     cache::Cache,
-    mfa::{
+    multi_factor::{
         domain::Otp,
         error::{Error, Result},
         service::MfaService,

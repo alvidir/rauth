@@ -1,5 +1,5 @@
 pub mod delete;
-pub mod mfa;
+pub mod multi_factor;
 pub mod reset;
 pub mod signup;
 
@@ -39,7 +39,7 @@ mod test {
     use super::{MailService, UserApplication, UserRepository};
     use crate::{
         cache::test::InMemoryCache,
-        mfa::service::test::MfaServiceMock,
+        multi_factor::service::test::MfaServiceMock,
         secret::service::test::SecretRepositoryMock,
         token::{domain::Token, service::test::TokenServiceMock},
         user::{

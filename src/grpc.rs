@@ -1,6 +1,6 @@
 //! gRPC utilities for managing request's headers.
 
-use crate::{mfa, on_error, session, token, user};
+use crate::{multi_factor, on_error, session, token, user};
 use tonic::{Request, Status};
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -35,8 +35,8 @@ impl From<token::error::Error> for Status {
     }
 }
 
-impl From<mfa::error::Error> for Status {
-    fn from(error: mfa::error::Error) -> Status {
+impl From<multi_factor::error::Error> for Status {
+    fn from(error: multi_factor::error::Error) -> Status {
         Status::unknown("")
     }
 }

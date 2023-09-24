@@ -5,7 +5,7 @@ use jsonwebtoken::{DecodingKey, EncodingKey};
 use rauth::{
     cache::RedisCache,
     config,
-    mfa::{
+    multi_factor::{
         domain::MfaMethod,
         service::MfaMethodLocator,
         smtp::MfaSmtp,

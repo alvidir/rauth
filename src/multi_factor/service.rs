@@ -66,8 +66,8 @@ impl MfaService for MfaMethodLocator {
 #[cfg(test)]
 pub(crate) mod test {
     use super::MfaService;
-    use crate::mfa::error::{Error, Result};
-    use crate::{mfa::domain::Otp, user::domain::User};
+    use crate::multi_factor::error::{Error, Result};
+    use crate::{multi_factor::domain::Otp, user::domain::User};
     use async_trait::async_trait;
 
     pub type VerifyFn = fn(user: &User, otp: Option<&Otp>) -> Result<()>;

@@ -11,7 +11,7 @@ mod event;
 pub use event::*;
 
 use super::error::Result;
-use crate::mfa::domain::MfaMethod;
+use crate::multi_factor::domain::MfaMethod;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::str::FromStr;
 use uuid::Uuid;
