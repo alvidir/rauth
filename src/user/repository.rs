@@ -1,8 +1,9 @@
-use super::domain::{Credentials, Email, PasswordHash, Preferences, UserEventPayload, UserID};
+use super::domain::{
+    Credentials, Email, EventKind, PasswordHash, Preferences, UserEventPayload, UserID,
+};
 use super::error::{Error, Result};
 use super::{application::UserRepository, domain::User};
 use crate::base64;
-use crate::event::domain::EventKind;
 use crate::event::repository::PostgresEventRepository;
 use crate::mfa::domain::MfaMethod;
 use crate::on_error;

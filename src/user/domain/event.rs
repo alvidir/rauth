@@ -1,5 +1,12 @@
 use super::{User, UserID};
-use crate::event::domain::EventKind;
+
+/// Represents all the possible kind of user events that may be handled or emited.
+#[derive(Debug, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EventKind {
+    Created,
+    Deleted,
+}
 
 #[derive(Debug, Hash, Serialize)]
 pub struct UserEventPayload<'a> {
