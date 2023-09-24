@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 /// Represents the multi factor authentication method to use.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum MfaMethod {
+pub enum MultiFactorMethod {
     /// A third-party application is used to get the TOTP.
     TpApp,
     /// The OTP is sent via email.
@@ -13,17 +13,17 @@ pub enum MfaMethod {
     Other(String),
 }
 
-impl ToString for MfaMethod {
+impl ToString for MultiFactorMethod {
     fn to_string(&self) -> String {
         match self {
-            MfaMethod::TpApp => "tp_app".to_string(),
-            MfaMethod::Email => "email".to_string(),
-            MfaMethod::Other(other) => other.clone(),
+            MultiFactorMethod::TpApp => "tp_app".to_string(),
+            MultiFactorMethod::Email => "email".to_string(),
+            MultiFactorMethod::Other(other) => other.clone(),
         }
     }
 }
 
-impl FromStr for MfaMethod {
+impl FromStr for MultiFactorMethod {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self> {
@@ -76,33 +76,33 @@ mod test {
     use std::str::FromStr;
 
     use crate::multi_factor::{
-        domain::{MfaMethod, Otp},
+        domain::{MultiFactorMethod, Otp},
         error::Error,
     };
 
     #[test]
-    fn display_mfa_method() {
+    fn display_multi_factor_method() {
         struct Test<'a> {
             name: &'a str,
             output: &'a str,
-            input: MfaMethod,
+            input: MultiFactorMethod,
         }
 
         vec![
             Test {
                 name: "third party application method",
                 output: "tp_app",
-                input: MfaMethod::TpApp,
+                input: MultiFactorMethod::TpApp,
             },
             Test {
                 name: "email method",
                 output: "email",
-                input: MfaMethod::Email,
+                input: MultiFactorMethod::Email,
             },
             Test {
                 name: "an arbitrary name",
                 output: "arbitrary method",
-                input: MfaMethod::Other("arbitrary method".to_string()),
+                input: MultiFactorMethod::Other("arbitrary method".to_string()),
             },
         ]
         .into_iter()
@@ -110,33 +110,33 @@ mod test {
     }
 
     #[test]
-    fn mfa_method_from_str() {
+    fn multi_factor_method_from_str() {
         struct Test<'a> {
             name: &'a str,
             input: &'a str,
-            output: MfaMethod,
+            output: MultiFactorMethod,
         }
 
         vec![
             Test {
                 name: "third party application method",
                 input: "tp_app",
-                output: MfaMethod::TpApp,
+                output: MultiFactorMethod::TpApp,
             },
             Test {
                 name: "email method",
                 input: "email",
-                output: MfaMethod::Email,
+                output: MultiFactorMethod::Email,
             },
             Test {
                 name: "an arbitrary name",
                 input: "arbitrary method",
-                output: MfaMethod::Other("arbitrary method".to_string()),
+                output: MultiFactorMethod::Other("arbitrary method".to_string()),
             },
         ]
         .into_iter()
         .for_each(|test| {
-            let got = MfaMethod::from_str(test.input).unwrap();
+            let got = MultiFactorMethod::from_str(test.input).unwrap();
             assert_eq!(got, test.output, "{}", test.name)
         })
     }

@@ -11,7 +11,7 @@ mod event;
 pub use event::*;
 
 use super::error::Result;
-use crate::multi_factor::domain::MfaMethod;
+use crate::multi_factor::domain::MultiFactorMethod;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::str::FromStr;
 use uuid::Uuid;
@@ -68,7 +68,7 @@ impl Default for UserID {
 /// Represents the preferences of a user.
 #[derive(Debug, Default)]
 pub struct Preferences {
-    pub multi_factor: Option<MfaMethod>,
+    pub multi_factor: Option<MultiFactorMethod>,
 }
 
 /// Represents a user.

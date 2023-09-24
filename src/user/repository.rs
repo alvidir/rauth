@@ -5,7 +5,7 @@ use super::error::{Error, Result};
 use super::{application::UserRepository, domain::User};
 use crate::base64;
 use crate::event::repository::PostgresEventRepository;
-use crate::multi_factor::domain::MfaMethod;
+use crate::multi_factor::domain::MultiFactorMethod;
 use crate::on_error;
 use crate::postgres::on_query_error;
 use crate::secret::domain::SecretKind;
@@ -17,17 +17,18 @@ use sqlx::postgres::PgPool;
 use std::str::FromStr;
 
 const QUERY_INSERT_USER: &str =
-    "INSERT INTO users (uuid, name, email, actual_email, password, mfa_method) VALUES ($1, $2, $3, $4, $5, $6)";
-const QUERY_FIND_USER: &str = "SELECT uuid, email, password, mfa_method FROM users WHERE uuid = $1";
+    "INSERT INTO users (uuid, name, email, actual_email, password, multi_factor_method) VALUES ($1, $2, $3, $4, $5, $6)";
+const QUERY_FIND_USER: &str =
+    "SELECT uuid, email, password, multi_factor_method FROM users WHERE uuid = $1";
 const QUERY_FIND_USER_BY_EMAIL: &str =
-    "SELECT uuid, email, password, mfa_method FROM users WHERE email = $1 OR actual_email = $1";
+    "SELECT uuid, email, password, multi_factor_method FROM users WHERE email = $1 OR actual_email = $1";
 const QUERY_FIND_USER_BY_NAME: &str =
-    "SELECT uuid, email, password, mfa_method FROM users WHERE name = $1";
+    "SELECT uuid, email, password, multi_factor_method FROM users WHERE name = $1";
 const QUERY_UPDATE_USER: &str =
-    "UPDATE users SET name = $1, email = $2, actual_email = $3, password = $4, mfa_method = $5 WHERE uuid = $6";
+    "UPDATE users SET name = $1, email = $2, actual_email = $3, password = $4, multi_factor_method = $5 WHERE uuid = $6";
 const QUERY_DELETE_USER: &str = "DELETE FROM users WHERE uuid = $1";
 
-// uuid, email, password, mfa_method
+// uuid, email, password, multi_factor_method
 type PostgresUserRow = (String, String, String, Option<String>);
 
 pub struct PostgresUserRepository<'a> {
@@ -49,9 +50,12 @@ impl<'a> PostgresUserRepository<'a> {
                 multi_factor: row
                     .3
                     .as_deref()
-                    .map(MfaMethod::from_str)
+                    .map(MultiFactorMethod::from_str)
                     .transpose()
-                    .map_err(on_error!(Error, "converting string into Mfa value"))?,
+                    .map_err(on_error!(
+                        Error,
+                        "converting string into multi factor method"
+                    ))?,
             },
         })
     }

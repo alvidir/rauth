@@ -1,7 +1,7 @@
 use super::{MailService, UserApplication, UserRepository};
 use crate::cache::Cache;
-use crate::multi_factor::domain::{MfaMethod, Otp};
-use crate::multi_factor::service::MfaService;
+use crate::multi_factor::domain::{MultiFactorMethod, Otp};
+use crate::multi_factor::service::MultiFactorService;
 use crate::on_error;
 use crate::secret::service::SecretRepository;
 use crate::token::domain::Token;
@@ -15,15 +15,15 @@ where
     U: UserRepository,
     S: SecretRepository,
     T: TokenService,
-    F: MfaService,
+    F: MultiFactorService,
     M: MailService,
     C: Cache,
 {
     #[instrument(skip(self, password, otp))]
-    pub async fn enable_mfa_with_token(
+    pub async fn enable_multi_factor_with_token(
         &self,
         token: Token,
-        method: MfaMethod,
+        method: MultiFactorMethod,
         password: Password,
         otp: Option<Otp>,
     ) -> Result<()> {
@@ -37,14 +37,15 @@ where
             "parsing token subject into user id"
         ))?;
 
-        self.enable_mfa(user_id, method, password, otp).await
+        self.enable_multi_factor(user_id, method, password, otp)
+            .await
     }
 
     #[instrument(skip(self, password, otp))]
-    pub async fn enable_mfa(
+    pub async fn enable_multi_factor(
         &self,
         user_id: UserID,
-        method: MfaMethod,
+        method: MultiFactorMethod,
         password: Password,
         otp: Option<Otp>,
     ) -> Result<()> {
@@ -65,10 +66,10 @@ where
     }
 
     #[instrument(skip(self, password, otp))]
-    pub async fn disable_mfa_with_token(
+    pub async fn disable_multi_factor_with_token(
         &self,
         token: Token,
-        method: MfaMethod,
+        method: MultiFactorMethod,
         password: Password,
         otp: Option<Otp>,
     ) -> Result<()> {
@@ -82,14 +83,15 @@ where
             "parsing token subject into user id"
         ))?;
 
-        self.disable_mfa(user_id, method, password, otp).await
+        self.disable_multi_factor(user_id, method, password, otp)
+            .await
     }
 
     #[instrument(skip(self, password, otp))]
-    pub async fn disable_mfa(
+    pub async fn disable_multi_factor(
         &self,
         user_id: UserID,
-        method: MfaMethod,
+        method: MultiFactorMethod,
         password: Password,
         otp: Option<Otp>,
     ) -> Result<()> {

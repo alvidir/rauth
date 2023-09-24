@@ -1,4 +1,4 @@
-//! Result type and errors related to mfa stuff.
+//! Result type and errors related to multi factor stuff.
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -6,7 +6,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     #[error("one time password regex did not match")]
     NotAOneTimePassword,
-    #[error("mfa method not found")]
+    #[error("multi factor method not found")]
     NotFound,
     #[error("one time password required")]
     Required,

@@ -9,14 +9,14 @@ use crate::{on_error, smtp::Smtp, user::domain::Email};
 use tera::{Context, Tera};
 
 /// Implements the [MailService] trait.
-pub struct MfaSmtp<'a> {
+pub struct MultiFactorSmtp<'a> {
     pub smtp: Arc<Smtp<'a>>,
     pub tera: Arc<Tera>,
     pub otp_subject: &'a str,
     pub otp_template: &'a str,
 }
 
-impl<'a> MailService for MfaSmtp<'a> {
+impl<'a> MailService for MultiFactorSmtp<'a> {
     #[instrument(skip(self))]
     fn send_otp_email(&self, email: &Email, otp: &Otp) -> Result<()> {
         let mut context = Context::new();

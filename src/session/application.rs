@@ -1,7 +1,7 @@
 use super::domain::Identity;
 use super::error::{Error, Result};
 use crate::multi_factor::domain::Otp;
-use crate::multi_factor::service::MfaService;
+use crate::multi_factor::service::MultiFactorService;
 use crate::secret::service::SecretRepository;
 use crate::token::domain::{Claims, Token, TokenKind};
 use crate::token::service::TokenService;
@@ -21,7 +21,7 @@ where
     U: UserRepository,
     S: SecretRepository,
     T: TokenService,
-    F: MfaService,
+    F: MultiFactorService,
 {
     #[instrument(skip(self, password, otp))]
     pub async fn login(

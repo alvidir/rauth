@@ -4,7 +4,7 @@ use crate::{
     multi_factor::{
         domain::Otp,
         error::{Error, Result},
-        service::MfaService,
+        service::MultiFactorService,
     },
     secret::{
         domain::{Secret, SecretKind},
@@ -42,8 +42,8 @@ impl TryInto<TOTP> for Otp {
     }
 }
 
-/// Implements the [MfaService] for the third-party applicaition method.
-pub struct TpAppMethod<S, C> {
+/// Implements the [MultiFactorService] for an arbitrary third-party applicaition method.
+pub struct ThirdPartyAppMethod<S, C> {
     pub ack_timeout: Duration,
     pub totp_secret_len: usize,
     pub secret_repo: Arc<S>,
@@ -51,7 +51,7 @@ pub struct TpAppMethod<S, C> {
 }
 
 #[async_trait]
-impl<S, C> MfaService for TpAppMethod<S, C>
+impl<S, C> MultiFactorService for ThirdPartyAppMethod<S, C>
 where
     S: SecretRepository + Sync + Send,
     C: Cache + Sync + Send,
@@ -127,7 +127,7 @@ where
     }
 }
 
-impl<S, C> TpAppMethod<S, C>
+impl<S, C> ThirdPartyAppMethod<S, C>
 where
     S: SecretRepository + Sync + Send,
     C: Cache + Sync + Send,
@@ -142,7 +142,7 @@ where
     }
 }
 
-impl<S, C> TpAppMethod<S, C> {
+impl<S, C> ThirdPartyAppMethod<S, C> {
     fn key(user: &User) -> String {
         [&user.id.to_string(), "totp"].join("::")
     }

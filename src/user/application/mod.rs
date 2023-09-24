@@ -39,7 +39,7 @@ mod test {
     use super::{MailService, UserApplication, UserRepository};
     use crate::{
         cache::test::InMemoryCache,
-        multi_factor::service::test::MfaServiceMock,
+        multi_factor::service::test::MultiFactorServiceMock,
         secret::service::test::SecretRepositoryMock,
         token::{domain::Token, service::test::TokenServiceMock},
         user::{
@@ -60,7 +60,7 @@ mod test {
         UserRepositoryMock,
         SecretRepositoryMock,
         TokenServiceMock,
-        MfaServiceMock,
+        MultiFactorServiceMock,
         MailServiceMock,
         InMemoryCache,
     > {

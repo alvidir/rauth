@@ -3,7 +3,7 @@ use crate::{
     multi_factor::{
         domain::Otp,
         error::{Error, Result},
-        service::MfaService,
+        service::MultiFactorService,
     },
     user::domain::{Email, User},
 };
@@ -11,12 +11,12 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use std::time::Duration;
 
-/// Represents the mail service contract required by the mfa email methods.
+/// Represents the mail service contract required by the multi factor email methods.
 pub trait MailService {
     fn send_otp_email(&self, to: &Email, token: &Otp) -> Result<()>;
 }
 
-/// Implements the [MfaService] for the email method.
+/// Implements the [MultiFactorService] for the email method.
 pub struct EmailMethod<M, C> {
     pub otp_timeout: Duration,
     pub otp_length: usize,
@@ -25,7 +25,7 @@ pub struct EmailMethod<M, C> {
 }
 
 #[async_trait]
-impl<M, C> MfaService for EmailMethod<M, C>
+impl<M, C> MultiFactorService for EmailMethod<M, C>
 where
     M: MailService + Sync + Send,
     C: Cache + Sync + Send,

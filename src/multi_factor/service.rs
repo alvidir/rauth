@@ -1,31 +1,31 @@
 use super::{
-    domain::{MfaMethod, Otp},
+    domain::{MultiFactorMethod, Otp},
     error::{Error, Result},
 };
 use crate::user::domain::User;
 use async_trait::async_trait;
 use std::collections::HashMap;
 
-/// Represents all the features a mfa method/service must have.
+/// Represents all the features a multi factor method/service must have.
 #[async_trait]
-pub trait MfaService {
-    /// Runs the corresponding mfa method in order to validate the one time password.
+pub trait MultiFactorService {
+    /// Runs the corresponding multi factor method in order to validate the one time password.
     async fn verify(&self, user: &User, otp: Option<&Otp>) -> Result<()>;
-    /// Runs the corresponding mfa method in order to activate it for the given user.
+    /// Runs the corresponding multi factor method in order to activate it for the given user.
     async fn enable(&self, user: &User, otp: Option<&Otp>) -> Result<()>;
-    /// Runs the corresponding mfa method in order to deactivate it for the given user.
+    /// Runs the corresponding multi factor method in order to deactivate it for the given user.
     async fn disable(&self, user: &User, otp: Option<&Otp>) -> Result<()>;
 }
 
-/// Implements the [MfaService] as a mfa method locator that executes the proper method
+/// Implements the [MultiFactorMethod] as a multi factor method locator that executes the proper method
 /// depending on user's preferences.
 #[derive(Default)]
-pub struct MfaMethodLocator {
-    pub methods: HashMap<MfaMethod, Box<dyn MfaService + Sync + Send>>,
+pub struct MultiFactorMethodLocator {
+    pub methods: HashMap<MultiFactorMethod, Box<dyn MultiFactorService + Sync + Send>>,
 }
 
 #[async_trait]
-impl MfaService for MfaMethodLocator {
+impl MultiFactorService for MultiFactorMethodLocator {
     async fn verify(&self, user: &User, otp: Option<&Otp>) -> Result<()> {
         let Some(method) = &user.preferences.multi_factor else {
             return Ok(());
@@ -65,7 +65,7 @@ impl MfaService for MfaMethodLocator {
 
 #[cfg(test)]
 pub(crate) mod test {
-    use super::MfaService;
+    use super::MultiFactorService;
     use crate::multi_factor::error::{Error, Result};
     use crate::{multi_factor::domain::Otp, user::domain::User};
     use async_trait::async_trait;
@@ -75,14 +75,14 @@ pub(crate) mod test {
     pub type DisableFn = fn(user: &User, otp: Option<&Otp>) -> Result<()>;
 
     #[derive(Debug, Default)]
-    pub struct MfaServiceMock {
+    pub struct MultiFactorServiceMock {
         pub verify_fn: Option<VerifyFn>,
         pub enable_fn: Option<EnableFn>,
         pub disable_fn: Option<DisableFn>,
     }
 
     #[async_trait]
-    impl MfaService for MfaServiceMock {
+    impl MultiFactorService for MultiFactorServiceMock {
         async fn verify(&self, user: &User, otp: Option<&Otp>) -> Result<()> {
             if let Some(verify_fn) = self.verify_fn {
                 return verify_fn(user, otp);

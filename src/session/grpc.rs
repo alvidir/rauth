@@ -3,7 +3,7 @@ use std::ops::Not;
 use super::application::SessionApplication;
 use super::error::Error;
 use crate::grpc;
-use crate::multi_factor::service::MfaService;
+use crate::multi_factor::service::MultiFactorService;
 use crate::on_error;
 use crate::secret::service::SecretRepository;
 use crate::token::service::TokenService;
@@ -34,7 +34,7 @@ where
     U: 'static + UserRepository + Sync + Send,
     S: 'static + SecretRepository + Sync + Send,
     T: 'static + TokenService + Sync + Send,
-    F: 'static + MfaService + Sync + Send,
+    F: 'static + MultiFactorService + Sync + Send,
 {
     #[instrument(skip(self))]
     async fn login(&self, request: Request<LoginRequest>) -> Result<Response<Empty>, Status> {

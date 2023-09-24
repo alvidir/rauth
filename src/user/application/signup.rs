@@ -2,7 +2,7 @@ use futures::join;
 
 use super::{MailService, UserApplication, UserRepository};
 use crate::cache::Cache;
-use crate::multi_factor::service::MfaService;
+use crate::multi_factor::service::MultiFactorService;
 use crate::token::domain::{Claims, Token, TokenKind};
 use crate::token::service::TokenService;
 use crate::user::domain::{
@@ -14,7 +14,7 @@ impl<U, S, T, F, M, C> UserApplication<U, S, T, F, M, C>
 where
     U: UserRepository,
     T: TokenService,
-    F: MfaService,
+    F: MultiFactorService,
     M: MailService,
     C: Cache,
 {

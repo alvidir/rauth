@@ -1,7 +1,7 @@
 use super::{MailService, UserApplication, UserRepository};
 use crate::cache::Cache;
 use crate::multi_factor::domain::Otp;
-use crate::multi_factor::service::MfaService;
+use crate::multi_factor::service::MultiFactorService;
 use crate::on_error;
 use crate::secret::service::SecretRepository;
 use crate::token::domain::{Token, TokenKind};
@@ -15,7 +15,7 @@ where
     U: UserRepository,
     S: SecretRepository,
     T: TokenService,
-    F: MfaService,
+    F: MultiFactorService,
     M: MailService,
     C: Cache,
 {
@@ -79,10 +79,7 @@ where
 #[cfg(test)]
 mod test {
     use crate::{
-        multi_factor::{
-            domain::{MfaMethod, Otp},
-            service::test::MfaServiceMock,
-        },
+        multi_factor::{domain::Otp, service::test::MultiFactorServiceMock},
         token::{
             domain::{Claims, Payload, Token, TokenKind},
             service::test::TokenServiceMock,
@@ -203,7 +200,7 @@ mod test {
             Ok(())
         });
 
-        let mut multi_factor_srv = MfaServiceMock::default();
+        let mut multi_factor_srv = MultiFactorServiceMock::default();
         multi_factor_srv.verify_fn = Some(|user: &User, otp: Option<&Otp>| {
             assert_eq!(
                 &user.id.to_string(),
@@ -254,7 +251,7 @@ mod test {
             })
         });
 
-        let mut multi_factor_srv = MfaServiceMock::default();
+        let mut multi_factor_srv = MultiFactorServiceMock::default();
         multi_factor_srv.verify_fn = Some(|user: &User, otp: Option<&Otp>| {
             assert_eq!(
                 &user.id.to_string(),
@@ -305,7 +302,7 @@ mod test {
             })
         });
 
-        let mut multi_factor_srv = MfaServiceMock::default();
+        let mut multi_factor_srv = MultiFactorServiceMock::default();
         multi_factor_srv.verify_fn = Some(|user: &User, otp: Option<&Otp>| {
             assert_eq!(
                 &user.id.to_string(),
@@ -334,11 +331,13 @@ mod test {
         assert!(
             matches!(
                 result,
-                Err(Error::Mfa(crate::multi_factor::error::Error::Invalid))
+                Err(Error::MultiFactor(
+                    crate::multi_factor::error::Error::Invalid
+                ))
             ),
             "got result = {:?}, want error = {}",
             result,
-            Error::Mfa(crate::multi_factor::error::Error::Invalid)
+            Error::MultiFactor(crate::multi_factor::error::Error::Invalid)
         );
     }
 
@@ -374,7 +373,7 @@ mod test {
             Ok(())
         });
 
-        let mut multi_factor_srv = MfaServiceMock::default();
+        let mut multi_factor_srv = MultiFactorServiceMock::default();
         multi_factor_srv.verify_fn = Some(|user: &User, otp: Option<&Otp>| {
             assert_eq!(
                 &user.id.to_string(),

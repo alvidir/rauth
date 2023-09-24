@@ -3,8 +3,8 @@ use super::domain::Password;
 use super::error::Error;
 use crate::cache::Cache;
 use crate::grpc;
-use crate::multi_factor::domain::MfaMethod;
-use crate::multi_factor::service::MfaService;
+use crate::multi_factor::domain::MultiFactorMethod;
+use crate::multi_factor::service::MultiFactorService;
 use crate::on_error;
 use crate::secret::service::SecretRepository;
 use crate::token::domain::Token;
@@ -42,7 +42,7 @@ where
     U: 'static + UserRepository + Sync + Send,
     S: 'static + SecretRepository + Sync + Send,
     T: 'static + TokenService + Sync + Send,
-    F: 'static + MfaService + Sync + Send,
+    F: 'static + MultiFactorService + Sync + Send,
     M: 'static + MailService + Sync + Send,
     C: 'static + Cache + Sync + Send,
 {
@@ -167,16 +167,16 @@ where
             .transpose()
             .map_err(Status::from)?;
 
-        let method = MfaMethod::from_str(&request.method)?;
+        let method = MultiFactorMethod::from_str(&request.method)?;
         match Actions::from_i32(request.action).ok_or(Status::invalid_argument("action"))? {
             Actions::Enable => {
                 self.user_app
-                    .enable_mfa_with_token(token, method, password, otp)
+                    .enable_multi_factor_with_token(token, method, password, otp)
                     .await
             }
             Actions::Disable => {
                 self.user_app
-                    .disable_mfa_with_token(token, method, password, otp)
+                    .disable_multi_factor_with_token(token, method, password, otp)
                     .await
             }
         }

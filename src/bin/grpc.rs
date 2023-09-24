@@ -6,10 +6,10 @@ use rauth::{
     cache::RedisCache,
     config,
     multi_factor::{
-        domain::MfaMethod,
-        service::MfaMethodLocator,
-        smtp::MfaSmtp,
-        strategy::{EmailMethod, TpAppMethod},
+        domain::MultiFactorMethod,
+        service::MultiFactorMethodLocator,
+        smtp::MultiFactorSmtp,
+        strategy::{EmailMethod, ThirdPartyAppMethod},
     },
     postgres, redis,
     secret::repository::PostgresSecretRepository,
@@ -75,10 +75,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
         cache: cache.clone(),
     });
 
-    let mut multi_factor_srv = MfaMethodLocator::default();
+    let mut multi_factor_srv = MultiFactorMethodLocator::default();
     multi_factor_srv.methods.insert(
-        MfaMethod::TpApp,
-        Box::new(TpAppMethod {
+        MultiFactorMethod::TpApp,
+        Box::new(ThirdPartyAppMethod {
             ack_timeout: Duration::from_secs(*config::TOKEN_TIMEOUT),
             totp_secret_len: *config::TOTP_SECRET_LEN,
             secret_repo: secret_repo.clone(),
@@ -88,7 +88,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let tera = Arc::new(Tera::new(&smtp::SMTP_TEMPLATES)?);
 
-    let mfa_mail_srv = Arc::new(MfaSmtp {
+    let multi_factor_mail_srv = Arc::new(MultiFactorSmtp {
         smtp: smtp.clone(),
         tera: tera.clone(),
         otp_subject: "",
@@ -96,11 +96,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     });
 
     multi_factor_srv.methods.insert(
-        MfaMethod::Email,
+        MultiFactorMethod::Email,
         Box::new(EmailMethod {
             otp_timeout: Duration::from_secs(*config::TOKEN_TIMEOUT),
             otp_length: *config::TOTP_SECRET_LEN,
-            mail_srv: mfa_mail_srv,
+            mail_srv: multi_factor_mail_srv,
             cache: cache.clone(),
         }),
     );
