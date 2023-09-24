@@ -92,16 +92,21 @@ where
 
         let mut user = Credentials::try_from(credentials_prelude)?.into();
 
-        let (revoke, delete, claims) = join!(
+        let (revoke_token, clean_cache, signup) = join!(
             self.token_srv.revoke(&claims),
             self.cache.delete(claims.payload().subject()),
             self.signup(&mut user)
         );
 
-        revoke
-            .map_err(Error::from)
-            .and(delete.map_err(Into::into))
-            .and(claims)
+        if let Err(error) = revoke_token {
+            error!(error = error.to_string(), "revoking verification token");
+        }
+
+        if let Err(error) = clean_cache {
+            error!(error = error.to_string(), "removing prelude from cache");
+        }
+
+        signup
     }
 
     /// Performs the signup for the given user.
@@ -119,7 +124,7 @@ where
 #[cfg(test)]
 mod test {
     use crate::{
-        cache::Cache,
+        cache::{test::InMemoryCache, Cache},
         token::{
             domain::{Claims, Payload, Token, TokenKind},
             service::test::TokenServiceMock,
@@ -440,6 +445,151 @@ mod test {
             .signup_with_token(token, Some(password))
             .await
             .unwrap();
+
+        assert_eq!(
+            token.payload.kind(),
+            TokenKind::Session,
+            "expected token of the session kind"
+        );
+    }
+
+    #[tokio::test]
+    async fn signup_with_token_when_reboke_fails() {
+        let mut user_repo = UserRepositoryMock::default();
+        user_repo.create_fn = Some(|user: &User| {
+            assert_eq!(
+                user.credentials.email.as_ref(),
+                "username@server.domain",
+                "unexpected email"
+            );
+
+            Ok(())
+        });
+
+        let mut token_srv = TokenServiceMock::default();
+        token_srv.claims_fn = Some(|token: Token| {
+            assert_eq!(token.as_ref(), "abc.abc.abc", "unexpected token");
+
+            Ok(Claims {
+                token,
+                payload: Payload::new(TokenKind::Verification, Duration::from_secs(60))
+                    .with_subject("signup"),
+            })
+        });
+
+        token_srv.issue_fn = Some(|kind: TokenKind, sub: &str| {
+            assert_eq!(kind, TokenKind::Session, "unexpected token kind");
+
+            Ok(Claims {
+                token: "123.123.123".to_string().try_into().unwrap(),
+                payload: Payload::new(kind, Duration::from_secs(60)).with_subject(sub),
+            })
+        });
+
+        let password = Password::try_from("abcABC123&".to_string()).unwrap();
+        let salt = Salt::with_length(32).unwrap();
+        let credentials = CredentialsPrelude {
+            email: Email::try_from("username@server.domain").unwrap(),
+            password: Some(PasswordHash::with_salt(&password, &salt).unwrap()),
+        };
+
+        let mut user_app = new_user_application();
+        user_app
+            .cache
+            .save("signup", credentials, Duration::from_secs(60))
+            .await
+            .unwrap();
+
+        user_app.hash_length = 32;
+        user_app.user_repo = Arc::new(user_repo);
+        user_app.token_srv = Arc::new(token_srv);
+
+        let token = Token::try_from("abc.abc.abc".to_string()).unwrap();
+        let token = user_app.signup_with_token(token, None).await.unwrap();
+
+        assert_eq!(
+            token.payload.kind(),
+            TokenKind::Session,
+            "expected token of the session kind"
+        );
+    }
+
+    #[tokio::test]
+    async fn signup_with_token_when_clean_cache_fails() {
+        let mut user_repo = UserRepositoryMock::default();
+        user_repo.create_fn = Some(|user: &User| {
+            assert_eq!(
+                user.credentials.email.as_ref(),
+                "username@server.domain",
+                "unexpected email"
+            );
+
+            Ok(())
+        });
+
+        let mut token_srv = TokenServiceMock::default();
+        token_srv.claims_fn = Some(|token: Token| {
+            assert_eq!(token.as_ref(), "abc.abc.abc", "unexpected token");
+
+            Ok(Claims {
+                token,
+                payload: Payload::new(TokenKind::Verification, Duration::from_secs(60))
+                    .with_subject("signup"),
+            })
+        });
+
+        token_srv.issue_fn = Some(|kind: TokenKind, sub: &str| {
+            assert_eq!(kind, TokenKind::Session, "unexpected token kind");
+
+            Ok(Claims {
+                token: "123.123.123".to_string().try_into().unwrap(),
+                payload: Payload::new(kind, Duration::from_secs(60)).with_subject(sub),
+            })
+        });
+
+        token_srv.revoke_fn = Some(|claims: &Claims| {
+            assert_eq!(claims.token.as_ref(), "abc.abc.abc", "unexpected token");
+            assert_eq!(
+                claims.payload().kind(),
+                TokenKind::Verification,
+                "unexpected token kind"
+            );
+            assert_eq!(
+                claims.payload().subject(),
+                "signup",
+                "unexpected token subject"
+            );
+            Ok(())
+        });
+
+        let mut cache = InMemoryCache::default();
+        cache.delete_fn = Some(|key: &str| {
+            assert_eq!(key, "signup", "unexpected item key");
+            Err(crate::cache::Error::Debug)
+        });
+
+        let password = Password::try_from("abcABC123&".to_string()).unwrap();
+        let salt = Salt::with_length(32).unwrap();
+        let credentials = CredentialsPrelude {
+            email: Email::try_from("username@server.domain").unwrap(),
+            password: Some(PasswordHash::with_salt(&password, &salt).unwrap()),
+        };
+
+        let mut user_app = new_user_application();
+        user_app.cache = Arc::new(cache);
+
+        user_app
+            .cache
+            .save("signup", credentials, Duration::from_secs(60))
+            .await
+            .unwrap();
+
+        user_app.hash_length = 32;
+        user_app.user_repo = Arc::new(user_repo);
+        user_app.token_srv = Arc::new(token_srv);
+
+        let token = Token::try_from("abc.abc.abc".to_string()).unwrap();
+        let token = user_app.signup_with_token(token, None).await.unwrap();
 
         assert_eq!(
             token.payload.kind(),

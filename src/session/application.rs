@@ -16,6 +16,21 @@ pub struct SessionApplication<U, S, T, F> {
     pub multi_factor_srv: Arc<F>,
 }
 
+impl<U, S, T, F> SessionApplication<U, S, T, F> {
+    #[instrument(skip(token_srv))]
+    pub async fn do_logout<TS>(token_srv: &TS, token: Token) -> Result<()>
+    where
+        TS: TokenService,
+    {
+        let claims = token_srv.claims(token).await?;
+        if !claims.payload().kind().is_session() {
+            return Error::WrongToken.into();
+        }
+
+        token_srv.revoke(&claims).await.map_err(Into::into)
+    }
+}
+
 impl<U, S, T, F> SessionApplication<U, S, T, F>
 where
     U: UserRepository,
@@ -52,12 +67,7 @@ where
 
     #[instrument(skip(self))]
     pub async fn logout(&self, token: Token) -> Result<()> {
-        let claims = self.token_srv.claims(token).await?;
-        if !claims.payload().kind().is_session() {
-            return Error::WrongToken.into();
-        }
-
-        self.token_srv.revoke(&claims).await.map_err(Into::into)
+        Self::do_logout(&*self.token_srv, token).await
     }
 }
 

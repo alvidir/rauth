@@ -27,6 +27,9 @@ pub enum Error {
     #[cfg(feature = "redis-cache")]
     #[error("{0}")]
     Checkout(#[from] reool::CheckoutError),
+    #[cfg(test)]
+    #[error("unexpected error")]
+    Debug,
 }
 
 impl Error {
@@ -145,22 +148,26 @@ pub mod test {
     use crate::on_error;
     use async_trait::async_trait;
     use serde::{de::DeserializeOwned, Serialize};
-    use std::fmt::Debug;
+    use std::fmt::{Debug, Display};
     use std::time::Duration;
     use std::{
         collections::HashMap,
         sync::{Arc, Mutex},
     };
 
+    pub type DeleteFn = fn(key: &str) -> Result<()>;
+
     /// In memory implementation of [`Cache`].
     pub struct InMemoryCache {
         pub values: Arc<Mutex<HashMap<String, String>>>,
+        pub delete_fn: Option<DeleteFn>,
     }
 
     impl Default for InMemoryCache {
         fn default() -> Self {
             Self {
                 values: Arc::new(Mutex::new(HashMap::new())),
+                delete_fn: Default::default(),
             }
         }
     }
@@ -184,7 +191,7 @@ pub mod test {
             serde_json::from_str(&data).map_err(on_error!(Error, "deserializing data from json"))
         }
 
-        async fn save<T>(&self, key: &str, value: T, _expire: Duration) -> Result<()>
+        async fn save<T>(&self, key: &str, value: T, expire: Duration) -> Result<()>
         where
             T: Serialize + Send + Sync + Debug,
         {
@@ -197,6 +204,10 @@ pub mod test {
         }
 
         async fn delete(&self, key: &str) -> Result<()> {
+            if let Some(delete_fn) = self.delete_fn {
+                return delete_fn(key);
+            }
+
             self.values.lock().unwrap().remove(key);
             Ok(())
         }
