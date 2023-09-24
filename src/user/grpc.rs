@@ -25,7 +25,10 @@ use proto::user_server::User;
 pub use proto::user_server::UserServer;
 
 // Proto message structs
-use proto::{mfa_request::Actions, DeleteRequest, Empty, MfaRequest, ResetRequest, SignupRequest};
+use proto::{
+    multi_factor_request::Actions, DeleteRequest, Empty, MultiFactorRequest, ResetPasswordRequest,
+    SignupRequest,
+};
 
 pub struct UserGrpcService<U, S, T, F, M, C> {
     pub user_app: UserApplication<U, S, T, F, M, C>,
@@ -83,7 +86,10 @@ where
     }
 
     #[instrument(skip(self))]
-    async fn reset(&self, request: Request<ResetRequest>) -> Result<Response<Empty>, Status> {
+    async fn reset_password(
+        &self,
+        request: Request<ResetPasswordRequest>,
+    ) -> Result<Response<Empty>, Status> {
         let Some(header) = grpc::header(&request, self.jwt_header).map_err(Status::from)? else {
             let request = request.into_inner();
             let email = request.email.try_into().map_err(Status::from)?;
@@ -141,7 +147,10 @@ where
     }
 
     #[instrument(skip(self))]
-    async fn mfa(&self, request: Request<MfaRequest>) -> Result<Response<Empty>, Status> {
+    async fn multi_factor(
+        &self,
+        request: Request<MultiFactorRequest>,
+    ) -> Result<Response<Empty>, Status> {
         let Some(header) = grpc::header(&request, self.jwt_header).map_err(Status::from)? else {
             return Err(Error::Forbidden).map_err(Into::into);
         };

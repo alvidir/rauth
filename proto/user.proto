@@ -7,7 +7,7 @@ message SignupRequest {
   string password = 2;
 }
 
-message ResetRequest {
+message ResetPasswordRequest {
   string email = 1;
   string new_password = 2;
   string otp = 3;
@@ -18,7 +18,7 @@ message DeleteRequest {
   string otp = 2;
 }
 
-message MfaRequest {
+message MultiFactorRequest {
   enum actions {
     ENABLE = 0;
     DISABLE = 1;
@@ -34,7 +34,7 @@ message Empty {}
 
 service User {
   rpc Signup(SignupRequest) returns (Empty);
-  rpc Reset(ResetRequest) returns (Empty);
+  rpc ResetPassword(ResetPasswordRequest) returns (Empty);
+  rpc MultiFactor(MultiFactorRequest) returns (Empty);
   rpc Delete(DeleteRequest) returns (Empty);
-  rpc Mfa(MfaRequest) returns (Empty);
 }
