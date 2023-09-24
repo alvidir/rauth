@@ -155,15 +155,8 @@ mod test {
             })
         });
 
-        let mut mail_srv = MailServiceMock::default();
-        mail_srv.send_credentials_verification_email_fn = Some(|_: &Email, _: &Token| {
-            assert!(false, "unexpected execution");
-            Err(Error::Debug)
-        });
-
         let mut user_app = new_user_application();
         user_app.user_repo = Arc::new(user_repo);
-        user_app.mail_srv = Arc::new(mail_srv);
 
         let email = Email::try_from("username@server.domain").unwrap();
         let password = Password::try_from("abcABC123&".to_string()).unwrap();
@@ -179,14 +172,7 @@ mod test {
 
     #[tokio::test]
     async fn verify_credentials_when_repository_fails() {
-        let mut mail_srv = MailServiceMock::default();
-        mail_srv.send_credentials_reset_email_fn = Some(|_: &Email, _: &Token| {
-            assert!(false, "unexpected execution");
-            Err(Error::Debug)
-        });
-
-        let mut user_app = new_user_application();
-        user_app.mail_srv = Arc::new(mail_srv);
+        let user_app = new_user_application();
 
         let email = Email::try_from("username@server.domain").unwrap();
         let password = Password::try_from("abcABC123&".to_string()).unwrap();

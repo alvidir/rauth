@@ -90,7 +90,7 @@ where
 
             return self
                 .user_app
-                .confirm_credentials_reset(email)
+                .confirm_password_reset(email)
                 .await
                 .map(|_| Response::new(Empty {}))
                 .map_err(Status::from);
@@ -109,7 +109,7 @@ where
             .map_err(Status::from)?;
 
         self.user_app
-            .reset_credentials_with_token(token, new_password, otp)
+            .reset_password_with_token(token, new_password, otp)
             .await
             .map(|_| Response::new(Empty {}))
             .map_err(Status::from)
