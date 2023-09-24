@@ -79,7 +79,10 @@ where
 #[cfg(test)]
 mod test {
     use crate::{
-        multi_factor::{domain::Otp, service::test::MfaServiceMock},
+        multi_factor::{
+            domain::{MfaMethod, Otp},
+            service::test::MfaServiceMock,
+        },
         token::{
             domain::{Claims, Payload, Token, TokenKind},
             service::test::TokenServiceMock,
@@ -277,6 +280,66 @@ mod test {
             )
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn reset_password_when_multi_factor_fails() {
+        let mut user_repo = UserRepositoryMock::default();
+        user_repo.find_fn = Some(|user_id: UserID| {
+            assert_eq!(
+                &user_id.to_string(),
+                "bca4ec1c-da63-4d73-bad5-a82fc9853828",
+                "unexpected user id"
+            );
+
+            let password = Password::try_from("abcABC123&".to_string()).unwrap();
+            let salt = Salt::with_length(32).unwrap();
+
+            Ok(User {
+                id: UserID::from_str("bca4ec1c-da63-4d73-bad5-a82fc9853828").unwrap(),
+                credentials: Credentials {
+                    email: "username@server.domain".try_into().unwrap(),
+                    password: PasswordHash::with_salt(&password, &salt).unwrap(),
+                },
+                preferences: Preferences::default(),
+            })
+        });
+
+        let mut multi_factor_srv = MfaServiceMock::default();
+        multi_factor_srv.verify_fn = Some(|user: &User, otp: Option<&Otp>| {
+            assert_eq!(
+                &user.id.to_string(),
+                "bca4ec1c-da63-4d73-bad5-a82fc9853828",
+                "unexpected user id"
+            );
+            assert_eq!(otp, None, "unexpected otp");
+            Err(crate::multi_factor::error::Error::Invalid)
+        });
+
+        let mut user_app = new_user_application();
+        user_app.hash_length = 32;
+        user_app.multi_factor_srv = Arc::new(multi_factor_srv);
+        user_app.user_repo = Arc::new(user_repo);
+
+        let new_password = Password::try_from("abcABC1234&".to_string()).unwrap();
+
+        let result = user_app
+            .reset_password(
+                UserID::from_str("bca4ec1c-da63-4d73-bad5-a82fc9853828").unwrap(),
+                new_password,
+                None,
+            )
+            .await;
+
+        assert!(
+            matches!(
+                result,
+                Err(Error::Mfa(crate::multi_factor::error::Error::Invalid))
+            ),
+            "got result = {:?}, want error = {}",
+            result,
+            Error::Mfa(crate::multi_factor::error::Error::Invalid)
+        );
     }
 
     #[tokio::test]

@@ -61,3 +61,51 @@ where
         self.user_repo.delete(&user).await
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::{
+        token::{
+            domain::{Claims, Payload, Token, TokenKind},
+            service::test::TokenServiceMock,
+        },
+        user::{
+            application::test::{new_user_application, UserRepositoryMock},
+            domain::{Credentials, Email, Password, PasswordHash, Preferences, Salt, User, UserID},
+        },
+    };
+    use std::{str::FromStr, sync::Arc, time::Duration};
+
+    #[tokio::test]
+    async fn delete_must_not_fail() {
+        let mut user_repo = UserRepositoryMock::default();
+        user_repo.find_by_email_fn = Some(|email: &Email| {
+            assert_eq!(email.as_ref(), "username@server.domain", "unexpected email");
+
+            let password = Password::try_from("abcABC123&".to_string()).unwrap();
+            let salt = Salt::with_length(32).unwrap();
+
+            Ok(User {
+                id: UserID::from_str("bca4ec1c-da63-4d73-bad5-a82fc9853828").unwrap(),
+                credentials: Credentials {
+                    email: email.clone(),
+                    password: PasswordHash::with_salt(&password, &salt).unwrap(),
+                },
+                preferences: Preferences::default(),
+            })
+        });
+
+        let mut token_srv = TokenServiceMock::default();
+        token_srv.claims_fn = Some(|token: Token| {
+            assert_eq!(token.as_ref(), "abc.abc.abc", "unexpected token");
+            Ok(Claims {
+                token,
+                payload: Payload::new(TokenKind::Session, Duration::from_secs(60))
+                    .with_subject("signup"),
+            })
+        });
+
+        let mut user_app = new_user_application();
+        user_app.user_repo = Arc::new(user_repo);
+    }
+}
