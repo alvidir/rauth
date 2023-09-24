@@ -17,14 +17,15 @@ pub trait MfaService {
     async fn disable(&self, user: &User, otp: Option<&Otp>) -> Result<()>;
 }
 
-/// Implements the [MfaService] as a mfa method router.
+/// Implements the [MfaService] as a mfa method locator that executes the proper method
+/// depending on user's preferences.
 #[derive(Default)]
-pub struct MultiFactor {
+pub struct MfaMethodLocator {
     pub methods: HashMap<MfaMethod, Box<dyn MfaService + Sync + Send>>,
 }
 
 #[async_trait]
-impl MfaService for MultiFactor {
+impl MfaService for MfaMethodLocator {
     async fn verify(&self, user: &User, otp: Option<&Otp>) -> Result<()> {
         let Some(method) = &user.preferences.multi_factor else {
             return Ok(());

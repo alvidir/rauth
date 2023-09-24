@@ -1,21 +1,12 @@
 use super::{User, UserID};
-use crate::event::domain::{Event, EventKind};
-use crate::user::error::{Error, Result};
+use crate::event::domain::EventKind;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Hash, Serialize)]
 pub struct UserEventPayload<'a> {
     pub(super) user_id: UserID,
     pub(super) user_name: &'a str,
     pub(super) user_email: &'a str,
     pub(super) event_kind: EventKind,
-}
-
-impl<'a> TryFrom<UserEventPayload<'a>> for Event {
-    type Error = Error;
-
-    fn try_from(value: UserEventPayload) -> Result<Self> {
-        Event::try_from(value).map_err(Into::into)
-    }
 }
 
 impl<'a> UserEventPayload<'a> {

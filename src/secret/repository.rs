@@ -14,6 +14,8 @@ const QUERY_INSERT_SECRET: &str = "INSERT INTO secrets (owner, kind, data) VALUE
 const QUERY_FIND_SECRET_BY_OWNER_AND_KIND: &str =
     "SELECT id, owner, kind, data FROM secrets WHERE owner = $1 AND kind = $2";
 const QUERY_DELETE_SECRET: &str = "DELETE FROM secrets WHERE owner = $1 AND kind = $2";
+const QUERY_DELETE_SECRET_BY_OWNER_AND_KIND: &str =
+    "DELETE FROM secrets WHERE owner = $1 AND kind = $2";
 const QUERY_DELETE_SECRET_BY_OWNER: &str = "DELETE FROM secrets WHERE owner = $1";
 
 type PostgresSecretRow = (String, String, String); // owner, kind, data
@@ -80,7 +82,7 @@ impl<'a> PostgresSecretRepository<'a> {
         sqlx::query(QUERY_DELETE_SECRET)
             .bind(secret.owner.to_string())
             .bind(secret.kind.as_ref())
-            .fetch_one(executor)
+            .execute(executor)
             .await
             .map_err(on_error!(Error, "performing delete query on postgres"))?;
 
@@ -88,7 +90,28 @@ impl<'a> PostgresSecretRepository<'a> {
     }
 
     #[instrument(skip(executor))]
-    async fn delete_by_owner<'b, E>(executor: E, owner: &User) -> Result<()>
+    pub async fn delete_by_owner_and_kind<'b, E>(
+        executor: E,
+        owner: UserID,
+        kind: SecretKind,
+    ) -> Result<()>
+    where
+        E: PgExecutor<'b>,
+    {
+        sqlx::query(QUERY_DELETE_SECRET_BY_OWNER_AND_KIND)
+            .bind(owner.to_string())
+            .bind(kind.as_ref())
+            .execute(executor)
+            .await
+            .map_err(on_query_error!(
+                "performing delete by owner and kind query on postgres"
+            ))?;
+
+        Ok(())
+    }
+
+    #[instrument(skip(executor))]
+    pub async fn delete_by_owner<'b, E>(executor: E, owner: &User) -> Result<()>
     where
         E: PgExecutor<'b>,
     {

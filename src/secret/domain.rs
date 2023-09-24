@@ -18,12 +18,22 @@ pub struct Secret {
 }
 
 impl Secret {
+    /// Returns a brand new secret with the given data.
     pub fn new(kind: SecretKind, owner: &User, data: &[u8]) -> Self {
         Secret {
             owner: owner.id,
             kind,
             data: data.to_vec(),
         }
+    }
+
+    /// Returns the Salt secret corresponding to the given user.
+    pub fn new_salt(owner: &User) -> Self {
+        Secret::new(
+            SecretKind::Salt,
+            owner,
+            owner.credentials.password.salt().as_ref(),
+        )
     }
 
     /// Returns an immutable reference to the secret's data.

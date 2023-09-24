@@ -138,18 +138,10 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
             .await
             .map_err(on_error!(Error, "performing insert user query on postgres"))?;
 
-        let secret = Secret::new(
-            SecretKind::Salt,
-            user,
-            user.credentials.password.salt().as_ref(),
-        );
-
-        PostgresSecretRepository::create(&mut *tx, &secret).await?;
-        PostgresEventRepository::create(
-            &mut *tx,
-            &UserEventPayload::new(EventKind::Created, user).try_into()?,
-        )
-        .await?;
+        let salt = Secret::new_salt(user);
+        PostgresSecretRepository::create(&mut *tx, &salt).await?;
+        PostgresEventRepository::create(&mut *tx, UserEventPayload::new(EventKind::Created, user))
+            .await?;
 
         tx.commit()
             .await
@@ -159,6 +151,12 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
     }
 
     async fn save(&self, user: &User) -> Result<()> {
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(on_error!(Error, "starting postgres transaction"))?;
+
         sqlx::query(QUERY_UPDATE_USER)
             .bind(user.credentials.email.username())
             .bind(user.credentials.email.as_ref())
@@ -171,11 +169,20 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
                     .map(ToString::to_string),
             )
             .bind(user.id.to_string())
-            .execute(self.pool)
+            .execute(&mut *tx)
             .await
             .map_err(on_error!(Error, "performing update user query on postgres"))?;
 
-        // TODO: Update the password's salt if has changed.
+        PostgresSecretRepository::delete_by_owner_and_kind(&mut *tx, user.id, SecretKind::Salt)
+            .await?;
+
+        let salt = Secret::new_salt(user);
+        PostgresSecretRepository::create(&mut *tx, &salt).await?;
+
+        tx.commit()
+            .await
+            .map_err(on_error!(Error, "commiting postgres transaction"))?;
+
         Ok(())
     }
 
@@ -192,11 +199,8 @@ impl<'a> UserRepository for PostgresUserRepository<'a> {
             .await
             .map_err(on_error!(Error, "performing delete query on postgres"))?;
 
-        PostgresEventRepository::create(
-            &mut *tx,
-            &UserEventPayload::new(EventKind::Deleted, user).try_into()?,
-        )
-        .await?;
+        PostgresEventRepository::create(&mut *tx, UserEventPayload::new(EventKind::Deleted, user))
+            .await?;
 
         tx.commit()
             .await

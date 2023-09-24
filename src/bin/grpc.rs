@@ -7,7 +7,7 @@ use rauth::{
     config,
     mfa::{
         domain::MfaMethod,
-        service::MultiFactor,
+        service::MfaMethodLocator,
         smtp::MfaSmtp,
         strategy::{EmailMethod, TpAppMethod},
     },
@@ -75,7 +75,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         cache: cache.clone(),
     });
 
-    let mut multi_factor_srv = MultiFactor::default();
+    let mut multi_factor_srv = MfaMethodLocator::default();
     multi_factor_srv.methods.insert(
         MfaMethod::TpApp,
         Box::new(TpAppMethod {
