@@ -17,7 +17,7 @@ use std::str::FromStr;
 use uuid::Uuid;
 
 /// Represents the universal unique id of a user.
-#[derive(Debug, Clone, Copy, Hash, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, Serialize, Deserialize)]
 pub struct UserID(
     #[serde(
         serialize_with = "uuid_as_string",

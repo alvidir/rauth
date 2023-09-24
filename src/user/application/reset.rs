@@ -309,7 +309,11 @@ mod test {
                 "bca4ec1c-da63-4d73-bad5-a82fc9853828",
                 "unexpected user id"
             );
-            assert_eq!(otp, None, "unexpected otp");
+            assert_eq!(
+                otp,
+                Some(&"123456".to_string().try_into().unwrap()),
+                "unexpected otp"
+            );
             Err(crate::multi_factor::error::Error::Invalid)
         });
 
@@ -324,7 +328,7 @@ mod test {
             .reset_password(
                 UserID::from_str("bca4ec1c-da63-4d73-bad5-a82fc9853828").unwrap(),
                 new_password,
-                None,
+                Some("123456".to_string().try_into().unwrap()),
             )
             .await;
 
