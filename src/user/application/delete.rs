@@ -19,7 +19,7 @@ where
     M: MailService,
     C: Cache,
 {
-    /// Given a valid session token and passwords, performs the deletion of the user.
+    /// Given a valid session token and credentials, performs the deletion of the corresponding user.
     #[instrument(skip(self, password, otp))]
     pub async fn delete_with_token(
         &self,
@@ -27,6 +27,7 @@ where
         password: Password,
         otp: Option<Otp>,
     ) -> Result<()> {
+        // TODO: use a decorator (proc-macro) to check this.
         let claims = self.token_srv.claims(token).await?;
         if !claims.payload().kind().is_session() {
             return Error::WrongToken.into();
@@ -44,7 +45,7 @@ where
         self.delete(user_id, password, otp).await
     }
 
-    /// Given a valid user ID and passwords, performs the deletion of the corresponding user.
+    /// Given a valid user ID and credentials, performs the deletion of the corresponding user.
     #[instrument(skip(self, password, otp))]
     pub async fn delete(
         &self,
