@@ -12,20 +12,20 @@ pub trait TokenHeader: Header {
     fn token(self) -> Token;
 }
 
-pub struct SessionRestService<T, H> {
+pub struct TokenRestService<T, H> {
     pub token_srv: Arc<T>,
     pub token_header: PhantomData<H>,
 }
 
-impl<T, H> SessionRestService<T, H>
+impl<T, H> TokenRestService<T, H>
 where
     T: 'static + TokenService + Sync + Send,
     H: 'static + TokenHeader + Sync + Send,
 {
     pub fn router(
         &self,
-        router: Router<Arc<SessionRestService<T, H>>>,
-    ) -> Router<Arc<SessionRestService<T, H>>> {
+        router: Router<Arc<TokenRestService<T, H>>>,
+    ) -> Router<Arc<TokenRestService<T, H>>> {
         router
             .route("/token", get(Self::verify))
             .route("/token", delete(Self::revoke))

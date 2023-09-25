@@ -154,7 +154,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .add_service(UserServer::new(user_grpc_service))
         .add_service(SessionServer::new(session_grpc_service))
         .serve(addr)
-        .await?;
+        .await
+        .unwrap();
 
     tracer::shutdown();
     Ok(())
