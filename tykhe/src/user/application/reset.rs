@@ -36,7 +36,7 @@ where
     }
 
     /// Given a valid reset token and one-time password, if needed, resets the password of the corresponding user by the given new_password.
-    #[with_token(Reset)]
+    #[with_token(kind(Reset))]
     #[instrument(skip(self, new_password, otp))]
     pub async fn reset_password_with_token(
         &self,

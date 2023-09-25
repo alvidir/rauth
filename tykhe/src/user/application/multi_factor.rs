@@ -19,7 +19,7 @@ where
     M: MailService,
     C: Cache,
 {
-    #[with_token(Session)]
+    #[with_token(kind(Session))]
     #[instrument(skip(self, password, otp))]
     pub async fn enable_multi_factor_with_token(
         &self,
@@ -56,7 +56,7 @@ where
         self.user_repo.save(&user).await.map_err(Into::into)
     }
 
-    #[with_token(Session)]
+    #[with_token(kind(Session))]
     #[instrument(skip(self, password, otp))]
     pub async fn disable_multi_factor_with_token(
         &self,

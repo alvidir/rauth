@@ -52,7 +52,7 @@ where
             .map_err(Into::into)
     }
 
-    #[with_token(Session)]
+    #[with_token(kind(Session))]
     #[instrument(skip(self))]
     pub async fn logout(&self, token: Token) -> Result<()> {
         self.token_srv.revoke(&claims).await.map_err(Into::into)

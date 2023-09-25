@@ -1,5 +1,3 @@
-use futures::join;
-
 use super::{MailService, UserApplication, UserRepository};
 use crate::cache::Cache;
 use crate::multi_factor::service::MultiFactorService;
@@ -9,6 +7,7 @@ use crate::user::domain::{
     Credentials, CredentialsPrelude, Email, Password, PasswordHash, Salt, User,
 };
 use crate::user::error::{Error, Result};
+use futures::join;
 
 impl<U, S, T, F, M, C> UserApplication<U, S, T, F, M, C>
 where
@@ -63,18 +62,13 @@ where
     /// Given a valid verification token, performs the signup of the corresponding user.
     /// The password field is mandatory if, and only if, no password was provided when verifying credentials. Otherwise
     /// that field will be ignored, since any cached value has priority.
+    #[with_token(kind(Verification), no_user_id)]
     #[instrument(skip(self))]
     pub async fn signup_with_token(
         &self,
         token: Token,
         password: Option<Password>,
     ) -> Result<Claims> {
-        // TODO: use a decorator (proc-macro) to check this.
-        let claims = self.token_srv.claims(token).await?;
-        if !claims.payload().kind().is_verification() {
-            return Error::WrongToken.into();
-        }
-
         let mut credentials_prelude = self
             .cache
             .find(claims.payload().subject())

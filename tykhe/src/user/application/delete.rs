@@ -20,7 +20,7 @@ where
     C: Cache,
 {
     /// Given a valid session token and credentials, performs the deletion of the corresponding user.
-    #[with_token(Session)]
+    #[with_token(kind(Session))]
     #[instrument(skip(self, password, otp))]
     pub async fn delete_with_token(
         &self,
