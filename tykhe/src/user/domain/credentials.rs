@@ -14,18 +14,6 @@ pub struct CredentialsPrelude {
 }
 
 impl CredentialsPrelude {
-    pub fn new(email: Email) -> Self {
-        CredentialsPrelude {
-            password: None,
-            email,
-        }
-    }
-
-    pub fn with_password(mut self, password: PasswordHash) -> Self {
-        self.password = Some(password);
-        self
-    }
-
     /// Returns the result of hashing self.
     pub fn hash(&self) -> u64 {
         let mut hasher = DefaultHasher::new();
@@ -53,11 +41,5 @@ impl TryFrom<CredentialsPrelude> for Credentials {
             email: prelude.email,
             password: password_hash,
         })
-    }
-}
-
-impl Credentials {
-    pub fn new(email: Email, password: PasswordHash) -> Self {
-        Credentials { email, password }
     }
 }

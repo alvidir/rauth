@@ -98,6 +98,7 @@ impl User {
 
 #[cfg(test)]
 mod test {
+    use super::UserID;
     use crate::user::domain::{Credentials, Email, Password, PasswordHash, Salt, User};
 
     #[test]
@@ -106,7 +107,10 @@ mod test {
         let password = Password::try_from("abcABC123&".to_string()).unwrap();
         let salt = Salt::with_length(128).unwrap();
         let hash = PasswordHash::with_salt(&password, &salt).unwrap();
-        let credentials = Credentials::new(email, hash);
+        let credentials = Credentials {
+            email,
+            password: hash,
+        };
         let user = User::from(credentials);
 
         assert!(
@@ -119,5 +123,14 @@ mod test {
             !user.password_matches(&fake_password).unwrap(),
             "comparing password with wrong hash"
         );
+    }
+
+    #[test]
+    fn user_id_serde() {
+        let want = UserID::default();
+        let json = serde_json::to_string(&want).unwrap();
+        let got: UserID = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(got, want, "serde ends up with different values");
     }
 }
