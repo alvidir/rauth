@@ -18,20 +18,6 @@ pub enum TokenKind {
     Reset,
 }
 
-impl TokenKind {
-    pub fn is_session(&self) -> bool {
-        matches!(self, TokenKind::Session)
-    }
-
-    pub fn is_verification(&self) -> bool {
-        matches!(self, TokenKind::Verification)
-    }
-
-    pub fn is_reset(&self) -> bool {
-        matches!(self, TokenKind::Reset)
-    }
-}
-
 /// Represents the payload of a JWT, containing the claims.
 #[derive(Debug, Hash, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Payload {
@@ -185,7 +171,7 @@ pub mod tests {
     use crate::token::{domain::Token, error::Error};
 
     use super::{Payload, TokenKind};
-    use std::time::{Duration, SystemTime};
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
     use strum::IntoEnumIterator;
 
     #[test]
@@ -282,5 +268,23 @@ pub mod tests {
                 );
             }
         })
+    }
+
+    #[test]
+    fn payload_serde() {
+        let want = Payload {
+            jti: "json web token id".to_string(),
+            iss: "issuer".to_string(),
+            sub: "subject".to_string(),
+            exp: UNIX_EPOCH,
+            nbf: UNIX_EPOCH,
+            iat: UNIX_EPOCH,
+            knd: TokenKind::Session,
+        };
+
+        let json = serde_json::to_string(&want).unwrap();
+        let got: Payload = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(got, want, "serde ends up with different values");
     }
 }
