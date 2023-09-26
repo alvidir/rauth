@@ -59,15 +59,15 @@ where
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::{
-        multi_factor::{domain::Otp, service::test::MultiFactorServiceMock},
+        multi_factor::{domain::Otp, service::tests::MultiFactorServiceMock},
         token::{
             domain::{Claims, Payload, Token, TokenKind},
-            service::test::TokenServiceMock,
+            service::tests::TokenServiceMock,
         },
         user::{
-            application::test::{new_user_application, MailServiceMock, UserRepositoryMock},
+            application::tests::{new_user_application, MailServiceMock, UserRepositoryMock},
             domain::{Credentials, Email, Password, PasswordHash, Preferences, Salt, User, UserID},
             error::Error,
         },

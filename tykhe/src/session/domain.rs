@@ -21,7 +21,7 @@ impl TryFrom<String> for Identity {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::session::domain::Identity;
 
     #[test]

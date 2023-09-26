@@ -20,12 +20,12 @@ pub trait MultiFactorService {
 /// Implements the [MultiFactorMethod] as a multi factor method locator that executes the proper method
 /// depending on user's preferences.
 #[derive(Default)]
-pub struct MultiFactorMethodLocator {
+pub struct MultiFactor {
     pub methods: HashMap<MultiFactorMethod, Box<dyn MultiFactorService + Sync + Send>>,
 }
 
 #[async_trait]
-impl MultiFactorService for MultiFactorMethodLocator {
+impl MultiFactorService for MultiFactor {
     async fn verify(&self, user: &User, otp: Option<&Otp>) -> Result<()> {
         let Some(method) = &user.preferences.multi_factor else {
             return Ok(());
@@ -64,7 +64,7 @@ impl MultiFactorService for MultiFactorMethodLocator {
 }
 
 #[cfg(test)]
-pub(crate) mod test {
+pub(crate) mod tests {
     use super::MultiFactorService;
     use crate::multi_factor::error::{Error, Result};
     use crate::{multi_factor::domain::Otp, user::domain::User};

@@ -97,7 +97,7 @@ impl User {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::UserID;
     use crate::user::domain::{Credentials, Email, Password, PasswordHash, Salt, User};
 

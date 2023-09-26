@@ -7,7 +7,7 @@ use rauth::{
     config,
     multi_factor::{
         domain::MultiFactorMethod,
-        service::MultiFactorMethodLocator,
+        service::MultiFactor,
         smtp::MultiFactorSmtp,
         strategy::{EmailMethod, ThirdPartyAppMethod},
     },
@@ -75,7 +75,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         cache: cache.clone(),
     });
 
-    let mut multi_factor_srv = MultiFactorMethodLocator::default();
+    let mut multi_factor_srv = MultiFactor::default();
     multi_factor_srv.methods.insert(
         MultiFactorMethod::TpApp,
         Box::new(ThirdPartyAppMethod {

@@ -11,7 +11,7 @@ use once_cell::sync::Lazy;
 use std::env;
 use std::num::ParseIntError;
 
-const DEFAULT_TEMPLATES_PATH: &str = "/etc/rauth/smtp/templates/*.html";
+const DEFAULT_TEMPLATES_PATH: &str = "/etc/tykhe/smtp/templates/*.html";
 const DEFAULT_VERIFICATION_SUBJECT: &str = "Email verification";
 const DEFAULT_VERIFICATION_TEMPLATE: &str = "verification_email.html";
 const DEFAULT_RESET_SUBJECT: &str = "Reset password";

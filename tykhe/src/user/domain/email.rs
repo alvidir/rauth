@@ -65,7 +65,7 @@ impl Email {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::Email;
     use crate::user::error::Result;
 

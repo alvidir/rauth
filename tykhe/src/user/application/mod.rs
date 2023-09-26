@@ -35,13 +35,13 @@ pub struct UserApplication<U, S, T, F, M, C> {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::{MailService, UserApplication, UserRepository};
     use crate::{
-        cache::test::InMemoryCache,
-        multi_factor::service::test::MultiFactorServiceMock,
-        secret::service::test::SecretRepositoryMock,
-        token::{domain::Token, service::test::TokenServiceMock},
+        cache::tests::InMemoryCache,
+        multi_factor::service::tests::MultiFactorServiceMock,
+        secret::service::tests::SecretRepositoryMock,
+        token::{domain::Token, service::tests::TokenServiceMock},
         user::{
             domain::{Email, User, UserID},
             error::{Error, Result},

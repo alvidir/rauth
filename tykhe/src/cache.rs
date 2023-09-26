@@ -143,7 +143,7 @@ mod redis_cache {
 }
 
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use super::{Cache, Error, Result};
     use crate::macros::on_error;
     use async_trait::async_trait;

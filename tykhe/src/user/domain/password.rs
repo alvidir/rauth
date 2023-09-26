@@ -128,7 +128,7 @@ impl Salt {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::{Password, PasswordHash};
     use crate::user::{domain::Salt, error::Error};
 

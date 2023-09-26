@@ -181,7 +181,7 @@ impl Claims {
 }
 
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use crate::token::{domain::Token, error::Error};
 
     use super::{Payload, TokenKind};

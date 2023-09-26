@@ -64,7 +64,7 @@ pub static TOKEN_ISSUER: Lazy<String> =
     Lazy::new(|| env::var(ENV_TOKEN_ISSUER).expect("token issuer must be set"));
 
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::config::{
         DEFAULT_ADDR, DEFAULT_JWT_HEADER, DEFAULT_PORT, DEFAULT_TOKEN_TIMEOUT, DEFAULT_TOTP_HEADER,
         DEFAULT_TOTP_SECRET_LEN, JWT_HEADER, SERVICE_ADDR, TOKEN_ISSUER, TOKEN_TIMEOUT,

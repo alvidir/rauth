@@ -120,7 +120,7 @@ where
 }
 
 #[cfg(test)]
-pub(crate) mod test {
+pub(crate) mod tests {
     use async_trait::async_trait;
 
     use super::TokenService;
@@ -165,7 +165,7 @@ pub(crate) mod test {
 }
 
 // #[cfg(test)]
-// pub mod test {
+// pub mod tests {
 // use super::JsonWebTokenService;
 // use crate::cache::tests::InMemoryCache;
 // use crate::token::domain::{Token, TokenKind};

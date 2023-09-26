@@ -12,7 +12,7 @@ pub trait SecretRepository {
 }
 
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use super::super::domain::Secret;
     use super::super::error::{Error, Result};
     use super::SecretRepository;
