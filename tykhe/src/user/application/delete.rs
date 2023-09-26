@@ -77,7 +77,7 @@ mod test {
     use std::{str::FromStr, sync::Arc, time::Duration};
 
     #[tokio::test]
-    async fn delete_must_not_fail() {
+    async fn delete() {
         let mut user_repo = UserRepositoryMock::default();
         user_repo.find_fn = Some(|user_id: UserID| {
             assert_eq!(
@@ -302,7 +302,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn delete_with_token_must_not_fail() {
+    async fn delete_with_token() {
         let mut token_srv = TokenServiceMock::default();
         token_srv.claims_fn = Some(|token: Token| {
             assert_eq!(token.as_ref(), "abc.abc.abc", "unexpected token");

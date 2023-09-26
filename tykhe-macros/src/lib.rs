@@ -59,7 +59,7 @@ pub fn derive_with_token_fn(metadata: TokenStream, input: TokenStream) -> TokenS
 
     let mut replica_fn = input_fn.clone();
 
-    // prefix the funtion name
+    // add sufix to the funtion name
     let fn_name: String = vec![&replica_fn.sig.ident.to_string(), "_with_token"].concat();
     replica_fn.sig.ident = Ident::new(&fn_name, Span::call_site());
 

@@ -75,7 +75,7 @@ mod test {
     use std::{str::FromStr, sync::Arc, time::Duration};
 
     #[tokio::test]
-    async fn confirm_password_reset_must_not_fail() {
+    async fn confirm_password_reset() {
         let mut user_repo = UserRepositoryMock::default();
         user_repo.find_by_email_fn = Some(|email: &Email| {
             assert_eq!(email.as_ref(), "username@server.domain", "unexpected email");
@@ -151,7 +151,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn reset_password_must_not_fail() {
+    async fn reset_password() {
         let mut user_repo = UserRepositoryMock::default();
         user_repo.find_fn = Some(|user_id: UserID| {
             assert_eq!(
@@ -211,7 +211,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn reset_password_when_new_is_same_as_before_must_not_fail() {
+    async fn reset_password_when_new_is_same_as_before() {
         let mut user_repo = UserRepositoryMock::default();
         user_repo.find_fn = Some(|user_id: UserID| {
             assert_eq!(
@@ -328,7 +328,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn reset_password_with_token_must_not_fail() {
+    async fn reset_password_with_token() {
         let mut user_repo = UserRepositoryMock::default();
         user_repo.find_fn = Some(|user_id: UserID| {
             assert_eq!(

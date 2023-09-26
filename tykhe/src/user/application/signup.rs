@@ -186,7 +186,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn verify_complete_credentials_must_not_fail() {
+    async fn verify_complete_credentials() {
         let mut user_repo = UserRepositoryMock::default();
         user_repo.find_by_email_fn = Some(|_: &Email| Err(Error::NotFound));
 
@@ -243,7 +243,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn verify_uncomplete_credentials_must_not_fail() {
+    async fn verify_uncomplete_credentials() {
         let mut user_repo = UserRepositoryMock::default();
         user_repo.find_by_email_fn = Some(|_: &Email| Err(Error::NotFound));
 
@@ -294,7 +294,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn signup_with_token_and_complete_credentials_must_not_fail() {
+    async fn signup_with_token_and_complete_credentials() {
         let mut user_repo = UserRepositoryMock::default();
         user_repo.create_fn = Some(|user: &User| {
             assert_eq!(
@@ -370,7 +370,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn signup_with_token_and_uncomplete_credentials_must_not_fail() {
+    async fn signup_with_token_and_uncomplete_credentials() {
         let mut user_repo = UserRepositoryMock::default();
         user_repo.create_fn = Some(|user: &User| {
             assert_eq!(
@@ -708,7 +708,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn signup_must_not_fail() {
+    async fn signup() {
         let mut user_repo = UserRepositoryMock::default();
         user_repo.create_fn = Some(|user: &User| {
             assert_eq!(&user.id.to_string(), "bca4ec1c-da63-4d73-bad5-a82fc9853828");
