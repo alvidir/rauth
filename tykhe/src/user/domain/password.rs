@@ -129,8 +129,8 @@ impl Salt {
 
 #[cfg(test)]
 mod tests {
-    use super::{Password, PasswordHash};
-    use crate::user::{domain::Salt, error::Error};
+    use super::{Password, PasswordHash, Salt};
+    use crate::user::error::Error;
 
     #[test]
     fn password_hash_matches() {
@@ -298,5 +298,18 @@ mod tests {
                 );
             }
         })
+    }
+
+    #[test]
+    fn password_hash_with_salt_when_argon_fails() {
+        let password = Password("".to_string());
+        let salt = Salt("".to_string());
+
+        let result = PasswordHash::with_salt(&password, &salt);
+        assert!(
+            matches!(result, Err(Error::Argon(_))),
+            "got result = {:?}, want argon error",
+            result,
+        );
     }
 }
