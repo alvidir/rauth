@@ -19,19 +19,7 @@ where
     M: MailService,
     C: Cache,
 {
-    #[with_token(kind(Session))]
-    #[instrument(skip(self, password, otp))]
-    pub async fn enable_multi_factor_with_token(
-        &self,
-        token: Token,
-        method: MultiFactorMethod,
-        password: Password,
-        otp: Option<Otp>,
-    ) -> Result<()> {
-        self.enable_multi_factor(user_id, method, password, otp)
-            .await
-    }
-
+    #[derive_with_token_fn(kind(Session), skip(user_id))]
     #[instrument(skip(self, password, otp))]
     pub async fn enable_multi_factor(
         &self,
@@ -56,19 +44,7 @@ where
         self.user_repo.save(&user).await.map_err(Into::into)
     }
 
-    #[with_token(kind(Session))]
-    #[instrument(skip(self, password, otp))]
-    pub async fn disable_multi_factor_with_token(
-        &self,
-        token: Token,
-        method: MultiFactorMethod,
-        password: Password,
-        otp: Option<Otp>,
-    ) -> Result<()> {
-        self.disable_multi_factor(user_id, method, password, otp)
-            .await
-    }
-
+    #[derive_with_token_fn(kind(Session), skip(user_id))]
     #[instrument(skip(self, password, otp))]
     pub async fn disable_multi_factor(
         &self,

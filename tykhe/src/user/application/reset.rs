@@ -35,19 +35,8 @@ where
         Ok(())
     }
 
-    /// Given a valid reset token and one-time password, if needed, resets the password of the corresponding user by the given new_password.
-    #[with_token(kind(Reset))]
-    #[instrument(skip(self, new_password, otp))]
-    pub async fn reset_password_with_token(
-        &self,
-        token: Token,
-        new_password: Password,
-        otp: Option<Otp>,
-    ) -> Result<()> {
-        self.reset_password(user_id, new_password, otp).await
-    }
-
     /// Given a valid user ID and one-time password, if needed, resets the password of the corresponding user by the given new_password.
+    #[derive_with_token_fn(kind(Reset), skip(user_id))]
     #[instrument(skip(self, new_password, otp))]
     pub async fn reset_password(
         &self,
