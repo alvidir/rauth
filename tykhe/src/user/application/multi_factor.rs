@@ -336,36 +336,6 @@ mod tests {
 
     #[tokio::test]
     async fn enable_multi_factor_with_token_when_invalid_token() {
-        let mut user_repo = UserRepositoryMock::default();
-        user_repo.find_fn = Some(|user_id: UserID| {
-            assert_eq!(
-                &user_id.to_string(),
-                "bca4ec1c-da63-4d73-bad5-a82fc9853828",
-                "unexpected user id"
-            );
-
-            let password = Password::try_from("abcABC123&".to_string()).unwrap();
-            let salt = Salt::with_length(32).unwrap();
-
-            Ok(User {
-                id: UserID::from_str("bca4ec1c-da63-4d73-bad5-a82fc9853828").unwrap(),
-                credentials: Credentials {
-                    email: "username@server.domain".try_into().unwrap(),
-                    password: PasswordHash::with_salt(&password, &salt).unwrap(),
-                },
-                preferences: Preferences::default(),
-            })
-        });
-
-        user_repo.save_fn = Some(|user: &User| {
-            assert_eq!(
-                &user.id.to_string(),
-                "bca4ec1c-da63-4d73-bad5-a82fc9853828",
-                "unexpected user id"
-            );
-            Ok(())
-        });
-
         let mut token_srv = TokenServiceMock::default();
         token_srv.claims_fn = Some(|token: Token| {
             assert_eq!(token.as_ref(), "abc.abc.abc", "unexpected token");
@@ -377,28 +347,7 @@ mod tests {
             })
         });
 
-        let mut multi_factor_srv = MultiFactorServiceMock::default();
-        multi_factor_srv.enable_fn = Some(|user: &User, otp: Option<&Otp>| {
-            assert_eq!(
-                &user.id.to_string(),
-                "bca4ec1c-da63-4d73-bad5-a82fc9853828",
-                "unexpected user id"
-            );
-
-            assert_eq!(
-                user.preferences.multi_factor,
-                Some(MultiFactorMethod::Email),
-                "unexpected mfa method"
-            );
-
-            let want_otp: Otp = "123456".to_string().try_into().unwrap();
-            assert_eq!(otp, Some(want_otp).as_ref(), "unexpected otp");
-            Ok(())
-        });
-
         let mut user_app = new_user_application();
-        user_app.multi_factor_srv = Arc::new(multi_factor_srv);
-        user_app.user_repo = Arc::new(user_repo);
         user_app.token_srv = Arc::new(token_srv);
 
         let token: Token = "abc.abc.abc".to_string().try_into().unwrap();
@@ -778,29 +727,6 @@ mod tests {
 
     #[tokio::test]
     async fn disable_multi_factor_with_token_when_invalid_token() {
-        let mut user_repo = UserRepositoryMock::default();
-        user_repo.find_fn = Some(|user_id: UserID| {
-            assert_eq!(
-                &user_id.to_string(),
-                "bca4ec1c-da63-4d73-bad5-a82fc9853828",
-                "unexpected user id"
-            );
-
-            let password = Password::try_from("abcABC123&".to_string()).unwrap();
-            let salt = Salt::with_length(32).unwrap();
-
-            Ok(User {
-                id: UserID::from_str("bca4ec1c-da63-4d73-bad5-a82fc9853828").unwrap(),
-                credentials: Credentials {
-                    email: "username@server.domain".try_into().unwrap(),
-                    password: PasswordHash::with_salt(&password, &salt).unwrap(),
-                },
-                preferences: Preferences {
-                    multi_factor: Some(MultiFactorMethod::Email),
-                },
-            })
-        });
-
         let mut token_srv = TokenServiceMock::default();
         token_srv.claims_fn = Some(|token: Token| {
             assert_eq!(token.as_ref(), "abc.abc.abc", "unexpected token");
@@ -813,7 +739,6 @@ mod tests {
         });
 
         let mut user_app = new_user_application();
-        user_app.user_repo = Arc::new(user_repo);
         user_app.token_srv = Arc::new(token_srv);
 
         let token: Token = "abc.abc.abc".to_string().try_into().unwrap();
